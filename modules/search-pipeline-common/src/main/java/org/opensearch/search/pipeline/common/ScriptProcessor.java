@@ -91,7 +91,7 @@ public final class ScriptProcessor extends AbstractProcessor implements SearchRe
             searchScript = precompiledSearchScript;
         }
         // execute the script with the search request in context
-        searchScript.execute(Map.of("source", new SearchRequestMap(request)));
+        searchScript.execute(Map.of("_source", new SearchRequestMap(request)));
         return request;
     }
 

@@ -44,12 +44,12 @@ public class SearchRequestMapTests extends AbstractBuilderTestCase {
         assertEquals(20, map.get("size"));
         assertEquals(true, map.get("explain"));
         assertEquals(true, map.get("version"));
-        assertEquals(true, map.get("seqNoAndPrimaryTerm"));
-        assertEquals(true, map.get("trackScores"));
-        assertEquals(3, map.get("trackTotalHitsUpTo"));
-        assertEquals(1.0f, map.get("minScore"));
+        assertEquals(true, map.get("seq_no_primary_term"));
+        assertEquals(true, map.get("track_scores"));
+        assertEquals(3, map.get("track_total_hits"));
+        assertEquals(1.0f, map.get("min_score"));
         assertEquals(new TimeValue(60, TimeUnit.SECONDS), map.get("timeout"));
-        assertEquals(5, map.get("terminateAfter"));
+        assertEquals(5, map.get("terminate_after"));
     }
 
     public void testPut() {
@@ -71,20 +71,20 @@ public class SearchRequestMapTests extends AbstractBuilderTestCase {
         assertNull(map.put("version", true));
         assertEquals(true, map.get("version"));
 
-        assertNull(map.put("seqNoAndPrimaryTerm", true));
-        assertEquals(true, map.get("seqNoAndPrimaryTerm"));
+        assertNull(map.put("seq_no_primary_term", true));
+        assertEquals(true, map.get("seq_no_primary_term"));
 
-        assertEquals(false, map.put("trackScores", true));
-        assertEquals(true, map.get("trackScores"));
+        assertEquals(false, map.put("track_scores", true));
+        assertEquals(true, map.get("track_scores"));
 
-        assertNull(map.put("trackTotalHitsUpTo", 3));
-        assertEquals(3, map.get("trackTotalHitsUpTo"));
+        assertNull(map.put("track_total_hits", 3));
+        assertEquals(3, map.get("track_total_hits"));
 
-        assertNull(map.put("minScore", 1.0f));
-        assertEquals(1.0f, map.get("minScore"));
+        assertNull(map.put("min_score", 1.0f));
+        assertEquals(1.0f, map.get("min_score"));
 
-        assertEquals(0, map.put("terminateAfter", 5));
-        assertEquals(5, map.get("terminateAfter"));
+        assertEquals(0, map.put("terminate_after", 5));
+        assertEquals(5, map.get("terminate_after"));
     }
 
     public void testUnsupportedOperationException() {

@@ -103,31 +103,31 @@ public class SearchRequestMap implements Map<String, Object> {
                 return source.explain();
             case "version":
                 return source.version();
-            case "seqNoAndPrimaryTerm":
+            case "seq_no_primary_term":
                 return source.seqNoAndPrimaryTerm();
-            case "trackScores":
+            case "track_scores":
                 return source.trackScores();
-            case "trackTotalHitsUpTo":
+            case "track_total_hits":
                 return source.trackTotalHitsUpTo();
-            case "minScore":
+            case "min_score":
                 return source.minScore();
             case "timeout":
                 return source.timeout();
-            case "terminateAfter":
+            case "terminate_after":
                 return source.terminateAfter();
-            case "sorts":
+            case "sort":
                 return source.sorts();
-            case "docValueFields":
+            case "docvalue_fields":
                 return source.docValueFields();
-            case "scriptFields":
+            case "script_fields":
                 return source.scriptFields();
-            case "fetchFields":
+            case "fetch_fields":
                 return source.fetchFields();
-            case "storedFields":
+            case "stored_fields":
                 return source.storedFields();
-            case "fetchSourceContext":
+            case "fetch_source":
                 return source.fetchSource();
-            case "indexBoosts":
+            case "indices_boost":
                 return source.indexBoosts();
             case "stats":
                 return source.stats();
@@ -164,33 +164,29 @@ public class SearchRequestMap implements Map<String, Object> {
                 case "version":
                     source.version((Boolean) value);
                     break;
-                case "seqNoAndPrimaryTerm":
+                case "seq_no_primary_term":
                     source.seqNoAndPrimaryTerm((Boolean) value);
                     break;
-                case "trackScores":
+                case "track_scores":
                     source.trackScores((Boolean) value);
                     break;
-                case "trackTotalHitsUpTo":
+                case "track_total_hits":
                     source.trackTotalHitsUpTo((Integer) value);
                     break;
-                case "minScore":
+                case "min_score":
                     source.minScore((Float) value);
                     break;
-                case "terminateAfter":
+                case "terminate_after":
                     source.terminateAfter((Integer) value);
                     break;
                 case "profile":
                     source.profile((Boolean) value);
                     break;
-                case "stats": // Not modifying stats, sorts, docValueFields, etc. as they require more complex handling
-                case "sorts":
+                case "stats": // Not modifying stats, sorts, docvalue_fields, etc. as they require more complex handling
+                case "sort":
                 case "timeout":
-                case "docValueFields":
-                case "scriptFields":
-                case "fetchFields":
-                case "storedFields":
-                case "fetchSourceContext":
-                case "indexBoosts":
+                case "docvalue_fields":
+                case "indices_boost":
                 default:
                     throw new SearchRequestMapProcessingException("Unsupported SearchRequest source property: " + key);
             }

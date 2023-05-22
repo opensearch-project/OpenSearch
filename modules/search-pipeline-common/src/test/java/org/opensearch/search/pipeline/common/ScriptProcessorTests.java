@@ -41,7 +41,7 @@ public class ScriptProcessorTests extends OpenSearchTestCase {
         scriptService = new ScriptService(
             Settings.builder().build(),
             Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
-                Object sourceObj = ctx.get("source");
+                Object sourceObj = ctx.get("_source");
                 if (sourceObj instanceof Map) {
                     Map<String, Object> source = (SearchRequestMap) sourceObj;
 
@@ -58,20 +58,20 @@ public class ScriptProcessorTests extends OpenSearchTestCase {
                     Boolean version = (Boolean) source.get("version");
                     source.put("version", !version);
 
-                    Boolean seqNoAndPrimaryTerm = (Boolean) source.get("seqNoAndPrimaryTerm");
-                    source.put("seqNoAndPrimaryTerm", !seqNoAndPrimaryTerm);
+                    Boolean seqNoAndPrimaryTerm = (Boolean) source.get("seq_no_primary_term");
+                    source.put("seq_no_primary_term", !seqNoAndPrimaryTerm);
 
-                    Boolean trackScores = (Boolean) source.get("trackScores");
-                    source.put("trackScores", !trackScores);
+                    Boolean trackScores = (Boolean) source.get("track_scores");
+                    source.put("track_scores", !trackScores);
 
-                    Integer trackTotalHitsUpTo = (Integer) source.get("trackTotalHitsUpTo");
-                    source.put("trackTotalHitsUpTo", trackTotalHitsUpTo + 1);
+                    Integer trackTotalHitsUpTo = (Integer) source.get("track_total_hits");
+                    source.put("track_total_hits", trackTotalHitsUpTo + 1);
 
-                    Float minScore = (Float) source.get("minScore");
-                    source.put("minScore", minScore + 1.0f);
+                    Float minScore = (Float) source.get("min_score");
+                    source.put("min_score", minScore + 1.0f);
 
-                    Integer terminateAfter = (Integer) source.get("terminateAfter");
-                    source.put("terminateAfter", terminateAfter + 1);
+                    Integer terminateAfter = (Integer) source.get("terminate_after");
+                    source.put("terminate_after", terminateAfter + 1);
                 }
                 return null;
             }), Collections.emptyMap())),

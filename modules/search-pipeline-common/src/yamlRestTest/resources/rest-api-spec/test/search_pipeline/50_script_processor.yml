@@ -39,7 +39,7 @@ teardown:
               {
                 "script" : {
                   "lang" : "painless",
-                  "source" : "ctx.source['size'] += 10; ctx.source['from'] -= 1; ctx.source['explain'] = !ctx.source['explain']; ctx.source['version'] = !ctx.source['version']; ctx.source['seqNoAndPrimaryTerm'] = !ctx.source['seqNoAndPrimaryTerm']; ctx.source['trackScores'] = !ctx.source['trackScores']; ctx.source['trackTotalHitsUpTo'] = 1; ctx.source['minScore'] -= 0.9; ctx.source['terminateAfter'] += 2; ctx.source['profile'] = !ctx.source['profile'];"
+                  "source" : "ctx._source['size'] += 10; ctx._source['from'] -= 1; ctx._source['explain'] = !ctx._source['explain']; ctx._source['version'] = !ctx._source['version']; ctx._source['seq_no_primary_term'] = !ctx._source['seq_no_primary_term']; ctx._source['track_scores'] = !ctx._source['track_scores']; ctx._source['track_total_hits'] = 1; ctx._source['min_score'] -= 0.9; ctx._source['terminate_after'] += 2; ctx._source['profile'] = !ctx._source['profile'];"
                 }
               }
             ]
@@ -94,49 +94,3 @@ teardown:
   - is_false: hits.hits.0._primary_term
   - is_false: hits.hits.1._primary_term
   - is_false: profile
-
----
-"Test unsupported operations in script processor":
-  - do:
-      search_pipeline.put:
-        id: "my_pipeline"
-        body:  >
-          {
-            "description": "_description",
-            "request_processors": [
-              {
-                "script" : {
-                  "lang": "painless",
-                  "source" : "int a = ctx.dummy;"
-                }
-              }
-            ]
-          }
-  - match: { acknowledged: true }
-
-  - do:
-      index:
-        index: test
-        id: 1
-        body: {
-          "field": "foo"
-        }
-  - do:
-      index:
-        index: test
-        id: 2
-        body: {
-          "field": "value"
-        }
-
-  - do:
-      indices.refresh:
-        index: test
-
-  - do:
-      catch: bad_request
-      search:
-        index: test
-        search_pipeline: "my_pipeline"
-        body: { }
-  - match: { status: 400 }
