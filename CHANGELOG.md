@@ -103,7 +103,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.3.0
 - Bump `gradle.plugin.com.github.johnrengelman:shadow` from 7.1.2 to 8.0.0
 - Bump `jna` from 5.11.0 to 5.13.0
-- Bump `commons-io:commons-io` from 2.7 to 2.12.0 (#7661)
+- Bump `commons-io:commons-io` from 2.7 to 2.12.0 (#7661, #7658)
 - Bump `org.apache.shiro:shiro-core` from 1.9.1 to 1.11.0 ([#7397](https://github.com/opensearch-project/OpenSearch/pull/7397))
 - Bump `jetty-server` in hdfs-fixture from 9.4.49.v20220914 to 9.4.51.v20230217 ([#7405](https://github.com/opensearch-project/OpenSearch/pull/7405))
 - OpenJDK Update (April 2023 Patch releases) ([#7448](https://github.com/opensearch-project/OpenSearch/pull/7448)
