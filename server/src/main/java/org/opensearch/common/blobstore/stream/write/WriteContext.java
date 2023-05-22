@@ -8,6 +8,7 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.transfer.UploadFinalizer;
 
@@ -22,15 +23,19 @@ public class WriteContext {
     private final boolean failIfAlreadyExists;
     private final WritePriority writePriority;
     private final UploadFinalizer uploadFinalizer;
+    private final boolean doRemoteDataIntegrityCheck;
+    private final Long expectedChecksum;
 
     /**
      * Construct a new WriteContext object
      *
-     * @param fileName              The name of the file being uploaded
-     * @param streamContextSupplier A supplier that will provide StreamContext to the plugin
-     * @param fileSize              The total size of the file being uploaded
-     * @param failIfAlreadyExists   A boolean to fail the upload is the file exists
-     * @param writePriority         The <code>WritePriority</code> of this upload
+     * @param fileName                   The name of the file being uploaded
+     * @param streamContextSupplier      A supplier that will provide StreamContext to the plugin
+     * @param fileSize                   The total size of the file being uploaded
+     * @param failIfAlreadyExists        A boolean to fail the upload is the file exists
+     * @param writePriority              The <code>WritePriority</code> of this upload
+     * @param doRemoteDataIntegrityCheck A boolean to inform vendor plugins whether remote data integrity checks need to be done
+     * @param expectedChecksum           This parameter expected only when the vendor plugin is expected to do server side data integrity verification
      */
     public WriteContext(
         String fileName,
@@ -38,7 +43,9 @@ public class WriteContext {
         long fileSize,
         boolean failIfAlreadyExists,
         WritePriority writePriority,
-        UploadFinalizer uploadFinalizer
+        UploadFinalizer uploadFinalizer,
+        boolean doRemoteDataIntegrityCheck,
+        @Nullable Long expectedChecksum
     ) {
         this.fileName = fileName;
         this.streamContextSupplier = streamContextSupplier;
@@ -46,6 +53,8 @@ public class WriteContext {
         this.failIfAlreadyExists = failIfAlreadyExists;
         this.writePriority = writePriority;
         this.uploadFinalizer = uploadFinalizer;
+        this.doRemoteDataIntegrityCheck = doRemoteDataIntegrityCheck;
+        this.expectedChecksum = expectedChecksum;
     }
 
     /**
@@ -89,5 +98,13 @@ public class WriteContext {
      */
     public UploadFinalizer getUploadFinalizer() {
         return uploadFinalizer;
+    }
+
+    public boolean doRemoteDataIntegrityCheck() {
+        return doRemoteDataIntegrityCheck;
+    }
+
+    public Long getExpectedChecksum() {
+        return expectedChecksum;
     }
 }

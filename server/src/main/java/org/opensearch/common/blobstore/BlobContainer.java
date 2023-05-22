@@ -138,6 +138,10 @@ public interface BlobContainer {
         return false;
     }
 
+    default boolean isRemoteDataIntegritySupported() {
+        return false;
+    }
+
     /**
      * Reads blob content from multiple streams, each from a specific part of the file, which is provided by the
      * StreamContextSupplier in the WriteContext passed to this method. An {@link IOException} is thrown if reading

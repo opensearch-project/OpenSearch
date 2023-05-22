@@ -464,7 +464,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
                         throw new RuntimeException();
                     }
                 }
-            })
+            }, false, null)
         );
 
         // wait for completableFuture to finish
@@ -515,7 +515,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
                         throw new RuntimeException();
                     }
                 }
-            })
+            }, false, null)
         );
 
         // wait for completableFuture to finish

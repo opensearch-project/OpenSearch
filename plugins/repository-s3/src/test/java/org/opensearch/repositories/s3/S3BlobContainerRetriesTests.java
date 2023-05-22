@@ -329,7 +329,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 public void accept(boolean uploadSuccess) {
                     assertTrue(uploadSuccess);
                 }
-            })
+            }, false, null)
         );
 
         // wait for completableFuture to finish
