@@ -21,12 +21,10 @@ import org.opensearch.common.settings.Settings;
 public class RemoteRefreshSegmentPressureSettings {
 
     private static class Defaults {
-        private static final long MIN_SEQ_NO_LAG_LIMIT = 5;
-        private static final long MIN_SEQ_NO_LAG_LIMIT_MIN_VALUE = 2;
-        private static final double BYTES_LAG_VARIANCE_FACTOR = 2.0;
-        private static final double UPLOAD_TIME_LAG_VARIANCE_FACTOR = 2.0;
+        private static final double BYTES_LAG_VARIANCE_FACTOR = 10.0;
+        private static final double UPLOAD_TIME_LAG_VARIANCE_FACTOR = 10.0;
         private static final double VARIANCE_FACTOR_MIN_VALUE = 1.0;
-        private static final int MIN_CONSECUTIVE_FAILURES_LIMIT = 10;
+        private static final int MIN_CONSECUTIVE_FAILURES_LIMIT = 5;
         private static final int MIN_CONSECUTIVE_FAILURES_LIMIT_MIN_VALUE = 1;
         private static final int UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE = 20;
         private static final int UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE = 20;
@@ -37,14 +35,6 @@ public class RemoteRefreshSegmentPressureSettings {
     public static final Setting<Boolean> REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED = Setting.boolSetting(
         "remote_store.segment.pressure.enabled",
         false,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<Long> MIN_SEQ_NO_LAG_LIMIT = Setting.longSetting(
-        "remote_store.segment.pressure.seq_no_lag.limit",
-        Defaults.MIN_SEQ_NO_LAG_LIMIT,
-        Defaults.MIN_SEQ_NO_LAG_LIMIT_MIN_VALUE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -122,9 +112,6 @@ public class RemoteRefreshSegmentPressureSettings {
 
         this.remoteRefreshSegmentPressureEnabled = REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.get(settings);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED, this::setRemoteRefreshSegmentPressureEnabled);
-
-        this.minRefreshSeqNoLagLimit = MIN_SEQ_NO_LAG_LIMIT.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MIN_SEQ_NO_LAG_LIMIT, this::setMinRefreshSeqNoLagLimit);
 
         this.bytesLagVarianceFactor = BYTES_LAG_VARIANCE_FACTOR.get(settings);
         clusterSettings.addSettingsUpdateConsumer(BYTES_LAG_VARIANCE_FACTOR, this::setBytesLagVarianceFactor);
