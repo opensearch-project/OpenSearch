@@ -43,8 +43,7 @@ public class SearchPipelineInfo implements ReportingService.Info {
      * Read from a stream.
      */
     public SearchPipelineInfo(StreamInput in) throws IOException {
-        // TODO: When we backport this to 2.8, we must change this condition to out.getVersion().before(V_2_8_0)
-        if (in.getVersion().onOrBefore(Version.V_2_8_0)) {
+        if (in.getVersion().before(Version.V_2_8_0)) {
             // Prior to version 2.8, we had a flat list of processors. For best compatibility, assume they're valid
             // request and response processor, since we couldn't tell the difference back then.
             final int size = in.readVInt();
@@ -84,8 +83,7 @@ public class SearchPipelineInfo implements ReportingService.Info {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: When we backport this to 2.8, we must change this condition to out.getVersion().before(V_2_8_0)
-        if (out.getVersion().onOrBefore(Version.V_2_8_0)) {
+        if (out.getVersion().before(Version.V_2_8_0)) {
             // Prior to version 2.8, we grouped all processors into a single list.
             Set<ProcessorInfo> processorInfos = new TreeSet<>();
             processorInfos.addAll(processors.getOrDefault(Pipeline.REQUEST_PROCESSORS_KEY, Collections.emptySet()));
