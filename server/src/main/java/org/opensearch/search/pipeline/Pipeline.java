@@ -46,7 +46,7 @@ class Pipeline {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 
-    Pipeline(
+    private Pipeline(
         String id,
         @Nullable String description,
         @Nullable Integer version,
@@ -62,7 +62,7 @@ class Pipeline {
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
-    public static Pipeline create(
+    static Pipeline create(
         String id,
         Map<String, Object> config,
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories,
@@ -111,7 +111,7 @@ class Pipeline {
                 processors.add(processorFactories.get(type).create(processorFactories, tag, description, config));
             }
         }
-        return processors;
+        return Collections.unmodifiableList(processors);
     }
 
     String getId() {
