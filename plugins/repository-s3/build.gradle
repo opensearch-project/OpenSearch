@@ -549,12 +549,7 @@ thirdPartyAudit {
     'software.amazon.awssdk.crt.s3.S3MetaRequestResponseHandler',
     'software.amazon.eventstream.HeaderValue',
     'software.amazon.eventstream.Message',
-    'software.amazon.eventstream.MessageDecoder',
-
-    'com.jcraft.jzlib.Deflater',
-    'com.jcraft.jzlib.Inflater',
-    'com.jcraft.jzlib.JZlib$WrapperType',
-    'com.jcraft.jzlib.JZlib'
+    'software.amazon.eventstream.MessageDecoder'
   )
 
   ignoreViolations(
