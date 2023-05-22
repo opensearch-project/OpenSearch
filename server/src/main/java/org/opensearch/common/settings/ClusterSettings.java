@@ -643,7 +643,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
-                RemoteRefreshSegmentPressureSettings.MIN_SEQ_NO_LAG_LIMIT,
                 RemoteRefreshSegmentPressureSettings.BYTES_LAG_VARIANCE_FACTOR,
                 RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR,
                 RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT,

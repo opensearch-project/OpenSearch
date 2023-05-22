@@ -120,7 +120,7 @@ public class RemoteRefreshSegmentTracker {
     /**
      * Set of names of segment files that were uploaded as part of the most recent remote refresh.
      */
-    private final Set<String> latestUploadFiles = new HashSet<>();
+    private final Set<String> latestUploadedFiles = new HashSet<>();
 
     /**
      * Keeps the bytes lag computed so that we do not compute it for every request.
@@ -181,28 +181,28 @@ public class RemoteRefreshSegmentTracker {
         return shardId;
     }
 
-    long getLocalRefreshSeqNo() {
+    public long getLocalRefreshSeqNo() {
         return localRefreshSeqNo;
     }
 
-    void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
-        assert localRefreshSeqNo > this.localRefreshSeqNo : "newLocalRefreshSeqNo="
+    public void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
+        assert localRefreshSeqNo >= this.localRefreshSeqNo : "newLocalRefreshSeqNo="
             + localRefreshSeqNo
-            + ">="
+            + " < "
             + "currentLocalRefreshSeqNo="
             + this.localRefreshSeqNo;
         this.localRefreshSeqNo = localRefreshSeqNo;
         computeRefreshSeqNoLag();
     }
 
-    long getLocalRefreshTimeMs() {
+    public long getLocalRefreshTimeMs() {
         return localRefreshTimeMs;
     }
 
-    void updateLocalRefreshTimeMs(long localRefreshTimeMs) {
-        assert localRefreshTimeMs > this.localRefreshTimeMs : "newLocalRefreshTimeMs="
+    public void updateLocalRefreshTimeMs(long localRefreshTimeMs) {
+        assert localRefreshTimeMs >= this.localRefreshTimeMs : "newLocalRefreshTimeMs="
             + localRefreshTimeMs
-            + ">="
+            + " < "
             + "currentLocalRefreshTimeMs="
             + this.localRefreshTimeMs;
         this.localRefreshTimeMs = localRefreshTimeMs;
@@ -213,10 +213,10 @@ public class RemoteRefreshSegmentTracker {
         return remoteRefreshSeqNo;
     }
 
-    void updateRemoteRefreshSeqNo(long remoteRefreshSeqNo) {
-        assert remoteRefreshSeqNo > this.remoteRefreshSeqNo : "newRemoteRefreshSeqNo="
+    public void updateRemoteRefreshSeqNo(long remoteRefreshSeqNo) {
+        assert remoteRefreshSeqNo >= this.remoteRefreshSeqNo : "newRemoteRefreshSeqNo="
             + remoteRefreshSeqNo
-            + ">="
+            + " < "
             + "currentRemoteRefreshSeqNo="
             + this.remoteRefreshSeqNo;
         this.remoteRefreshSeqNo = remoteRefreshSeqNo;
@@ -227,10 +227,10 @@ public class RemoteRefreshSegmentTracker {
         return remoteRefreshTimeMs;
     }
 
-    void updateRemoteRefreshTimeMs(long remoteRefreshTimeMs) {
-        assert remoteRefreshTimeMs > this.remoteRefreshTimeMs : "newRemoteRefreshTimeMs="
+    public void updateRemoteRefreshTimeMs(long remoteRefreshTimeMs) {
+        assert remoteRefreshTimeMs >= this.remoteRefreshTimeMs : "newRemoteRefreshTimeMs="
             + remoteRefreshTimeMs
-            + ">="
+            + " < "
             + "currentRemoteRefreshTimeMs="
             + this.remoteRefreshTimeMs;
         this.remoteRefreshTimeMs = remoteRefreshTimeMs;
@@ -241,7 +241,7 @@ public class RemoteRefreshSegmentTracker {
         refreshSeqNoLag = localRefreshSeqNo - remoteRefreshSeqNo;
     }
 
-    long getRefreshSeqNoLag() {
+    public long getRefreshSeqNoLag() {
         return refreshSeqNoLag;
     }
 
@@ -249,73 +249,73 @@ public class RemoteRefreshSegmentTracker {
         timeMsLag = localRefreshTimeMs - remoteRefreshTimeMs;
     }
 
-    long getTimeMsLag() {
+    public long getTimeMsLag() {
         return timeMsLag;
     }
 
-    long getBytesLag() {
+    public long getBytesLag() {
         return bytesLag;
     }
 
-    long getUploadBytesStarted() {
+    public long getUploadBytesStarted() {
         return uploadBytesStarted;
     }
 
-    void addUploadBytesStarted(long size) {
+    public void addUploadBytesStarted(long size) {
         uploadBytesStarted += size;
     }
 
-    long getUploadBytesFailed() {
+    public long getUploadBytesFailed() {
         return uploadBytesFailed;
     }
 
-    void addUploadBytesFailed(long size) {
+    public void addUploadBytesFailed(long size) {
         uploadBytesFailed += size;
     }
 
-    long getUploadBytesSucceeded() {
+    public long getUploadBytesSucceeded() {
         return uploadBytesSucceeded;
     }
 
-    void addUploadBytesSucceeded(long size) {
+    public void addUploadBytesSucceeded(long size) {
         uploadBytesSucceeded += size;
     }
 
-    long getInflightUploadBytes() {
+    public long getInflightUploadBytes() {
         return uploadBytesStarted - uploadBytesFailed - uploadBytesSucceeded;
     }
 
-    long getTotalUploadsStarted() {
+    public long getTotalUploadsStarted() {
         return totalUploadsStarted;
     }
 
-    void incrementTotalUploadsStarted() {
+    public void incrementTotalUploadsStarted() {
         totalUploadsStarted += 1;
     }
 
-    long getTotalUploadsFailed() {
+    public long getTotalUploadsFailed() {
         return totalUploadsFailed;
     }
 
-    void incrementTotalUploadsFailed() {
+    public void incrementTotalUploadsFailed() {
         totalUploadsFailed += 1;
         failures.record(true);
     }
 
-    long getTotalUploadsSucceeded() {
+    public long getTotalUploadsSucceeded() {
         return totalUploadsSucceeded;
     }
 
-    void incrementTotalUploadSucceeded() {
+    public void incrementTotalUploadsSucceeded() {
         totalUploadsSucceeded += 1;
         failures.record(false);
     }
 
-    long getInflightUploads() {
+    public long getInflightUploads() {
         return totalUploadsStarted - totalUploadsFailed - totalUploadsSucceeded;
     }
 
-    long getRejectionCount() {
+    public long getRejectionCount() {
         return rejectionCount.get();
     }
 
@@ -335,13 +335,19 @@ public class RemoteRefreshSegmentTracker {
         return latestLocalFileNameLengthMap;
     }
 
-    void setLatestLocalFileNameLengthMap(Map<String, Long> latestLocalFileNameLengthMap) {
+    public void setLatestLocalFileNameLengthMap(Map<String, Long> latestLocalFileNameLengthMap) {
         this.latestLocalFileNameLengthMap = latestLocalFileNameLengthMap;
         computeBytesLag();
     }
 
-    void addToLatestUploadFiles(String file) {
-        this.latestUploadFiles.add(file);
+    public void addToLatestUploadedFiles(String file) {
+        this.latestUploadedFiles.add(file);
+        computeBytesLag();
+    }
+
+    public void setLatestUploadedFiles(Set<String> files) {
+        this.latestUploadedFiles.clear();
+        this.latestUploadedFiles.addAll(files);
         computeBytesLag();
     }
 
@@ -351,7 +357,7 @@ public class RemoteRefreshSegmentTracker {
         }
         Set<String> filesNotYetUploaded = latestLocalFileNameLengthMap.keySet()
             .stream()
-            .filter(f -> !latestUploadFiles.contains(f))
+            .filter(f -> !latestUploadedFiles.contains(f))
             .collect(Collectors.toSet());
         this.bytesLag = filesNotYetUploaded.stream().map(latestLocalFileNameLengthMap::get).mapToLong(Long::longValue).sum();
     }
@@ -368,7 +374,7 @@ public class RemoteRefreshSegmentTracker {
         return uploadBytesMovingAverageReference.get().getAverage();
     }
 
-    void addUploadBytes(long size) {
+    public void addUploadBytes(long size) {
         lastSuccessfulRemoteRefreshBytes = size;
         synchronized (uploadBytesMutex) {
             this.uploadBytesMovingAverageReference.get().record(size);
@@ -394,7 +400,7 @@ public class RemoteRefreshSegmentTracker {
         return uploadBytesPerSecMovingAverageReference.get().getAverage();
     }
 
-    void addUploadBytesPerSec(long bytesPerSec) {
+    public void addUploadBytesPerSec(long bytesPerSec) {
         synchronized (uploadBytesPerSecMutex) {
             this.uploadBytesPerSecMovingAverageReference.get().record(bytesPerSec);
         }
@@ -419,7 +425,7 @@ public class RemoteRefreshSegmentTracker {
         return uploadTimeMsMovingAverageReference.get().getAverage();
     }
 
-    void addUploadTimeMs(long timeMs) {
+    public void addUploadTimeMs(long timeMs) {
         synchronized (uploadTimeMsMutex) {
             this.uploadTimeMsMovingAverageReference.get().record(timeMs);
         }
