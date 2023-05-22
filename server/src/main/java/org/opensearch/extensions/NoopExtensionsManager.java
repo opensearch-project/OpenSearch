@@ -71,11 +71,6 @@ public class NoopExtensionsManager extends ExtensionsManager {
     }
 
     @Override
-    public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
-        // no-op
-    }
-
-    @Override
     public Optional<DiscoveryExtensionNode> lookupInitializedExtensionById(final String extensionId) {
         // no-op not found
         return Optional.empty();

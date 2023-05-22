@@ -1807,7 +1807,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 indicesService = new IndicesService(
                     settings,
                     mock(PluginsService.class),
-                    mock(ExtensionsManager.class),
                     nodeEnv,
                     namedXContentRegistry,
                     new AnalysisRegistry(

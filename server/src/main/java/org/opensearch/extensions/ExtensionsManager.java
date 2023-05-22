@@ -80,8 +80,6 @@ import org.opensearch.env.EnvironmentSettingsResponse;
  */
 public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
-    public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
-    public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
     public static final String REQUEST_EXTENSION_ENVIRONMENT_SETTINGS = "internal:discovery/enviornmentsettings";
@@ -466,125 +464,6 @@ public class ExtensionsManager {
         }
     }
 
-    public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
-        for (DiscoveryNode extensionNode : extensionIdMap.values()) {
-            onIndexModule(indexModule, extensionNode);
-        }
-    }
-
-    private void onIndexModule(IndexModule indexModule, DiscoveryNode extensionNode) throws UnknownHostException {
-        logger.info("onIndexModule index:" + indexModule.getIndex());
-        final CompletableFuture<IndicesModuleResponse> inProgressFuture = new CompletableFuture<>();
-        final CompletableFuture<AcknowledgedResponse> inProgressIndexNameFuture = new CompletableFuture<>();
-        final TransportResponseHandler<AcknowledgedResponse> acknowledgedResponseHandler = new TransportResponseHandler<
-            AcknowledgedResponse>() {
-            @Override
-            public void handleResponse(AcknowledgedResponse response) {
-                logger.info("ACK Response" + response);
-                inProgressIndexNameFuture.complete(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                inProgressIndexNameFuture.completeExceptionally(exp);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
-            @Override
-            public AcknowledgedResponse read(StreamInput in) throws IOException {
-                return new AcknowledgedResponse(in);
-            }
-
-        };
-
-        final TransportResponseHandler<IndicesModuleResponse> indicesModuleResponseHandler = new TransportResponseHandler<
-            IndicesModuleResponse>() {
-
-            @Override
-            public IndicesModuleResponse read(StreamInput in) throws IOException {
-                return new IndicesModuleResponse(in);
-            }
-
-            @Override
-            public void handleResponse(IndicesModuleResponse response) {
-                logger.info("received {}", response);
-                if (response.getIndexEventListener() == true) {
-                    indexModule.addIndexEventListener(new IndexEventListener() {
-                        @Override
-                        public void beforeIndexRemoved(
-                            IndexService indexService,
-                            IndicesClusterStateService.AllocatedIndices.IndexRemovalReason reason
-                        ) {
-                            logger.info("Index Event Listener is called");
-                            String indexName = indexService.index().getName();
-                            logger.info("Index Name" + indexName.toString());
-                            try {
-                                logger.info("Sending extension request type: " + INDICES_EXTENSION_NAME_ACTION_NAME);
-                                transportService.sendRequest(
-                                    extensionNode,
-                                    INDICES_EXTENSION_NAME_ACTION_NAME,
-                                    new IndicesModuleRequest(indexModule),
-                                    acknowledgedResponseHandler
-                                );
-                                inProgressIndexNameFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
-                            } catch (CompletionException e) {
-                                if (e.getCause() instanceof TimeoutException) {
-                                    logger.info("No response from extension to request.");
-                                }
-                                if (e.getCause() instanceof RuntimeException) {
-                                    throw (RuntimeException) e.getCause();
-                                } else if (e.getCause() instanceof Error) {
-                                    throw (Error) e.getCause();
-                                } else {
-                                    throw new RuntimeException(e.getCause());
-                                }
-                            }
-                        }
-                    });
-                }
-                inProgressFuture.complete(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                logger.error(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
-                inProgressFuture.completeExceptionally(exp);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-        };
-
-        try {
-            logger.info("Sending extension request type: " + INDICES_EXTENSION_POINT_ACTION_NAME);
-            transportService.sendRequest(
-                extensionNode,
-                INDICES_EXTENSION_POINT_ACTION_NAME,
-                new IndicesModuleRequest(indexModule),
-                indicesModuleResponseHandler
-            );
-            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
-            logger.info("Received response from Extension");
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof TimeoutException) {
-                logger.info("No response from extension to request.");
-            }
-            if (e.getCause() instanceof RuntimeException) {
-                throw (RuntimeException) e.getCause();
-            } else if (e.getCause() instanceof Error) {
-                throw (Error) e.getCause();
-            } else {
-                throw new RuntimeException(e.getCause());
-            }
-        }
-    }
-
     private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
         Yaml yaml = new Yaml();
         try (InputStream inputStream = Files.newInputStream(filePath)) {
@@ -653,14 +532,6 @@ public class ExtensionsManager {
 
     static String getRequestExtensionActionName() {
         return REQUEST_EXTENSION_ACTION_NAME;
-    }
-
-    static String getIndicesExtensionPointActionName() {
-        return INDICES_EXTENSION_POINT_ACTION_NAME;
-    }
-
-    static String getIndicesExtensionNameActionName() {
-        return INDICES_EXTENSION_NAME_ACTION_NAME;
     }
 
     static String getRequestExtensionClusterState() {
