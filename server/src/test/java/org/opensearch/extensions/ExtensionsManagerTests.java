@@ -838,40 +838,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     }
 
-    public void testOnIndexModule() throws Exception {
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir);
-        initialize(extensionsManager);
-
-        Environment environment = TestEnvironment.newEnvironment(settings);
-        AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
-            environment,
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap()
-        );
-
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
-        IndexModule indexModule = new IndexModule(
-            indexSettings,
-            emptyAnalysisRegistry,
-            new InternalEngineFactory(),
-            new EngineConfigFactory(indexSettings),
-            Collections.emptyMap(),
-            () -> true,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            Collections.emptyMap()
-        );
-        expectThrows(NodeNotConnectedException.class, () -> extensionsManager.onIndexModule(indexModule));
-
-    }
-
     public void testIncompatibleExtensionRegistration() throws IOException, IllegalAccessException {
 
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
