@@ -26,7 +26,7 @@ import java.util.Collection;
 import static java.util.Arrays.asList;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-public class RemoteStoreBaseIT extends OpenSearchIntegTestCase {
+public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_NAME = "test-remore-store-repo";
     protected static final int SHARD_COUNT = 1;
     protected static final int REPLICA_COUNT = 1;

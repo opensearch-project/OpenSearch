@@ -28,7 +28,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0)
-public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIT {
+public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     private int shard_count = 5;
 
     @Override

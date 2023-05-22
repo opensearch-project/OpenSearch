@@ -122,6 +122,8 @@ public class MockRepository extends FsRepository {
 
     private final boolean skipExceptionOnListBlobs;
 
+    private final List<String> skipExceptionOnBlobs;
+
     private final boolean useLuceneCorruptionException;
 
     private final long maximumNumberOfFailures;
@@ -182,6 +184,7 @@ public class MockRepository extends FsRepository {
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         skipExceptionOnVerificationFile = metadata.settings().getAsBoolean("skip_exception_on_verification_file", false);
         skipExceptionOnListBlobs = metadata.settings().getAsBoolean("skip_exception_on_list_blobs", false);
+        skipExceptionOnBlobs = metadata.settings().getAsList("skip_exception_on_blobs");
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);
         maximumNumberOfFailures = metadata.settings().getAsLong("max_failure_number", 100L);
         blockOnAnyFiles = metadata.settings().getAsBoolean("block_on_control", false);
@@ -370,12 +373,14 @@ public class MockRepository extends FsRepository {
             private void maybeIOExceptionOrBlock(String blobName) throws IOException {
                 if (INDEX_LATEST_BLOB.equals(blobName) // Condition 1
                     || skipExceptionOnVerificationFiles(blobName) // Condition 2
-                    || skipExceptionOnListBlobs(blobName)) {  // Condition 3
+                    || skipExceptionOnListBlobs(blobName) // Condition 3
+                    || skipExceptionOnBlob(blobName)) { // Condition 4
                     // Condition 1 - Don't mess with the index.latest blob here, failures to write to it are ignored by
                     // upstream logic and we have specific tests that cover the error handling around this blob.
                     // Condition 2 & 3 - This condition has been added to allow creation of repository which throws IO
                     // exception during normal remote store operations. However, if we fail during verification as well,
                     // then we can not add the repository as well.
+                    // Condition 4 - This condition allows to skip exception on specific blobName or blobPrefix
                     return;
                 }
                 if (blobName.startsWith("__")) {
@@ -581,6 +586,10 @@ public class MockRepository extends FsRepository {
 
         private boolean skipExceptionOnListBlobs(String blobName) {
             return skipExceptionOnListBlobs && DUMMY_FILE_NAME_LIST_BLOBS.equals(blobName);
+        }
+
+        private boolean skipExceptionOnBlob(String blobName) {
+            return skipExceptionOnBlobs.contains(blobName);
         }
     }
 }
