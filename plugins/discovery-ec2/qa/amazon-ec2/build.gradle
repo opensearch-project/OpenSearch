@@ -122,7 +122,7 @@ testClusters.yamlRestTestEnvVariables {
 // Extra config for SystemProperties
 testClusters.yamlRestTestSystemProperties {
   systemProperty 'aws.accessKeyId', 'ec2_integration_test_access_key'
-  systemProperty 'aws.secretKey', 'ec2_integration_test_secret_key'
+  systemProperty 'aws.secretAccessKey', 'ec2_integration_test_secret_key'
   systemProperty 'aws.region', 'ec2_integration_test_region'
 }
 
