@@ -34,6 +34,7 @@ package org.opensearch.cluster;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.opensearch.Version;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -42,6 +43,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -63,9 +65,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public static final ClusterInfo EMPTY = new ClusterInfo();
     final Map<ShardRouting, String> routingToDataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
+    final Map<String, FileCacheStats> nodeFileCacheStats;
 
     protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     /**
@@ -77,19 +80,22 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * @param routingToDataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
      * @see #shardIdentifierFromRouting
+     * @param nodeFileCacheStats a node id to filecache stats mapping for nodes with search role
      */
     public ClusterInfo(
         final Map<String, DiskUsage> leastAvailableSpaceUsage,
         final Map<String, DiskUsage> mostAvailableSpaceUsage,
         final Map<String, Long> shardSizes,
         final Map<ShardRouting, String> routingToDataPath,
-        final Map<NodeAndPath, ReservedSpace> reservedSpace
+        final Map<NodeAndPath, ReservedSpace> reservedSpace,
+        final Map<String, FileCacheStats> nodeFileCacheStats
     ) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
         this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
         this.routingToDataPath = routingToDataPath;
         this.reservedSpace = reservedSpace;
+        this.nodeFileCacheStats = nodeFileCacheStats;
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -105,6 +111,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.shardSizes = Collections.unmodifiableMap(sizeMap);
         this.routingToDataPath = Collections.unmodifiableMap(routingMap);
         this.reservedSpace = Collections.unmodifiableMap(reservedSpaceMap);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            this.nodeFileCacheStats = in.readMap(StreamInput::readString, FileCacheStats::new);
+        } else {
+            this.nodeFileCacheStats = Map.of();
+        }
     }
 
     @Override
@@ -114,6 +125,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
         out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         out.writeMap(this.reservedSpace, (o, v) -> v.writeTo(o), (o, v) -> v.writeTo(o));
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeMap(this.nodeFileCacheStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        }
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -185,6 +199,13 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      */
     public Map<String, DiskUsage> getNodeMostAvailableDiskUsages() {
         return Collections.unmodifiableMap(this.mostAvailableSpaceUsage);
+    }
+
+    /**
+     * Returns a node id to file cache stats mapping for the nodes that have search roles assigned to it.
+     */
+    public Map<String, FileCacheStats> getNodeFileCacheStats() {
+        return Collections.unmodifiableMap(this.nodeFileCacheStats);
     }
 
     /**

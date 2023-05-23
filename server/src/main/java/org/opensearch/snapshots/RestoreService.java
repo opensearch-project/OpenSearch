@@ -43,6 +43,8 @@ import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStor
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterInfo;
+import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -85,9 +87,13 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -154,6 +160,7 @@ public class RestoreService implements ClusterStateApplier {
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
     private static final Set<String> UNREMOVABLE_SETTINGS;
+    private static final int REMOTE_DATA_TO_FILE_CACHE_SIZE_RATIO = 5;
 
     static {
         Set<String> unremovable = new HashSet<>(UNMODIFIABLE_SETTINGS.size() + 4);
@@ -178,6 +185,10 @@ public class RestoreService implements ClusterStateApplier {
 
     private final ClusterSettings clusterSettings;
 
+    private final IndicesService indicesService;
+
+    private final ClusterInfoService clusterInfoService;
+
     private final ClusterManagerTaskThrottler.ThrottlingKey restoreSnapshotTaskKey;
 
     private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
@@ -188,8 +199,9 @@ public class RestoreService implements ClusterStateApplier {
         AllocationService allocationService,
         MetadataCreateIndexService createIndexService,
         MetadataIndexUpgradeService metadataIndexUpgradeService,
-        ClusterSettings clusterSettings,
-        ShardLimitValidator shardLimitValidator
+        ShardLimitValidator shardLimitValidator,
+        IndicesService indicesService,
+        ClusterInfoService clusterInfoService
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -201,10 +213,11 @@ public class RestoreService implements ClusterStateApplier {
         }
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
+        this.indicesService = indicesService;
+        this.clusterInfoService = clusterInfoService;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.RESTORE_SNAPSHOT_KEY, true);
-
     }
 
     /**
@@ -403,7 +416,6 @@ public class RestoreService implements ClusterStateApplier {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
                         // Check if the snapshot to restore is currently being deleted
                         SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
                             SnapshotDeletionsInProgress.TYPE,
@@ -425,6 +437,7 @@ public class RestoreService implements ClusterStateApplier {
                         RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
                         final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards;
                         Set<String> aliases = new HashSet<>();
+                        long totalRestorableRemoteIndexesSize = 0;
 
                         if (indices.isEmpty() == false) {
                             // We have some indices to restore
@@ -435,17 +448,14 @@ public class RestoreService implements ClusterStateApplier {
                                 String index = indexEntry.getValue();
                                 boolean partial = checkPartial(index);
 
+                                IndexId snapshotIndexId = repositoryData.resolveIndexId(index);
                                 IndexMetadata snapshotIndexMetadata = updateIndexSettings(
                                     metadata.index(index),
                                     request.indexSettings(),
                                     request.ignoreIndexSettings()
                                 );
                                 if (IndexModule.Type.REMOTE_SNAPSHOT.match(request.storageType().toString())) {
-                                    snapshotIndexMetadata = addSnapshotToIndexSettings(
-                                        snapshotIndexMetadata,
-                                        snapshot,
-                                        repositoryData.resolveIndexId(index)
-                                    );
+                                    snapshotIndexMetadata = addSnapshotToIndexSettings(snapshotIndexMetadata, snapshot, snapshotIndexId);
                                 }
                                 final boolean isSearchableSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(
                                     snapshotIndexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
@@ -454,7 +464,7 @@ public class RestoreService implements ClusterStateApplier {
                                     restoreUUID,
                                     snapshot,
                                     snapshotInfo.version(),
-                                    repositoryData.resolveIndexId(index),
+                                    snapshotIndexId,
                                     isSearchableSnapshot
                                 );
                                 final Version minIndexCompatibilityVersion;
@@ -571,6 +581,15 @@ public class RestoreService implements ClusterStateApplier {
                                 }
 
                                 for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
+                                    if (IndexModule.Type.REMOTE_SNAPSHOT.match(request.storageType().toString())) {
+                                        IndexShardSnapshotStatus.Copy shardStatus = repository.getShardSnapshotStatus(
+                                            snapshotInfo.snapshotId(),
+                                            snapshotIndexId,
+                                            new ShardId(metadata.index(index).getIndex(), shard)
+                                        ).asCopy();
+                                        totalRestorableRemoteIndexesSize += shardStatus.getTotalSize();
+                                    }
+
                                     if (!ignoreShards.contains(shard)) {
                                         shardsBuilder.put(
                                             new ShardId(renamedIndex, shard),
@@ -607,6 +626,10 @@ public class RestoreService implements ClusterStateApplier {
                         }
 
                         checkAliasNameConflicts(indices, aliases);
+
+                        if (IndexModule.Type.REMOTE_SNAPSHOT.match(request.storageType().toString())) {
+                            validateSearchableSnapshotRestorable(totalRestorableRemoteIndexesSize);
+                        }
 
                         Map<String, DataStream> updatedDataStreams = new HashMap<>(currentState.metadata().dataStreams());
                         updatedDataStreams.putAll(
@@ -804,6 +827,40 @@ public class RestoreService implements ClusterStateApplier {
                             }));
                         settingsBuilder.remove(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey());
                         return builder.settings(settingsBuilder).build();
+                    }
+
+                    private void validateSearchableSnapshotRestorable(long totalRestorableRemoteIndexesSize) {
+                        ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
+                        Map<String, FileCacheStats> nodeFileCacheStats = clusterInfo.getNodeFileCacheStats();
+                        if (nodeFileCacheStats.isEmpty()) {
+                            return;
+                        }
+
+                        long totalNodeFileCacheSize = clusterInfo.getNodeFileCacheStats()
+                            .values()
+                            .stream()
+                            .map(fileCacheStats -> fileCacheStats.getTotal().getBytes())
+                            .mapToLong(Long::longValue)
+                            .sum();
+
+                        long totalRestoredRemoteIndexesSize = 0;
+                        for (IndexService indexService : indicesService) {
+                            if (indexService.getIndexSettings().isRemoteSnapshot()) {
+                                for (IndexShard indexShard : indexService) {
+                                    if (indexShard.routingEntry().primary()) {
+                                        totalRestoredRemoteIndexesSize += clusterInfo.getShardSize(indexShard.routingEntry());
+                                    }
+                                }
+                            }
+                        }
+
+                        if (totalRestoredRemoteIndexesSize + totalRestorableRemoteIndexesSize > REMOTE_DATA_TO_FILE_CACHE_SIZE_RATIO
+                            * totalNodeFileCacheSize) {
+                            throw new SnapshotRestoreException(
+                                snapshot,
+                                "Size of the indexes to be restored exceed the file cache bounds. Increase the file cache capacity on the cluster."
+                            );
+                        }
                     }
 
                     @Override
