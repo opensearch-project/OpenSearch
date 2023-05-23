@@ -38,7 +38,6 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
 import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -123,7 +122,7 @@ class S3RetryingInputStream extends InputStream {
             );
             this.currentStream = getObjectResponseInputStream;
             this.isStreamAborted.set(false);
-        } catch (final SdkException e) {
+        } catch (final RuntimeException e) {
             if (e instanceof S3Exception) {
                 if (404 == ((S3Exception) e).statusCode()) {
                     throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));

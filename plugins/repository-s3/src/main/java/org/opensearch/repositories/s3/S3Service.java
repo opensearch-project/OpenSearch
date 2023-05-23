@@ -93,7 +93,7 @@ import static java.util.Collections.emptyMap;
 class S3Service implements Closeable {
     private static final Logger logger = LogManager.getLogger(S3Service.class);
 
-    private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "com.amazonaws.sdk.stsEndpointOverride";
+    private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "aws.stsEndpointOverride";
 
     private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
 

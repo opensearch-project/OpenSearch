@@ -77,13 +77,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 @SuppressForbidden(reason = "test requires to set a System property to allow insecure settings when running in IDE")
 public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase implements ConfigPathSupport {
 
-    // @Override
-    // @Before
-    // public void setUp() throws Exception {
-    // SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
-    // super.setUp();
-    // }
-
     static {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             // required for client settings overwriting when running in IDE
