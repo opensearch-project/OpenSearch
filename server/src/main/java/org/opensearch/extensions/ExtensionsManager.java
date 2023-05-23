@@ -130,6 +130,7 @@ public class ExtensionsManager {
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
+        // Settings added to extensions.yml by ExtensionAwarePlugins, such as security settings
         this.additionalSettings = new HashSet<>();
         if (additionalSettings != null) {
             this.additionalSettings.addAll(additionalSettings);
