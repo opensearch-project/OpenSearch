@@ -60,11 +60,9 @@ public class MissingDoclet extends StandardDoclet {
     private static final int METHOD = 2;
     // checks that @param tags are present for any method/constructor parameters
     private static final int PARAMETER = 3;
-    private static final Set<String> ALLOWED_TO_BE_IGNORED = new HashSet<>();
-    static {
-        // TODO Should we stick this list in missing-javadoc.gradle instead?
-        ALLOWED_TO_BE_IGNORED.add("org.opensearch.extensions.proto");
-    }
+    // TODO Should we stick this list in missing-javadoc.gradle instead?
+    private static final Set<String> ALLOWED_TO_BE_IGNORED = new HashSet<>(List.of(
+        "org.opensearch.extensions.proto"));
     int level = PARAMETER;
     Reporter reporter;
     DocletEnvironment docEnv;
