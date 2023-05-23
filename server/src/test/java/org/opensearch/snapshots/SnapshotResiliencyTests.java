@@ -195,7 +195,6 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
-import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
