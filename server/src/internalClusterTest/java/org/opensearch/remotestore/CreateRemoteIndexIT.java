@@ -137,6 +137,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
             .build();
 
         IllegalArgumentException exc = expectThrows(
