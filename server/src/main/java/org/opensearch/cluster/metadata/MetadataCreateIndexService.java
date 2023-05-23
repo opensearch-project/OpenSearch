@@ -963,8 +963,13 @@ public class MetadataCreateIndexService {
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
         if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings)) {
 
+            // Verify if we can create a remote store based index based on user provided settings
+            if (canCreateRemoteStoreIndex(requestSettings) == false) {
+                return;
+            }
+
             // Verify REPLICATION_TYPE cluster level setting is not conflicting with Remote Store
-            if (INDEX_REPLICATION_TYPE_SETTING.get(requestSettings).equals(ReplicationType.DOCUMENT)
+            if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false
                 && CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings).equals(ReplicationType.DOCUMENT)) {
                 throw new IllegalArgumentException(
                     "Cannot enable ["
@@ -974,11 +979,6 @@ public class MetadataCreateIndexService {
                         + "] is "
                         + ReplicationType.DOCUMENT
                 );
-            }
-
-            // Verify if we can create a remote store based index based on user provided settings
-            if (canCreateRemoteStoreIndex(requestSettings) == false) {
-                return;
             }
 
             settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).put(SETTING_REMOTE_STORE_ENABLED, true);
