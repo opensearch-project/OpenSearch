@@ -42,7 +42,7 @@ import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.layout.ByteBufferDestination;
 import org.apache.logging.log4j.core.layout.PatternLayout;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;

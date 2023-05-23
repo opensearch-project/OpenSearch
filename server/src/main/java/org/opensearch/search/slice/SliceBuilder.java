@@ -132,7 +132,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     private SliceBuilder setField(String field) {
-        if (Strings.isEmpty(field)) {
+        if (org.opensearch.core.common.Strings.isEmpty(field)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
         this.field = field;

@@ -44,8 +44,8 @@ import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.util.LazyInitializable;
+import org.opensearch.core.common.Strings;
 
 import java.util.concurrent.atomic.AtomicReference;
 

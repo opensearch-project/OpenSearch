@@ -40,6 +40,11 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
 
     final QueryBuilder filterQuery;
 
+    /**
+     * Returns the type of the processor.
+     *
+     * @return The processor type.
+     */
     @Override
     public String getType() {
         return TYPE;
@@ -57,6 +62,14 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
         this.filterQuery = filterQuery;
     }
 
+    /**
+     * Modifies the search request by adding a filtered query to the existing query, if any, and sets it as the new query
+     * in the search request's SearchSourceBuilder.
+     *
+     * @param request The search request to be processed.
+     * @return The modified search request.
+     * @throws Exception if an error occurs while processing the request.
+     */
     @Override
     public SearchRequest processRequest(SearchRequest request) throws Exception {
         QueryBuilder originalQuery = null;
@@ -75,7 +88,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
         return request;
     }
 
-    static class Factory implements Processor.Factory {
+    static class Factory implements Processor.Factory<SearchRequestProcessor> {
         private final NamedXContentRegistry namedXContentRegistry;
         public static final ParseField QUERY_FIELD = new ParseField("query");
 
@@ -85,7 +98,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
 
         @Override
         public FilterQueryRequestProcessor create(
-            Map<String, Processor.Factory> processorFactories,
+            Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
             String tag,
             String description,
             Map<String, Object> config
