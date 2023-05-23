@@ -36,7 +36,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
@@ -79,7 +79,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                     put("dummy-type1", new TaskResourceUsage(100, 100));
                 }
             }),
-            0
+            0L
         );
         ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
         assertEquals(
@@ -107,7 +107,8 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 + "          \"memory_in_bytes\" : 100\n"
                 + "        }\n"
                 + "      },\n"
-                + "      \"cancelled_at_millis\" : 0\n"
+                + "      \"cancellation_time\" : \"0s\",\n"
+                + "      \"cancellation_time_millis\" : 0\n"
                 + "    }\n"
                 + "  ]\n"
                 + "}",

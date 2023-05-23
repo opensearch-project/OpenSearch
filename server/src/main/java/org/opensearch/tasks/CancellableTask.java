@@ -53,11 +53,11 @@ public abstract class CancellableTask extends Task {
     /**
      * The time this task was cancelled as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
      */
-    private long cancelledAt = -1;
+    private Long cancellationStartTime = null;
     /**
      * The time this task was cancelled as a relative time ({@link System#nanoTime()} style).
      */
-    private long cancelledAtNanos = -1;
+    private Long cancellationStartTimeNanos = null;
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT);
@@ -82,8 +82,8 @@ public abstract class CancellableTask extends Task {
     public void cancel(String reason) {
         assert reason != null;
         if (cancelled.compareAndSet(false, true)) {
-            this.cancelledAt = System.currentTimeMillis();
-            this.cancelledAtNanos = System.nanoTime();
+            this.cancellationStartTime = System.currentTimeMillis();
+            this.cancellationStartTimeNanos = System.nanoTime();
             this.reason = reason;
             onCancelled();
         }
@@ -97,12 +97,12 @@ public abstract class CancellableTask extends Task {
         return true;
     }
 
-    public long getCancelledAt() {
-        return cancelledAt;
+    public Long getCancellationStartTime() {
+        return cancellationStartTime;
     }
 
-    public long getCancelledAtNanos() {
-        return cancelledAtNanos;
+    public Long getCancellationStartTimeNanos() {
+        return cancellationStartTimeNanos;
     }
 
     /**

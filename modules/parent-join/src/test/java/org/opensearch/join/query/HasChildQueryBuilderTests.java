@@ -33,6 +33,7 @@
 package org.opensearch.join.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -303,10 +304,9 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
         assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
         TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).getQuery();
-        Query rewrittenTermsQuery = termsQuery.rewrite(null);
         // The query is of type MultiTermQueryConstantScoreBlendedWrapper and is sealed inside Apache Lucene,
         // no access to inner queries without using the reflection, falling back to stringified query comparison
-        assertThat(rewrittenTermsQuery.toString(), equalTo("_id:([ff 69 64])"));
+        assertThat(termsQuery.toString(), equalTo("_id:([ff 69 64])"));
         // check the type filter
         assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
         assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).getQuery());

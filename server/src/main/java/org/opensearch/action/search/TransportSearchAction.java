@@ -57,7 +57,6 @@ import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -67,6 +66,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.Index;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.index.shard.ShardId;
@@ -80,6 +80,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
@@ -390,17 +391,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             System::nanoTime
         );
         SearchRequest searchRequest;
+        ActionListener<SearchResponse> listener;
         try {
-            searchRequest = searchPipelineService.transformRequest(originalSearchRequest);
+            PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(originalSearchRequest);
+            searchRequest = pipelinedRequest.transformedRequest();
+            listener = ActionListener.wrap(
+                r -> originalListener.onResponse(pipelinedRequest.transformResponse(r)),
+                originalListener::onFailure
+            );
         } catch (Exception e) {
             originalListener.onFailure(e);
             throw new RuntimeException(e);
         }
-        ActionListener<SearchResponse> listener = ActionListener.wrap(
-            // TODO: Should we transform responses with the original request or the transformed request? Or both?
-            r -> originalListener.onResponse(searchPipelineService.transformResponse(originalSearchRequest, r)),
-            originalListener::onFailure
-        );
 
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {

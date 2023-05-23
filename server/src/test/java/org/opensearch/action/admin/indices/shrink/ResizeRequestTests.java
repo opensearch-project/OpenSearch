@@ -130,13 +130,36 @@ public class ResizeRequestTests extends OpenSearchTestCase {
     public void testTargetIndexSettingsValidation() {
         ResizeRequest resizeRequest = new ResizeRequest(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10));
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(randomAlphaOfLengthBetween(3, 10));
+        createIndexRequest.settings(Settings.builder().put("index.blocks.read_only", true));
+        resizeRequest.setTargetIndex(createIndexRequest);
+        ActionRequestValidationException e = resizeRequest.validate();
+        assertEquals(
+            "Validation Failed: 1: target index ["
+                + createIndexRequest.index()
+                + "] will be blocked by [index.blocks.read_only=true],"
+                + " this will disable metadata writes and cause the shards to be unassigned;",
+            e.getMessage()
+        );
+
+        createIndexRequest.settings(Settings.builder().put("index.blocks.metadata", true));
+        resizeRequest.setMaxShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
+        resizeRequest.setTargetIndex(createIndexRequest);
+        e = resizeRequest.validate();
+        assertEquals(
+            "Validation Failed: 1: target index ["
+                + createIndexRequest.index()
+                + "] will be blocked by [index.blocks.metadata=true],"
+                + " this will disable metadata writes and cause the shards to be unassigned;",
+            e.getMessage()
+        );
+
         createIndexRequest.settings(
             Settings.builder()
                 .put("index.sort.field", randomAlphaOfLengthBetween(3, 10))
                 .put("index.routing_partition_size", randomIntBetween(1, 10))
         );
         resizeRequest.setTargetIndex(createIndexRequest);
-        ActionRequestValidationException e = resizeRequest.validate();
+        e = resizeRequest.validate();
         assertEquals(
             "Validation Failed: 1: can't override index sort when resizing an index;"
                 + "2: cannot provide a routing partition size value when resizing an index;",

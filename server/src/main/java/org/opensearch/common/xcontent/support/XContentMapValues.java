@@ -39,9 +39,9 @@ import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Numbers;
-import org.opensearch.common.Strings;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
