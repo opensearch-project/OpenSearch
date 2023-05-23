@@ -8,7 +8,6 @@ package org.opensearch.identity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import java.util.List;
 import org.opensearch.common.settings.Settings;
@@ -48,12 +47,5 @@ public class IdentityService {
      */
     public Subject getSubject() {
         return identityPlugin.getSubject();
-    }
-
-    /**
-     * Gets a list of settings to register for extensions
-     */
-    public List<Setting<?>> getExtensionSettings() {
-        return identityPlugin.getExtensionSettings();
     }
 }

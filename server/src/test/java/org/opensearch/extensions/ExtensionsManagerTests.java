@@ -73,15 +73,13 @@ import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.Subject;
-import org.opensearch.identity.noop.NoopSubject;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.plugins.IdentityPlugin;
+import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
@@ -105,7 +103,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     private RestController restController;
     private SettingsModule settingsModule;
     private ClusterService clusterService;
-    private IdentityService identityService;
+    private ExtensionAwarePlugin extAwarePlugin;
     private Setting customSetting = Setting.simpleString("custom_extension_setting", "none", Property.ExtensionScope);
     private NodeClient client;
     private MockNioTransport transport;
@@ -169,11 +167,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Collections.emptySet()
         );
         actionModule = mock(ActionModule.class);
-        IdentityPlugin identityPlugin = new IdentityPlugin() {
-            @Override
-            public Subject getSubject() {
-                return new NoopSubject();
-            }
+        extAwarePlugin = new ExtensionAwarePlugin() {
 
             @Override
             public List<Setting<?>> getExtensionSettings() {
@@ -182,7 +176,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 return settings;
             }
         };
-        identityService = new IdentityService(Settings.EMPTY, List.of(identityPlugin));
         dynamicActionRegistry = mock(DynamicActionRegistry.class);
         restController = new RestController(
             emptySet(),
@@ -927,7 +920,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     public void testAdditionalExtensionSettings() throws Exception {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
-        Set<Setting<?>> additionalSettings = identityService.getExtensionSettings().stream().collect(Collectors.toSet());
+        Set<Setting<?>> additionalSettings = extAwarePlugin.getExtensionSettings().stream().collect(Collectors.toSet());
 
         ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir, additionalSettings);
 

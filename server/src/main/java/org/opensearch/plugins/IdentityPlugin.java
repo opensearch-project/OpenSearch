@@ -8,11 +8,7 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.common.settings.Setting;
 import org.opensearch.identity.Subject;
-
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Plugin that provides identity and access control for OpenSearch
@@ -27,11 +23,4 @@ public interface IdentityPlugin {
      * Should never return null
      * */
     Subject getSubject();
-
-    /**
-     * Returns a list of additional {@link Setting} definitions that this plugin adds for extensions
-     */
-    default List<Setting<?>> getExtensionSettings() {
-        return Collections.emptyList();
-    }
 }
