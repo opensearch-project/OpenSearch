@@ -5,12 +5,13 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 ## Current Maintainers
 
 | Maintainer               | GitHub ID                                               | Affiliation |
-| ------------------------ | ------------------------------------------------------- | ----------- |
+|--------------------------| ------------------------------------------------------- | ----------- |
 | Anas Alkouz              | [anasalkouz](https://github.com/anasalkouz)             | Amazon      |
 | Andrew Ross              | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko             | [reta](https://github.com/reta)                         | Aiven       |
 | Bukhtawar Khan           | [Bukhtawar](https://github.com/Bukhtawar)               | Amazon      |
 | Charlotte Henkle         | [CEHENKLE](https://github.com/CEHENKLE)                 | Amazon      |
+| Dan Widdis               | [dbwiddis](https://github.com/dbwiddis)                 | Amazon      |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)                     | Amazon      |
 | Gaurav Bafna             | [gbbafna](https://github.com/gbbafna)                   | Amazon      |
 | Himanshu Setia           | [setiah](https://github.com/setiah)                     | Amazon      |
@@ -26,7 +27,6 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Suraj Singh              | [dreamer-89](https://github.com/dreamer-89)             | Amazon      |
 | Tianli Feng              | [tlfeng](https://github.com/tlfeng)                     | Amazon      |
 | Vacha Shah               | [VachaShah](https://github.com/VachaShah)               | Amazon      |
-| Xue Zhou                 | [xuezhou25](https://github.com/xuezhou25)               | Amazon      |
 
 ## Emeritus
 
@@ -35,3 +35,4 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Abbas Hussain           | [abbashus](https://github.com/abbashus)     | Amazon      |
 | Megha Sai Kavikondala   | [meghasaik](https://github.com/meghasaik)   | Amazon      |
 | Rabi Panda              | [adnapibar](https://github.com/adnapibar)   | Amazon      |
+| Xue Zhou                | [xuezhou25](https://github.com/xuezhou25)   | Amazon      |
