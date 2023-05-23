@@ -15,7 +15,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.common.OffsetStreamContainer;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
-import org.opensearch.common.ThrowingTriFunction;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
@@ -127,7 +127,7 @@ public class RemoteTransferContainer implements Closeable {
         return new StreamContext(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts);
     }
 
-    private ThrowingTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> getTransferPartStreamSupplier() {
+    private CheckedTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> getTransferPartStreamSupplier() {
         return ((partNo, size, position) -> {
             assert inputStreams.get() != null : "expected inputStreams to be initialised";
             return getMultipartStreamSupplier(partNo, size, position).get();

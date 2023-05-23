@@ -15,7 +15,7 @@ import java.io.IOException;
  */
 public class StreamContext {
 
-    private final ThrowingTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> streamSupplier;
+    private final CheckedTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> streamSupplier;
     private final long partSize;
     private final long lastPartSize;
     private final int numberOfParts;
@@ -29,7 +29,7 @@ public class StreamContext {
      * @param numberOfParts Total number of parts
      */
     public StreamContext(
-        ThrowingTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> streamSupplier,
+        CheckedTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> streamSupplier,
         long partSize,
         long lastPartSize,
         int numberOfParts

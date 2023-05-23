@@ -15,7 +15,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.OffsetStreamContainer;
 import org.opensearch.common.StreamContext;
-import org.opensearch.common.ThrowingTriFunction;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
 import org.opensearch.common.blobstore.stream.write.UploadResponse;
@@ -443,7 +443,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
                 @Override
                 public StreamContext supplyStreamContext(long partSize) {
-                    return new StreamContext(new ThrowingTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException>() {
+                    return new StreamContext(new CheckedTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException>() {
                         @Override
                         public OffsetStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
                             InputStream inputStream = new OffsetRangeIndexInputStream(
@@ -498,7 +498,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             new WriteContext("write_large_blob", new StreamContextSupplier() {
                 @Override
                 public StreamContext supplyStreamContext(long partSize) {
-                    return new StreamContext(new ThrowingTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException>() {
+                    return new StreamContext(new CheckedTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException>() {
                         @Override
                         public OffsetStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
                             InputStream inputStream = new OffsetRangeIndexInputStream(new ZeroIndexInput("desc", blobSize), size, position);

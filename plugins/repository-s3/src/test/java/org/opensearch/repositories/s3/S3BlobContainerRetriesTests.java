@@ -42,7 +42,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.OffsetStreamContainer;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.ThrowingTriFunction;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
@@ -311,7 +311,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
                 @Override
                 public StreamContext supplyStreamContext(long partSize) {
-                    return new StreamContext(new ThrowingTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException>() {
+                    return new StreamContext(new CheckedTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException>() {
                         @Override
                         public OffsetStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
                             InputStream inputStream = new OffsetRangeIndexInputStream(
