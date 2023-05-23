@@ -2271,9 +2271,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private Map<String, String> fetchUserData() throws IOException {
         if (indexSettings.isRemoteSnapshot() && indexSettings.getExtendedCompatibilitySnapshotVersion() != null) {
-            // Inefficient method to support reading old Lucene indexes
-            return Lucene.readSegmentInfosExtendedCompatibility(store.directory(), indexSettings.getExtendedCompatibilitySnapshotVersion())
-                .getUserData();
+            return Lucene.readSegmentInfos(store.directory(), indexSettings.getExtendedCompatibilitySnapshotVersion()).getUserData();
         } else {
             return SegmentInfos.readLatestCommit(store.directory()).getUserData();
         }
