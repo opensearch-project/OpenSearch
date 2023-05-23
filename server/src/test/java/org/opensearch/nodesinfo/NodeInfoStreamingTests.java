@@ -251,7 +251,7 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
             for (int i = 0; i < numProcessors; i++) {
                 processors.add(new org.opensearch.search.pipeline.ProcessorInfo(randomAlphaOfLengthBetween(3, 10)));
             }
-            searchPipelineInfo = new SearchPipelineInfo(processors);
+            searchPipelineInfo = new SearchPipelineInfo(Map.of(randomAlphaOfLengthBetween(3, 10), processors));
         }
 
         return new NodeInfo(
