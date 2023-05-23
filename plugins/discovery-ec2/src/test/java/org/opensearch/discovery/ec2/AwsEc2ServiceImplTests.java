@@ -172,6 +172,7 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase implements Config
 
         final Settings settings = Settings.builder()
             .put("discovery.ec2.protocol", "http")
+            // NOTE: a host cannot contain the _ character when parsed by URI, hence aws-proxy-host and not aws_proxy_host
             .put("discovery.ec2.proxy.host", "aws-proxy-host")
             .put("discovery.ec2.proxy.port", 8080)
             .put("discovery.ec2.read_timeout", "10s")

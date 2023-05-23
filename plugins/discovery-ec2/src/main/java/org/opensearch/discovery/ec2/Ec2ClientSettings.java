@@ -86,8 +86,8 @@ final class Ec2ClientSettings {
         Property.NodeScope
     );
 
-    /** The protocol to use to connect to ec2. */
-    // TODO: AWS SDKv2 only enables HTTPs, deprecate
+    /** The protocol to use to connect to ec2. AWS SDKv2 only supports HTTPs, deprecated in 3.0. */
+    @Deprecated
     static final Setting<Protocol> PROTOCOL_SETTING = new Setting<>(
         "discovery.ec2.protocol",
         "https",
@@ -104,7 +104,7 @@ final class Ec2ClientSettings {
     /** The socket timeout for connecting to s3. */
     static final Setting<TimeValue> READ_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.ec2.read_timeout",
-        TimeValue.timeValueMillis(50000),
+        TimeValue.timeValueMillis(50_000),
         Property.NodeScope
     );
 

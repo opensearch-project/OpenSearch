@@ -122,7 +122,11 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
     // pkg private for tests
     static RetryPolicy buildRetryPolicy(Logger logger, Ec2ClientSettings clientSettings) {
-        // Increase the number of retries in case of 5xx API responses
+        // Increase the number of retries in case of 5xx API responses.
+        // Note that AWS SDK v2 introduced a concept of TokenBucketRetryCondition, which effectively limits retries for
+        // APIs that have been failing continuously. It allocates tokens (default is 500), which means that once 500
+        // retries fail for any API on a bucket, new retries will only be allowed once some retries are rejected.
+        // https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/retry/conditions/TokenBucketRetryCondition.html
         RetryPolicy.Builder retryPolicy = RetryPolicy.builder().numRetries(10);
         return retryPolicy.build();
     }
@@ -174,7 +178,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         }
     }
 
-    // AWS v2 SDK load a default profile from $user_home, which is restricted. Use OpenSearch configuration path.
+    // By default, AWS v2 SDK loads a default profile from $USER_HOME, which is restricted. Use the OpenSearch configuration path instead.
     @SuppressForbidden(reason = "Prevent AWS SDK v2 from using ~/.aws/config and ~/.aws/credentials.")
     static void setDefaultAwsProfilePath() {
         if (ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.getStringValue().isEmpty()) {

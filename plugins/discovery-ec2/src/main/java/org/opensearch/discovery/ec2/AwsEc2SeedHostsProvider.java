@@ -119,8 +119,6 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
     }
 
     protected List<TransportAddress> fetchDynamicNodes() {
-        logger.info("fetchDynamicNodes");
-
         final List<TransportAddress> dynamicHosts = new ArrayList<>();
 
         final DescribeInstancesResponse descInstances;
@@ -138,7 +136,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
             return dynamicHosts;
         }
 
-        logger.info("finding seed nodes...");
+        logger.trace("finding seed nodes...");
         for (final Reservation reservation : descInstances.reservations()) {
             for (final Instance instance : reservation.instances()) {
                 // lets see if we can filter based on groups
