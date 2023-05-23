@@ -38,6 +38,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
@@ -55,6 +56,7 @@ import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocat
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.threadpool.TestThreadPool;
@@ -560,6 +562,71 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
         routing = iter.nextOrNull();
         assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
         assertTrue(routing.primary());
+    }
+
+    public void testSearchableSnapshotPreference() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+        OperationRouting operationRouting = new OperationRouting(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        // Modify the index to be a searchable snapshot index
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(
+                        Settings.builder()
+                            .put(settings(Version.CURRENT).build())
+                            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                    )
+                    .numberOfShards(2)
+                    .numberOfReplicas(2)
+            )
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
+                    .add(newNode("node2", Collections.singleton(DiscoveryNodeRole.SEARCH_ROLE)))
+                    .add(newNode("node3", Collections.singleton(DiscoveryNodeRole.SEARCH_ROLE)))
+                    .localNodeId("node1")
+            )
+            .build();
+
+        clusterState = strategy.reroute(clusterState, "reroute"); // Move primaries to initializing
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
+        clusterState = strategy.reroute(clusterState, "reroute"); // Move replicas to initializing
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
+        // When replicas haven't initialized, it comes back with the primary first, then initializing replicas
+        GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(
+            clusterState,
+            new String[] { "test" },
+            null,
+            null
+        );
+        assertThat(shardIterators.size(), equalTo(2)); // two potential shards
+        ShardIterator iter = shardIterators.iterator().next();
+        assertThat(iter.size(), equalTo(1)); // one potential candidate (primary) for the shard
+
+        ShardRouting routing = iter.nextOrNull();
+        assertNotNull(routing);
+        assertTrue(routing.primary()); // Default preference is primary
+        assertTrue(routing.started());
+        routing = iter.nextOrNull();
+        assertNull(routing); // No other candidate apart from primary
     }
 
     public void testWeightedRoutingWithDifferentWeights() {
