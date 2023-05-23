@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 
 /**
  * This monitoring service is responsible to track long-running(defined by a threshold) cancelled tasks as part of
- * node stats. This information is important to track as such tasks can cause
+ * node stats.
  */
 public class TaskCancellationMonitoringService extends AbstractLifecycleComponent
     implements
@@ -144,12 +144,6 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         if (!this.cancelledTaskTracker.containsKey(task.getId())) {
             return;
         }
-        logger.info(
-            "cancelled Task: {}, type {} got completed, total running time: {} !!!",
-            task,
-            task.getClass(),
-            TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - ((CancellableTask) task).getCancelledAtNanos())
-        );
         this.cancelledTaskTracker.remove(task.getId());
         if (this.cancelledTaskTracker.isEmpty()) {
             shouldRun.set(false);
@@ -166,7 +160,6 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         if (!TASKS_TO_TRACK.contains(task.getClass())) {
             return;
         }
-        logger.info("Task: {}, type {} got cancelled at {}!!!", task, task.getClass(), task.getCancelledAt());
         // Add task to tracker and mark it as not seen(false) yet by the stats logic.
         this.cancelledTaskTracker.putIfAbsent(task.getId(), false);
         if (!shouldRun.get()) {
@@ -195,7 +188,7 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
             .map(task -> (CancellableTask) task)
             .filter(CancellableTask::isCancelled)
             .filter(task -> {
-                long runningTimeSinceCancellationSeconds = TimeUnit.NANOSECONDS.toSeconds(currentTimeInNanos - task.getCancelledAtNanos());
+                long runningTimeSinceCancellationSeconds = TimeUnit.NANOSECONDS.toSeconds(currentTimeInNanos - task.getCancellationStartTimeNanos());
                 return runningTimeSinceCancellationSeconds >= taskCancellationMonitoringSettings.getDuration().getSeconds();
             })
             .collect(Collectors.groupingBy(CancellableTask::getClass, Collectors.toList()));

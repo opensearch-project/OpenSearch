@@ -52,7 +52,7 @@ public class SearchShardTaskCancellationStats implements ToXContentObject, Write
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(currentLongRunningCancelledTaskCount);
+        out.writeVLong(currentLongRunningCancelledTaskCount);
         out.writeVLong(totalLongRunningCancelledTaskCount);
     }
 
