@@ -57,7 +57,7 @@ dependencies {
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   // Other dependencies
   api 'org.tukaani:xz:1.9'
-  api 'commons-io:commons-io:2.11.0'
+  api 'commons-io:commons-io:2.12.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
