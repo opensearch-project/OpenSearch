@@ -22,13 +22,13 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public final class ExtensionAdditionalSettings extends AbstractScopedSettings {
+public final class ExtensionScopedSettings extends AbstractScopedSettings {
 
-    public ExtensionAdditionalSettings(final Set<Setting<?>> settingsSet) {
+    public ExtensionScopedSettings(final Set<Setting<?>> settingsSet) {
         this(settingsSet, Collections.emptySet());
     }
 
-    public ExtensionAdditionalSettings(final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
+    public ExtensionScopedSettings(final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
         super(Settings.EMPTY, settingsSet, settingUpgraders, Property.ExtensionScope);
     }
 }

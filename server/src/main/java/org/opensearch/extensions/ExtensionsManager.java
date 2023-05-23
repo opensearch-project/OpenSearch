@@ -119,7 +119,7 @@ public class ExtensionsManager {
     private CustomSettingsRequestHandler customSettingsRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
-    private Set<Setting<?>> additionalSettings;
+    private final Set<Setting<?>> additionalSettings;
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
@@ -140,10 +140,9 @@ public class ExtensionsManager {
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
-        if (additionalSettings == null) {
-            this.additionalSettings = new HashSet<>();
-        } else {
-            this.additionalSettings = additionalSettings;
+        this.additionalSettings = new HashSet<>();
+        if (additionalSettings != null) {
+            this.additionalSettings.addAll(additionalSettings);
         }
         this.client = null;
         this.extensionTransportActionsHandler = null;
@@ -639,7 +638,7 @@ public class ExtensionsManager {
                         }
                     }
 
-                    ExtensionAdditionalSettings extAdditionalSettings = new ExtensionAdditionalSettings(additionalSettings);
+                    ExtensionScopedSettings extAdditionalSettings = new ExtensionScopedSettings(additionalSettings);
                     Set<String> additionalSettingsKeys = additionalSettings.stream().map(s -> s.getKey()).collect(Collectors.toSet());
                     Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
                         .stream()

@@ -19,6 +19,7 @@ import java.util.List;
  * @opensearch.experimental
  */
 public interface ExtensionAwarePlugin {
+
     /**
      * Returns a list of additional {@link Setting} definitions that this plugin adds for extensions
      */

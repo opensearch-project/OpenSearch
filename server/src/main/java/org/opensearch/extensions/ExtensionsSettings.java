@@ -44,7 +44,7 @@ public class ExtensionsSettings {
         private String opensearchVersion;
         private String minimumCompatibleVersion;
         private List<ExtensionDependency> dependencies = Collections.emptyList();
-        private ExtensionAdditionalSettings additionalSettings;
+        private ExtensionScopedSettings additionalSettings;
 
         public Extension(
             String name,
@@ -55,7 +55,7 @@ public class ExtensionsSettings {
             String opensearchVersion,
             String minimumCompatibleVersion,
             List<ExtensionDependency> dependencies,
-            ExtensionAdditionalSettings additionalSettings
+            ExtensionScopedSettings additionalSettings
         ) {
             this.name = name;
             this.uniqueId = uniqueId;
@@ -130,7 +130,7 @@ public class ExtensionsSettings {
             return dependencies;
         }
 
-        public ExtensionAdditionalSettings getAdditionalSettings() {
+        public ExtensionScopedSettings getAdditionalSettings() {
             return additionalSettings;
         }
 
