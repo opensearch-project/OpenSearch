@@ -58,6 +58,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
     private RemoteStoreMetadataLockManager mdLockManager;
 
     private RemoteSegmentStoreDirectory remoteSegmentStoreDirectory;
+    private TestUploadTracker testUploadTracker;
 
     @Before
     public void setup() throws IOException {
@@ -66,6 +67,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         mdLockManager = mock(RemoteStoreMetadataLockManager.class);
 
         remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory, mdLockManager);
+        testUploadTracker = new TestUploadTracker();
     }
 
     public void testUploadedSegmentMetadataToString() {
@@ -522,9 +524,10 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         uploadResponseCompletableFuture.complete(new UploadResponse(true));
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
 
-        remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT);
+        remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT, testUploadTracker);
 
         assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+        assertEquals(TestUploadTracker.UploadStatus.UPLOAD_SUCCESS, testUploadTracker.getUploadStatus(filename));
 
         storeDirectory.close();
     }
@@ -552,10 +555,11 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
 
         assertThrows(
             IOException.class,
-            () -> remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT)
+            () -> remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT, testUploadTracker)
         );
 
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+        assertEquals(TestUploadTracker.UploadStatus.UPLOAD_FAILURE, testUploadTracker.getUploadStatus(filename));
 
         storeDirectory.close();
     }
@@ -583,10 +587,11 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
 
         assertThrows(
             ExecutionException.class,
-            () -> remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT)
+            () -> remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT, testUploadTracker)
         );
 
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+        assertEquals(TestUploadTracker.UploadStatus.UPLOAD_FAILURE, testUploadTracker.getUploadStatus(filename));
 
         storeDirectory.close();
     }

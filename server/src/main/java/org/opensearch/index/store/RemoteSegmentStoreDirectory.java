@@ -24,28 +24,29 @@ import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
-import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.util.ByteUtils;
+import org.opensearch.index.shard.UploadTracker;
+import org.opensearch.index.store.exception.ChecksumCombinationException;
+import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
-import org.opensearch.index.store.lockmanager.FileLockInfo;
-import org.opensearch.common.util.ByteUtils;
-import org.opensearch.index.store.exception.ChecksumCombinationException;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -351,23 +352,51 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * will be used, else, the legacy {@link RemoteSegmentStoreDirectory#copyFrom(Directory, String, String, IOContext, boolean)}
      * will be called.
      *
-     * @param from    The directory for all files to be uploaded
-     * @param files   A list containing the names of all files to be uploaded
-     * @param context IOContext to be used to open IndexInput to files during remote upload
+     * @param from          The directory for all files to be uploaded
+     * @param files         A list containing the names of all files to be uploaded
+     * @param context       IOContext to be used to open IndexInput to files during remote upload
+     * @param uploadTracker An {@link UploadTracker} for tracking file uploads
      * @throws Exception When upload future creation fails or if {@link RemoteSegmentStoreDirectory#copyFrom(Directory, String, String, IOContext, boolean)}
      *                   throws an exception
      */
-    public void copyFilesFrom(Directory from, Collection<String> files, IOContext context) throws Exception {
+    public boolean copyFilesFrom(Directory from, Collection<String> files, IOContext context, UploadTracker uploadTracker)
+        throws Exception {
 
         List<CompletableFuture<UploadResponse>> resultFutures = new ArrayList<>();
 
+        boolean uploadOfAllFilesSuccessful = true;
         for (String src : files) {
             String remoteFilename = createRemoteFileName(src, false);
+            uploadTracker.beforeUpload(src);
             if (remoteDataDirectory.getBlobContainer().isMultiStreamUploadSupported()) {
-                CompletableFuture<UploadResponse> resultFuture = createUploadFuture(from, src, remoteFilename, context);
-                resultFutures.add(resultFuture);
+                try {
+                    CompletableFuture<UploadResponse> resultFuture = createUploadFuture(from, src, remoteFilename, context);
+                    resultFuture.whenComplete((uploadResponse, throwable) -> {
+                        if (throwable != null) {
+                            uploadTracker.onFailure(src);
+                        } else {
+                            uploadTracker.onSuccess(src);
+                        }
+                    });
+                    resultFutures.add(resultFuture);
+                } catch (Exception e) {
+                    uploadTracker.onFailure(src);
+                    throw e;
+                }
             } else {
-                copyFrom(from, src, src, context, false);
+                boolean success = true;
+                try {
+                    copyFrom(from, src, src, context, false);
+                    uploadTracker.onSuccess(src);
+                } catch (IOException e) {
+                    success = false;
+                    uploadOfAllFilesSuccessful = false;
+                    logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", src), e);
+                } finally {
+                    if (!success) {
+                        uploadTracker.onFailure(src);
+                    }
+                }
             }
         }
 
@@ -383,6 +412,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 throw e;
             }
         }
+
+        return uploadOfAllFilesSuccessful;
     }
 
     private CompletableFuture<UploadResponse> createUploadFuture(Directory from, String src, String remoteFileName, IOContext ioContext)
