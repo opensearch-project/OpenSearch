@@ -188,7 +188,9 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
             .map(task -> (CancellableTask) task)
             .filter(CancellableTask::isCancelled)
             .filter(task -> {
-                long runningTimeSinceCancellationSeconds = TimeUnit.NANOSECONDS.toSeconds(currentTimeInNanos - task.getCancellationStartTimeNanos());
+                long runningTimeSinceCancellationSeconds = TimeUnit.NANOSECONDS.toSeconds(
+                    currentTimeInNanos - task.getCancellationStartTimeNanos()
+                );
                 return runningTimeSinceCancellationSeconds >= taskCancellationMonitoringSettings.getDuration().getSeconds();
             })
             .collect(Collectors.groupingBy(CancellableTask::getClass, Collectors.toList()));
