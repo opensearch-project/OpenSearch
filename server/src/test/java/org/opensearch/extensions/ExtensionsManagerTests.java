@@ -49,7 +49,6 @@ import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesReference;
@@ -66,30 +65,21 @@ import org.opensearch.common.settings.WriteableSetting.SettingType;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
-import org.opensearch.env.TestEnvironment;
 import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.index.IndexModule;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.analysis.AnalysisRegistry;
-import org.opensearch.index.engine.EngineConfigFactory;
-import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.test.FeatureFlagSetter;
-import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
@@ -849,40 +839,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             client
         );
         verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
-
-    }
-
-    public void testOnIndexModule() throws Exception {
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir, Set.of());
-        initialize(extensionsManager);
-
-        Environment environment = TestEnvironment.newEnvironment(settings);
-        AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
-            environment,
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap()
-        );
-
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
-        IndexModule indexModule = new IndexModule(
-            indexSettings,
-            emptyAnalysisRegistry,
-            new InternalEngineFactory(),
-            new EngineConfigFactory(indexSettings),
-            Collections.emptyMap(),
-            () -> true,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            Collections.emptyMap()
-        );
-        expectThrows(NodeNotConnectedException.class, () -> extensionsManager.onIndexModule(indexModule));
 
     }
 
