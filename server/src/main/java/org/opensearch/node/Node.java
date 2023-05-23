@@ -467,9 +467,8 @@ public class Node implements Closeable {
 
             final IdentityService identityService = new IdentityService(settings, identityPlugins);
 
-            final List<ExtensionAwarePlugin> extensionAwarePlugins = new ArrayList<>();
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                extensionAwarePlugins.addAll(pluginsService.filterPlugins(ExtensionAwarePlugin.class));
+                final List<ExtensionAwarePlugin> extensionAwarePlugins = pluginsService.filterPlugins(ExtensionAwarePlugin.class);
                 Set<Setting<?>> additionalSettings = new HashSet<>();
                 for (ExtensionAwarePlugin extAwarePlugin : extensionAwarePlugins) {
                     additionalSettings.addAll(extAwarePlugin.getExtensionSettings());

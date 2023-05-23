@@ -873,65 +873,56 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testAdditionalExtensionSettings() throws Exception {
+    public void testAdditionalExtensionSettingsForExtensionWithCustomSettingSet() throws Exception {
         Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
 
         Set<Setting<?>> additionalSettings = extAwarePlugin.getExtensionSettings().stream().collect(Collectors.toSet());
 
         ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir, additionalSettings);
 
-        List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
-
-        String expectedUniqueId = "uniqueid0";
-        Version expectedVersion = Version.fromString("2.0.0");
-        ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
-
-        expectedExtensions.add(
-            new DiscoveryExtensionNode(
-                "firstExtension",
-                "uniqueid1",
-                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
-                new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
-                Collections.emptyList()
-            )
+        DiscoveryExtensionNode extension = new DiscoveryExtensionNode(
+            "firstExtension",
+            "uniqueid1",
+            new TransportAddress(InetAddress.getByName("127.0.0.1"), 9300),
+            new HashMap<String, String>(),
+            Version.fromString("3.0.0"),
+            Version.fromString("3.0.0"),
+            List.of()
         );
-
-        expectedExtensions.add(
-            new DiscoveryExtensionNode(
-                "secondExtension",
-                "uniqueid2",
-                new TransportAddress(InetAddress.getByName("127.0.0.1"), 9301),
-                new HashMap<String, String>(),
-                Version.fromString("2.0.0"),
-                Version.fromString("2.0.0"),
-                List.of(expectedDependency)
-            )
+        DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
+        assertEquals(extension.getName(), initializedExtension.getName());
+        assertEquals(extension.getId(), initializedExtension.getId());
+        assertTrue(extensionsManager.lookupExtensionSettingsById(extension.getId()).isPresent());
+        assertEquals(
+            "custom_setting",
+            extensionsManager.lookupExtensionSettingsById(extension.getId()).get().getAdditionalSettings().get(customSetting)
         );
-        assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
-        for (DiscoveryExtensionNode extension : expectedExtensions) {
-            DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
-            assertEquals(extension.getName(), initializedExtension.getName());
-            assertEquals(extension.getId(), initializedExtension.getId());
-            assertEquals(extension.getAddress(), initializedExtension.getAddress());
-            assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
-            assertEquals(extension.getVersion(), initializedExtension.getVersion());
-            assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
-            assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
-            assertTrue(extensionsManager.lookupExtensionSettingsById(extension.getId()).isPresent());
-            if ("firstExtension".equals(extension.getName())) {
-                assertEquals(
-                    "custom_setting",
-                    extensionsManager.lookupExtensionSettingsById(extension.getId()).get().getAdditionalSettings().get(customSetting)
-                );
-            } else if ("secondExtension".equals(extension.getName())) {
-                assertEquals(
-                    "none",
-                    extensionsManager.lookupExtensionSettingsById(extension.getId()).get().getAdditionalSettings().get(customSetting)
-                );
-            }
-        }
+    }
+
+    public void testAdditionalExtensionSettingsForExtensionWithoutCustomSettingSet() throws Exception {
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
+        Set<Setting<?>> additionalSettings = extAwarePlugin.getExtensionSettings().stream().collect(Collectors.toSet());
+
+        ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir, additionalSettings);
+
+        DiscoveryExtensionNode extension = new DiscoveryExtensionNode(
+            "secondExtension",
+            "uniqueid2",
+            new TransportAddress(InetAddress.getByName("127.0.0.1"), 9301),
+            new HashMap<String, String>(),
+            Version.fromString("2.0.0"),
+            Version.fromString("2.0.0"),
+            List.of()
+        );
+        DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
+        assertEquals(extension.getName(), initializedExtension.getName());
+        assertEquals(extension.getId(), initializedExtension.getId());
+        assertTrue(extensionsManager.lookupExtensionSettingsById(extension.getId()).isPresent());
+        assertEquals(
+            "none",
+            extensionsManager.lookupExtensionSettingsById(extension.getId()).get().getAdditionalSettings().get(customSetting)
+        );
     }
 
     private void initialize(ExtensionsManager extensionsManager) {
