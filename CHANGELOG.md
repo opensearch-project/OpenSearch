@@ -20,18 +20,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove 'cluster_manager' role attachment when using 'node.master' deprecated setting ([#6331](https://github.com/opensearch-project/OpenSearch/pull/6331))
 
 ### Dependencies
-- Bump `org.apache.logging.log4j:log4j-core` from 2.18.0 to 2.20.0 ([#6490](https://github.com/opensearch-project/OpenSearch/pull/6490))
-- Bump `com.azure:azure-storage-common` from 12.19.3 to 12.20.0 ([#6492](https://github.com/opensearch-project/OpenSearch/pull/6492)
-- Bump `snakeyaml` from 1.33 to 2.0 ([#6511](https://github.com/opensearch-project/OpenSearch/pull/6511))
-- Bump `io.projectreactor.netty:reactor-netty` from 1.1.3 to 1.1.4
-- Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.15.2 to 0.16.11
-- Bump `net.minidev:json-smart` from 2.4.8 to 2.4.9
-- Bump `com.google.protobuf:protobuf-java` from 3.22.0 to 3.22.2
-- Bump Netty to 4.1.90.Final ([#6677](https://github.com/opensearch-project/OpenSearch/pull/6677)
-- Bump `com.diffplug.spotless` from 6.15.0 to 6.17.0
-- Bump `org.apache.zookeeper:zookeeper` from 3.8.0 to 3.8.1
-- Bump `net.minidev:json-smart` from 2.4.7 to 2.4.10
-- Bump `org.apache.maven:maven-model` from 3.6.2 to 3.9.1
+- Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.3 (#7564)
+- Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.2.0
+- Bump `com.google.protobuf:protobuf-java` from 3.22.2 to 3.22.3
+- Bump `jackson` from 2.14.2 to 2.15.0 ([#7286](https://github.com/opensearch-project/OpenSearch/pull/7286))
+- Bump `com.netflix.nebula:nebula-publishing-plugin` from 20.2.0 to 20.3.0
+- Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.3.0
+- Bump `gradle.plugin.com.github.johnrengelman:shadow` from 7.1.2 to 8.0.0
+- Bump `jna` from 5.11.0 to 5.13.0
+- Bump `commons-io:commons-io` from 2.7 to 2.12.0 (#7661, #7658, #7656)
+- Bump `org.apache.shiro:shiro-core` from 1.9.1 to 1.11.0 ([#7397](https://github.com/opensearch-project/OpenSearch/pull/7397))
+- Bump `jetty-server` in hdfs-fixture from 9.4.49.v20220914 to 9.4.51.v20230217 ([#7405](https://github.com/opensearch-project/OpenSearch/pull/7405))
+- OpenJDK Update (April 2023 Patch releases) ([#7448](https://github.com/opensearch-project/OpenSearch/pull/7448)
+- Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0 (#7462)
+- Bump `com.azure:azure-core` from 1.34.0 to 1.39.0
+- Bump `com.networknt:json-schema-validator` from 1.0.78 to 1.0.81 (#7460)
+- Bump Apache Lucene to 9.6.0 ([#7505](https://github.com/opensearch-project/OpenSearch/pull/7505))
+- Bump `com.google.cloud:google-cloud-core-http` from 1.93.3 to 2.17.0 (#7488)
+- Bump `com.google.guava:guava` from 30.1.1-jre to 31.1-jre (#7565)
+- Bump `com.azure:azure-storage-common` from 12.20.0 to 12.21.0 (#7566)
+- Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0 (#7563)
+- Bump `jackson` from 2.15.0 to 2.15.1 ([#7603](https://github.com/opensearch-project/OpenSearch/pull/7603))
+- Bump `net.minidev:json-smart` from 2.4.10 to 2.4.11 (#7660)
+- Bump `io.projectreactor.netty:reactor-netty-core` from 1.1.5 to 1.1.7 (#7657)
+- Bump `org.apache.maven:maven-model` from 3.9.1 to 3.9.2 (#7655)
+- Bump `com.google.api:gax` from 2.17.0 to 2.27.0 (#7697)
 
 ### Changed
 - Require MediaType in Strings.toString API ([#6009](https://github.com/opensearch-project/OpenSearch/pull/6009))
@@ -51,4 +64,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Security
 
 [Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
-[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.5...2.x
+[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.7...2.x
