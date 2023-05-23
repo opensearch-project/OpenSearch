@@ -33,6 +33,7 @@
 package org.opensearch.discovery.ec2;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import org.apache.logging.log4j.LogManager;
@@ -105,12 +106,27 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
     static ProxyConfiguration buildProxyConfiguration(Logger logger, Ec2ClientSettings clientSettings) {
         if (Strings.hasText(clientSettings.proxyHost)) {
-            // TODO: remove this leniency, these settings should exist together and be validated
-            return ProxyConfiguration.builder()
-                .endpoint(URI.create(clientSettings.protocol + "://" + clientSettings.proxyHost + ":" + clientSettings.proxyPort))
-                .username(clientSettings.proxyUsername)
-                .password(clientSettings.proxyPassword)
-                .build();
+            try {
+                // TODO: remove this leniency, these settings should exist together and be validated
+                return ProxyConfiguration.builder()
+                    .endpoint(
+                        new URI(
+                            clientSettings.protocol.toString(),
+                            null,
+                            clientSettings.proxyHost,
+                            clientSettings.proxyPort,
+                            null,
+                            null,
+                            null
+                        )
+                    )
+                    .username(clientSettings.proxyUsername)
+                    .password(clientSettings.proxyPassword)
+                    .build();
+            } catch (URISyntaxException e) {
+                logger.error("Exception during URI construction for specified proxy", e);
+                throw new RuntimeException(e);
+            }
         } else {
             return ProxyConfiguration.builder().build();
         }

@@ -118,7 +118,7 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
         final Settings settings = Settings.builder().build();
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings)) {
             final Region region = ((MockEc2Client) plugin.ec2Service.client().get()).region;
-            assertEquals(region, Region.US_EAST_1);
+            assertEquals(region, Region.US_WEST_2);
         }
     }
 
@@ -149,7 +149,7 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
         mockSecure1.setString(Ec2ClientSettings.PROXY_USERNAME_SETTING.getKey(), "proxy_username_1");
         mockSecure1.setString(Ec2ClientSettings.PROXY_PASSWORD_SETTING.getKey(), "proxy_password_1");
         final Settings settings1 = Settings.builder()
-            .put(Ec2ClientSettings.PROXY_HOST_SETTING.getKey(), "proxy_host_1")
+            .put(Ec2ClientSettings.PROXY_HOST_SETTING.getKey(), "proxy-host-1")
             .put(Ec2ClientSettings.PROXY_PORT_SETTING.getKey(), 881)
             .put(Ec2ClientSettings.REGION_SETTING.getKey(), "ec2_region")
             .put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), "ec2_endpoint_1")
@@ -165,7 +165,7 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
         mockSecure2.setString(Ec2ClientSettings.PROXY_USERNAME_SETTING.getKey(), "proxy_username_2");
         mockSecure2.setString(Ec2ClientSettings.PROXY_PASSWORD_SETTING.getKey(), "proxy_password_2");
         final Settings settings2 = Settings.builder()
-            .put(Ec2ClientSettings.PROXY_HOST_SETTING.getKey(), "proxy_host_2")
+            .put(Ec2ClientSettings.PROXY_HOST_SETTING.getKey(), "proxy-host-2")
             .put(Ec2ClientSettings.PROXY_PORT_SETTING.getKey(), 882)
             .put(Ec2ClientSettings.REGION_SETTING.getKey(), "ec2_region")
             .put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), "ec2_endpoint_2")
@@ -189,8 +189,10 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
 
                     assertEquals(
                         mockEc2Client.proxyConfiguration.toString(),
-                        "ProxyConfiguration(endpoint=https://proxy_host_1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
+                        "ProxyConfiguration(endpoint=https://proxy-host-1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
                     );
+                    assertEquals(mockEc2Client.proxyConfiguration.host(), "proxy-host-1");
+                    assertEquals(mockEc2Client.proxyConfiguration.port(), 881);
                     assertEquals(mockEc2Client.proxyConfiguration.username(), "proxy_username_1");
                     assertEquals(mockEc2Client.proxyConfiguration.password(), "proxy_password_1");
                 }
@@ -211,8 +213,10 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
 
                     assertEquals(
                         mockEc2Client.proxyConfiguration.toString(),
-                        "ProxyConfiguration(endpoint=https://proxy_host_1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
+                        "ProxyConfiguration(endpoint=https://proxy-host-1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
                     );
+                    assertEquals(mockEc2Client.proxyConfiguration.host(), "proxy-host-1");
+                    assertEquals(mockEc2Client.proxyConfiguration.port(), 881);
                     assertEquals(mockEc2Client.proxyConfiguration.username(), "proxy_username_1");
                     assertEquals(mockEc2Client.proxyConfiguration.password(), "proxy_password_1");
                 }
@@ -233,8 +237,10 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
 
                 assertEquals(
                     mockEc2Client.proxyConfiguration.toString(),
-                    "ProxyConfiguration(endpoint=https://proxy_host_2:882, username=proxy_username_2, preemptiveBasicAuthenticationEnabled=false)"
+                    "ProxyConfiguration(endpoint=https://proxy-host-2:882, username=proxy_username_2, preemptiveBasicAuthenticationEnabled=false)"
                 );
+                assertEquals(mockEc2Client.proxyConfiguration.host(), "proxy-host-2");
+                assertEquals(mockEc2Client.proxyConfiguration.port(), 882);
                 assertEquals(mockEc2Client.proxyConfiguration.username(), "proxy_username_2");
                 assertEquals(mockEc2Client.proxyConfiguration.password(), "proxy_password_2");
             }

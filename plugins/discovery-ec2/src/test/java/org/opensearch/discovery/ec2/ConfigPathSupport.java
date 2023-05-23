@@ -24,7 +24,7 @@ interface ConfigPathSupport {
     @SuppressForbidden(reason = "set predictable aws defaults")
     default public void setUpAwsProfile() throws Exception {
         SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
-        SocketAccess.doPrivileged(() -> System.setProperty("aws.region", "us-east-1"));
+        SocketAccess.doPrivileged(() -> System.setProperty("aws.region", "us-west-2"));
         SocketAccess.doPrivileged(() -> System.setProperty("aws.accessKeyId", "aws-access-key-id"));
         SocketAccess.doPrivileged(() -> System.setProperty("aws.secretAccessKey", "aws-secret-access-key"));
         SocketAccess.doPrivilegedVoid(AwsEc2ServiceImpl::setDefaultAwsProfilePath);

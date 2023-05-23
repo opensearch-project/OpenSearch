@@ -81,7 +81,7 @@ final class Ec2ClientSettings {
     /** An override for the scoping region for authentication. */
     static final Setting<Region> REGION_SETTING = new Setting<>(
         "discovery.ec2.region",
-        "us-east-1",
+        "us-west-2",
         s -> Region.of(s.toLowerCase(Locale.ROOT)),
         Property.NodeScope
     );
