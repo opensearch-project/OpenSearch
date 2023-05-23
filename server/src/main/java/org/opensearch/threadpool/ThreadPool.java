@@ -43,8 +43,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.XRejectedExecutionHandler;
@@ -110,6 +111,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String TRANSLOG_TRANSFER = "translog_transfer";
         public static final String TRANSLOG_SYNC = "translog_sync";
         public static final String REMOTE_PURGE = "remote_purge";
+        public static final String REMOTE_REFRESH = "remote_refresh";
+        public static final String INDEX_SEARCHER = "index_searcher";
     }
 
     /**
@@ -177,6 +180,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.TRANSLOG_TRANSFER, ThreadPoolType.SCALING);
         map.put(Names.TRANSLOG_SYNC, ThreadPoolType.FIXED);
         map.put(Names.REMOTE_PURGE, ThreadPoolType.SCALING);
+        map.put(Names.REMOTE_REFRESH, ThreadPoolType.SCALING);
+        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
+            map.put(Names.INDEX_SEARCHER, ThreadPoolType.FIXED);
+        }
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -267,6 +274,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(Names.TRANSLOG_SYNC, new FixedExecutorBuilder(settings, Names.TRANSLOG_SYNC, allocatedProcessors * 4, 10000));
         builders.put(Names.REMOTE_PURGE, new ScalingExecutorBuilder(Names.REMOTE_PURGE, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
+        builders.put(
+            Names.REMOTE_REFRESH,
+            new ScalingExecutorBuilder(Names.REMOTE_REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
+        );
+        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
+            builders.put(Names.INDEX_SEARCHER, new FixedExecutorBuilder(settings, Names.INDEX_SEARCHER, allocatedProcessors, 1000, false));
+        }
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
@@ -421,7 +435,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture will cannot interact with it.
-     * @throws org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
+     * @throws OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {

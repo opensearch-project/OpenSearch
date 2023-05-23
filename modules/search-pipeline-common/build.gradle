@@ -1,0 +1,46 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description 'Module for search pipeline processors that do not require additional security permissions or have large dependencies and resources'
+  classname 'org.opensearch.search.pipeline.common.SearchPipelineCommonModulePlugin'
+  extendedPlugins = ['lang-painless']
+}
+
+dependencies {
+  compileOnly project(':modules:lang-painless')
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'search_pipeline', 'cluster', 'indices', 'index', 'nodes',  'search'
+  }
+}
+
+testClusters.all {
+  setting 'opensearch.experimental.feature.search_pipeline.enabled', 'true'
+}
+
+thirdPartyAudit.ignoreMissingClasses(
+  // from log4j
+  'org.osgi.framework.AdaptPermission',
+  'org.osgi.framework.AdminPermission',
+  'org.osgi.framework.Bundle',
+  'org.osgi.framework.BundleActivator',
+  'org.osgi.framework.BundleContext',
+  'org.osgi.framework.BundleEvent',
+  'org.osgi.framework.SynchronousBundleListener',
+  'org.osgi.framework.wiring.BundleWire',
+  'org.osgi.framework.wiring.BundleWiring'
+)

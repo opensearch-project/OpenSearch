@@ -204,6 +204,11 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
         }
 
         @Override
+        public boolean isBigInteger() {
+            return false;
+        }
+
+        @Override
         public SortedNumericDocValues longValues(LeafReaderContext ctx) {
             throw new UnsupportedOperationException();
         }

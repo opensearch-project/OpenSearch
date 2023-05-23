@@ -322,7 +322,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
                 ResponseException responseException = expectThrows(ResponseException.class, () -> oldNodeClient.performRequest(request));
                 assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
                 assertThat(responseException.getResponse().getWarnings(),
-                    contains("Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."));
+                    contains("Synced flush is deprecated and will be removed in 3.0. Use flush at _/flush or /{index}/_flush instead."));
                 Map<String, Object> result = ObjectPath.createFromResponse(responseException.getResponse()).evaluate("_shards");
                 assertThat(result.get("total"), equalTo(totalShards));
                 assertThat(result.get("successful"), equalTo(0));

@@ -33,7 +33,7 @@
 package org.opensearch.packaging.util;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 

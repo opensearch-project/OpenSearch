@@ -56,7 +56,7 @@ versions << [
 dependencies {
   api 'com.google.cloud:google-cloud-storage:1.113.1'
   api 'com.google.cloud:google-cloud-core:2.5.10'
-  runtimeOnly 'com.google.guava:guava:30.1.1-jre'
+  runtimeOnly 'com.google.guava:guava:31.1-jre'
   api 'com.google.guava:failureaccess:1.0.1'
   api 'com.google.http-client:google-http-client:1.35.0'
   api "commons-logging:commons-logging:${versions.commonslogging}"
@@ -65,12 +65,10 @@ dependencies {
   api 'com.google.api:api-common:1.8.1'
   api 'com.google.api:gax:2.27.0'
   api 'org.threeten:threetenbp:1.4.4'
-  api 'com.google.protobuf:protobuf-java-util:3.20.0'
-  api 'com.google.protobuf:protobuf-java:3.21.7'
   api 'com.google.code.gson:gson:2.9.0'
   api 'com.google.api.grpc:proto-google-common-protos:2.10.0'
   api 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
-  api 'com.google.cloud:google-cloud-core-http:1.93.3'
+  api 'com.google.cloud:google-cloud-core-http:2.17.0'
   api "com.google.auth:google-auth-library-credentials:${versions.google_auth}"
   api "com.google.auth:google-auth-library-oauth2-http:${versions.google_auth}"
   api 'com.google.oauth-client:google-oauth-client:1.33.3'
@@ -105,13 +103,6 @@ tasks.named("dependencyLicenses").configure {
 thirdPartyAudit {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
-    'com.google.protobuf.UnsafeUtil',
-    'com.google.protobuf.UnsafeUtil$1',
-    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
-    'com.google.protobuf.MessageSchema',
-    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
     'com.google.common.cache.Striped64',
     'com.google.common.cache.Striped64$1',
     'com.google.common.cache.Striped64$Cell',
@@ -151,6 +142,7 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    'com.google.protobuf.util.Timestamps',
     // commons-logging optional dependencies
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',

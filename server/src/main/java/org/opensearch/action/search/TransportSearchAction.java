@@ -80,6 +80,8 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.pipeline.PipelinedRequest;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
@@ -153,6 +155,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
+    private final SearchPipelineService searchPipelineService;
 
     @Inject
     public TransportSearchAction(
@@ -166,7 +169,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ClusterService clusterService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchPipelineService searchPipelineService
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -180,6 +184,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.searchPipelineService = searchPipelineService;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -375,16 +380,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private void executeRequest(
         Task task,
-        SearchRequest searchRequest,
+        SearchRequest originalSearchRequest,
         SearchAsyncActionProvider searchAsyncActionProvider,
-        ActionListener<SearchResponse> listener
+        ActionListener<SearchResponse> originalListener
     ) {
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(
-            searchRequest.getOrCreateAbsoluteStartMillis(),
+            originalSearchRequest.getOrCreateAbsoluteStartMillis(),
             relativeStartNanos,
             System::nanoTime
         );
+        SearchRequest searchRequest;
+        ActionListener<SearchResponse> listener;
+        try {
+            PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(originalSearchRequest);
+            searchRequest = pipelinedRequest.transformedRequest();
+            listener = ActionListener.wrap(
+                r -> originalListener.onResponse(pipelinedRequest.transformResponse(r)),
+                originalListener::onFailure
+            );
+        } catch (Exception e) {
+            originalListener.onFailure(e);
+            throw new RuntimeException(e);
+        }
+
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {
                 // only set it if it changed - we don't allow null values to be set but it might be already null. this way we catch

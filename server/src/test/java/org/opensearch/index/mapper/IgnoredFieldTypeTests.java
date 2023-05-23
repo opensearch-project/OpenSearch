@@ -33,11 +33,14 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.OpenSearchException;
 
 public class IgnoredFieldTypeTests extends FieldTypeTestCase {
@@ -45,7 +48,7 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
     public void testPrefixQuery() {
         MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
-        Query expected = new PrefixQuery(new Term("_ignored", new BytesRef("foo*")));
+        Query expected = new PrefixQuery(new Term("_ignored", new BytesRef("foo*")), MultiTermQuery.CONSTANT_SCORE_REWRITE);
         assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_QSC));
 
         OpenSearchException ee = expectThrows(OpenSearchException.class, () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
@@ -59,7 +62,14 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
-        Query expected = new RegexpQuery(new Term("_ignored", new BytesRef("foo?")));
+        Query expected = new RegexpQuery(
+            new Term("_ignored", new BytesRef("foo?")),
+            RegExp.ALL,
+            0,
+            RegexpQuery.DEFAULT_PROVIDER,
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            MultiTermQuery.CONSTANT_SCORE_REWRITE
+        );
         assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_QSC));
 
         OpenSearchException ee = expectThrows(
@@ -73,7 +83,7 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
         Query expected = new WildcardQuery(new Term("_ignored", new BytesRef("foo*")));
-        assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_QSC));
+        assertEquals(expected, ft.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,

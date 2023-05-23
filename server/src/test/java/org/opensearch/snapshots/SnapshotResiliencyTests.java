@@ -157,7 +157,6 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
@@ -176,6 +175,7 @@ import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -206,6 +206,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -1801,80 +1802,44 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
                 repositoriesServiceReference.set(repositoriesService);
-                if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                    indicesService = new IndicesService(
-                        settings,
-                        mock(PluginsService.class),
-                        mock(ExtensionsManager.class),
-                        nodeEnv,
-                        namedXContentRegistry,
-                        new AnalysisRegistry(
-                            environment,
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap()
-                        ),
-                        indexNameExpressionResolver,
-                        mapperRegistry,
-                        namedWriteableRegistry,
-                        threadPool,
-                        indexScopedSettings,
-                        new NoneCircuitBreakerService(),
-                        bigArrays,
-                        scriptService,
-                        clusterService,
-                        client,
-                        new MetaStateService(nodeEnv, namedXContentRegistry),
-                        Collections.emptyList(),
+                FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv, null);
+                indicesService = new IndicesService(
+                    settings,
+                    mock(PluginsService.class),
+                    mock(ExtensionsManager.class),
+                    nodeEnv,
+                    namedXContentRegistry,
+                    new AnalysisRegistry(
+                        environment,
                         emptyMap(),
-                        null,
                         emptyMap(),
-                        new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
-                        repositoriesServiceReference::get
-                    );
-                } else {
-                    indicesService = new IndicesService(
-                        settings,
-                        mock(PluginsService.class),
-                        nodeEnv,
-                        namedXContentRegistry,
-                        new AnalysisRegistry(
-                            environment,
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap(),
-                            emptyMap()
-                        ),
-                        indexNameExpressionResolver,
-                        mapperRegistry,
-                        namedWriteableRegistry,
-                        threadPool,
-                        indexScopedSettings,
-                        new NoneCircuitBreakerService(),
-                        bigArrays,
-                        scriptService,
-                        clusterService,
-                        client,
-                        new MetaStateService(nodeEnv, namedXContentRegistry),
-                        Collections.emptyList(),
                         emptyMap(),
-                        null,
                         emptyMap(),
-                        new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
-                        repositoriesServiceReference::get
-                    );
-                }
+                        emptyMap(),
+                        emptyMap(),
+                        emptyMap(),
+                        emptyMap(),
+                        emptyMap()
+                    ),
+                    indexNameExpressionResolver,
+                    mapperRegistry,
+                    namedWriteableRegistry,
+                    threadPool,
+                    indexScopedSettings,
+                    new NoneCircuitBreakerService(),
+                    bigArrays,
+                    scriptService,
+                    clusterService,
+                    client,
+                    new MetaStateService(nodeEnv, namedXContentRegistry),
+                    Collections.emptyList(),
+                    emptyMap(),
+                    null,
+                    emptyMap(),
+                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
+                    repositoriesServiceReference::get,
+                    fileCacheCleaner
+                );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
@@ -1905,7 +1870,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
                         indicesService
                     ),
-                    SegmentReplicationSourceService.NO_OP,
+                    mock(SegmentReplicationSourceService.class),
                     shardStateAction,
                     new NodeMappingRefreshAction(transportService, metadataMappingService),
                     repositoriesService,
@@ -1980,7 +1945,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new UpdateHelper(scriptService),
                     actionFilters,
                     new IndexingPressureService(settings, clusterService),
-                    new SegmentReplicationPressureService(settings, clusterService, mock(IndicesService.class)),
+                    new SegmentReplicationPressureService(
+                        settings,
+                        clusterService,
+                        mock(IndicesService.class),
+                        mock(ShardStateAction.class),
+                        mock(ThreadPool.class)
+                    ),
                     new SystemIndices(emptyMap())
                 );
                 actions.put(
@@ -2080,7 +2051,19 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         actionFilters,
                         indexNameExpressionResolver,
-                        namedWriteableRegistry
+                        namedWriteableRegistry,
+                        new SearchPipelineService(
+                            clusterService,
+                            threadPool,
+                            environment,
+                            scriptService,
+                            new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
+                            namedXContentRegistry,
+                            namedWriteableRegistry,
+                            List.of(),
+                            client,
+                            false
+                        )
                     )
                 );
                 actions.put(

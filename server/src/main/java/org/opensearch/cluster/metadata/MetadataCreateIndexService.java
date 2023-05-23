@@ -92,6 +92,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -105,6 +106,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -119,12 +121,27 @@ import java.util.stream.IntStream;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 
 /**
  * Service responsible for submitting create index requests
@@ -881,6 +898,8 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
+        updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
+
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
             prepareResizeIndexSettings(
@@ -911,6 +930,66 @@ public class MetadataCreateIndexService {
         validateStoreTypeSettings(indexSettings);
 
         return indexSettings;
+    }
+
+    /**
+     * Updates index settings to enable remote store by default based on cluster level settings
+     * @param settingsBuilder index settings builder to be updated with relevant settings
+     * @param requestSettings settings passed in during index create request
+     * @param clusterSettings cluster level settings
+     */
+    private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
+        if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings)) {
+            // Verify if we can create a remote store based index based on user provided settings
+            if (canCreateRemoteStoreIndex(requestSettings) == false) {
+                return;
+            }
+
+            // Verify REPLICATION_TYPE cluster level setting is not conflicting with Remote Store
+            if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false
+                && CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings).equals(ReplicationType.DOCUMENT)) {
+                throw new IllegalArgumentException(
+                    "Cannot enable ["
+                        + SETTING_REMOTE_STORE_ENABLED
+                        + "] when ["
+                        + CLUSTER_REPLICATION_TYPE_SETTING.getKey()
+                        + "] is "
+                        + ReplicationType.DOCUMENT
+                );
+            }
+
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).put(SETTING_REMOTE_STORE_ENABLED, true);
+
+            String remoteStoreRepo;
+            if (Objects.equals(requestSettings.get(INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()), "true")) {
+                remoteStoreRepo = requestSettings.get(INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey());
+            } else {
+                remoteStoreRepo = CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.get(clusterSettings);
+            }
+            settingsBuilder.put(SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo);
+
+            boolean translogStoreEnabled = false;
+            String translogStoreRepo = null;
+            if (Objects.equals(requestSettings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()), "true")) {
+                translogStoreEnabled = true;
+                translogStoreRepo = requestSettings.get(INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey());
+            } else if (Objects.equals(requestSettings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()), "false") == false
+                && CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(clusterSettings)) {
+                    translogStoreEnabled = true;
+                    translogStoreRepo = CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(clusterSettings);
+                }
+            if (translogStoreEnabled) {
+                settingsBuilder.put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, translogStoreEnabled)
+                    .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogStoreRepo);
+            }
+        }
+    }
+
+    private static boolean canCreateRemoteStoreIndex(Settings requestSettings) {
+        return (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false
+            || INDEX_REPLICATION_TYPE_SETTING.get(requestSettings).equals(ReplicationType.SEGMENT))
+            && (INDEX_REMOTE_STORE_ENABLED_SETTING.exists(requestSettings) == false
+                || INDEX_REMOTE_STORE_ENABLED_SETTING.get(requestSettings));
     }
 
     public static void validateStoreTypeSettings(Settings settings) {
@@ -1332,9 +1411,11 @@ public class MetadataCreateIndexService {
             );
         }
 
-        // ensure index is read-only
+        // ensure write operations on the source index is blocked
         if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
-            throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
+            throw new IllegalStateException(
+                "index " + sourceIndex + " must block write operations to resize index. use \"index.blocks.write=true\""
+            );
         }
 
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {

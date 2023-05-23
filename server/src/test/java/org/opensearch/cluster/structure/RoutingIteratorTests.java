@@ -38,6 +38,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
@@ -55,6 +56,7 @@ import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocat
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.threadpool.TestThreadPool;
@@ -75,6 +77,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
     public void testEmptyIterator() {
@@ -477,7 +480,10 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
         }
     }
 
-    public void testReplicaShardPreferenceIters() throws Exception {
+    public void testReplicaShardPreferenceIters() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
         OperationRouting operationRouting = new OperationRouting(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -489,19 +495,138 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).localNodeId("node1"))
             .build();
 
-        String[] removedPreferences = { "_primary", "_primary_first", "_replica", "_replica_first" };
-        for (String pref : removedPreferences) {
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> operationRouting.searchShards(clusterState, new String[] { "test" }, null, pref)
-            );
-        }
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).localNodeId("node1"))
+            .build();
+        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
+        clusterState = strategy.reroute(clusterState, "reroute"); // Move replicas to initializing
+
+        // When replicas haven't initialized, it comes back with the primary first, then initializing replicas
+        GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(
+            clusterState,
+            new String[] { "test" },
+            null,
+            "_replica_first"
+        );
+        assertThat(shardIterators.size(), equalTo(2)); // two potential shards
+        ShardIterator iter = shardIterators.iterator().next();
+        assertThat(iter.size(), equalTo(3)); // three potential candidates for the shard
+        ShardRouting routing = iter.nextOrNull();
+        assertNotNull(routing);
+        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
+        assertTrue(routing.primary()); // replicas haven't initialized yet, so primary is first
+        assertTrue(routing.started());
+        routing = iter.nextOrNull();
+        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
+        assertFalse(routing.primary());
+        assertTrue(routing.initializing());
+        routing = iter.nextOrNull();
+        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
+        assertFalse(routing.primary());
+        assertTrue(routing.initializing());
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
+        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_replica");
+        assertThat(shardIterators.size(), equalTo(2)); // two potential shards
+        iter = shardIterators.iterator().next();
+        assertThat(iter.size(), equalTo(2)); // two potential replicas for the shard
+        routing = iter.nextOrNull();
+        assertNotNull(routing);
+        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
+        assertFalse(routing.primary());
+        routing = iter.nextOrNull();
+        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
+        assertFalse(routing.primary());
+
+        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_replica_first");
+        assertThat(shardIterators.size(), equalTo(2)); // two potential shards
+        iter = shardIterators.iterator().next();
+        assertThat(iter.size(), equalTo(3)); // three potential candidates for the shard
+        routing = iter.nextOrNull();
+        assertNotNull(routing);
+        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
+        assertFalse(routing.primary());
+        routing = iter.nextOrNull();
+        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
+        assertFalse(routing.primary());
+        // finally the primary
+        routing = iter.nextOrNull();
+        assertThat(routing.shardId().id(), anyOf(equalTo(0), equalTo(1)));
+        assertTrue(routing.primary());
+    }
+
+    public void testSearchableSnapshotPreference() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+        OperationRouting operationRouting = new OperationRouting(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        // Modify the index to be a searchable snapshot index
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(
+                        Settings.builder()
+                            .put(settings(Version.CURRENT).build())
+                            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                    )
+                    .numberOfShards(2)
+                    .numberOfReplicas(2)
+            )
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
+                    .add(newNode("node2", Collections.singleton(DiscoveryNodeRole.SEARCH_ROLE)))
+                    .add(newNode("node3", Collections.singleton(DiscoveryNodeRole.SEARCH_ROLE)))
+                    .localNodeId("node1")
+            )
+            .build();
+
+        clusterState = strategy.reroute(clusterState, "reroute"); // Move primaries to initializing
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
+        clusterState = strategy.reroute(clusterState, "reroute"); // Move replicas to initializing
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
+        // When replicas haven't initialized, it comes back with the primary first, then initializing replicas
+        GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(
+            clusterState,
+            new String[] { "test" },
+            null,
+            null
+        );
+        assertThat(shardIterators.size(), equalTo(2)); // two potential shards
+        ShardIterator iter = shardIterators.iterator().next();
+        assertThat(iter.size(), equalTo(1)); // one potential candidate (primary) for the shard
+
+        ShardRouting routing = iter.nextOrNull();
+        assertNotNull(routing);
+        assertTrue(routing.primary()); // Default preference is primary
+        assertTrue(routing.started());
+        routing = iter.nextOrNull();
+        assertNull(routing); // No other candidate apart from primary
     }
 
     public void testWeightedRoutingWithDifferentWeights() {
@@ -552,7 +677,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             ShardIterator shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false, null);
 
             assertEquals(2, shardIterator.size());
             ShardRouting shardRouting;
@@ -565,7 +690,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false, null);
             assertEquals(3, shardIterator.size());
 
             weights = Map.of("zone1", -1.0, "zone2", 0.0, "zone3", 1.0);
@@ -573,7 +698,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false, null);
             assertEquals(1, shardIterator.size());
             shardRouting = shardIterator.nextOrNull();
             assertNotNull(shardRouting);
@@ -584,7 +709,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true, null);
             assertEquals(3, shardIterator.size());
             shardRouting = shardIterator.nextOrNull();
             assertNotNull(shardRouting);
@@ -646,7 +771,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             ShardIterator shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false, null);
             assertEquals(2, shardIterator.size());
             ShardRouting shardRouting;
             shardRouting = shardIterator.nextOrNull();
@@ -660,7 +785,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false, null);
             assertEquals(2, shardIterator.size());
             shardRouting = shardIterator.nextOrNull();
             assertNotNull(shardRouting);
@@ -675,7 +800,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false, null);
             assertEquals(2, shardIterator.size());
             shardRouting = shardIterator.nextOrNull();
             assertNotNull(shardRouting);
@@ -690,7 +815,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             shardIterator = clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false);
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false, null);
             assertEquals(2, shardIterator.size());
             shardRouting = shardIterator.nextOrNull();
             assertNotNull(shardRouting);
@@ -755,7 +880,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
                 ShardIterator shardIterator = clusterState.routingTable()
                     .index("test")
                     .shard(0)
-                    .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true);
+                    .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true, null);
 
                 assertEquals(3, shardIterator.size());
                 ShardRouting shardRouting;
@@ -834,26 +959,97 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
                 ShardIterator shardIterator = clusterState.routingTable()
                     .index("test")
                     .shard(0)
-                    .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true);
+                    .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true, null);
 
                 ShardRouting shardRouting1 = shardIterator.nextOrNull();
 
                 shardIterator = clusterState.routingTable()
                     .index("test")
                     .shard(0)
-                    .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true);
+                    .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true, null);
 
                 ShardRouting shardRouting2 = shardIterator.nextOrNull();
 
                 shardIterator = clusterState.routingTable()
                     .index("test")
                     .shard(0)
-                    .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true);
+                    .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true, null);
 
                 ShardRouting shardRouting3 = shardIterator.nextOrNull();
 
                 assertEquals(shardRouting1.currentNodeId(), shardRouting3.currentNodeId());
                 assertNotEquals(shardRouting1.currentNodeId(), shardRouting2.currentNodeId());
+            }
+
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * Test to validate that simple weighted shard routing with seed return same shard routing on each call
+     */
+    public void testActiveInitializingShardsWeightedItWithCustomSeed() {
+        TestThreadPool threadPool = new TestThreadPool("testActiveInitializingShardsWeightedItWithCustomSeed");
+        try {
+            Settings.Builder settings = Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.awareness.attributes", "zone");
+            AllocationService strategy = createAllocationService(settings.build());
+
+            Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+                .build();
+
+            RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+            ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .build();
+
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+            Map<String, String> node1Attributes = new HashMap<>();
+            node1Attributes.put("zone", "zone1");
+            Map<String, String> node2Attributes = new HashMap<>();
+            node2Attributes.put("zone", "zone2");
+            Map<String, String> node3Attributes = new HashMap<>();
+            node3Attributes.put("zone", "zone3");
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(newNode("node1", unmodifiableMap(node1Attributes)))
+                        .add(newNode("node2", unmodifiableMap(node2Attributes)))
+                        .add(newNode("node3", unmodifiableMap(node3Attributes)))
+                        .localNodeId("node1")
+                )
+                .build();
+            clusterState = strategy.reroute(clusterState, "reroute");
+
+            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+            List<Map<String, Double>> weightsList = new ArrayList<>();
+            Map<String, Double> weights1 = Map.of("zone1", 1.0, "zone2", 1.0, "zone3", 0.0);
+            weightsList.add(weights1);
+
+            WeightedRouting weightedRouting = new WeightedRouting("zone", weights1);
+            ShardIterator shardIterator = clusterState.routingTable()
+                .index("test")
+                .shard(0)
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true, 1);
+
+            ShardRouting shardRouting1 = shardIterator.nextOrNull();
+
+            for (int i = 0; i < 50; i++) {
+                shardIterator = clusterState.routingTable()
+                    .index("test")
+                    .shard(0)
+                    .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true, 1);
+
+                ShardRouting shardRouting2 = shardIterator.nextOrNull();
+
+                assertEquals(shardRouting1.currentNodeId(), shardRouting2.currentNodeId());
             }
 
         } finally {

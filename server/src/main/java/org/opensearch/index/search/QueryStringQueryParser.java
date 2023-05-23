@@ -59,7 +59,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;

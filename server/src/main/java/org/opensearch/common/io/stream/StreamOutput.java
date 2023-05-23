@@ -57,7 +57,7 @@ import org.opensearch.common.io.stream.Writeable.Writer;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.EOFException;
@@ -495,6 +495,10 @@ public abstract class StreamOutput extends OutputStream {
             writeBoolean(true);
             writeDouble(v);
         }
+    }
+
+    public final void writeBigInteger(BigInteger v) throws IOException {
+        writeString(v.toString());
     }
 
     private static byte ZERO = 0;

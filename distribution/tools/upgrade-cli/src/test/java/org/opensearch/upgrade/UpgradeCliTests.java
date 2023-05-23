@@ -18,7 +18,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 

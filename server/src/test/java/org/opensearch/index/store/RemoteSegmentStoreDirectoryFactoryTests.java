@@ -52,7 +52,10 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
     }
 
     public void testNewDirectory() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "uuid_1").build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid_1")
+            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "remote_store_repository")
+            .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
         ShardPath shardPath = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));
@@ -66,31 +69,29 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
 
         when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
 
-        try (Directory directory = remoteSegmentStoreDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)) {
+        try (Directory directory = remoteSegmentStoreDirectoryFactory.newDirectory(indexSettings, shardPath)) {
             assertTrue(directory instanceof RemoteSegmentStoreDirectory);
             ArgumentCaptor<BlobPath> blobPathCaptor = ArgumentCaptor.forClass(BlobPath.class);
-            verify(blobStore, times(2)).blobContainer(blobPathCaptor.capture());
+            verify(blobStore, times(3)).blobContainer(blobPathCaptor.capture());
             List<BlobPath> blobPaths = blobPathCaptor.getAllValues();
             assertEquals("base_path/uuid_1/0/segments/data/", blobPaths.get(0).buildAsString());
             assertEquals("base_path/uuid_1/0/segments/metadata/", blobPaths.get(1).buildAsString());
+            assertEquals("base_path/uuid_1/0/segments/lock_files/", blobPaths.get(2).buildAsString());
 
             verify(blobContainer).listBlobsByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX);
-            verify(repositoriesService).repository("remote_store_repository");
+            verify(repositoriesService, times(2)).repository("remote_store_repository");
         }
     }
 
     public void testNewDirectoryRepositoryDoesNotExist() {
-        Settings settings = Settings.builder().build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "remote_store_repository").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
         ShardPath shardPath = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));
 
         when(repositoriesService.repository("remote_store_repository")).thenThrow(new RepositoryMissingException("Missing"));
 
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> remoteSegmentStoreDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)
-        );
+        assertThrows(IllegalArgumentException.class, () -> remoteSegmentStoreDirectoryFactory.newDirectory(indexSettings, shardPath));
     }
 
 }

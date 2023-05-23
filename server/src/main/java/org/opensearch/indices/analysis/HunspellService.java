@@ -38,7 +38,7 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;

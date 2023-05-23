@@ -70,8 +70,8 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -325,7 +325,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
         );
         this.indexSearcherExecutor = indexSearcherExecutor;
-
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
         setPitKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_PIT_KEEPALIVE_SETTING.get(settings));

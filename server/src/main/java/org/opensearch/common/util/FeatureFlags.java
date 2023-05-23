@@ -22,24 +22,16 @@ import org.opensearch.common.settings.Settings;
 public class FeatureFlags {
 
     /**
-     * Gates the visibility of the index setting that allows changing of replication type.
-     * Once the feature is ready for production release, this feature flag can be removed.
+     * Gates the visibility of the segment replication experimental features that allows users to test unreleased beta features.
      */
-    public static final String REPLICATION_TYPE = "opensearch.experimental.feature.replication_type.enabled";
+    public static final String SEGMENT_REPLICATION_EXPERIMENTAL =
+        "opensearch.experimental.feature.segment_replication_experimental.enabled";
 
     /**
      * Gates the visibility of the index setting that allows persisting data to remote store along with local disk.
      * Once the feature is ready for production release, this feature flag can be removed.
      */
     public static final String REMOTE_STORE = "opensearch.experimental.feature.remote_store.enabled";
-
-    /**
-     * Gates the functionality of a new parameter to the snapshot restore API
-     * that allows for creation of a new index type that searches a snapshot
-     * directly in a remote repository without restoring all index data to disk
-     * ahead of time.
-     */
-    public static final String SEARCHABLE_SNAPSHOT = "opensearch.experimental.feature.searchable_snapshot.enabled";
 
     /**
      * Gates the ability for Searchable Snapshots to read snapshots that are older than the
@@ -53,6 +45,23 @@ public class FeatureFlags {
      * Once the feature is ready for production release, this feature flag can be removed.
      */
     public static final String EXTENSIONS = "opensearch.experimental.feature.extensions.enabled";
+
+    /**
+     * Gates the search pipeline features during initial development.
+     * Once the feature is complete and ready for release, this feature flag can be removed.
+     */
+    public static final String SEARCH_PIPELINE = "opensearch.experimental.feature.search_pipeline.enabled";
+
+    /**
+     * Gates the functionality of identity.
+     */
+    public static final String IDENTITY = "opensearch.experimental.feature.identity.enabled";
+
+    /**
+     * Gates the functionality of concurrently searching the segments
+     * Once the feature is ready for release, this feature flag can be removed.
+     */
+    public static final String CONCURRENT_SEGMENT_SEARCH = "opensearch.experimental.feature.concurrent_segment_search.enabled";
 
     /**
      * Should store the settings from opensearch.yml.
@@ -82,11 +91,23 @@ public class FeatureFlags {
         return settings != null && settings.getAsBoolean(featureFlagName, false);
     }
 
-    public static final Setting<Boolean> REPLICATION_TYPE_SETTING = Setting.boolSetting(REPLICATION_TYPE, false, Property.NodeScope);
+    public static final Setting<Boolean> SEGMENT_REPLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        SEGMENT_REPLICATION_EXPERIMENTAL,
+        false,
+        Property.NodeScope
+    );
 
     public static final Setting<Boolean> REMOTE_STORE_SETTING = Setting.boolSetting(REMOTE_STORE, false, Property.NodeScope);
 
-    public static final Setting<Boolean> SEARCHABLE_SNAPSHOT_SETTING = Setting.boolSetting(SEARCHABLE_SNAPSHOT, false, Property.NodeScope);
-
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
+
+    public static final Setting<Boolean> SEARCH_PIPELINE_SETTING = Setting.boolSetting(SEARCH_PIPELINE, false, Property.NodeScope);
+
+    public static final Setting<Boolean> IDENTITY_SETTING = Setting.boolSetting(IDENTITY, false, Property.NodeScope);
+
+    public static final Setting<Boolean> CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
+        CONCURRENT_SEGMENT_SEARCH,
+        false,
+        Property.NodeScope
+    );
 }

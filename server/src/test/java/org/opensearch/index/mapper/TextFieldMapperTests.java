@@ -103,7 +103,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 3.0");
     }
 
     public final void testExistsQueryIndexDisabled() throws IOException {
@@ -270,10 +270,44 @@ public class TextFieldMapperTests extends MapperTestCase {
                 b.startObject("subfield").field("type", "long").endObject();
             }
             b.endObject();
+            b.field("store", true);
+            b.field("similarity", "BM25");
+            b.field("index_options", "offsets");
+            b.field("norms", false);
+            b.field("term_vector", "yes");
+            b.field("position_increment_gap", 0);
+            b.startObject("fielddata_frequency_filter");
+            {
+                b.field("min", 0.001);
+                b.field("max", 0.1);
+                b.field("min_segment_size", 500);
+            }
+            b.endObject();
+            b.field("eager_global_ordinals", true);
+            b.field("index_phrases", true);
+            b.startObject("index_prefixes");
+            {
+                b.field("min_chars", 1);
+                b.field("max_chars", 10);
+            }
+            b.endObject();
+            b.startObject("meta");
+            {
+                b.field("unit", "min");
+            }
+            b.endObject();
+            b.startArray("copy_to");
+            {
+                b.value("target");
+            }
+            b.endArray();
         }));
-
         assertEquals(
-            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"fields\":{\"subfield\":{\"type\":\"long\"}},\"fielddata\":true}}}}",
+            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"store\":true,\"fields\":{\"subfield\":{\"type\":\"long\"}},"
+                + "\"copy_to\":[\"target\"],\"meta\":{\"unit\":\"min\"},\"index_options\":\"offsets\",\"term_vector\":\"yes\",\"norms\":false,"
+                + "\"similarity\":\"BM25\",\"eager_global_ordinals\":true,\"position_increment_gap\":0,"
+                + "\"fielddata\":true,\"fielddata_frequency_filter\":{\"min\":0.001,\"max\":0.1,\"min_segment_size\":500},"
+                + "\"index_prefixes\":{\"min_chars\":1,\"max_chars\":10},\"index_phrases\":true}}}}",
             Strings.toString(XContentType.JSON, mapperService.documentMapper())
         );
     }

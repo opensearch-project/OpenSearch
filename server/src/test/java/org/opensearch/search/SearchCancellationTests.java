@@ -48,7 +48,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.test.OpenSearchTestCase;

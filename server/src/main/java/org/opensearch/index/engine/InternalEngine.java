@@ -66,7 +66,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
@@ -87,7 +87,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
@@ -2317,7 +2317,13 @@ public class InternalEngine extends Engine {
         } catch (IOException e) {
             throw new EngineException(shardId, e.getMessage(), e);
         }
-        return new GatedCloseable<>(segmentInfos, () -> indexWriter.decRefDeleter(segmentInfos));
+        return new GatedCloseable<>(segmentInfos, () -> {
+            try {
+                indexWriter.decRefDeleter(segmentInfos);
+            } catch (AlreadyClosedException e) {
+                logger.warn("Engine is already closed.", e);
+            }
+        });
     }
 
     @Override
@@ -2487,6 +2493,9 @@ public class InternalEngine extends Engine {
         iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
+        }
+        if (config().getLeafSorter() != null) {
+            iwc.setLeafSorter(config().getLeafSorter()); // The default segment search order
         }
         return iwc;
     }

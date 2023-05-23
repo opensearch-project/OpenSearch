@@ -49,7 +49,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.junit.Assert;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -169,6 +169,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -2236,6 +2237,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
         shard.getEngine().rollTranslogGeneration(); // isolate the delete in it's own generation
         shard.applyIndexOperationOnReplica(
+            UUID.randomUUID().toString(),
             0,
             primaryTerm,
             1,
@@ -2244,6 +2246,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new SourceToParse(shard.shardId().getIndexName(), "id", new BytesArray("{}"), XContentType.JSON)
         );
         shard.applyIndexOperationOnReplica(
+            UUID.randomUUID().toString(),
             3,
             primaryTerm,
             3,
@@ -2254,6 +2257,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Flushing a new commit with local checkpoint=1 allows to skip the translog gen #1 in recovery.
         shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
         shard.applyIndexOperationOnReplica(
+            UUID.randomUUID().toString(),
             2,
             primaryTerm,
             3,
@@ -2262,6 +2266,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new SourceToParse(shard.shardId().getIndexName(), "id-2", new BytesArray("{}"), XContentType.JSON)
         );
         shard.applyIndexOperationOnReplica(
+            UUID.randomUUID().toString(),
             5,
             primaryTerm,
             1,
@@ -2409,6 +2414,7 @@ public class IndexShardTests extends IndexShardTestCase {
         updateMappings(otherShard, shard.indexSettings().getIndexMetadata());
         SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), "1", new BytesArray("{}"), XContentType.JSON);
         otherShard.applyIndexOperationOnReplica(
+            UUID.randomUUID().toString(),
             1,
             otherShard.getOperationPrimaryTerm(),
             1,
@@ -2536,6 +2542,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final String indexName = shard.shardId().getIndexName();
         // Index #0, index #1
         shard.applyIndexOperationOnReplica(
+            UUID.randomUUID().toString(),
             0,
             primaryTerm,
             1,
@@ -2546,6 +2553,7 @@ public class IndexShardTests extends IndexShardTestCase {
         flushShard(shard);
         shard.updateGlobalCheckpointOnReplica(0, "test"); // stick the global checkpoint here.
         shard.applyIndexOperationOnReplica(
+            UUID.randomUUID().toString(),
             1,
             primaryTerm,
             1,
@@ -2558,6 +2566,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.getEngine().rollTranslogGeneration();
         shard.markSeqNoAsNoop(1, primaryTerm, "test");
         shard.applyIndexOperationOnReplica(
+            UUID.randomUUID().toString(),
             2,
             primaryTerm,
             1,
@@ -2803,7 +2812,7 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         target.markAsRecovering("remote_store", new RecoveryState(routing, localNode, null));
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        target.restoreFromRemoteStore(null, future);
+        target.restoreFromRemoteStore(future);
         target.remoteStore().decRef();
 
         assertTrue(future.actionGet());
@@ -3948,6 +3957,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     XContentType.JSON
                 );
                 indexShard.applyIndexOperationOnReplica(
+                    UUID.randomUUID().toString(),
                     i,
                     indexShard.getOperationPrimaryTerm(),
                     1,
@@ -4577,6 +4587,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 seqNo++; // create gaps in sequence numbers
             }
             shard.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 seqNo,
                 shard.getOperationPrimaryTerm(),
                 1,

@@ -32,7 +32,7 @@
 package org.opensearch.common.hppc;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.common.collect.HppcMaps;
 import org.opensearch.test.OpenSearchTestCase;
 

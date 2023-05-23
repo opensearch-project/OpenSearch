@@ -19,7 +19,7 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -70,7 +70,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
         WriteOnlyTranslogManager translogManagerRef = null;
         try {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-            readerManager = new NRTReplicationReaderManager(OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId));
+            readerManager = buildReaderManager();
             final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
                 this.lastCommittedSegmentInfos.getUserData().entrySet()
             );
@@ -119,6 +119,28 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
             IOUtils.closeWhileHandlingException(store::decRef, readerManager, translogManagerRef);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
         }
+    }
+
+    private NRTReplicationReaderManager buildReaderManager() throws IOException {
+        return new NRTReplicationReaderManager(
+            OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
+            store::incRefFileDeleter,
+            (files) -> {
+                store.decRefFileDeleter(files);
+                try {
+                    store.cleanupAndPreserveLatestCommitPoint(
+                        "On reader closed",
+                        getLatestSegmentInfos(),
+                        getLastCommittedSegmentInfos(),
+                        false
+                    );
+                } catch (IOException e) {
+                    // Log but do not rethrow - we can try cleaning up again after next replication cycle.
+                    // If that were to fail, the shard will as well.
+                    logger.error("Unable to clean store after reader closed", e);
+                }
+            }
+        );
     }
 
     public TranslogManager translogManager() {
@@ -352,6 +374,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
+        ensureOpen();
         try {
             return readerManager.maybeRefresh();
         } catch (IOException e) {
