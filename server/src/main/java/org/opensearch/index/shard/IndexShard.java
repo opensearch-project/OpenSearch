@@ -56,7 +56,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.opensearch.Version;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
@@ -1789,7 +1788,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Used with segment replication during relocation handoff, this method updates current read only engine to global
+     * Used with segment replication during relocation handoff and rolling upgrades, this method updates current read only engine to global
      * checkpoint followed by changing to writeable engine
      *
      * @throws IOException if communication failed
@@ -1798,7 +1797,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @opensearch.internal
      */
-    public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
+    public void resetEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
     }
 
@@ -4346,7 +4345,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
-    public void resetEngineToGlobalCheckpoint() throws IOException {
+    void resetEngineToGlobalCheckpoint() throws IOException {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED : "resetting engine without blocking operations; active operations are ["
             + getActiveOperations()

@@ -53,7 +53,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
         .build();
 
     public void testIsSegrepLimitBreached() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory(null))) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
             SegmentReplicationPressureService service = buildPressureService(settings, primaryShard);
@@ -104,7 +104,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .build();
 
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory(null))) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
             SegmentReplicationPressureService service = buildPressureService(settings, primaryShard);
@@ -131,7 +131,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .build();
 
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory(null))) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
             final SegmentReplicationPressureService service = buildPressureService(settings, primaryShard);
@@ -154,7 +154,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
     }
 
     public void testIsSegrepLimitBreached_underStaleNodeLimit() throws Exception {
-        try (ReplicationGroup shards = createGroup(3, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(3, settings, new NRTReplicationEngineFactory(null))) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
             indexInBatches(5, shards, primaryShard);
@@ -198,7 +198,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             .put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(10))
             .build();
 
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory(null))) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
             SegmentReplicationPressureService service = buildPressureService(settings, primaryShard);

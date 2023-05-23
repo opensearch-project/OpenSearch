@@ -449,7 +449,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     try {
                         // Promote engine type for primary target
                         if (indexShard.recoveryState().getPrimary() == true) {
-                            indexShard.resetToWriteableEngine();
+                            indexShard.resetEngine();
                         }
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
                     } catch (InterruptedException | TimeoutException | IOException e) {

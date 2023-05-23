@@ -302,7 +302,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
-    public volatile Map<String, IndexService> indices = emptyMap();
+    private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
@@ -472,10 +472,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public ClusterService clusterService() {
         return clusterService;
-    }
-
-    public Map<String, IndexService> indices() {
-        return indices;
     }
 
     @Override

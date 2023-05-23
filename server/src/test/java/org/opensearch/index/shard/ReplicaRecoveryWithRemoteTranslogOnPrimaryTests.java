@@ -40,7 +40,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
         .build();
 
     public void testStartSequenceForReplicaRecovery() throws Exception {
-        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory(null))) {
 
             shards.startPrimary();
             final IndexShard primary = shards.getPrimary();
@@ -111,7 +111,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
     }
 
     public void testNoTranslogHistoryTransferred() throws Exception {
-        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory(null))) {
 
             // Step1 - Start primary, index docs, flush, index more docs, check translog in primary as expected
             shards.startPrimary();

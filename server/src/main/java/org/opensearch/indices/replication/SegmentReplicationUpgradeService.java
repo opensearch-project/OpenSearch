@@ -12,6 +12,9 @@ import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.indices.IndicesService;
 
+/**
+ * SegmentReplicationUpgradeService is used to manage SegmentReplicationUpgradeListener's lifecycle (creation/deletion).
+ */
 public class SegmentReplicationUpgradeService implements Releasable {
 
     private final ClusterApplierService clusterApplierService;

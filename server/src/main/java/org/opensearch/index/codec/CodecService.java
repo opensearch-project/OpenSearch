@@ -81,22 +81,9 @@ public class CodecService {
 
     public void loadMap() {
         opensearchVersionToLuceneCodec.put(Version.fromString("3.0.0"), "Lucene95");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.8.0"), "Lucene94");
+        opensearchVersionToLuceneCodec.put(Version.fromString("2.8.0"), "Lucene95");
         opensearchVersionToLuceneCodec.put(Version.fromString("2.7.1"), "Lucene95");
         opensearchVersionToLuceneCodec.put(Version.fromString("2.7.0"), "Lucene95");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.6.0"), "Lucene95");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.4.2"), "Lucene95");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.5.1"), "Lucene94");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.5.0"), "Lucene94");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.4.1"), "Lucene94");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.4.1"), "Lucene94");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.4.0"), "Lucene94");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.3.0"), "Lucene93");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.2.1"), "Lucene93");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.2.0"), "Lucene93");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.1.0"), "Lucene92");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.0.1"), "Lucene91");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.0.0"), "Lucene91");
     }
 
     public Codec codec(String name) {

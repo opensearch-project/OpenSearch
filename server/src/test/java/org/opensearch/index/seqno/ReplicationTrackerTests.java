@@ -33,6 +33,7 @@
 package org.opensearch.index.seqno;
 
 import org.apache.lucene.codecs.Codec;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.routing.AllocationId;
@@ -1807,7 +1808,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             1,
             1,
             1L,
-            Codec.getDefault().getName()
+            Codec.getDefault().getName(),
+            Version.CURRENT
         );
         final ReplicationCheckpoint secondCheckpoint = new ReplicationCheckpoint(
             tracker.shardId(),
@@ -1815,7 +1817,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             2,
             2,
             50L,
-            Codec.getDefault().getName()
+            Codec.getDefault().getName(),
+            Version.CURRENT
         );
         final ReplicationCheckpoint thirdCheckpoint = new ReplicationCheckpoint(
             tracker.shardId(),
@@ -1823,7 +1826,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             2,
             3,
             100L,
-            Codec.getDefault().getName()
+            Codec.getDefault().getName(),
+            Version.CURRENT
         );
 
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
