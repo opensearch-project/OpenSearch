@@ -8,11 +8,16 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.common.util.Streak;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.ShardId;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -61,6 +66,11 @@ public class RemoteRefreshSegmentTracker {
      * Keeps the time (ms) lag computed so that we do not compute it for every request.
      */
     private volatile long timeMsLag;
+
+    /**
+     * Keeps track of the total bytes of segment files which were uploaded to remote store during last successful remote refresh
+     */
+    private volatile long lastSuccessfulRemoteRefreshBytes;
 
     /**
      * Cumulative sum of size in bytes of segment files for which upload has started during remote refresh.
@@ -163,6 +173,8 @@ public class RemoteRefreshSegmentTracker {
         uploadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesMovingAverageWindowSize));
         uploadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesPerSecMovingAverageWindowSize));
         uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
+
+        latestLocalFileNameLengthMap = new HashMap<>();
     }
 
     ShardId getShardId() {
@@ -357,6 +369,7 @@ public class RemoteRefreshSegmentTracker {
     }
 
     void addUploadBytes(long size) {
+        lastSuccessfulRemoteRefreshBytes = size;
         synchronized (uploadBytesMutex) {
             this.uploadBytesMovingAverageReference.get().record(size);
         }
@@ -422,4 +435,142 @@ public class RemoteRefreshSegmentTracker {
             this.uploadTimeMsMovingAverageReference.set(this.uploadTimeMsMovingAverageReference.get().copyWithSize(updatedSize));
         }
     }
+
+    public RemoteRefreshSegmentTracker.Stats stats() {
+        return new RemoteRefreshSegmentTracker.Stats(
+            shardId,
+            localRefreshSeqNo,
+            localRefreshTimeMs,
+            remoteRefreshSeqNo,
+            remoteRefreshTimeMs,
+            uploadBytesStarted,
+            uploadBytesSucceeded,
+            uploadBytesFailed,
+            totalUploadsStarted,
+            totalUploadsSucceeded,
+            totalUploadsFailed,
+            rejectionCount.get(),
+            failures.length(),
+            lastSuccessfulRemoteRefreshBytes,
+            uploadBytesMovingAverageReference.get().getAverage(),
+            uploadBytesPerSecMovingAverageReference.get().getAverage(),
+            uploadTimeMsMovingAverageReference.get().getAverage(),
+            getBytesLag()
+        );
+    }
+
+    /**
+     * Represents the tracker's state as seen in the stats API.
+     *
+     * @opensearch.internal
+     */
+    public static class Stats implements Writeable {
+
+        public final ShardId shardId;
+        public final long localRefreshNumber;
+        public final long localRefreshTimeMs;
+        public final long remoteRefreshNumber;
+        public final long remoteRefreshTimeMs;
+        public final long uploadBytesStarted;
+        public final long uploadBytesFailed;
+        public final long uploadBytesSucceeded;
+        public final long totalUploadsStarted;
+        public final long totalUploadsFailed;
+        public final long totalUploadsSucceeded;
+        public final long rejectionCount;
+        public final long consecutiveFailuresCount;
+        public final long lastSuccessfulRemoteRefreshBytes;
+        public final double uploadBytesMovingAverage;
+        public final double uploadBytesPerSecMovingAverage;
+        public final double uploadTimeMovingAverage;
+        public final long bytesLag;
+
+        public Stats(
+            ShardId shardId,
+            long localRefreshNumber,
+            long localRefreshTimeMs,
+            long remoteRefreshNumber,
+            long remoteRefreshTimeMs,
+            long uploadBytesStarted,
+            long uploadBytesSucceeded,
+            long uploadBytesFailed,
+            long totalUploadsStarted,
+            long totalUploadsSucceeded,
+            long totalUploadsFailed,
+            long rejectionCount,
+            long consecutiveFailuresCount,
+            long lastSuccessfulRemoteRefreshBytes,
+            double uploadBytesMovingAverage,
+            double uploadBytesPerSecMovingAverage,
+            double uploadTimeMovingAverage,
+            long bytesLag
+        ) {
+            this.shardId = shardId;
+            this.localRefreshNumber = localRefreshNumber;
+            this.localRefreshTimeMs = localRefreshTimeMs;
+            this.remoteRefreshNumber = remoteRefreshNumber;
+            this.remoteRefreshTimeMs = remoteRefreshTimeMs;
+            this.uploadBytesStarted = uploadBytesStarted;
+            this.uploadBytesFailed = uploadBytesFailed;
+            this.uploadBytesSucceeded = uploadBytesSucceeded;
+            this.totalUploadsStarted = totalUploadsStarted;
+            this.totalUploadsFailed = totalUploadsFailed;
+            this.totalUploadsSucceeded = totalUploadsSucceeded;
+            this.rejectionCount = rejectionCount;
+            this.consecutiveFailuresCount = consecutiveFailuresCount;
+            this.lastSuccessfulRemoteRefreshBytes = lastSuccessfulRemoteRefreshBytes;
+            this.uploadBytesMovingAverage = uploadBytesMovingAverage;
+            this.uploadBytesPerSecMovingAverage = uploadBytesPerSecMovingAverage;
+            this.uploadTimeMovingAverage = uploadTimeMovingAverage;
+            this.bytesLag = bytesLag;
+        }
+
+        public Stats(StreamInput in) throws IOException {
+            try {
+                this.shardId = new ShardId(in);
+                this.localRefreshNumber = in.readLong();
+                this.localRefreshTimeMs = in.readLong();
+                this.remoteRefreshNumber = in.readLong();
+                this.remoteRefreshTimeMs = in.readLong();
+                this.uploadBytesStarted = in.readLong();
+                this.uploadBytesFailed = in.readLong();
+                this.uploadBytesSucceeded = in.readLong();
+                this.totalUploadsStarted = in.readLong();
+                this.totalUploadsFailed = in.readLong();
+                this.totalUploadsSucceeded = in.readLong();
+                this.rejectionCount = in.readLong();
+                this.consecutiveFailuresCount = in.readLong();
+                this.lastSuccessfulRemoteRefreshBytes = in.readLong();
+                this.uploadBytesMovingAverage = in.readDouble();
+                this.uploadBytesPerSecMovingAverage = in.readDouble();
+                this.uploadTimeMovingAverage = in.readDouble();
+                this.bytesLag = in.readLong();
+            } catch (IOException e) {
+                throw e;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            shardId.writeTo(out);
+            out.writeLong(localRefreshNumber);
+            out.writeLong(localRefreshTimeMs);
+            out.writeLong(remoteRefreshNumber);
+            out.writeLong(remoteRefreshTimeMs);
+            out.writeLong(uploadBytesStarted);
+            out.writeLong(uploadBytesFailed);
+            out.writeLong(uploadBytesSucceeded);
+            out.writeLong(totalUploadsStarted);
+            out.writeLong(totalUploadsFailed);
+            out.writeLong(totalUploadsSucceeded);
+            out.writeLong(rejectionCount);
+            out.writeLong(consecutiveFailuresCount);
+            out.writeLong(lastSuccessfulRemoteRefreshBytes);
+            out.writeDouble(uploadBytesMovingAverage);
+            out.writeDouble(uploadBytesPerSecMovingAverage);
+            out.writeDouble(uploadTimeMovingAverage);
+            out.writeLong(bytesLag);
+        }
+    }
+
 }
