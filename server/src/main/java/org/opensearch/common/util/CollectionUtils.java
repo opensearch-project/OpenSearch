@@ -32,8 +32,8 @@
 
 package org.opensearch.common.util;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Iterators;
+import org.opensearch.core.common.Strings;
 
 import java.nio.file.Path;
 import java.util.AbstractList;

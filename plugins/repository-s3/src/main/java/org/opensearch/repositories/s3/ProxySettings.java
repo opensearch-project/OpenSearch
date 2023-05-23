@@ -9,8 +9,8 @@
 package org.opensearch.repositories.s3;
 
 import com.amazonaws.Protocol;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.core.common.Strings;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;

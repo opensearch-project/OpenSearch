@@ -45,13 +45,13 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -463,7 +463,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     }
 
     private static String valueOrDefault(String value, String globalDefault) {
-        if (Strings.isNullOrEmpty(value) && !Strings.isNullOrEmpty(globalDefault)) {
+        if (Strings.isNullOrEmpty(value) && Strings.isNullOrEmpty(globalDefault) == false) {
             return globalDefault;
         }
         return value;

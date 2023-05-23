@@ -35,9 +35,9 @@ package org.opensearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.core.Assertions;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -325,7 +325,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                         @Override
                         public void onFailure(Exception e) {
-                            if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
+                            if (!(BaseExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
                                 // fail all requests involving this index, if create didn't work
                                 for (int i = 0; i < bulkRequest.requests.size(); i++) {
                                     DocWriteRequest<?> request = bulkRequest.requests.get(i);

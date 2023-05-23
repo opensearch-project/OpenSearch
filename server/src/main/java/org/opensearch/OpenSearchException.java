@@ -39,16 +39,11 @@ import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
 import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.Nullable;
-import org.opensearch.core.ParseField;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.logging.LoggerMessageFormat;
-import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
@@ -69,8 +64,6 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
@@ -87,51 +80,17 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName
  *
  * @opensearch.internal
  */
-public class OpenSearchException extends RuntimeException implements ToXContentFragment, Writeable {
-
-    private static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
+public class OpenSearchException extends BaseOpenSearchException implements Writeable {
 
     /**
      * Setting a higher base exception id to avoid conflicts.
      */
     private static final int CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID = 10000;
 
-    /**
-     * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
-     * to control if the {@code caused_by} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
-     * internal only and not available as a URL parameter.
-     */
-    private static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
-    /**
-     * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
-     * to control if the {@code stack_trace} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
-     * internal only and not available as a URL parameter. Use the {@code error_trace} parameter instead.
-     */
-    public static final String REST_EXCEPTION_SKIP_STACK_TRACE = "rest.exception.stacktrace.skip";
-    public static final boolean REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT = true;
-    private static final boolean REST_EXCEPTION_SKIP_CAUSE_DEFAULT = false;
-    private static final String INDEX_METADATA_KEY = "opensearch.index";
-    private static final String INDEX_METADATA_KEY_UUID = "opensearch.index_uuid";
-    private static final String SHARD_METADATA_KEY = "opensearch.shard";
-    private static final String RESOURCE_METADATA_TYPE_KEY = "opensearch.resource.type";
-    private static final String RESOURCE_METADATA_ID_KEY = "opensearch.resource.id";
-
-    private static final String TYPE = "type";
-    private static final String REASON = "reason";
-    private static final String CAUSED_BY = "caused_by";
-    private static final ParseField SUPPRESSED = new ParseField("suppressed");
-    public static final String STACK_TRACE = "stack_trace";
-    private static final String HEADER = "header";
-    private static final String ERROR = "error";
-    private static final String ROOT_CAUSE = "root_cause";
-
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends OpenSearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends OpenSearchException>, OpenSearchExceptionHandle> CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE;
 
     private static final Pattern OS_METADATA = Pattern.compile("^opensearch\\.");
-
-    private final Map<String, List<String>> metadata = new HashMap<>();
-    private final Map<String, List<String>> headers = new HashMap<>();
 
     /**
      * Construct a <code>OpenSearchException</code> with the specified cause exception.
@@ -150,7 +109,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
      * @param args the arguments for the message
      */
     public OpenSearchException(String msg, Object... args) {
-        super(LoggerMessageFormat.format(msg, args));
+        super(msg, args);
     }
 
     /**
@@ -165,7 +124,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
      * @param args  the arguments for the message
      */
     public OpenSearchException(String msg, Throwable cause, Object... args) {
-        super(LoggerMessageFormat.format(msg, args), cause);
+        super(msg, cause, args);
     }
 
     public OpenSearchException(StreamInput in) throws IOException {
@@ -173,86 +132,6 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
         metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-    }
-
-    /**
-     * Adds a new piece of metadata with the given key.
-     * If the provided key is already present, the corresponding metadata will be replaced
-     */
-    public void addMetadata(String key, String... values) {
-        addMetadata(key, Arrays.asList(values));
-    }
-
-    /**
-     * Adds a new piece of metadata with the given key.
-     * If the provided key is already present, the corresponding metadata will be replaced
-     */
-    public void addMetadata(String key, List<String> values) {
-        // we need to enforce this otherwise bw comp doesn't work properly, as "opensearch."
-        // was the previous criteria to split headers in two sets
-        if (key.startsWith("opensearch.") == false) {
-            throw new IllegalArgumentException("exception metadata must start with [opensearch.], found [" + key + "] instead");
-        }
-        this.metadata.put(key, values);
-    }
-
-    /**
-     * Returns a set of all metadata keys on this exception
-     */
-    public Set<String> getMetadataKeys() {
-        return metadata.keySet();
-    }
-
-    /**
-     * Returns the list of metadata values for the given key or {@code null} if no metadata for the
-     * given key exists.
-     */
-    public List<String> getMetadata(String key) {
-        return metadata.get(key);
-    }
-
-    protected Map<String, List<String>> getMetadata() {
-        return metadata;
-    }
-
-    /**
-     * Adds a new header with the given key.
-     * This method will replace existing header if a header with the same key already exists
-     */
-    public void addHeader(String key, List<String> value) {
-        // we need to enforce this otherwise bw comp doesn't work properly, as "opensearch."
-        // was the previous criteria to split headers in two sets
-        if (key.startsWith("opensearch.")) {
-            throw new IllegalArgumentException("exception headers must not start with [opensearch.], found [" + key + "] instead");
-        }
-        this.headers.put(key, value);
-    }
-
-    /**
-     * Adds a new header with the given key.
-     * This method will replace existing header if a header with the same key already exists
-     */
-    public void addHeader(String key, String... value) {
-        addHeader(key, Arrays.asList(value));
-    }
-
-    /**
-     * Returns a set of all header keys on this exception
-     */
-    public Set<String> getHeaderKeys() {
-        return headers.keySet();
-    }
-
-    /**
-     * Returns the list of header values for the given key or {@code null} if no header for the
-     * given key exists.
-     */
-    public List<String> getHeader(String key) {
-        return headers.get(key);
-    }
-
-    protected Map<String, List<String>> getHeaders() {
-        return headers;
     }
 
     /**
@@ -265,48 +144,6 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         } else {
             return ExceptionsHelper.status(cause);
         }
-    }
-
-    /**
-     * Unwraps the actual cause from the exception for cases when the exception is a
-     * {@link OpenSearchWrapperException}.
-     *
-     * @see ExceptionsHelper#unwrapCause(Throwable)
-     */
-    public Throwable unwrapCause() {
-        return ExceptionsHelper.unwrapCause(this);
-    }
-
-    /**
-     * Return the detail message, including the message from the nested exception
-     * if there is one.
-     */
-    public String getDetailedMessage() {
-        if (getCause() != null) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(toString()).append("; ");
-            if (getCause() instanceof OpenSearchException) {
-                sb.append(((OpenSearchException) getCause()).getDetailedMessage());
-            } else {
-                sb.append(getCause());
-            }
-            return sb.toString();
-        } else {
-            return super.toString();
-        }
-    }
-
-    /**
-     * Retrieve the innermost cause of this exception, if none, returns the current exception.
-     */
-    public Throwable getRootCause() {
-        Throwable rootCause = this;
-        Throwable cause = getCause();
-        while (cause != null && cause != rootCause) {
-            rootCause = cause;
-            cause = cause.getCause();
-        }
-        return rootCause;
     }
 
     @Override
@@ -348,91 +185,6 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         return CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE.get(exception).id;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Throwable ex = ExceptionsHelper.unwrapCause(this);
-        if (ex != this) {
-            generateThrowableXContent(builder, params, this);
-        } else {
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause());
-        }
-        return builder;
-    }
-
-    protected static void innerToXContent(
-        XContentBuilder builder,
-        Params params,
-        Throwable throwable,
-        String type,
-        String message,
-        Map<String, List<String>> headers,
-        Map<String, List<String>> metadata,
-        Throwable cause
-    ) throws IOException {
-        builder.field(TYPE, type);
-        builder.field(REASON, message);
-
-        for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
-            headerToXContent(builder, entry.getKey().substring("opensearch.".length()), entry.getValue());
-        }
-
-        if (throwable instanceof OpenSearchException) {
-            OpenSearchException exception = (OpenSearchException) throwable;
-            exception.metadataToXContent(builder, params);
-        }
-
-        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
-            if (cause != null) {
-                builder.field(CAUSED_BY);
-                builder.startObject();
-                generateThrowableXContent(builder, params, cause);
-                builder.endObject();
-            }
-        }
-
-        if (headers.isEmpty() == false) {
-            builder.startObject(HEADER);
-            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-                headerToXContent(builder, entry.getKey(), entry.getValue());
-            }
-            builder.endObject();
-        }
-
-        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
-            builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
-        }
-
-        Throwable[] allSuppressed = throwable.getSuppressed();
-        if (allSuppressed.length > 0) {
-            builder.startArray(SUPPRESSED.getPreferredName());
-            for (Throwable suppressed : allSuppressed) {
-                builder.startObject();
-                generateThrowableXContent(builder, params, suppressed);
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-    }
-
-    private static void headerToXContent(XContentBuilder builder, String key, List<String> values) throws IOException {
-        if (values != null && values.isEmpty() == false) {
-            if (values.size() == 1) {
-                builder.field(key, values.get(0));
-            } else {
-                builder.startArray(key);
-                for (String value : values) {
-                    builder.value(value);
-                }
-                builder.endArray();
-            }
-        }
-    }
-
-    /**
-     * Renders additional per exception information into the XContent
-     */
-    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {}
-
     /**
      * Generate a {@link OpenSearchException} from a {@link XContentParser}. This does not
      * return the original exception type (ie NodeClosedException for example) but just wraps
@@ -462,19 +214,19 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             token = parser.nextToken();
 
             if (token.isValue()) {
-                if (TYPE.equals(currentFieldName)) {
+                if (BaseExceptionsHelper.TYPE.equals(currentFieldName)) {
                     type = parser.text();
-                } else if (REASON.equals(currentFieldName)) {
+                } else if (BaseExceptionsHelper.REASON.equals(currentFieldName)) {
                     reason = parser.text();
-                } else if (STACK_TRACE.equals(currentFieldName)) {
+                } else if (BaseExceptionsHelper.STACK_TRACE.equals(currentFieldName)) {
                     stack = parser.text();
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     metadata.put(currentFieldName, Collections.singletonList(parser.text()));
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (CAUSED_BY.equals(currentFieldName)) {
+                if (BaseExceptionsHelper.CAUSED_BY.equals(currentFieldName)) {
                     cause = fromXContent(parser);
-                } else if (HEADER.equals(currentFieldName)) {
+                } else if (BaseExceptionsHelper.HEADER.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -507,7 +259,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         rootCauses.add(fromXContent(parser));
                     }
-                } else if (SUPPRESSED.match(currentFieldName, parser.getDeprecationHandler())) {
+                } else if (BaseExceptionsHelper.SUPPRESSED.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         suppressed.add(fromXContent(parser));
                     }
@@ -540,7 +292,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             // by addMetadata. The prefix will get stripped out when printing metadata out so it will be effectively invisible.
             // TODO move subclasses that print out simple metadata to using addMetadata directly and support also numbers and booleans.
             // TODO rename metadataToXContent and have only SearchPhaseExecutionException use it, which prints out complex objects
-            e.addMetadata("opensearch." + entry.getKey(), entry.getValue());
+            e.addMetadata(BaseExceptionsHelper.OPENSEARCH_PREFIX_KEY + entry.getKey(), entry.getValue());
         }
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             e.addHeader(header.getKey(), header.getValue());
@@ -555,70 +307,6 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             e.addSuppressed(s);
         }
         return e;
-    }
-
-    /**
-     * Static toXContent helper method that renders {@link OpenSearchException} or {@link Throwable} instances
-     * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
-     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable)}.
-     *
-     * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
-     * be parsed back using the {@link #fromXContent(XContentParser)} method.
-     */
-    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
-        t = ExceptionsHelper.unwrapCause(t);
-
-        if (t instanceof OpenSearchException) {
-            ((OpenSearchException) t).toXContent(builder, params);
-        } else {
-            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
-        }
-    }
-
-    /**
-     * Render any exception as a xcontent, encapsulated within a field or object named "error". The level of details that are rendered
-     * depends on the value of the "detailed" parameter: when it's false only a simple message based on the type and message of the
-     * exception is rendered. When it's true all detail are provided including guesses root causes, cause and potentially stack
-     * trace.
-     *
-     * This method is usually used when the {@link Exception} is rendered as a full XContent object, and its output can be parsed
-     * by the {@link #failureFromXContent(XContentParser)} method.
-     */
-    public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
-        throws IOException {
-        // No exception to render as an error
-        if (e == null) {
-            builder.field(ERROR, "unknown");
-            return;
-        }
-
-        // Render the exception with a simple message
-        if (detailed == false) {
-            Throwable t = e;
-            for (int counter = 0; counter < 10 && t != null; counter++) {
-                if (t instanceof OpenSearchException) {
-                    break;
-                }
-                t = t.getCause();
-            }
-            builder.field(ERROR, ExceptionsHelper.summaryMessage(t != null ? t : e));
-            return;
-        }
-
-        // Render the exception with all details
-        final OpenSearchException[] rootCauses = OpenSearchException.guessRootCauses(e);
-        builder.startObject(ERROR);
-        {
-            builder.startArray(ROOT_CAUSE);
-            for (OpenSearchException rootCause : rootCauses) {
-                builder.startObject();
-                rootCause.toXContent(builder, new DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_CAUSE, "true"), params));
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-        generateThrowableXContent(builder, params, e);
-        builder.endObject();
     }
 
     /**
@@ -640,79 +328,6 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         return innerFromXContent(parser, true);
     }
 
-    /**
-     * Returns the root cause of this exception or multiple if different shards caused different exceptions
-     */
-    public OpenSearchException[] guessRootCauses() {
-        final Throwable cause = getCause();
-        if (cause != null && cause instanceof OpenSearchException) {
-            return ((OpenSearchException) cause).guessRootCauses();
-        }
-        return new OpenSearchException[] { this };
-    }
-
-    /**
-     * Returns the root cause of this exception or multiple if different shards caused different exceptions.
-     * If the given exception is not an instance of {@link OpenSearchException} an empty array
-     * is returned.
-     */
-    public static OpenSearchException[] guessRootCauses(Throwable t) {
-        Throwable ex = ExceptionsHelper.unwrapCause(t);
-        if (ex instanceof OpenSearchException) {
-            // OpenSearchException knows how to guess its own root cause
-            return ((OpenSearchException) ex).guessRootCauses();
-        }
-        if (ex instanceof XContentParseException) {
-            /*
-             * We'd like to unwrap parsing exceptions to the inner-most
-             * parsing exception because that is generally the most interesting
-             * exception to return to the user. If that exception is caused by
-             * an OpenSearchException we'd like to keep unwrapping because
-             * OpenSearchException instances tend to contain useful information
-             * for the user.
-             */
-            Throwable cause = ex.getCause();
-            if (cause != null) {
-                if (cause instanceof XContentParseException || cause instanceof OpenSearchException) {
-                    return guessRootCauses(ex.getCause());
-                }
-            }
-        }
-        return new OpenSearchException[] { new OpenSearchException(ex.getMessage(), ex) {
-            @Override
-            protected String getExceptionName() {
-                return getExceptionName(getCause());
-            }
-        } };
-    }
-
-    protected String getExceptionName() {
-        return getExceptionName(this);
-    }
-
-    /**
-     * Returns an underscore case name for the given exception. This method strips {@code OpenSearch} prefixes from exception names.
-     */
-    public static String getExceptionName(Throwable ex) {
-        String simpleName = ex.getClass().getSimpleName();
-        if (simpleName.startsWith("OpenSearch")) {
-            simpleName = simpleName.substring("OpenSearch".length());
-        }
-        // TODO: do we really need to make the exception name in underscore casing?
-        return toUnderscoreCase(simpleName);
-    }
-
-    static String buildMessage(String type, String reason, String stack) {
-        StringBuilder message = new StringBuilder("OpenSearch exception [");
-        message.append(TYPE).append('=').append(type).append(", ");
-        message.append(REASON).append('=').append(reason);
-        if (stack != null) {
-            message.append(", ").append(STACK_TRACE).append('=').append(stack);
-        }
-        message.append(']');
-        return message.toString();
-    }
-
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
@@ -723,7 +338,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             }
             builder.append(' ');
         }
-        return builder.append(ExceptionsHelper.detailedMessage(this).trim()).toString();
+        return builder.append(BaseExceptionsHelper.detailedMessage(this).trim()).toString();
     }
 
     /**
@@ -1740,60 +1355,6 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             setIndex(shardId.getIndex());
             addMetadata(SHARD_METADATA_KEY, Integer.toString(shardId.id()));
         }
-    }
-
-    public void setResources(String type, String... id) {
-        assert type != null;
-        addMetadata(RESOURCE_METADATA_ID_KEY, id);
-        addMetadata(RESOURCE_METADATA_TYPE_KEY, type);
-    }
-
-    public List<String> getResourceId() {
-        return getMetadata(RESOURCE_METADATA_ID_KEY);
-    }
-
-    public String getResourceType() {
-        List<String> header = getMetadata(RESOURCE_METADATA_TYPE_KEY);
-        if (header != null && header.isEmpty() == false) {
-            assert header.size() == 1;
-            return header.get(0);
-        }
-        return null;
-    }
-
-    // lower cases and adds underscores to transitions in a name
-    private static String toUnderscoreCase(String value) {
-        StringBuilder sb = new StringBuilder();
-        boolean changed = false;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (!changed) {
-                    // copy it over here
-                    for (int j = 0; j < i; j++) {
-                        sb.append(value.charAt(j));
-                    }
-                    changed = true;
-                    if (i == 0) {
-                        sb.append(Character.toLowerCase(c));
-                    } else {
-                        sb.append('_');
-                        sb.append(Character.toLowerCase(c));
-                    }
-                } else {
-                    sb.append('_');
-                    sb.append(Character.toLowerCase(c));
-                }
-            } else {
-                if (changed) {
-                    sb.append(c);
-                }
-            }
-        }
-        if (!changed) {
-            return value;
-        }
-        return sb.toString();
     }
 
 }

@@ -36,7 +36,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -49,6 +48,7 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
@@ -522,7 +522,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
                 primaryTermSupplier.getAsLong(),
                 tragedy,
                 persistedSequenceNumberConsumer,
-                bigArrays
+                bigArrays,
+                indexSettings.isRemoteTranslogStoreEnabled()
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -2025,7 +2026,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             seqNo -> {
                 throw new UnsupportedOperationException();
             },
-            BigArrays.NON_RECYCLING_INSTANCE
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null
         );
         writer.close();
         return uuid;

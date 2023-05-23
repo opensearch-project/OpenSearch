@@ -77,6 +77,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.RootObjectMapper;
+import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -1072,6 +1073,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
+            mock(RemoteRefreshSegmentPressureService.class),
             mock(SystemIndices.class)
         );
         action.handlePrimaryTermValidationRequest(
@@ -1102,6 +1104,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
+            mock(RemoteRefreshSegmentPressureService.class),
             mock(SystemIndices.class)
         );
         action.handlePrimaryTermValidationRequest(
@@ -1132,6 +1135,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
+            mock(RemoteRefreshSegmentPressureService.class),
             mock(SystemIndices.class)
         );
         action.handlePrimaryTermValidationRequest(
@@ -1173,6 +1177,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
+            mock(RemoteRefreshSegmentPressureService.class),
             mock(SystemIndices.class)
         );
     }
