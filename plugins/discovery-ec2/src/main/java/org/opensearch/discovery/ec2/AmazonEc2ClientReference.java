@@ -42,6 +42,6 @@ import software.amazon.awssdk.services.ec2.Ec2Client;
 public class AmazonEc2ClientReference extends RefCountedReleasable<Ec2Client> {
 
     AmazonEc2ClientReference(Ec2Client client) {
-        super("AWS_EC2_CLIENT", client, null);
+        super("AWS_EC2_CLIENT", client, client::close);
     }
 }
