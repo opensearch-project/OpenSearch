@@ -258,9 +258,9 @@ testClusters.yamlRestTest {
     setting 's3.client.integration_test_eks.region', { "us-east-2" }, IGNORE_VALUE
 
     // to redirect InstanceProfileCredentialsProvider to custom auth point
-    systemProperty "software.amazon.awssdk.sdk.ec2MetadataServiceEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
+    systemProperty "aws.ec2MetadataServiceEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
     // to redirect AWSSecurityTokenServiceClient to custom auth point
-    systemProperty "software.amazon.awssdk.sdk.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
+    systemProperty "aws.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
   } else {
     println "Using an external service to test the repository-s3 plugin"
   }
@@ -354,7 +354,7 @@ if (useFixture) {
     plugin tasks.bundlePlugin.archiveFile
 
     // to redirect AWSSecurityTokenServiceClient to custom auth point
-    systemProperty "software.amazon.awssdk.sdk.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
+    systemProperty "aws.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
   }
 }
 
