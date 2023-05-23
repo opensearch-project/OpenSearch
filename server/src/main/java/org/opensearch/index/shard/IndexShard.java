@@ -57,6 +57,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
@@ -160,6 +161,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.Translog;
@@ -224,7 +226,6 @@ import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 import static org.opensearch.index.translog.Translog.Durability;
 
 /**
@@ -4483,7 +4484,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
         // are uploaded to the remote segment store.
         assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of RemoteSegmentStoreDirectory";
-        ((RemoteSegmentStoreDirectory) remoteDirectory).init();
+        RemoteSegmentMetadata remoteSegmentMetadata = ((RemoteSegmentStoreDirectory) remoteDirectory).init();
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory)
             .getSegmentsUploadedToRemoteStore();
         store.incRef();
@@ -4505,7 +4506,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
-            String segmentInfosSnapshotFilename = null;
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
@@ -4515,24 +4515,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                     storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                     downloadedSegments.add(file);
-                    if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
-                        assert segmentInfosSnapshotFilename == null : "There should be only one SegmentInfosSnapshot file";
-                        segmentInfosSnapshotFilename = file;
-                    }
                 } else {
                     skippedSegments.add(file);
                 }
             }
-            if (refreshLevelSegmentSync && segmentInfosSnapshotFilename != null) {
+            if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)
-                    )
+                        new ByteArrayIndexInput("", remoteSegmentMetadata.getSegmentInfosBytes())
+                    );
                 ) {
                     SegmentInfos infosSnapshot = SegmentInfos.readCommit(
                         store.directory(),
                         indexInput,
-                        Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
+                        remoteSegmentMetadata.getGeneration()
                     );
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                     store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
