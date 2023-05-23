@@ -95,6 +95,10 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable == true ? randomBoolean() : false;
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
+        Long cancellationStartTime = null;
+        if (cancelled) {
+            cancellationStartTime = randomNonNegativeLong();
+        }
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
@@ -110,7 +114,8 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
             cancelled,
             parentTaskId,
             headers,
-            randomResourceStats()
+            randomResourceStats(),
+            cancellationStartTime
         );
     }
 
