@@ -339,7 +339,7 @@ public class LuceneTests extends OpenSearchTestCase {
         try (MockDirectoryWrapper dir = newMockFSDirectory(tmp)) {
             // The standard API will throw an exception
             expectThrows(IndexFormatTooOldException.class, () -> Lucene.readSegmentInfos(dir));
-            SegmentInfos si = Lucene.readSegmentInfosExtendedCompatibility(dir, minVersion);
+            SegmentInfos si = Lucene.readSegmentInfos(dir, minVersion);
             assertEquals(1, Lucene.getNumDocs(si));
             IndexCommit indexCommit = Lucene.getIndexCommit(si, dir);
             // uses the "expert" Lucene API
@@ -356,59 +356,6 @@ public class LuceneTests extends OpenSearchTestCase {
                 assertTrue(Lucene.exists(searcher, LatLonPoint.newDistanceQuery("testLocation", 48.57532, -112.87695, 20000)));
             }
         }
-    }
-
-    /**
-     * Since the implementation in {@link Lucene#readSegmentInfosExtendedCompatibility(Directory, Version)}
-     * is a workaround, this test verifies that the response from this method is equivalent to
-     * {@link Lucene#readSegmentInfos(Directory)} if the version is N-1
-     */
-    public void testReadSegmentInfosExtendedCompatibilityBaseCase() throws IOException {
-        MockDirectoryWrapper dir = newMockDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        IndexWriter writer = new IndexWriter(dir, iwc);
-        Document doc = new Document();
-        doc.add(new TextField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-        writer.addDocument(doc);
-        writer.commit();
-        SegmentInfos expectedSI = Lucene.readSegmentInfos(dir);
-        SegmentInfos actualSI = Lucene.readSegmentInfosExtendedCompatibility(dir, Version.CURRENT);
-        assertEquals(Lucene.getNumDocs(expectedSI), Lucene.getNumDocs(actualSI));
-        assertEquals(expectedSI.getGeneration(), actualSI.getGeneration());
-        assertEquals(expectedSI.getSegmentsFileName(), actualSI.getSegmentsFileName());
-        assertEquals(expectedSI.getVersion(), actualSI.getVersion());
-        assertEquals(expectedSI.getCommitLuceneVersion(), actualSI.getCommitLuceneVersion());
-        assertEquals(expectedSI.getMinSegmentLuceneVersion(), actualSI.getMinSegmentLuceneVersion());
-        assertEquals(expectedSI.getIndexCreatedVersionMajor(), actualSI.getIndexCreatedVersionMajor());
-        assertEquals(expectedSI.getUserData(), actualSI.getUserData());
-
-        int numDocsToIndex = randomIntBetween(10, 50);
-        List<Term> deleteTerms = new ArrayList<>();
-        for (int i = 0; i < numDocsToIndex; i++) {
-            doc = new Document();
-            doc.add(new TextField("id", "doc_" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            deleteTerms.add(new Term("id", "doc_" + i));
-            writer.addDocument(doc);
-        }
-        int numDocsToDelete = randomIntBetween(0, numDocsToIndex);
-        Collections.shuffle(deleteTerms, random());
-        for (int i = 0; i < numDocsToDelete; i++) {
-            Term remove = deleteTerms.remove(0);
-            writer.deleteDocuments(remove);
-        }
-        writer.commit();
-        expectedSI = Lucene.readSegmentInfos(dir);
-        actualSI = Lucene.readSegmentInfosExtendedCompatibility(dir, Version.CURRENT);
-        assertEquals(Lucene.getNumDocs(expectedSI), Lucene.getNumDocs(actualSI));
-        assertEquals(expectedSI.getGeneration(), actualSI.getGeneration());
-        assertEquals(expectedSI.getSegmentsFileName(), actualSI.getSegmentsFileName());
-        assertEquals(expectedSI.getVersion(), actualSI.getVersion());
-        assertEquals(expectedSI.getCommitLuceneVersion(), actualSI.getCommitLuceneVersion());
-        assertEquals(expectedSI.getMinSegmentLuceneVersion(), actualSI.getMinSegmentLuceneVersion());
-        assertEquals(expectedSI.getIndexCreatedVersionMajor(), actualSI.getIndexCreatedVersionMajor());
-        assertEquals(expectedSI.getUserData(), actualSI.getUserData());
-        writer.close();
-        dir.close();
     }
 
     public void testCount() throws Exception {
