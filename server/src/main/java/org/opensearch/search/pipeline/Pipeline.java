@@ -46,7 +46,7 @@ class Pipeline {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 
-    Pipeline(
+    private Pipeline(
         String id,
         @Nullable String description,
         @Nullable Integer version,
@@ -62,31 +62,24 @@ class Pipeline {
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
-    public static Pipeline create(
+    static Pipeline create(
         String id,
         Map<String, Object> config,
-        Map<String, Processor.Factory> processorFactories,
+        Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories,
+        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories,
         NamedWriteableRegistry namedWriteableRegistry
     ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         List<Map<String, Object>> requestProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, REQUEST_PROCESSORS_KEY);
-        List<SearchRequestProcessor> requestProcessors = readProcessors(
-            SearchRequestProcessor.class,
-            processorFactories,
-            requestProcessorConfigs
-        );
+        List<SearchRequestProcessor> requestProcessors = readProcessors(requestProcessorFactories, requestProcessorConfigs);
         List<Map<String, Object>> responseProcessorConfigs = ConfigurationUtils.readOptionalList(
             null,
             null,
             config,
             RESPONSE_PROCESSORS_KEY
         );
-        List<SearchResponseProcessor> responseProcessors = readProcessors(
-            SearchResponseProcessor.class,
-            processorFactories,
-            responseProcessorConfigs
-        );
+        List<SearchResponseProcessor> responseProcessors = readProcessors(responseProcessorFactories, responseProcessorConfigs);
         if (config.isEmpty() == false) {
             throw new OpenSearchParseException(
                 "pipeline ["
@@ -98,10 +91,8 @@ class Pipeline {
         return new Pipeline(id, description, version, requestProcessors, responseProcessors, namedWriteableRegistry);
     }
 
-    @SuppressWarnings("unchecked") // Cast is checked using isInstance
     private static <T extends Processor> List<T> readProcessors(
-        Class<T> processorType,
-        Map<String, Processor.Factory> processorFactories,
+        Map<String, Processor.Factory<T>> processorFactories,
         List<Map<String, Object>> requestProcessorConfigs
     ) throws Exception {
         List<T> processors = new ArrayList<>();
@@ -117,22 +108,10 @@ class Pipeline {
                 Map<String, Object> config = (Map<String, Object>) entry.getValue();
                 String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
                 String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
-                Processor processor = processorFactories.get(type).create(processorFactories, tag, description, config);
-                if (processorType.isInstance(processor)) {
-                    processors.add((T) processor);
-                } else {
-                    throw new IllegalArgumentException("Processor type " + type + " is not a " + processorType.getSimpleName());
-                }
+                processors.add(processorFactories.get(type).create(processorFactories, tag, description, config));
             }
         }
-        return processors;
-    }
-
-    List<Processor> flattenAllProcessors() {
-        List<Processor> allProcessors = new ArrayList<>(searchRequestProcessors.size() + searchResponseProcessors.size());
-        allProcessors.addAll(searchRequestProcessors);
-        allProcessors.addAll(searchResponseProcessors);
-        return allProcessors;
+        return Collections.unmodifiableList(processors);
     }
 
     String getId() {

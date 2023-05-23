@@ -143,6 +143,7 @@ import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -328,8 +329,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
-
     private final boolean isTimeSeriesIndex;
+    private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -354,7 +355,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final Store remoteStore
+        @Nullable final Store remoteStore,
+        final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -449,6 +451,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.isTimeSeriesIndex = (mapperService == null || mapperService.documentMapper() == null)
             ? false
             : mapperService.documentMapper().mappers().containsTimeStampField();
+        this.remoteRefreshSegmentPressureService = remoteRefreshSegmentPressureService;
     }
 
     public ThreadPool getThreadPool() {
@@ -2272,9 +2275,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private Map<String, String> fetchUserData() throws IOException {
         if (indexSettings.isRemoteSnapshot() && indexSettings.getExtendedCompatibilitySnapshotVersion() != null) {
-            // Inefficient method to support reading old Lucene indexes
-            return Lucene.readSegmentInfosExtendedCompatibility(store.directory(), indexSettings.getExtendedCompatibilitySnapshotVersion())
-                .getUserData();
+            return Lucene.readSegmentInfos(store.directory(), indexSettings.getExtendedCompatibilitySnapshotVersion()).getUserData();
         } else {
             return SegmentInfos.readLatestCommit(store.directory()).getUserData();
         }
@@ -3550,7 +3551,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 new RemoteStoreRefreshListener(
                     this,
                     // Add the checkpoint publisher if the Segment Replciation via remote store is enabled.
-                    indexSettings.isSegRepWithRemoteEnabled() ? this.checkpointPublisher : SegmentReplicationCheckpointPublisher.EMPTY
+                    indexSettings.isSegRepWithRemoteEnabled() ? this.checkpointPublisher : SegmentReplicationCheckpointPublisher.EMPTY,
+                    remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId())
                 )
             );
         }
