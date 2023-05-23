@@ -131,6 +131,7 @@ thirdPartyAudit {
 
   ignoreMissingClasses(
     'com.google.api.client.http.apache.v2.ApacheHttpTransport',
+    'com.google.api.gax.tracing.NoopApiTracer',
     'com.google.appengine.api.datastore.Blob',
     'com.google.appengine.api.datastore.DatastoreService',
     'com.google.appengine.api.datastore.DatastoreServiceFactory',
@@ -150,10 +151,6 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
-    'com.google.protobuf.util.JsonFormat',
-    'com.google.protobuf.util.JsonFormat$Parser',
-    'com.google.protobuf.util.JsonFormat$Printer',
-    'com.google.protobuf.util.Timestamps',
     // commons-logging optional dependencies
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
