@@ -604,6 +604,7 @@ public class ExtensionsManager {
             }
             List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
             List<Extension> readExtensions = new ArrayList<Extension>();
+            Set<String> additionalSettingsKeys = additionalSettings.stream().map(s -> s.getKey()).collect(Collectors.toSet());
             for (HashMap<String, ?> extensionMap : unreadExtensions) {
                 try {
                     // checking to see whether any required fields are missing from extension.yml file or not
@@ -639,7 +640,6 @@ public class ExtensionsManager {
                     }
 
                     ExtensionScopedSettings extAdditionalSettings = new ExtensionScopedSettings(additionalSettings);
-                    Set<String> additionalSettingsKeys = additionalSettings.stream().map(s -> s.getKey()).collect(Collectors.toSet());
                     Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
                         .stream()
                         .filter(kv -> additionalSettingsKeys.contains(kv.getKey()))
