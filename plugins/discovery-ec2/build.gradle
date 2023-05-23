@@ -91,14 +91,36 @@ tasks.register("writeTestJavaPolicy") {
       throw new GradleException("failed to create temporary directory [${tmp}]")
     }
     final File javaPolicy = file("${tmp}/java.policy")
-    javaPolicy.write(
-      [
-        "grant {",
-        "  permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
-        "  permission java.io.FilePermission \"config\", \"read\";",
-        "};"
-      ].join("\n")
-    )
+    if (BuildParams.inFipsJvm) {
+      javaPolicy.write(
+        [
+          "grant {",
+          "  permission java.security.SecurityPermission \"putProviderProperty.BCFIPS\";",
+          "  permission java.security.SecurityPermission \"putProviderProperty.BCJSSE\";",
+          "  permission java.lang.RuntimePermission \"getProtectionDomain\";",
+          "  permission java.util.PropertyPermission \"java.runtime.name\", \"read\";",
+          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"tlsAlgorithmsEnabled\";",
+          "  permission java.lang.RuntimePermission \"accessClassInPackage.sun.security.internal.spec\";",
+          "  permission java.lang.RuntimePermission \"accessDeclaredMembers\";",
+          "  permission java.util.PropertyPermission \"intellij.debug.agent\", \"read\";",
+          "  permission java.util.PropertyPermission \"intellij.debug.agent\", \"write\";",
+          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"exportSecretKey\";",
+          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"exportPrivateKey\";",
+          "  permission java.io.FilePermission \"\${javax.net.ssl.trustStore}\", \"read\";",
+          "  permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
+          "  permission java.io.FilePermission \"config\", \"read\";",
+          "};"
+        ].join("\n")
+      )
+    } else {
+      javaPolicy.write(
+        [
+          "grant {",
+          "  permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
+          "  permission java.io.FilePermission \"config\", \"read\";",
+          "};"
+        ].join("\n"))
+    }
   }
 }
 
@@ -125,7 +147,6 @@ tasks.named("check").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-    // classes are missing
     'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
