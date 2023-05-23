@@ -122,3 +122,23 @@ teardown:
         index: test
         body: { }
   - match: { hits.total.value: 2 }
+---
+"Test invalid inline query":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body: {
+          search_pipeline: {
+            "request_processors": [
+              "filter_query": {
+                "query": {
+                  "woozlewuzzle": {
+                    "field": "foo"
+                  }
+                }
+              }
+            ]
+          }
+        }
+  - match: { status: 400 }
