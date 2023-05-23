@@ -43,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-storage-common` from 12.20.0 to 12.21.0 (#7566)
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0 (#7563)
 - Bump `jackson` from 2.15.0 to 2.15.1 ([#7603](https://github.com/opensearch-project/OpenSearch/pull/7603))
+- Bump `com.google.api:gax` from 2.17.0 to 2.27.0 (#7697)
 
 ### Changed
 - Enable `./gradlew build` on MacOS by disabling bcw tests ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))
