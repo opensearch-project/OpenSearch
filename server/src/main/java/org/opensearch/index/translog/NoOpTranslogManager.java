@@ -121,5 +121,5 @@ public class NoOpTranslogManager implements TranslogManager {
         throw new UnsupportedOperationException("Translog snapshot unsupported with no-op translogs");
     }
 
-    public void onDelete() { }
+    public void onDelete() {}
 }

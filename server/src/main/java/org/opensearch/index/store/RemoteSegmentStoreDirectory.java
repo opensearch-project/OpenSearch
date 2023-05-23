@@ -618,18 +618,26 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
-    public void delete() throws IOException {
+    /*
+    Tries to delete shard level directory if it is empty
+    Return true if it deleted it successfully
+     */
+    public boolean deleteIfEmpty() throws IOException {
         Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
         if (metadataFiles.size() != 0) {
             logger.info("Remote directory still has files , not deleting the path");
-            return;
+            return false;
         }
+
         try {
             remoteDataDirectory.delete();
             remoteMetadataDirectory.delete();
-            // ToDo : clean up the lock directory as well
+            mdLockManager.delete();
         } catch (Exception e) {
-            logger.error("Exception occurred while deleting directory {}", e);
+            logger.error("Exception occurred while deleting directory", e);
+            return false;
         }
+
+        return true;
     }
 }

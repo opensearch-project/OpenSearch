@@ -620,7 +620,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
-        shard.close("simon says", false);
+        shard.close("simon says", false, false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         List<Exception> failures = new ArrayList<>();
         IndexingOperationListener listener = new IndexingOperationListener() {
@@ -658,7 +658,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         try {
             ExceptionsHelper.rethrowAndSuppress(failures);
         } finally {
-            newShard.close("just do it", randomBoolean());
+            newShard.close("just do it", randomBoolean(), false);
         }
     }
 

@@ -423,7 +423,7 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    protected void onDelete()  {
+    protected void onDelete() {
         // clean up all remote translog files
         translogTransferManager.delete();
     }
