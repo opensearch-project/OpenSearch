@@ -226,7 +226,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         // of latch.
         doAnswer(invocation -> {
             // short circuit loop on new checkpoint request
-            doReturn(null).when(serviceSpy).startReplication(eq(newPrimaryCheckpoint), eq(replicaShard), any());
+            doReturn(null).when(serviceSpy).startReplication(eq(replicaShard.getLatestReplicationCheckpoint()), eq(replicaShard), any());
             // a new checkpoint arrives before we've completed.
             serviceSpy.onNewCheckpoint(newPrimaryCheckpoint, replicaShard);
             try {
@@ -243,7 +243,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         // wait for the new checkpoint to arrive, before the listener completes.
         assertEquals(CANCELLED, targetSpy.state().getStage());
         verify(targetSpy, times(1)).cancel("Cancelling stuck target after new primary");
-        verify(serviceSpy, times(1)).startReplication(eq(newPrimaryCheckpoint), eq(replicaShard), any());
+        verify(serviceSpy, times(1)).startReplication(eq(replicaShard.getLatestReplicationCheckpoint()), eq(replicaShard), any());
     }
 
     public void testNewCheckpointBehindCurrentCheckpoint() {
