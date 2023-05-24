@@ -124,6 +124,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `io.projectreactor.netty:reactor-netty-core` from 1.1.5 to 1.1.7 (#7657)
 - Bump `org.apache.maven:maven-model` from 3.9.1 to 3.9.2 (#7655)
 - Bump `com.google.api:gax` from 2.17.0 to 2.27.0 (#7697)
+- Bump `io.projectreactor.netty:reactor-netty` from 1.1.4 to 1.1.7 ([#7725](https://github.com/opensearch-project/OpenSearch/pull/7725))
+- Bump `io.projectreactor.netty:reactor-netty-http` from 1.1.4 to 1.1.7 ([#7725](https://github.com/opensearch-project/OpenSearch/pull/7725))
 
 ### Changed
 - Enable `./gradlew build` on MacOS by disabling bcw tests ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))
