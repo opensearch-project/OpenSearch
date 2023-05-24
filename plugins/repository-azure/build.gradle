@@ -58,9 +58,9 @@ dependencies {
   api 'com.azure:azure-storage-blob:12.21.1'
   api 'org.reactivestreams:reactive-streams:1.0.3'
   api 'io.projectreactor:reactor-core:3.4.18'
-  api 'io.projectreactor.netty:reactor-netty:1.1.4'
-  api 'io.projectreactor.netty:reactor-netty-core:1.0.24'
-  api 'io.projectreactor.netty:reactor-netty-http:1.1.4'
+  api 'io.projectreactor.netty:reactor-netty:1.1.7'
+  api 'io.projectreactor.netty:reactor-netty-core:1.1.7'
+  api 'io.projectreactor.netty:reactor-netty-http:1.1.7'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
@@ -195,10 +195,12 @@ thirdPartyAudit {
     'io.micrometer.tracing.handler.PropagatingReceiverTracingObservationHandler',
     'io.micrometer.tracing.handler.PropagatingSenderTracingObservationHandler',
     'io.micrometer.tracing.propagation.Propagator',
-    'reactor.netty.channel.ChannelMeters',
-    'reactor.netty.channel.ChannelMeters$ChannelMetersTags',
-    'reactor.netty.internal.util.Metrics',
-    'reactor.netty.observability.ReactorNettyHandlerContext'
+    'io.micrometer.context.ContextAccessor',
+    'io.micrometer.core.instrument.observation.MeterObservationHandler',
+    'io.micrometer.observation.ObservationHandler',
+    'io.micrometer.observation.ObservationRegistry',
+    'io.micrometer.observation.ObservationRegistry$ObservationConfig',
+    'io.micrometer.tracing.handler.DefaultTracingObservationHandler'
   )
 
   ignoreViolations(
