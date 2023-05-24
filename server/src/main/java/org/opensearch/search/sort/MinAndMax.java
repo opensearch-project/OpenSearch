@@ -32,12 +32,14 @@
 
 package org.opensearch.search.sort;
 
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lucene.Lucene;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Comparator;
 import java.util.Objects;
 
@@ -92,5 +94,37 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
             cmp = cmp.reversed();
         }
         return Comparator.nullsLast(cmp);
+    }
+
+    /**
+     * Compare given object with min
+     */
+    public int compareMin(Object object) {
+        return compare(getMin(), object);
+    }
+
+    /**
+     * Compare given object with max
+     */
+    public int compareMax(Object object) {
+        return compare(getMax(), object);
+    }
+
+    private int compare(T one, Object two) {
+        if (one instanceof Long) {
+            return Long.compare((Long) one, (Long) two);
+        } else if (one instanceof Integer) {
+            return Integer.compare((Integer) one, (Integer) two);
+        } else if (one instanceof Float) {
+            return Float.compare((Float) one, (Float) two);
+        } else if (one instanceof Double) {
+            return Double.compare((Double) one, (Double) two);
+        } else if (one instanceof BigInteger) {
+            return ((BigInteger) one).compareTo((BigInteger) two);
+        } else if (one instanceof BytesRef) {
+            return ((BytesRef) one).compareTo((BytesRef) two);
+        } else {
+            throw new UnsupportedOperationException("compare type not supported : " + one.getClass());
+        }
     }
 }
