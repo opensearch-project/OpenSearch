@@ -202,14 +202,13 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
         private void validateAuthHeader(HttpExchange exchange) {
             final String authorizationHeaderV4 = exchange.getRequestHeaders().getFirst("Authorization");
-            final String authorizationHeaderV3 = exchange.getRequestHeaders().getFirst("X-amzn-authorization");
 
             if ("AWS4SignerType".equals(signerOverride)) {
                 assertThat(authorizationHeaderV4, containsString("aws4_request"));
             }
-            // if (region != null && authorizationHeaderV4 != null) {
-            // assertThat(authorizationHeaderV4, containsString("/" + region + "/s3/"));
-            // }
+            if (region != null && authorizationHeaderV4 != null) {
+                assertThat(authorizationHeaderV4, containsString("/" + region + "/s3/"));
+            }
         }
     }
 
