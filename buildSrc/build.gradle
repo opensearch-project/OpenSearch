@@ -326,7 +326,7 @@ class VersionPropertiesLoader {
 }
 
 
-task cloneGitRepoAndCheckCompatibility {
+task checkCompatibility {
   def repositoryUrls = project.hasProperty('repositoryUrls') ? project.property('repositoryUrls').split(',') : [];
   String refToCheckout = project.hasProperty('refToCheckout') ?: 'main'
   def failedComponents = []
