@@ -10,57 +10,68 @@ package org.opensearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.Query;
-import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.InternalProfileCollector;
-import org.opensearch.search.query.QueryPhaseExecutionException;
 import org.opensearch.search.query.ReduceableSearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.List;
 
-import static org.opensearch.search.aggregations.DefaultAggregationProcessor.createCollector;
-
 /**
- * {@link CollectorManager} to take care of aggregation operators both in case of concurrent and non-concurrent
- * segment search
+ * Common {@link CollectorManager} used by both concurrent and non-concurrent aggregation path and also for global and non-global
+ * aggregation operators
  */
 public class AggregationCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
     private final SearchContext context;
-    private final List<Aggregator> globalAggregators;
+    private final CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider;
+    private final String collectorReason;
 
-    public AggregationCollectorManager(SearchContext context, List<Aggregator> globalAggregators) {
+    protected Collector collector;
+
+    public AggregationCollectorManager(
+        SearchContext context,
+        CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider,
+        String collectorReason
+    ) throws IOException {
         this.context = context;
-        this.globalAggregators = globalAggregators;
+        this.aggProvider = aggProvider;
+        this.collectorReason = collectorReason;
+        collector = createCollector(context, aggProvider.apply(context), collectorReason);
+        // For Aggregations we should not have a NO_OP_Collector
+        assert collector != BucketCollector.NO_OP_COLLECTOR;
     }
 
     @Override
     public Collector newCollector() throws IOException {
-        List<Aggregator> nonGlobalAggregators = context.aggregations().factories().createTopLevelNonGlobalAggregators(context);
-        return createCollector(context, nonGlobalAggregators);
+        return createCollector(context, aggProvider.apply(context), collectorReason);
     }
 
     @Override
     public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
-        processGlobalAggregators(context);
-
         List<Aggregator> aggregators = new ArrayList<>();
-        aggregators.addAll(globalAggregators);
 
-        for (Collector collector: collectors) {
-            if (collector instanceof Aggregator) {
-                aggregators.add((Aggregator)collector);
-            } else if (collector instanceof MultiBucketCollector) {
-                for (Collector inner: ((MultiBucketCollector)collector).getCollectors()) {
-                    if (inner instanceof Aggregator) {
-                        aggregators.add((Aggregator)inner);
-                    }
+        final Deque<Collector> allCollectors = new LinkedList<>(collectors);
+        while (!allCollectors.isEmpty()) {
+            final Collector currentCollector = allCollectors.pop();
+            if (currentCollector instanceof Aggregator) {
+                aggregators.add((Aggregator) currentCollector);
+            } else if (currentCollector instanceof InternalProfileCollector) {
+                if (((InternalProfileCollector) currentCollector).getCollector() instanceof Aggregator) {
+                    aggregators.add((Aggregator) ((InternalProfileCollector) currentCollector).getCollector());
+                } else if (((InternalProfileCollector) currentCollector).getCollector() instanceof MultiBucketCollector) {
+                    allCollectors.addAll(
+                        Arrays.asList(((MultiBucketCollector) ((InternalProfileCollector) currentCollector).getCollector()).getCollectors())
+                    );
                 }
+            } else if (currentCollector instanceof MultiBucketCollector) {
+                allCollectors.addAll(Arrays.asList(((MultiBucketCollector) currentCollector).getCollectors()));
             }
         }
 
@@ -82,43 +93,25 @@ public class AggregationCollectorManager implements CollectorManager<Collector, 
         if (collectors.size() > 1) {
             // using reduce is fine here instead of topLevelReduce as pipeline aggregation is evaluated on the coordinator after all
             // documents are collected across shards for an aggregation
-            return (result) -> 
-                result.aggregations(
-                    InternalAggregations.reduce(
-                        Collections.singletonList(internalAggregations),
-                        context.aggregationReduceContext())
+            return new AggregationReduceableSearchResult(
+                InternalAggregations.reduce(Collections.singletonList(internalAggregations), context.partial())
             );
         } else {
-            return (result) -> {
-                result.aggregations(internalAggregations);
-            };
+            return new AggregationReduceableSearchResult(internalAggregations);
         }
     }
-    
-    private void processGlobalAggregators(SearchContext context) {
-        // optimize the global collector based execution
-        BucketCollector globalsCollector = MultiBucketCollector.wrap(globalAggregators);
-        Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
 
-        try {
-            final Collector collector;
-            if (context.getProfilers() == null) {
-                collector = globalsCollector;
-            } else {
-                InternalProfileCollector profileCollector = new InternalProfileCollector(
-                    globalsCollector,
-                    CollectorResult.REASON_AGGREGATION_GLOBAL,
-                    // TODO: report on sub collectors
-                    Collections.emptyList()
-                );
-                collector = profileCollector;
-                // start a new profile with this collector
-                context.getProfilers().addQueryProfiler().setCollector(profileCollector);
-            }
-            globalsCollector.preCollection();
-            context.searcher().search(query, collector);
-        } catch (Exception e) {
-            throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);
+    static Collector createCollector(SearchContext context, List<Aggregator> collectors, String reason) throws IOException {
+        Collector collector = MultiBucketCollector.wrap(collectors);
+        ((BucketCollector) collector).preCollection();
+        if (context.getProfilers() != null) {
+            collector = new InternalProfileCollector(
+                collector,
+                reason,
+                // TODO: report on child aggs as well
+                Collections.emptyList()
+            );
         }
+        return collector;
     }
 }

@@ -894,7 +894,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public InternalAggregation.ReduceContext aggregationReduceContext() {
+    public InternalAggregation.ReduceContext partial() {
         return requestToAggReduceContextBuilder.apply(request.source()).forPartialReduction();
     }
 }

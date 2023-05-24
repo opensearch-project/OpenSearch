@@ -316,6 +316,10 @@ public class AggregatorFactories {
         return Arrays.stream(factories).anyMatch(GLOBAL_AGGREGATOR_FACTORY_PREDICATE.negate());
     }
 
+    public boolean hasGlobalAggregator() {
+        return Arrays.stream(factories).anyMatch(GLOBAL_AGGREGATOR_FACTORY_PREDICATE);
+    }
+
     /**
      * @return the number of sub-aggregator factories
      */

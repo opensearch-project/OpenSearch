@@ -56,6 +56,7 @@ import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.AggregationProcessor;
 import org.opensearch.search.aggregations.DefaultAggregationProcessor;
+import org.opensearch.search.aggregations.GlobalAggCollectorManager;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
@@ -70,8 +71,10 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 import static org.opensearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
@@ -243,8 +246,17 @@ public class QueryPhase {
                 hasFilterCollector = true;
             }
             if (searchContext.queryCollectorManagers().isEmpty() == false) {
-                // plug in additional collectors, like aggregations
-                collectors.add(createMultiCollectorContext(searchContext.queryCollectorManagers().values()));
+                // plug in additional collectors, like aggregations except global aggregations
+                collectors.add(
+                    createMultiCollectorContext(
+                        searchContext.queryCollectorManagers()
+                            .entrySet()
+                            .stream()
+                            .filter(entry -> !(entry.getKey().equals(GlobalAggCollectorManager.class)))
+                            .map(Map.Entry::getValue)
+                            .collect(Collectors.toList())
+                    )
+                );
             }
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well

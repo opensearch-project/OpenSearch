@@ -431,5 +431,5 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ReaderContext readerContext();
 
-    public abstract InternalAggregation.ReduceContext aggregationReduceContext();
+    public abstract InternalAggregation.ReduceContext partial();
 }

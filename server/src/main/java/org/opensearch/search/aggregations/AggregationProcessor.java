@@ -9,7 +9,6 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.query.QueryPhaseExecutionException;
 
 /**
  * Interface to define different stages of aggregation processing before and after document collection

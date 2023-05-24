@@ -641,7 +641,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public InternalAggregation.ReduceContext aggregationReduceContext() {
+    public InternalAggregation.ReduceContext partial() {
         return InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction();
     }
 

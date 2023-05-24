@@ -31,10 +31,6 @@
 
 package org.opensearch.search.aggregations;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 
 /**
@@ -57,6 +53,7 @@ public class SearchContextAggregations {
     public AggregatorFactories factories() {
         return factories;
     }
+
     /**
      * Returns a consumer for multi bucket aggregation that checks the total number of buckets
      * created in the response

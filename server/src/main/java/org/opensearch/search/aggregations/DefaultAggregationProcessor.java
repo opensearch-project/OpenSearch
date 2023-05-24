@@ -8,16 +8,13 @@
 
 package org.opensearch.search.aggregations;
 
-import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Query;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.profile.query.CollectorResult;
-import org.opensearch.search.profile.query.InternalProfileCollector;
+import org.opensearch.search.profile.query.InternalProfileComponent;
 import org.opensearch.search.query.QueryPhaseExecutionException;
-import org.opensearch.search.query.ReduceableSearchResult;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -26,35 +23,24 @@ import java.util.List;
  * reduce on the collected documents at shard level
  */
 public class DefaultAggregationProcessor implements AggregationProcessor {
+
     @Override
     public void preProcess(SearchContext context) {
-        if (context.aggregations() != null) {
-            try {
-                context.queryCollectorManagers().put(AggregationProcessor.class, createAggregationCollectorManager(context));
-            } catch (IOException e) {
-                throw new AggregationInitializationException("Could not initialize aggregators", e);
-            }
-        }
-    }
-
-    protected AggregationCollectorManager createAggregationCollectorManager(SearchContext context) throws IOException {
-        AggregatorFactories factories = context.aggregations().factories();
-        List<Aggregator> globalAggregators = factories.createTopLevelGlobalAggregators(context);
-        return new AggregationCollectorManager(context, globalAggregators) {
-            private Collector collector;
-            @Override
-            public Collector newCollector() throws IOException {
-                if (collector == null) {
-                    collector = super.newCollector();
+        try {
+            if (context.aggregations() != null) {
+                if (context.aggregations().factories().hasNonGlobalAggregator()) {
+                    context.queryCollectorManagers()
+                        .put(NonGlobalAggCollectorManager.class, new NonGlobalAggCollectorManagerWithSingleCollector(context));
                 }
-                return collector;
+                // initialize global aggregators as well, such that any failure to initialize can be caught before executing the request
+                if (context.aggregations().factories().hasGlobalAggregator()) {
+                    context.queryCollectorManagers()
+                        .put(GlobalAggCollectorManager.class, new GlobalAggCollectorManagerWithSingleCollector(context));
+                }
             }
-
-            @Override
-            public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
-                return super.reduce(List.of(collector));
-            }
-        };
+        } catch (IOException ex) {
+            throw new AggregationInitializationException("Could not initialize aggregators", ex);
+        }
     }
 
     @Override
@@ -68,30 +54,37 @@ public class DefaultAggregationProcessor implements AggregationProcessor {
             // no need to compute the aggs twice, they should be computed on a per context basis
             return;
         }
-        
-        AggregationCollectorManager collectorManager = (AggregationCollectorManager)context.queryCollectorManagers().get(AggregationProcessor.class);
+
+        final AggregationCollectorManager nonGlobalCollectorManager = (AggregationCollectorManager) context.queryCollectorManagers()
+            .get(NonGlobalAggCollectorManager.class);
+        final AggregationCollectorManager globalCollectorManager = (AggregationCollectorManager) context.queryCollectorManagers()
+            .get(GlobalAggCollectorManager.class);
         try {
-            collectorManager.reduce(List.of()).reduce(context.queryResult());
+            if (nonGlobalCollectorManager != null) {
+                nonGlobalCollectorManager.reduce(List.of()).reduce(context.queryResult());
+            }
+
+            try {
+                if (globalCollectorManager != null) {
+                    Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
+                    if (context.getProfilers() != null) {
+                        context.getProfilers()
+                            .addQueryProfiler()
+                            .setCollector((InternalProfileComponent) globalCollectorManager.newCollector());
+                    }
+                    context.searcher().search(query, globalCollectorManager.newCollector());
+                    globalCollectorManager.reduce(List.of()).reduce(context.queryResult());
+                }
+            } catch (Exception e) {
+                throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);
+            }
         } catch (IOException ex) {
-            throw new QueryPhaseExecutionException(context.shardTarget(), "Post processing failed", ex);
+            throw new QueryPhaseExecutionException(context.shardTarget(), "Post processing failed for aggregators", ex);
         }
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
-        context.queryCollectorManagers().remove(AggregationProcessor.class);
-    }
-
-    static Collector createCollector(SearchContext context, List<Aggregator> collectors) throws IOException {
-        Collector collector = MultiBucketCollector.wrap(collectors);
-        ((BucketCollector) collector).preCollection();
-        if (context.getProfilers() != null) {
-            collector = new InternalProfileCollector(
-                collector,
-                CollectorResult.REASON_AGGREGATION,
-                // TODO: report on child aggs as well
-                Collections.emptyList()
-            );
-        }
-        return collector;
+        context.queryCollectorManagers().remove(NonGlobalAggCollectorManager.class);
+        context.queryCollectorManagers().remove(GlobalAggCollectorManager.class);
     }
 }
