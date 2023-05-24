@@ -78,7 +78,8 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 {
                     put("dummy-type1", new TaskResourceUsage(100, 100));
                 }
-            })
+            }),
+            0L
         );
         ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
         assertEquals(
@@ -105,7 +106,9 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 + "          \"cpu_time_in_nanos\" : 100,\n"
                 + "          \"memory_in_bytes\" : 100\n"
                 + "        }\n"
-                + "      }\n"
+                + "      },\n"
+                + "      \"cancellation_time\" : \"0s\",\n"
+                + "      \"cancellation_time_millis\" : 0\n"
                 + "    }\n"
                 + "  ]\n"
                 + "}",
