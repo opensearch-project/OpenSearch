@@ -12,6 +12,8 @@ import java.io.InputStream;
 
 /**
  * Model composed of an input stream, the total content length and offset
+ *
+ * @opensearch.internal
  */
 public class OffsetStreamContainer {
 

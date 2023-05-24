@@ -88,7 +88,7 @@ public class BlobStoreTransferService implements TransferService {
         final Map<Long, BlobPath> blobPaths,
         ActionListener<TransferFileSnapshot> listener,
         WritePriority writePriority
-    ) throws Exception {
+    ) {
         List<CompletableFuture<UploadResponse>> resultFutures = new ArrayList<>();
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());

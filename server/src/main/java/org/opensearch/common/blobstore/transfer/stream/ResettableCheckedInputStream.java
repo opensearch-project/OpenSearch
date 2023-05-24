@@ -58,7 +58,7 @@ public class ResettableCheckedInputStream extends FilterInputStream {
      * blocks until some input is available; otherwise, no
      * bytes are read and <code>0</code> is returned.
      * @param buf the buffer into which the data is read
-     * @param off the start offset in the destination array <code>b</code>
+     * @param off the start offset in the destination array <code>buf</code>
      * @param len the maximum number of bytes read
      * @return    the actual number of bytes read, or -1 if the end
      *            of the stream is reached.

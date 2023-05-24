@@ -28,7 +28,7 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 /**
- * RemoteTransferContainer is an encapsulation for managing transfers for translog and segment files.
+ * RemoteTransferContainer is an encapsulation for managing file transfers.
  */
 public class RemoteTransferContainer implements Closeable {
 
@@ -38,7 +38,7 @@ public class RemoteTransferContainer implements Closeable {
 
     private final long contentLength;
     private final SetOnce<InputStream[]> inputStreams = new SetOnce<>();
-    private final String localFileName;
+    private final String fileName;
     private final String remoteFileName;
     private final boolean failTransferIfFileExists;
     private final WritePriority writePriority;
@@ -54,7 +54,7 @@ public class RemoteTransferContainer implements Closeable {
      * This constructor calculates the <code>expectedChecksum</code> of the uploaded file internally by calling
      * <code>TranslogCheckedContainer#getChecksum</code>
      *
-     * @param localFileName                  Name of the local file
+     * @param fileName                  Name of the local file
      * @param remoteFileName                 Name of the remote file
      * @param contentLength                  Total content length of the file to be uploaded
      * @param failTransferIfFileExists       A boolean to determine if upload has to be failed if file exists
@@ -64,7 +64,7 @@ public class RemoteTransferContainer implements Closeable {
      * @param areInputStreamsDecorated            A boolean to signify whether the streams created via {@link OffsetRangeInputStreamSupplier#get} are decorated or not
      */
     public RemoteTransferContainer(
-        String localFileName,
+        String fileName,
         String remoteFileName,
         long contentLength,
         boolean failTransferIfFileExists,
@@ -74,7 +74,7 @@ public class RemoteTransferContainer implements Closeable {
         boolean isRemoteDataIntegritySupported,
         boolean areInputStreamsDecorated
     ) {
-        this.localFileName = localFileName;
+        this.fileName = fileName;
         this.remoteFileName = remoteFileName;
         this.contentLength = contentLength;
         this.failTransferIfFileExists = failTransferIfFileExists;
@@ -102,6 +102,10 @@ public class RemoteTransferContainer implements Closeable {
     }
 
     /**
+     * This method is called to create the {@link StreamContext} object that will be used by the vendor plugin to
+     * open streams during uploads. Calling this method won't actually create the streams, for that the consumer needs
+     * to call {@link StreamContext#provideStream}
+     *
      * @param partSize Part sizes of all parts apart from the last one, which is determined internally
      * @return The {@link StreamContext} object that will be used by the vendor plugin to retrieve streams during upload
      */
@@ -154,7 +158,7 @@ public class RemoteTransferContainer implements Closeable {
             try {
                 OffsetRangeInputStream offsetRangeInputStream = offsetRangeInputStreamSupplier.get(size, position);
                 InputStream inputStream = !isRemoteDataIntegrityCheckPossible()
-                    ? new ResettableCheckedInputStream(offsetRangeInputStream, localFileName)
+                    ? new ResettableCheckedInputStream(offsetRangeInputStream, fileName)
                     : offsetRangeInputStream;
                 Objects.requireNonNull(inputStreams.get())[streamIdx] = inputStream;
 
@@ -181,12 +185,12 @@ public class RemoteTransferContainer implements Closeable {
                 throw new RuntimeException(
                     new CorruptIndexException(
                         "Data integrity check done after upload for file "
-                            + localFileName
+                            + fileName
                             + " failed, actual checksum: "
                             + actualChecksum
                             + ", expected checksum: "
                             + expectedChecksum,
-                        localFileName
+                        fileName
                     )
                 );
             }
