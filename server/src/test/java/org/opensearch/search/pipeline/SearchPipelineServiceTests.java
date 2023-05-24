@@ -780,10 +780,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
         SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
 
-        // Exception thrown when processing the request
         PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
 
         SearchResponse response = new SearchResponse(null, null, 0, 0, 0, 0, null, null);
+        // Exception thrown when processing response
         expectThrows(SearchPipelineProcessingException.class, () -> pipelinedRequest.transformResponse(response));
     }
 }
