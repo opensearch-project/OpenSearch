@@ -13,7 +13,6 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.test.OpenSearchTestCase;
@@ -58,8 +57,8 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
-        uploadResponseCompletableFuture.complete(new UploadResponse(true));
+        CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
+        uploadResponseCompletableFuture.complete(null);
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
@@ -136,46 +135,8 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
+        CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
         uploadResponseCompletableFuture.completeExceptionally(new IOException());
-        when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
-        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
-
-        TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean onResponseCalled = new AtomicBoolean(false);
-        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
-        transferService.uploadBlobs(Collections.singleton(transferFileSnapshot), new HashMap<>() {
-            {
-                put(transferFileSnapshot.getPrimaryTerm(), new BlobPath().add("sample_path"));
-            }
-        }, new LatchedActionListener<>(new ActionListener<>() {
-            @Override
-            public void onResponse(FileSnapshot.TransferFileSnapshot fileSnapshot) {
-                onResponseCalled.set(true);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                exceptionRef.set(e);
-            }
-        }, latch), WritePriority.HIGH);
-
-        assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
-        verify(blobContainer).writeBlobByStreams(any(WriteContext.class));
-        assertFalse(onResponseCalled.get());
-        assertTrue(exceptionRef.get() instanceof FileTransferException);
-    }
-
-    public void testUploadBlobsUploadUnsuccessful() throws Exception {
-        Path testFile = createTempFile();
-        Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
-
-        BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
-        uploadResponseCompletableFuture.complete(new UploadResponse(false));
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 

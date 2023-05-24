@@ -18,7 +18,6 @@ import org.opensearch.common.StreamContext;
 import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.UploadFinalizer;
@@ -439,7 +438,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         ExecutionException, InterruptedException {
         final byte[] bytes = randomByteArrayOfLength(100);
         List<InputStream> openInputStreams = new ArrayList<>();
-        CompletableFuture<UploadResponse> completableFuture = blobContainer.writeBlobByStreams(
+        CompletableFuture<Void> completableFuture = blobContainer.writeBlobByStreams(
             new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
                 @Override
                 public StreamContext supplyStreamContext(long partSize) {
@@ -494,7 +493,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         final long blobSize = ((numberOfParts - 1) * partSize.getBytes()) + lastPartSize;
 
         List<InputStream> openInputStreams = new ArrayList<>();
-        CompletableFuture<UploadResponse> completableFuture = blobContainer.writeBlobByStreams(
+        CompletableFuture<Void> completableFuture = blobContainer.writeBlobByStreams(
             new WriteContext("write_large_blob", new StreamContextSupplier() {
                 @Override
                 public StreamContext supplyStreamContext(long partSize) {

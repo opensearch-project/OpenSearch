@@ -15,7 +15,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
@@ -89,13 +88,13 @@ public class BlobStoreTransferService implements TransferService {
         ActionListener<TransferFileSnapshot> listener,
         WritePriority writePriority
     ) {
-        List<CompletableFuture<UploadResponse>> resultFutures = new ArrayList<>();
+        List<CompletableFuture<Void>> resultFutures = new ArrayList<>();
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
             if (!blobStore.blobContainer(blobPath).isMultiStreamUploadSupported()) {
                 uploadBlobByThreadPool(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
             } else {
-                CompletableFuture<UploadResponse> resultFuture = createUploadFuture(fileSnapshot, listener, blobPath, writePriority);
+                CompletableFuture<Void> resultFuture = createUploadFuture(fileSnapshot, listener, blobPath, writePriority);
                 if (resultFuture != null) {
                     resultFutures.add(resultFuture);
                 }
@@ -112,14 +111,14 @@ public class BlobStoreTransferService implements TransferService {
         }
     }
 
-    private CompletableFuture<UploadResponse> createUploadFuture(
+    private CompletableFuture<Void> createUploadFuture(
         TransferFileSnapshot fileSnapshot,
         ActionListener<TransferFileSnapshot> listener,
         BlobPath blobPath,
         WritePriority writePriority
     ) {
 
-        CompletableFuture<UploadResponse> resultFuture = null;
+        CompletableFuture<Void> resultFuture = null;
         try {
             ChannelFactory channelFactory = FileChannel::open;
             long contentLength;
@@ -146,7 +145,7 @@ public class BlobStoreTransferService implements TransferService {
                 false
             );
             WriteContext writeContext = remoteTransferContainer.createWriteContext();
-            CompletableFuture<UploadResponse> uploadFuture = blobStore.blobContainer(blobPath).writeBlobByStreams(writeContext);
+            CompletableFuture<Void> uploadFuture = blobStore.blobContainer(blobPath).writeBlobByStreams(writeContext);
             resultFuture = uploadFuture.whenComplete((resp, throwable) -> {
                 try {
                     remoteTransferContainer.close();
@@ -156,10 +155,6 @@ public class BlobStoreTransferService implements TransferService {
                 if (throwable != null) {
                     logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), throwable);
                     listener.onFailure(new FileTransferException(fileSnapshot, throwable));
-                } else if (!resp.isUploadSuccessful()) {
-                    Exception ex = new IOException("Failed to upload blob " + fileSnapshot.getName());
-                    logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);
-                    listener.onFailure(new FileTransferException(fileSnapshot, ex));
                 } else {
                     listener.onResponse(fileSnapshot);
                 }

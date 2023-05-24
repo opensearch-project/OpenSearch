@@ -57,7 +57,6 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.DeleteResult;
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
@@ -169,7 +168,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public CompletableFuture<UploadResponse> writeBlobByStreams(WriteContext writeContext) throws IOException {
+    public CompletableFuture<Void> writeBlobByStreams(WriteContext writeContext) throws IOException {
         UploadRequest uploadRequest = new UploadRequest(
             blobStore.bucket(),
             buildKey(writeContext.getFileName()),
@@ -187,8 +186,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                 S3AsyncClient s3AsyncClient = writeContext.getWritePriority() == WritePriority.HIGH
                     ? amazonS3Reference.get().priorityClient()
                     : amazonS3Reference.get().client();
-                CompletableFuture<UploadResponse> returnFuture = new CompletableFuture<>();
-                CompletableFuture<UploadResponse> completableFuture = blobStore.getAsyncUploadUtils()
+                CompletableFuture<Void> returnFuture = new CompletableFuture<>();
+                CompletableFuture<Void> completableFuture = blobStore.getAsyncUploadUtils()
                     .uploadObject(s3AsyncClient, uploadRequest, streamContext);
 
                 CompletableFutureUtils.forwardExceptionTo(returnFuture, completableFuture);

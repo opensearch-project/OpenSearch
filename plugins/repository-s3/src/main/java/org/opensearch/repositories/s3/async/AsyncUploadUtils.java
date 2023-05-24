@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.StreamContext;
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.ByteUtils;
@@ -83,13 +82,9 @@ public final class AsyncUploadUtils {
      * @param streamContext The {@link StreamContext} to supply streams during upload
      * @return A {@link CompletableFuture} to listen for upload completion
      */
-    public CompletableFuture<UploadResponse> uploadObject(
-        S3AsyncClient s3AsyncClient,
-        UploadRequest uploadRequest,
-        StreamContext streamContext
-    ) {
+    public CompletableFuture<Void> uploadObject(S3AsyncClient s3AsyncClient, UploadRequest uploadRequest, StreamContext streamContext) {
 
-        CompletableFuture<UploadResponse> returnFuture = new CompletableFuture<>();
+        CompletableFuture<Void> returnFuture = new CompletableFuture<>();
         try {
             if (streamContext.getNumberOfParts() == 1) {
                 log.debug(() -> "Starting the upload as a single upload part request");
@@ -109,7 +104,7 @@ public final class AsyncUploadUtils {
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         StreamContext streamContext,
-        CompletableFuture<UploadResponse> returnFuture
+        CompletableFuture<Void> returnFuture
     ) {
 
         CreateMultipartUploadRequest.Builder createMultipartUploadRequestBuilder = CreateMultipartUploadRequest.builder()
@@ -139,7 +134,7 @@ public final class AsyncUploadUtils {
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         StreamContext streamContext,
-        CompletableFuture<UploadResponse> returnFuture,
+        CompletableFuture<Void> returnFuture,
         String uploadId
     ) {
 
@@ -173,7 +168,7 @@ public final class AsyncUploadUtils {
     private BiFunction<CompleteMultipartUploadResponse, Throwable, Void> handleExceptionOrResponse(
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
-        CompletableFuture<UploadResponse> returnFuture,
+        CompletableFuture<Void> returnFuture,
         String uploadId
     ) {
 
@@ -182,7 +177,7 @@ public final class AsyncUploadUtils {
                 cleanUpParts(s3AsyncClient, uploadRequest, uploadId);
                 handleException(returnFuture, () -> "Failed to send multipart upload requests.", throwable);
             } else {
-                returnFuture.complete(new UploadResponse(true));
+                returnFuture.complete(null);
             }
 
             return null;
@@ -232,7 +227,7 @@ public final class AsyncUploadUtils {
         }));
     }
 
-    private static void handleException(CompletableFuture<UploadResponse> returnFuture, Supplier<String> message, Throwable throwable) {
+    private static void handleException(CompletableFuture<Void> returnFuture, Supplier<String> message, Throwable throwable) {
         Throwable cause = throwable instanceof CompletionException ? throwable.getCause() : throwable;
 
         if (cause instanceof Error) {
@@ -343,7 +338,7 @@ public final class AsyncUploadUtils {
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         InputStreamContainer inputStreamContainer,
-        CompletableFuture<UploadResponse> returnFuture
+        CompletableFuture<Void> returnFuture
     ) {
         PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
             .bucket(uploadRequest.getBucket())
@@ -358,7 +353,7 @@ public final class AsyncUploadUtils {
         ExecutorService streamReadExecutor = uploadRequest.getWritePriority() == WritePriority.HIGH
             ? priorityExecutorService
             : executorService;
-        CompletableFuture<UploadResponse> putObjectFuture = SocketAccess.doPrivileged(
+        CompletableFuture<Void> putObjectFuture = SocketAccess.doPrivileged(
             () -> s3AsyncClient.putObject(
                 putObjectRequestBuilder.build(),
                 AsyncRequestBody.fromInputStream(
@@ -371,7 +366,7 @@ public final class AsyncUploadUtils {
                     returnFuture.completeExceptionally(throwable);
                 } else {
                     uploadRequest.getUploadFinalizer().accept(true);
-                    returnFuture.complete(new UploadResponse(true));
+                    returnFuture.complete(null);
                 }
 
                 return null;

@@ -20,7 +20,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
@@ -362,7 +361,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     public boolean copyFilesFrom(Directory from, Collection<String> files, IOContext context, UploadTracker uploadTracker)
         throws Exception {
 
-        List<CompletableFuture<UploadResponse>> resultFutures = new ArrayList<>();
+        List<CompletableFuture<Void>> resultFutures = new ArrayList<>();
 
         boolean uploadOfAllFilesSuccessful = true;
         for (String src : files) {
@@ -370,7 +369,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             uploadTracker.beforeUpload(src);
             if (remoteDataDirectory.getBlobContainer().isMultiStreamUploadSupported()) {
                 try {
-                    CompletableFuture<UploadResponse> resultFuture = createUploadFuture(from, src, remoteFilename, context);
+                    CompletableFuture<Void> resultFuture = createUploadFuture(from, src, remoteFilename, context);
                     resultFuture.whenComplete((uploadResponse, throwable) -> {
                         if (throwable != null) {
                             uploadTracker.onFailure(src);
@@ -416,7 +415,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return uploadOfAllFilesSuccessful;
     }
 
-    private CompletableFuture<UploadResponse> createUploadFuture(Directory from, String src, String remoteFileName, IOContext ioContext)
+    private CompletableFuture<Void> createUploadFuture(Directory from, String src, String remoteFileName, IOContext ioContext)
         throws Exception {
 
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
@@ -437,7 +436,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             false
         );
         WriteContext writeContext = remoteTransferContainer.createWriteContext();
-        CompletableFuture<UploadResponse> uploadFuture = remoteDataDirectory.getBlobContainer().writeBlobByStreams(writeContext);
+        CompletableFuture<Void> uploadFuture = remoteDataDirectory.getBlobContainer().writeBlobByStreams(writeContext);
         return uploadFuture.whenComplete((resp, throwable) -> {
             try {
                 remoteTransferContainer.close();

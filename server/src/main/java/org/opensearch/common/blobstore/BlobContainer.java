@@ -32,7 +32,6 @@
 
 package org.opensearch.common.blobstore;
 
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 
 import java.io.IOException;
@@ -151,7 +150,7 @@ public interface BlobContainer {
      * @return A {@link CompletableFuture} representing the upload
      * @throws IOException if any of the input streams could not be read, or the target blob could not be written to
      */
-    default CompletableFuture<UploadResponse> writeBlobByStreams(WriteContext writeContext) throws IOException {
+    default CompletableFuture<Void> writeBlobByStreams(WriteContext writeContext) throws IOException {
         throw new UnsupportedOperationException();
     }
 

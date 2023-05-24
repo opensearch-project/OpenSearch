@@ -14,7 +14,6 @@ import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 
 import java.io.IOException;
@@ -45,8 +44,8 @@ public class MockFsBlobContainer extends FsBlobContainer {
     }
 
     @Override
-    public CompletableFuture<UploadResponse> writeBlobByStreams(WriteContext writeContext) throws IOException {
-        CompletableFuture<UploadResponse> completableFuture = new CompletableFuture<>();
+    public CompletableFuture<Void> writeBlobByStreams(WriteContext writeContext) throws IOException {
+        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
 
         int nParts = 10;
         long partSize = writeContext.getFileSize() / nParts;
@@ -112,7 +111,7 @@ public class MockFsBlobContainer extends FsBlobContainer {
                 );
             } else {
                 writeContext.getUploadFinalizer().accept(true);
-                completableFuture.complete(new UploadResponse(true));
+                completableFuture.complete(null);
             }
         } catch (Exception e) {
             completableFuture.completeExceptionally(e);

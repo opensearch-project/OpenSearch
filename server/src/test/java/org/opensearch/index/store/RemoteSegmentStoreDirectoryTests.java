@@ -21,7 +21,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.Before;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -520,8 +519,8 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
-        uploadResponseCompletableFuture.complete(new UploadResponse(true));
+        CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
+        uploadResponseCompletableFuture.complete(null);
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
 
         remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT, testUploadTracker);
@@ -549,8 +548,8 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
-        uploadResponseCompletableFuture.complete(new UploadResponse(true));
+        CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
+        uploadResponseCompletableFuture.complete(null);
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenThrow(new IOException());
 
         assertThrows(
@@ -581,7 +580,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
+        CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
         uploadResponseCompletableFuture.completeExceptionally(new IOException());
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
 

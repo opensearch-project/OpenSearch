@@ -46,7 +46,6 @@ import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.UploadFinalizer;
@@ -307,7 +306,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
         List<InputStream> openInputStreams = new ArrayList<>();
-        CompletableFuture<UploadResponse> completableFuture = blobContainer.writeBlobByStreams(
+        CompletableFuture<Void> completableFuture = blobContainer.writeBlobByStreams(
             new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
                 @Override
                 public StreamContext supplyStreamContext(long partSize) {
