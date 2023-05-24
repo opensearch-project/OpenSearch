@@ -50,7 +50,7 @@ public class ExtensionActionUtilTest {
     }
 
     @Test
-    public void testCreateProxyRequestBytes() throws IOException {
+    public void testCreateProxyRequestBytesTest() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         MyExampleRequest exampleRequest = new MyExampleRequest(actionName, actionNameBytes);
         exampleRequest.writeTo(out);
@@ -60,7 +60,7 @@ public class ExtensionActionUtilTest {
     }
 
     @Test
-    public void testCreateExtensionActionRequestFromBytes() {
+    public void testCreateExtensionActionRequestFromBytesTest() {
         ExtensionActionRequest extensionActionRequest = ExtensionActionUtil.createExtensionActionRequestFromBytes(myBytes);
         assert extensionActionRequest != null;
         String action = extensionActionRequest.getAction();
@@ -71,14 +71,14 @@ public class ExtensionActionUtilTest {
     }
 
     @Test
-    public void testCreateActionRequest() {
+    public void testCreateActionRequestTest() {
         ActionRequest actionRequest = ExtensionActionUtil.createActionRequest(myBytes);
         assertNotNull(actionRequest);
         assertFalse(actionRequest.getShouldStoreResult());
     }
 
     @Test
-    public void testConvertParamsToBytes() {
+    public void testConvertParamsToBytesTest() {
         MyExampleRequest exampleRequest = new MyExampleRequest(actionName, actionNameBytes);
         byte[] bytes = ExtensionActionUtil.convertParamsToBytes(exampleRequest);
 
@@ -92,7 +92,7 @@ public class ExtensionActionUtilTest {
     }
 
     @Test
-    public void testDelimPos() {
+    public void testDelimPosTest() {
         assertTrue(ExtensionActionUtil.delimPos(myBytes) > 0);
         assertTrue(ExtensionActionUtil.delimPos(actionNameBytes) < 0);
     }
