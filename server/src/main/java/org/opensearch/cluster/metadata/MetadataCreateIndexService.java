@@ -968,19 +968,6 @@ public class MetadataCreateIndexService {
                 return;
             }
 
-            // Verify REPLICATION_TYPE cluster level setting is not conflicting with Remote Store
-            if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false
-                && CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings).equals(ReplicationType.DOCUMENT)) {
-                throw new IllegalArgumentException(
-                    "Cannot enable ["
-                        + SETTING_REMOTE_STORE_ENABLED
-                        + "] when ["
-                        + CLUSTER_REPLICATION_TYPE_SETTING.getKey()
-                        + "] is "
-                        + ReplicationType.DOCUMENT
-                );
-            }
-
             settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).put(SETTING_REMOTE_STORE_ENABLED, true);
 
             String remoteStoreRepo;
