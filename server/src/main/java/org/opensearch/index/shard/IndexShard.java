@@ -1629,12 +1629,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             return false;
         }
-        if (localCheckpoint.getCodec().equals(requestCheckpoint.getCodec()) == false) {
-            logger.trace(
-                () -> new ParameterizedMessage("Shard does not support the received lucene codec version {}", requestCheckpoint.getCodec())
-            );
-            return false;
-        }
         return true;
     }
 

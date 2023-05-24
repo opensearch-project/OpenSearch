@@ -48,7 +48,7 @@ import static org.mockito.Mockito.when;
 public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
     private final IndicesService mockIndicesService = mock(IndicesService.class);
-    private ReplicationCheckpoint testCheckpoint, olderCodecTestCheckpoint;
+    private ReplicationCheckpoint testCheckpoint;
     private DiscoveryNode primaryDiscoveryNode;
     private DiscoveryNode replicaDiscoveryNode;
     private IndexShard primary;
@@ -79,7 +79,6 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
         testCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L, defaultCodecName);
-        olderCodecTestCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L, "Lucene94");
         IndexService mockIndexService = mock(IndexService.class);
         when(mockIndicesService.indexServiceSafe(testShardId.getIndex())).thenReturn(mockIndexService);
         when(mockIndexService.getShard(testShardId.id())).thenReturn(primary);
@@ -92,44 +91,6 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
     public void tearDown() throws Exception {
         closeShards(primary, replica);
         super.tearDown();
-    }
-
-    public void testSuccessfulCodecCompatibilityCheck() throws Exception {
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
-        primary.refresh("Test");
-        OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
-        // replica checkpoint is on same/higher lucene codec than primary
-        final CheckpointInfoRequest request = new CheckpointInfoRequest(
-            1L,
-            replica.routingEntry().allocationId().getId(),
-            replicaDiscoveryNode,
-            testCheckpoint
-        );
-        final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
-            listener.onResponse(null);
-        };
-        final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-    }
-
-    public void testFailCodecCompatibilityCheck() throws Exception {
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
-        primary.refresh("Test");
-        OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
-        // replica checkpoint is on lower/older lucene codec than primary
-        final CheckpointInfoRequest request = new CheckpointInfoRequest(
-            1L,
-            replica.routingEntry().allocationId().getId(),
-            replicaDiscoveryNode,
-            olderCodecTestCheckpoint
-        );
-        final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
-            listener.onResponse(null);
-        };
-        try {
-            final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-        } catch (CancellableThreads.ExecutionCancelledException ex) {
-            Assert.assertTrue(ex.getMessage().contains("Requested unsupported codec version"));
-        }
     }
 
     public void testPrepareAndSendSegments() throws IOException {
