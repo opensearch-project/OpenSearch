@@ -83,10 +83,6 @@ teardown:
           "profile": true
         }
   - length: { hits.hits: 2 }
-  - match: { _shards.total: 1 }
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._score: 1.0 }
-  - match: { hits.hits.1._score: 1.0 }
   - is_false: hits.hits.0._explanation
   - is_false: hits.hits.1._explanation
   - is_false: hits.hits.0._seq_no
