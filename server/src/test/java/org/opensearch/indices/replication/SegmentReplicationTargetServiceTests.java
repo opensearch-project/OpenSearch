@@ -69,12 +69,11 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName())
             .build();
-        CodecService codecService = new CodecService(null, null);
-        String defaultCodecName = codecService.codec(CodecService.DEFAULT_CODEC).getName();
         primaryShard = newStartedShard(true, settings);
+        String primaryCodec = primaryShard.getEngineCodec();
         replicaShard = newShard(false, settings, new NRTReplicationEngineFactory());
         recoverReplica(replicaShard, primaryShard, true, getReplicationFunc(replicaShard));
-        checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L, defaultCodecName);
+        checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L, replicaShard.getEngineCodec());
         SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
         replicationSource = mock(SegmentReplicationSource.class);
         when(replicationSourceFactory.get(replicaShard)).thenReturn(replicationSource);
@@ -86,14 +85,14 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             initialCheckpoint.getPrimaryTerm(),
             initialCheckpoint.getSegmentsGen(),
             initialCheckpoint.getSegmentInfosVersion() + 1,
-            defaultCodecName
+            primaryCodec
         );
         newPrimaryCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),
             initialCheckpoint.getPrimaryTerm() + 1,
             initialCheckpoint.getSegmentsGen(),
             initialCheckpoint.getSegmentInfosVersion() + 1,
-            defaultCodecName
+            primaryCodec
         );
     }
 

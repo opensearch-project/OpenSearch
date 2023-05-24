@@ -228,7 +228,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             }
             final Thread thread = Thread.currentThread();
             if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
-                startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {
+                startReplication(replicaShard.getLatestReplicationCheckpoint(), replicaShard, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
                         logger.trace(
@@ -430,7 +430,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 return;
             }
             startReplication(
-                ReplicationCheckpoint.empty(request.getShardId(), indexShard.getDefaultCodecName()),
+                ReplicationCheckpoint.empty(request.getShardId(), indexShard.getEngineCodec()),
                 indexShard,
                 new SegmentReplicationTargetService.SegmentReplicationListener() {
                     @Override

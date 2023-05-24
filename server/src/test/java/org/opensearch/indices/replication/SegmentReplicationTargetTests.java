@@ -108,7 +108,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             spyIndexShard.getPendingPrimaryTerm(),
             testSegmentInfos.getGeneration(),
             testSegmentInfos.version,
-            Codec.getDefault().getName()
+            indexShard.getEngineCodec()
         );
     }
 

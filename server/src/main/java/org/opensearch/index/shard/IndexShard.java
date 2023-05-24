@@ -512,6 +512,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return codecService.codec(CodecService.DEFAULT_CODEC).getName();
     }
 
+    public String getEngineCodec() {
+        return getEngine().config().getCodec().getName();
+    }
+
     /**
      * USE THIS METHOD WITH CARE!
      * Returns the primary term the index shard is supposed to be on. In case of primary promotion or when a replica learns about

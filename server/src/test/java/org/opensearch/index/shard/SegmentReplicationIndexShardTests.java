@@ -1027,7 +1027,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
     private void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
         try {
-            final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primary.shardId, primary.getDefaultCodecName()), primary);
+            final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primary.shardId, primary.getEngineCodec()), primary);
             listener.onResponse(
                 new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );
@@ -1041,7 +1041,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         final SegmentReplicationTarget target = targetService.startReplication(
-            ReplicationCheckpoint.empty(replica.shardId, replica.getDefaultCodecName()),
+            ReplicationCheckpoint.empty(replica.shardId, replica.getEngineCodec()),
             replica,
             new SegmentReplicationTargetService.SegmentReplicationListener() {
                 @Override
