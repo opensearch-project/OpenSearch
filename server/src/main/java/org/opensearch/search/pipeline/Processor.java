@@ -52,7 +52,7 @@ public interface Processor {
     /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
-    interface Factory {
+    interface Factory<T extends Processor> {
 
         /**
          * Creates a processor based on the specified map of maps config.
@@ -65,8 +65,7 @@ public interface Processor {
          *                           <b>Note:</b> Implementations are responsible for removing the used configuration
          *                           keys, so that after creation the config map should be empty.
          */
-        Processor create(Map<String, Factory> processorFactories, String tag, String description, Map<String, Object> config)
-            throws Exception;
+        T create(Map<String, Factory<T>> processorFactories, String tag, String description, Map<String, Object> config) throws Exception;
     }
 
     /**

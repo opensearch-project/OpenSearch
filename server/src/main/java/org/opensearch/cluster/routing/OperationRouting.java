@@ -38,10 +38,11 @@ import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.ResponseCollectorService;
@@ -238,6 +239,13 @@ public class OperationRouting {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
+            IndexMetadata indexMetadataForShard = indexMetadata(clusterState, shard.shardId.getIndex().getName());
+            if (IndexModule.Type.REMOTE_SNAPSHOT.match(
+                indexMetadataForShard.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+            ) && (preference == null || preference.isEmpty())) {
+                preference = Preference.PRIMARY.type();
+            }
+
             ShardIterator iterator = preferenceActiveShardIterator(
                 shard,
                 clusterState.nodes().getLocalNodeId(),
