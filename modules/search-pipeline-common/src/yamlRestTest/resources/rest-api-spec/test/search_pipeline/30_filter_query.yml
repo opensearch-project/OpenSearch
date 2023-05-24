@@ -131,10 +131,12 @@ teardown:
         body: {
           search_pipeline: {
             "request_processors": [
-              "filter_query": {
-                "query": {
-                  "woozlewuzzle": {
-                    "field": "foo"
+              {
+                "filter_query": {
+                  "query": {
+                    "woozlewuzzle": {
+                      "field": "foo"
+                    }
                   }
                 }
               }
@@ -142,3 +144,5 @@ teardown:
           }
         }
   - match: { status: 400 }
+  - match: { error.type: "parsing_exception"}
+  - match: { error.reason: "unknown query [woozlewuzzle]"}
