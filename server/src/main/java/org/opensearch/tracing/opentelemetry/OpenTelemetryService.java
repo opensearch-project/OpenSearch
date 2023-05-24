@@ -173,7 +173,7 @@ public class OpenTelemetryService {
                             if (startEvent) {
                                 eventListener.onStart(operationName, eventName, t);
                             } else {
-                                eventListener.onStart(operationName, eventName, t);
+                                eventListener.onEnd(operationName, eventName, t);
                             }
                         }
                     }

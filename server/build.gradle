@@ -38,6 +38,8 @@ plugins {
   id('opensearch.internal-cluster-test')
 }
 
+apply plugin: 'idea'
+
 publishing {
   publications {
     nebula(MavenPublication) {
@@ -173,7 +175,13 @@ dependencies {
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
 
-  implementation files('/home/stevan/git/opensearch/repo/performance-analyzer-commons/build/libs/opensearch-performance-analyzer-commons-3.0.0.0-SNAPSHOT.jar')
+  // api files('/home/stevan/git/opensearch/repo/performance-analyzer-commons/build/libs/opensearch-performance-analyzer-commons-3.0.0.0-SNAPSHOT.jar')
+  api ("org.opensearch:performance-analyzer-commons:3.0.0.0-SNAPSHOT") {
+    exclude (group: 'com.fasterxml.jackson.core', module: 'jackson-core')
+    exclude (group: 'com.fasterxml.jackson.core', module: 'jackson-annotations')
+    exclude (group: 'com.fasterxml.jackson', module: 'jackson-bom')
+    exclude (group: 'com.fasterxml.jackson.core', module: 'jackson-databind')
+  }
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server

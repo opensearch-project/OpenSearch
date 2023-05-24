@@ -98,18 +98,18 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
                     diskIOMetricsGenerator.getAvgTotalSyscallRate(
                         String.valueOf(nativeThreadID)));
 
-//                attrBuilder.put(
-//                    AttributeKey.doubleKey("PageCacheReadThroughputBps"),
-//                    diskIOMetricsGenerator.getAvgPageCacheReadThroughputBps(
-//                        String.valueOf(nativeThreadID)));
-//                attrBuilder.put(
-//                    AttributeKey.doubleKey("PageCacheWriteThroughputBps"),
-//                    diskIOMetricsGenerator.getAvgPageCacheWriteThroughputBps(
-//                        String.valueOf(nativeThreadID)));
-//                attrBuilder.put(
-//                    AttributeKey.doubleKey("PageCacheTotalThroughputBps"),
-//                    diskIOMetricsGenerator.getAvgPageCacheTotalThroughputBps(
-//                        String.valueOf(nativeThreadID)));
+                attrBuilder.put(
+                    AttributeKey.doubleKey("PageCacheReadThroughputBps"),
+                    diskIOMetricsGenerator.getAvgPageCacheReadThroughputBps(
+                        String.valueOf(nativeThreadID)));
+                attrBuilder.put(
+                    AttributeKey.doubleKey("PageCacheWriteThroughputBps"),
+                    diskIOMetricsGenerator.getAvgPageCacheWriteThroughputBps(
+                        String.valueOf(nativeThreadID)));
+                attrBuilder.put(
+                    AttributeKey.doubleKey("PageCacheTotalThroughputBps"),
+                    diskIOMetricsGenerator.getAvgPageCacheTotalThroughputBps(
+                        String.valueOf(nativeThreadID)));
             }
 
             if (threadCPUPagingActivityGenerator.hasPagingActivity(
@@ -167,7 +167,8 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
             }
         }
         Attributes attr = attrBuilder.build();
-        System.out.println(Span.current());
+
+        /**System.out.println(Span.current());
         attr.forEach(
             (k, v) -> {
                 if (v instanceof Double) {
@@ -179,7 +180,7 @@ public class DiskStatsTaskEventListener implements TaskEventListener {
                     System.out.print("ND=" + k + ":" + v + ", ");
                 }
             });
-        System.out.println("\nDone");
+        System.out.println("\nDone"); **/
         Span.current().addEvent(eventName, attrBuilder.build());
     }
 

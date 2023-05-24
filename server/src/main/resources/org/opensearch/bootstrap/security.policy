@@ -154,6 +154,7 @@ grant {
 
   // needed by jvminfo for monitoring the jvm
   permission java.lang.management.ManagementPermission "monitor";
+  permission java.lang.management.ManagementPermission "control";
 
   // needed by JDKESLoggerTests
   permission java.util.logging.LoggingPermission "control";
@@ -188,4 +189,21 @@ grant {
   permission java.net.SocketPermission "127.0.0.1:4317", "connect,resolve";
   permission java.net.SocketPermission "[0:0:0:0:0:0:0:1]:4317", "connect,resolve";
   permission java.net.SocketPermission "[0:0:0:0:0:0:0:1]:4318", "connect,resolve";
+
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  //- Java 8 jdk.attach fucntionality needs write permissions for /proc/pid/cwd, which varies,
+  permission java.io.FilePermission "/-","read,readlink,write,delete,execute";
+  //permission java.io.FilePermission "/dev/shm/-","read,readlink,write,delete,execute";
+  //permission java.io.FilePermission "/proc/-","read,readlink,execute,write,delete";
+  //permission java.io.FilePermission "/sys/block/-","read,readlink,execute,write,delete";
+  permission java.io.FilePermission "build/tmp/junit_metrics", "read";
+  permission com.sun.tools.attach.AttachPermission "attachVirtualMachine";
+  permission com.sun.tools.attach.AttachPermission "createAttachProvider";
+  permission java.lang.RuntimePermission "manageProcess";
+  permission java.lang.RuntimePermission "loadLibrary.attach";
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.misc";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.tools.attach";
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "defineClass";
 };
