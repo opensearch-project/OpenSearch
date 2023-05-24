@@ -35,6 +35,7 @@ plugins {
   id 'java-gradle-plugin'
   id 'groovy'
   id 'java-test-fixtures'
+  id 'org.ajoberstar.grgit' version '5.2.0'
 }
 
 group = 'org.opensearch.gradle'
@@ -323,3 +324,42 @@ class VersionPropertiesLoader {
     loadedProps.put("opensearch", opensearch)
   }
 }
+
+
+task cloneGitRepoAndCheckCompatibility {
+  def repositoryUrls = project.hasProperty('repositoryUrls') ? project.property('repositoryUrls').split(',') : [];
+  String refToCheckout = project.hasProperty('refToCheckout') ?: 'main'
+  def failedComponents = []
+  dependsOn 'publishToMavenLocal'
+  doLast {
+    if (repositoryUrls.size() == 0) {
+      throw new IllegalArgumentException("repositoryUrls must be provided as arguments.")
+    }
+    def tempDir = File.createTempDir()
+    repositoryUrls.each { repositoryUrl ->
+      try {
+        exec {
+          commandLine 'git', 'clone', repositoryUrl, tempDir
+        }
+        exec {
+          def stdout = new ByteArrayOutputStream()
+          workingDir = tempDir
+          commandLine 'git', 'checkout', refToCheckout
+          commandLine './gradlew', 'assemble'
+          standardOutput stdout
+        }
+      } catch (ignored) {
+        failedComponents.add(repositoryUrl)
+        logger.info("Failed for component: ", repositoryUrl)
+      } finally {
+        tempDir.deleteDir()
+      }
+    }
+    if (!failedComponents.isEmpty()) {
+      println("Components incompatible with this change: $failedComponents")
+    } else {
+      println('Everything looks good!')
+    }
+  }
+}
+
