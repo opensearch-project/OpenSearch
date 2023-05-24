@@ -42,8 +42,8 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -56,11 +56,13 @@ import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.ReportingService;
+import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.Scheduler;
@@ -161,6 +163,14 @@ public class TransportService extends AbstractLifecycleComponent
         public void close() {}
     };
 
+    static {
+        // registers server specific streamables
+        registerStreamables();
+    }
+
+    /** does nothing. easy way to ensure class is loaded */
+    public static void ensureClassloaded() {}
+
     /**
      * Build the service.
      *
@@ -229,6 +239,15 @@ public class TransportService extends AbstractLifecycleComponent
             HandshakeRequest::new,
             (request, channel, task) -> channel.sendResponse(new HandshakeResponse(localNode, clusterName, localNode.getVersion()))
         );
+    }
+
+    /**
+     * Registers server specific types as a streamables for serialization
+     * over the {@link StreamOutput} and {@link StreamInput} wire
+     */
+    private static void registerStreamables() {
+        JodaCompatibleZonedDateTime.registerStreamables();
+        GeoPoint.registerStreamables();
     }
 
     public RemoteClusterService getRemoteClusterService() {

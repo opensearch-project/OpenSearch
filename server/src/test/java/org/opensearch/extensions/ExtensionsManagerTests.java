@@ -41,12 +41,13 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesReference;
@@ -62,31 +63,21 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.WriteableSetting.SettingType;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
-import org.opensearch.env.TestEnvironment;
 import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.index.IndexModule;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.analysis.AnalysisRegistry;
-import org.opensearch.index.engine.EngineConfigFactory;
-import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestController;
 import org.opensearch.test.FeatureFlagSetter;
-import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
@@ -94,10 +85,9 @@ import org.opensearch.transport.nio.MockNioTransport;
 import org.opensearch.usage.UsageService;
 
 public class ExtensionsManagerTests extends OpenSearchTestCase {
-
-    private FeatureFlagSetter featureFlagSetter;
     private TransportService transportService;
     private ActionModule actionModule;
+    private DynamicActionRegistry dynamicActionRegistry;
     private RestController restController;
     private SettingsModule settingsModule;
     private ClusterService clusterService;
@@ -134,7 +124,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
+        FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
         Settings settings = Settings.builder().put("cluster.name", "test").build();
         transport = new MockNioTransport(
             settings,
@@ -162,6 +152,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Collections.emptySet()
         );
         actionModule = mock(ActionModule.class);
+        dynamicActionRegistry = mock(DynamicActionRegistry.class);
         restController = new RestController(
             emptySet(),
             null,
@@ -170,6 +161,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new UsageService(),
             new IdentityService(Settings.EMPTY, List.of())
         );
+        when(actionModule.getDynamicActionRegistry()).thenReturn(mock(DynamicActionRegistry.class));
         when(actionModule.getRestController()).thenReturn(restController);
         settingsModule = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet());
         clusterService = createClusterService(threadPool);
@@ -195,7 +187,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         transportService.close();
         client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        featureFlagSetter.close();
     }
 
     public void testDiscover() throws Exception {
@@ -477,7 +468,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         List<String> deprecatedActionsList = List.of("GET /deprecated/foo", "It's deprecated!");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         TransportResponse response = extensionsManager.getRestActionsRequestHandler()
-            .handleRegisterRestActionsRequest(registerActionsRequest);
+            .handleRegisterRestActionsRequest(registerActionsRequest, actionModule.getDynamicActionRegistry());
         assertEquals(AcknowledgedResponse.class, response.getClass());
         assertTrue(((AcknowledgedResponse) response).getStatus());
     }
@@ -509,7 +500,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
-            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+            () -> extensionsManager.getRestActionsRequestHandler()
+                .handleRegisterRestActionsRequest(registerActionsRequest, actionModule.getDynamicActionRegistry())
         );
     }
 
@@ -523,7 +515,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
-            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+            () -> extensionsManager.getRestActionsRequestHandler()
+                .handleRegisterRestActionsRequest(registerActionsRequest, actionModule.getDynamicActionRegistry())
         );
     }
 
@@ -536,7 +529,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
-            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+            () -> extensionsManager.getRestActionsRequestHandler()
+                .handleRegisterRestActionsRequest(registerActionsRequest, dynamicActionRegistry)
         );
     }
 
@@ -549,7 +543,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
-            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+            () -> extensionsManager.getRestActionsRequestHandler()
+                .handleRegisterRestActionsRequest(registerActionsRequest, dynamicActionRegistry)
         );
     }
 
@@ -830,40 +825,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             client
         );
         verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
-
-    }
-
-    public void testOnIndexModule() throws Exception {
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir);
-        initialize(extensionsManager);
-
-        Environment environment = TestEnvironment.newEnvironment(settings);
-        AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
-            environment,
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap(),
-            emptyMap()
-        );
-
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
-        IndexModule indexModule = new IndexModule(
-            indexSettings,
-            emptyAnalysisRegistry,
-            new InternalEngineFactory(),
-            new EngineConfigFactory(indexSettings),
-            Collections.emptyMap(),
-            () -> true,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            Collections.emptyMap()
-        );
-        expectThrows(NodeNotConnectedException.class, () -> extensionsManager.onIndexModule(indexModule));
 
     }
 

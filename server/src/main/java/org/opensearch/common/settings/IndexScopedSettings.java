@@ -197,6 +197,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY,
+                IndexSettings.DEFAULT_SEARCH_PIPELINE,
 
                 // Settings for Searchable Snapshots
                 IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY,

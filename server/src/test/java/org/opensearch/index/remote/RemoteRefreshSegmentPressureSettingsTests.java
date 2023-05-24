@@ -54,17 +54,14 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
         // Check remote refresh segment pressure enabled is false
         assertFalse(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
 
-        // Check min sequence number lag limit default value
-        assertEquals(5L, pressureSettings.getMinRefreshSeqNoLagLimit());
-
         // Check bytes lag variance threshold default value
-        assertEquals(2.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
+        assertEquals(10.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
 
         // Check time lag variance threshold default value
-        assertEquals(2.0, pressureSettings.getUploadTimeLagVarianceFactor(), 0.0d);
+        assertEquals(10.0, pressureSettings.getUploadTimeLagVarianceFactor(), 0.0d);
 
         // Check minimum consecutive failures limit default value
-        assertEquals(10, pressureSettings.getMinConsecutiveFailuresLimit());
+        assertEquals(5, pressureSettings.getMinConsecutiveFailuresLimit());
 
         // Check upload bytes moving average window size default value
         assertEquals(20, pressureSettings.getUploadBytesMovingAverageWindowSize());
@@ -79,7 +76,6 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
     public void testGetConfiguredSettings() {
         Settings settings = Settings.builder()
             .put(RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), true)
-            .put(RemoteRefreshSegmentPressureSettings.MIN_SEQ_NO_LAG_LIMIT.getKey(), 100)
             .put(RemoteRefreshSegmentPressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 60.0)
             .put(RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 121)
@@ -95,9 +91,6 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
 
         // Check remote refresh segment pressure enabled is true
         assertTrue(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
-
-        // Check min sequence number lag limit configured value
-        assertEquals(100L, pressureSettings.getMinRefreshSeqNoLagLimit());
 
         // Check bytes lag variance threshold configured value
         assertEquals(50.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
@@ -127,7 +120,6 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
 
         Settings newSettings = Settings.builder()
             .put(RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), true)
-            .put(RemoteRefreshSegmentPressureSettings.MIN_SEQ_NO_LAG_LIMIT.getKey(), 100)
             .put(RemoteRefreshSegmentPressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 60.0)
             .put(RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 121)
@@ -139,9 +131,6 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
 
         // Check updated remote refresh segment pressure enabled is false
         assertTrue(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
-
-        // Check min sequence number lag limit
-        assertEquals(100L, pressureSettings.getMinRefreshSeqNoLagLimit());
 
         // Check bytes lag variance threshold updated
         assertEquals(50.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
@@ -165,7 +154,6 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
     public void testUpdateAfterGetConfiguredSettings() {
         Settings settings = Settings.builder()
             .put(RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), true)
-            .put(RemoteRefreshSegmentPressureSettings.MIN_SEQ_NO_LAG_LIMIT.getKey(), 100)
             .put(RemoteRefreshSegmentPressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 60.0)
             .put(RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 121)
@@ -180,7 +168,6 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
         );
 
         Settings newSettings = Settings.builder()
-            .put(RemoteRefreshSegmentPressureSettings.MIN_SEQ_NO_LAG_LIMIT.getKey(), 80)
             .put(RemoteRefreshSegmentPressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 40.0)
             .put(RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 111)
@@ -193,9 +180,6 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
 
         // Check updated remote refresh segment pressure enabled is true
         assertTrue(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
-
-        // Check min sequence number lag limit
-        assertEquals(80L, pressureSettings.getMinRefreshSeqNoLagLimit());
 
         // Check bytes lag variance threshold updated
         assertEquals(40.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);

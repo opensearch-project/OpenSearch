@@ -12,4 +12,6 @@
       nodes.info: {}
 
   - contains:  { nodes.$cluster_manager.modules: { name: search-pipeline-common } }
-  - contains:  { nodes.$cluster_manager.search_pipelines.processors: { type: filter_query } }
+  - contains:  { nodes.$cluster_manager.search_pipelines.request_processors: { type: filter_query } }
+  - contains:  { nodes.$cluster_manager.search_pipelines.request_processors: { type: script } }
+  - contains:  { nodes.$cluster_manager.search_pipelines.response_processors: { type: rename_field } }

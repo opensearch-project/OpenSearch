@@ -1,0 +1,48 @@
+{
+  "remote_store.stats":{
+    "documentation":{
+      "url": "https://opensearch.org/docs/latest/tuning-your-cluster/availability-and-recovery/remote",
+      "description":"Stats for remote store."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_remotestore/stats/{index}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description": "Index name to fetch stats"
+            }
+          }
+        },
+        {
+          "path":"/_remotestore/stats/{index}/{shard_id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"Index name to fetch stats"
+            },
+            "shard_id":{
+              "type":"string",
+              "description":"Specific shard to fetch stats"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "default":"10s",
+        "description":"Max time each individual stats request should take."
+      }
+    }
+  }
+}

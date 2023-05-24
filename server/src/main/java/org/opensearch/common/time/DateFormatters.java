@@ -32,10 +32,10 @@
 
 package org.opensearch.common.time;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.util.LazyInitializable;
+import org.opensearch.core.common.Strings;
 
 import java.time.DayOfWeek;
 import java.time.Instant;

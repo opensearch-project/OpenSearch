@@ -183,7 +183,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_PURGE, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_REFRESH, ThreadPoolType.SCALING);
         if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-            map.put(Names.INDEX_SEARCHER, ThreadPoolType.FIXED);
+            map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
         }
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
@@ -268,7 +268,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new ScalingExecutorBuilder(Names.REMOTE_REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
         );
         if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-            builders.put(Names.INDEX_SEARCHER, new FixedExecutorBuilder(settings, Names.INDEX_SEARCHER, allocatedProcessors, 1000, false));
+            builders.put(
+                Names.INDEX_SEARCHER,
+                new ResizableExecutorBuilder(settings, Names.INDEX_SEARCHER, allocatedProcessors, 1000, runnableTaskListener)
+            );
         }
 
         for (final ExecutorBuilder<?> builder : customBuilders) {

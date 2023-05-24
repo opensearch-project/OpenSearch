@@ -225,6 +225,24 @@ public class FileCacheTests extends OpenSearchTestCase {
         assertEquals(fileCache.size(), 0);
     }
 
+    public void testPruneWithPredicate() {
+        FileCache fileCache = createFileCache(GIGA_BYTES);
+        for (int i = 0; i < 4; i++) {
+            putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
+        }
+
+        // before prune
+        assertEquals(fileCache.size(), 4);
+
+        // after prune with false predicate
+        fileCache.prune(path -> false);
+        assertEquals(fileCache.size(), 4);
+
+        // after prune with true predicate
+        fileCache.prune(path -> true);
+        assertEquals(fileCache.size(), 0);
+    }
+
     public void testUsage() {
         FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
             16 * MEGA_BYTES,
@@ -280,11 +298,11 @@ public class FileCacheTests extends OpenSearchTestCase {
         cache.decRef(key);
     }
 
-    private static class StubCachedIndexInput implements CachedIndexInput {
+    public static class StubCachedIndexInput implements CachedIndexInput {
 
         private final long length;
 
-        private StubCachedIndexInput(long length) {
+        public StubCachedIndexInput(long length) {
             this.length = length;
         }
 
