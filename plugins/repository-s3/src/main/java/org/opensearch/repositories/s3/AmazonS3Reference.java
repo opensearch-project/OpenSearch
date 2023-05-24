@@ -38,9 +38,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.RefCountedReleasable;
 
-import java.io.Closeable;
-import java.io.IOException;
-
 /**
  * Handles the shutdown of the wrapped {@link S3Client} using reference
  * counting.
