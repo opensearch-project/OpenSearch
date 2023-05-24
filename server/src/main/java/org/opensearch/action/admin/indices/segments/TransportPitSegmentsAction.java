@@ -44,8 +44,10 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.action.search.SearchContextId.decode;
@@ -94,8 +96,10 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
      */
     @Override
     protected void doExecute(Task task, PitSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener) {
-        List<String> pitIds = request.getPitIds();
-        if (pitIds.size() == 1 && "_all".equals(pitIds.get(0))) {
+        // remove pit id duplicates from the request
+        Set<String> pitIdSet = new LinkedHashSet<>(request.getPitIds());
+        request.clearAndSetPitIds(new ArrayList<>(pitIdSet));
+        if (request.getPitIds().size() == 1 && "_all".equals(request.getPitIds().get(0))) {
             pitService.getAllPits(ActionListener.wrap(response -> {
                 request.clearAndSetPitIds(response.getPitInfos().stream().map(ListPitInfo::getPitId).collect(Collectors.toList()));
                 super.doExecute(task, request, listener);

@@ -18,8 +18,10 @@ import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -46,8 +48,10 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
      */
     @Override
     protected void doExecute(Task task, DeletePitRequest request, ActionListener<DeletePitResponse> listener) {
-        List<String> pitIds = request.getPitIds();
-        if (pitIds.size() == 1 && "_all".equals(pitIds.get(0))) {
+        // remove pit id duplicates from the request
+        Set<String> pitIdSet = new LinkedHashSet<>(request.getPitIds());
+        request.clearAndSetPitIds(new ArrayList<>(pitIdSet));
+        if (request.getPitIds().size() == 1 && "_all".equals(request.getPitIds().get(0))) {
             deleteAllPits(listener);
         } else {
             deletePits(listener, request);
