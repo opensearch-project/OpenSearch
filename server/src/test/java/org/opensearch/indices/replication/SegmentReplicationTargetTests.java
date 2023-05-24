@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.replication;
 
-import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
