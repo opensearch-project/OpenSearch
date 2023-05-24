@@ -34,6 +34,7 @@ package org.opensearch.search.sort;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
@@ -605,17 +606,31 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
-     * Return the {@link MinAndMax} indexed value from the provided {@link FieldSortBuilder} or <code>null</code> if unknown.
+     * Return the {@link MinAndMax} indexed value for shard from the provided {@link FieldSortBuilder} or <code>null</code> if unknown.
      * The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other fields
      * and configurations return <code>null</code>.
      */
     public static MinAndMax<?> getMinMaxOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
+        return getMinMaxOrNullInternal(context.getIndexReader(), context, sortBuilder);
+    }
+
+    /**
+     * Return the {@link MinAndMax} indexed value for segment from the provided {@link FieldSortBuilder} or <code>null</code> if unknown.
+     * The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other fields
+     * and configurations return <code>null</code>.
+     */
+    public static MinAndMax<?> getMinMaxOrNullForSegment(QueryShardContext context, LeafReaderContext ctx, FieldSortBuilder sortBuilder)
+        throws IOException {
+        return getMinMaxOrNullInternal(ctx.reader(), context, sortBuilder);
+    }
+
+    private static MinAndMax<?> getMinMaxOrNullInternal(IndexReader reader, QueryShardContext context, FieldSortBuilder sortBuilder)
+        throws IOException {
         SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
         SortField sortField = sort.sort.getSort()[0];
         if (sortField.getField() == null) {
             return null;
         }
-        IndexReader reader = context.getIndexReader();
         MappedFieldType fieldType = context.fieldMapper(sortField.getField());
         if (reader == null || (fieldType == null || fieldType.isSearchable() == false)) {
             return null;

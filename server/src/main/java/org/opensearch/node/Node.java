@@ -707,7 +707,6 @@ public class Node implements Closeable {
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,
-                extensionsManager,
                 nodeEnvironment,
                 xContentRegistry,
                 analysisModule.getAnalysisRegistry(),
