@@ -399,25 +399,36 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
                     long primaryTerm = indexShard.getOperationPrimaryTerm();
                     final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
-                    indexShard.acquireLockOnCommitData(
-                        snapshot.getSnapshotId().getUUID(),
-                        primaryTerm,
-                        snapshotIndexCommit.getGeneration()
-                    );
-                    repository.snapshotRemoteStoreIndexShard(
-                        indexShard.store(),
-                        indexShard.mapperService(),
-                        snapshot.getSnapshotId(),
-                        indexId,
-                        wrappedSnapshot.get(),
-                        getShardStateId(indexShard, snapshotIndexCommit),
-                        snapshotStatus,
-                        version,
-                        userMetadata,
-                        primaryTerm,
-                        startTime,
-                        ActionListener.runBefore(listener, wrappedSnapshot::close)
-                    );
+                    long commitGeneration = snapshotIndexCommit.getGeneration();
+                    indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+                    try {
+                        repository.snapshotRemoteStoreIndexShard(
+                            indexShard.store(),
+                            indexShard.mapperService(),
+                            snapshot.getSnapshotId(),
+                            indexId,
+                            wrappedSnapshot.get(),
+                            getShardStateId(indexShard, snapshotIndexCommit),
+                            snapshotStatus,
+                            version,
+                            userMetadata,
+                            primaryTerm,
+                            startTime,
+                            ActionListener.runBefore(listener, wrappedSnapshot::close)
+                        );
+                    } catch (IndexShardSnapshotFailedException e) {
+                        logger.error(
+                            "Shallow Copy Snapshot Failed for Shard ["
+                                + indexId.getName()
+                                + "]["
+                                + shardId.getId()
+                                + "] for snapshot "
+                                + snapshot.getSnapshotId()
+                                + ", releasing acquired lock from remote store"
+                        );
+                        indexShard.releaseLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+                        throw e;
+                    }
                     long endTime = threadPool.absoluteTimeInMillis();
                     logger.debug(
                         "Time taken (in milliseconds) to complete shallow copy snapshot, "

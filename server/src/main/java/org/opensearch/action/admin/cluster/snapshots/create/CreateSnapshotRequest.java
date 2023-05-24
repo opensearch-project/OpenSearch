@@ -34,12 +34,10 @@ package org.opensearch.action.admin.cluster.snapshots.create;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchGenerationException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -103,11 +101,6 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
 
     private Map<String, Object> userMetadata;
 
-    @Nullable
-    private Boolean remoteStoreIndexShallowCopy;
-
-    private static final String REMOTE_STORE_INDEX_SHALLOW_COPY = "remote_store_index_shallow_copy";
-
     public CreateSnapshotRequest() {}
 
     /**
@@ -132,9 +125,6 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
         userMetadata = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            remoteStoreIndexShallowCopy = in.readOptionalBoolean();
-        }
     }
 
     @Override
@@ -149,9 +139,6 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
         out.writeMap(userMetadata);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalBoolean(remoteStoreIndexShallowCopy);
-        }
     }
 
     @Override
@@ -341,11 +328,6 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         return this;
     }
 
-    public CreateSnapshotRequest remoteStoreIndexShallowCopy(boolean remoteStoreIndexShallowCopy) {
-        this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
-        return this;
-    }
-
     /**
      * Returns true if the request should wait for the snapshot completion before returning
      *
@@ -447,10 +429,6 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         return userMetadata;
     }
 
-    public Boolean remoteStoreIndexShallowCopy() {
-        return remoteStoreIndexShallowCopy;
-    }
-
     public CreateSnapshotRequest userMetadata(Map<String, Object> userMetadata) {
         this.userMetadata = userMetadata;
         return this;
@@ -488,8 +466,6 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
                     throw new IllegalArgumentException("malformed metadata, should be an object");
                 }
                 userMetadata((Map<String, Object>) entry.getValue());
-            } else if (name.equals(REMOTE_STORE_INDEX_SHALLOW_COPY)) {
-                remoteStoreIndexShallowCopy = nodeBooleanValue(entry.getValue(), REMOTE_STORE_INDEX_SHALLOW_COPY);
             }
         }
         indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
@@ -519,9 +495,6 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             indicesOptions.toXContent(builder, params);
         }
         builder.field("metadata", userMetadata);
-        if (remoteStoreIndexShallowCopy != null) {
-            builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
-        }
         builder.endObject();
         return builder;
     }
@@ -545,8 +518,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(settings, that.settings)
             && Objects.equals(clusterManagerNodeTimeout, that.clusterManagerNodeTimeout)
-            && Objects.equals(userMetadata, that.userMetadata)
-            && Objects.equals(remoteStoreIndexShallowCopy, that.remoteStoreIndexShallowCopy);
+            && Objects.equals(userMetadata, that.userMetadata);
     }
 
     @Override
@@ -590,8 +562,6 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             + clusterManagerNodeTimeout
             + ", metadata="
             + userMetadata
-            + ", remoteStoreIndexShallowCopy="
-            + remoteStoreIndexShallowCopy
             + '}';
     }
 }
