@@ -4224,10 +4224,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
                 && isSearchIdle()
                 && indexSettings.isExplicitRefresh() == false
-                && indexSettings.isSegRepEnabled() == false
-                // Indices with segrep enabled will never wait on a refresh and ignore shard idle. Primary shards push out new segments only
+                // Indices with segrep enabled will never wait on a refresh and ignore shard idle unless there are no replicas. Primary
+                // shards push out new segments only
                 // after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
                 // a new set of segments.
+                && (indexSettings.isSegRepEnabled() == false || indexSettings.getNumberOfReplicas() == 0)
                 && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will

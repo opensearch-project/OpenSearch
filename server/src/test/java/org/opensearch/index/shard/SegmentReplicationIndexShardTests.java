@@ -220,37 +220,68 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     public void testIgnoreShardIdle() throws Exception {
+        Settings updatedSettings = Settings.builder()
+            .put(settings)
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        try (ReplicationGroup shards = createGroup(1, updatedSettings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+            final int numDocs = shards.indexDocs(randomIntBetween(1, 10));
+            // ensure search idle conditions are met.
+            assertTrue(primary.isSearchIdle());
+            assertTrue(replica.isSearchIdle());
+
+            // invoke scheduledRefresh, returns true if refresh is immediately invoked.
+            assertTrue(primary.scheduledRefresh());
+            // replica would always return false here as there is no indexed doc to refresh on.
+            assertFalse(replica.scheduledRefresh());
+
+            // assert there is no pending refresh
+            assertFalse(primary.hasRefreshPending());
+            assertFalse(replica.hasRefreshPending());
+            shards.refresh("test");
+            replicateSegments(primary, shards.getReplicas());
+            shards.assertAllEqual(numDocs);
+        }
+    }
+
+    public void testShardIdle_Docrep() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
+            .build();
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
-
-            final int numDocs = shards.indexDocs(randomInt(10));
-            primary.refresh("test");
-            replicateSegments(primary, shards.getReplicas());
+            final int numDocs = shards.indexDocs(randomIntBetween(1, 10));
+            // ensure search idle conditions are met.
+            assertTrue(primary.isSearchIdle());
+            assertTrue(replica.isSearchIdle());
+            assertFalse(primary.scheduledRefresh());
+            assertFalse(replica.scheduledRefresh());
+            assertTrue(primary.hasRefreshPending());
+            assertTrue(replica.hasRefreshPending());
+            shards.refresh("test");
             shards.assertAllEqual(numDocs);
+        }
+    }
 
-            primary.scheduledRefresh();
-            replica.scheduledRefresh();
-
-            primary.awaitShardSearchActive(b -> assertFalse("A new RefreshListener should not be registered", b));
-            replica.awaitShardSearchActive(b -> assertFalse("A new RefreshListener should not be registered", b));
-
-            // Update the search_idle setting, this will put both shards into search idle.
-            Settings updatedSettings = Settings.builder()
-                .put(settings)
-                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
-                .build();
-            primary.indexSettings().getScopedSettings().applySettings(updatedSettings);
-            replica.indexSettings().getScopedSettings().applySettings(updatedSettings);
-
-            primary.scheduledRefresh();
-            replica.scheduledRefresh();
-
-            // Shards without segrep will register a new RefreshListener on the engine and return true when registered,
-            // assert with segrep enabled that awaitShardSearchActive does not register a listener.
-            primary.awaitShardSearchActive(b -> assertFalse("A new RefreshListener should not be registered", b));
-            replica.awaitShardSearchActive(b -> assertFalse("A new RefreshListener should not be registered", b));
+    public void testShardIdleWithNoReplicas() throws Exception {
+        Settings updatedSettings = Settings.builder()
+            .put(settings)
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        try (ReplicationGroup shards = createGroup(0, updatedSettings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            shards.indexDocs(randomIntBetween(1, 10));
+            // ensure search idle conditions are met.
+            assertTrue(primary.isSearchIdle());
+            assertFalse(primary.scheduledRefresh());
+            assertTrue(primary.hasRefreshPending());
         }
     }
 
