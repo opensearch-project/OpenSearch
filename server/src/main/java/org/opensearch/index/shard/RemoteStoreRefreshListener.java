@@ -11,6 +11,7 @@ package org.opensearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
@@ -19,7 +20,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.bulk.BackoffPolicy;
-import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
@@ -156,7 +156,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 // Track upload failure
                 segmentTracker.addUploadBytesFailed(latestFileNameSizeOnLocalMap.get(file));
             }
-        }, remoteDirectory, storeDirectory, this::getChecksumOfLocalFile, logger);
+        }, remoteDirectory, storeDirectory, EXCLUDE_FILES, this::getChecksumOfLocalFile);
     }
 
     @Override
@@ -380,14 +380,15 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     private boolean uploadNewSegments(Collection<String> localSegmentsPostRefresh) throws IOException {
         AtomicBoolean uploadSuccess = new AtomicBoolean(true);
-        localSegmentsPostRefresh.forEach(file -> {
-            try {
-                fileUploader.uploadFile(file);
-            } catch (IOException e) {
-                uploadSuccess.set(false);
-                logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", file), e);
+        try {
+            uploadSuccess.set(fileUploader.uploadFiles(localSegmentsPostRefresh));
+        } catch (Exception e) {
+            uploadSuccess.set(false);
+            if (e instanceof CorruptIndexException) {
+                indexShard.failShard(e.getMessage(), e);
             }
-        });
+            logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", e), e);
+        }
         return uploadSuccess.get();
     }
 
@@ -461,105 +462,5 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         } else {
             segmentTracker.incrementTotalUploadsFailed();
         }
-    }
-
-    /**
-     * This class is a wrapper over the copying of file from local to remote store allowing to decorate the actual copy
-     * method along with adding hooks of code that can be run before, on success and on failure.
-     *
-     * @opensearch.internal
-     */
-    private static class FileUploader {
-
-        private final Logger logger;
-
-        private final UploadTracker uploadTracker;
-
-        private final RemoteSegmentStoreDirectory remoteDirectory;
-
-        private final Directory storeDirectory;
-
-        private final CheckedFunction<String, String, IOException> checksumProvider;
-
-        public FileUploader(
-            UploadTracker uploadTracker,
-            RemoteSegmentStoreDirectory remoteDirectory,
-            Directory storeDirectory,
-            CheckedFunction<String, String, IOException> checksumProvider,
-            Logger logger
-        ) {
-            this.uploadTracker = uploadTracker;
-            this.remoteDirectory = remoteDirectory;
-            this.storeDirectory = storeDirectory;
-            this.checksumProvider = checksumProvider;
-            this.logger = logger;
-        }
-
-        /**
-         * Calling this method will lead to before getting executed and then the actual upload. Based on the upload status,
-         * the onSuccess or onFailure method gets invoked.
-         *
-         * @param file the file which is to be uploaded.
-         * @throws IOException is thrown if the upload fails.
-         */
-        private void uploadFile(String file) throws IOException {
-            if (skipUpload(file)) {
-                return;
-            }
-            uploadTracker.beforeUpload(file);
-            boolean success = false;
-            try {
-                performUpload(file);
-                uploadTracker.onSuccess(file);
-                success = true;
-            } finally {
-                if (!success) {
-                    uploadTracker.onFailure(file);
-                }
-            }
-        }
-
-        /**
-         * Whether to upload a file or not depending on whether file is in excluded list or has been already uploaded.
-         *
-         * @param file that needs to be uploaded.
-         * @return true if the upload has to be skipped for the file.
-         */
-        private boolean skipUpload(String file) {
-            try {
-                // Exclude files that are already uploaded and the exclude files to come up with the list of files to be uploaded.
-                return EXCLUDE_FILES.contains(file) || remoteDirectory.containsFile(file, checksumProvider.apply(file));
-            } catch (IOException e) {
-                logger.error(
-                    "Exception while reading checksum of local segment file: {}, ignoring the exception and re-uploading the file",
-                    file
-                );
-            }
-            return false;
-        }
-
-        /**
-         * This method does the actual upload.
-         *
-         * @param file that needs to be uploaded.
-         * @throws IOException is thrown if the upload fails.
-         */
-        private void performUpload(String file) throws IOException {
-            remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
-        }
-    }
-
-    /**
-     * A tracker class that is fed to FileUploader.
-     *
-     * @opensearch.internal
-     */
-    interface UploadTracker {
-
-        void beforeUpload(String file);
-
-        void onSuccess(String file);
-
-        void onFailure(String file);
     }
 }

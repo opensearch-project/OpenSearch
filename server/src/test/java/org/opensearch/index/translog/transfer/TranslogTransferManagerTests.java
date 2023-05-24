@@ -17,6 +17,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
@@ -41,6 +42,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
@@ -80,20 +83,24 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testTransferSnapshot() throws IOException {
+    public void testTransferSnapshot() throws Exception {
         AtomicInteger fileTransferSucceeded = new AtomicInteger();
         AtomicInteger fileTransferFailed = new AtomicInteger();
         AtomicInteger translogTransferSucceeded = new AtomicInteger();
         AtomicInteger translogTransferFailed = new AtomicInteger();
 
         doNothing().when(transferService)
-            .uploadBlob(any(TransferFileSnapshot.class), Mockito.eq(remoteBaseTransferPath.add(String.valueOf(primaryTerm))));
+            .uploadBlob(
+                any(TransferFileSnapshot.class),
+                Mockito.eq(remoteBaseTransferPath.add(String.valueOf(primaryTerm))),
+                any(WritePriority.class)
+            );
         doAnswer(invocationOnMock -> {
-            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[3];
-            listener.onResponse((TransferFileSnapshot) invocationOnMock.getArguments()[1]);
+            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[2];
+            Set<TransferFileSnapshot> transferFileSnapshots = (Set<TransferFileSnapshot>) invocationOnMock.getArguments()[0];
+            transferFileSnapshots.forEach(listener::onResponse);
             return null;
-        }).when(transferService)
-            .uploadBlobAsync(any(String.class), any(TransferFileSnapshot.class), any(BlobPath.class), any(ActionListener.class));
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
 
         FileTransferTracker fileTransferTracker = new FileTransferTracker(new ShardId("index", "indexUUid", 0)) {
             @Override
