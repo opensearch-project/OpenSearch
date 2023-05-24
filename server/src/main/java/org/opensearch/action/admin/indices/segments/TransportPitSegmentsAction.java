@@ -96,9 +96,6 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
      */
     @Override
     protected void doExecute(Task task, PitSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener) {
-        // remove pit id duplicates from the request
-        Set<String> pitIdSet = new LinkedHashSet<>(request.getPitIds());
-        request.clearAndSetPitIds(new ArrayList<>(pitIdSet));
         if (request.getPitIds().size() == 1 && "_all".equals(request.getPitIds().get(0))) {
             pitService.getAllPits(ActionListener.wrap(response -> {
                 request.clearAndSetPitIds(response.getPitInfos().stream().map(ListPitInfo::getPitId).collect(Collectors.toList()));
@@ -118,7 +115,9 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
     @Override
     protected ShardsIterator shards(ClusterState clusterState, PitSegmentsRequest request, String[] concreteIndices) {
         final ArrayList<ShardRouting> iterators = new ArrayList<>();
-        for (String pitId : request.getPitIds()) {
+        // remove duplicates from the request
+        Set<String> uniquePitIds = new LinkedHashSet<>(request.getPitIds());
+        for (String pitId : uniquePitIds) {
             SearchContextId searchContext = decode(namedWriteableRegistry, pitId);
             for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
                 final SearchContextIdForNode perNode = entry.getValue();

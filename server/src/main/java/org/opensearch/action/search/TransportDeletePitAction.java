@@ -48,9 +48,6 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
      */
     @Override
     protected void doExecute(Task task, DeletePitRequest request, ActionListener<DeletePitResponse> listener) {
-        // remove pit id duplicates from the request
-        Set<String> pitIdSet = new LinkedHashSet<>(request.getPitIds());
-        request.clearAndSetPitIds(new ArrayList<>(pitIdSet));
         if (request.getPitIds().size() == 1 && "_all".equals(request.getPitIds().get(0))) {
             deleteAllPits(listener);
         } else {
@@ -63,7 +60,9 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
      */
     private void deletePits(ActionListener<DeletePitResponse> listener, DeletePitRequest request) {
         Map<String, List<PitSearchContextIdForNode>> nodeToContextsMap = new HashMap<>();
-        for (String pitId : request.getPitIds()) {
+        // remove duplicates from the request
+        Set<String> uniquePitIds = new LinkedHashSet<>(request.getPitIds());
+        for (String pitId : uniquePitIds) {
             SearchContextId contextId = SearchContextId.decode(namedWriteableRegistry, pitId);
             for (SearchContextIdForNode contextIdForNode : contextId.shards().values()) {
                 PitSearchContextIdForNode pitSearchContext = new PitSearchContextIdForNode(pitId, contextIdForNode);
