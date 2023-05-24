@@ -8,6 +8,8 @@
 
 package org.opensearch.common;
 
+import org.opensearch.common.io.InputStreamContainer;
+
 import java.io.IOException;
 
 /**
@@ -15,7 +17,7 @@ import java.io.IOException;
  */
 public class StreamContext {
 
-    private final CheckedTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> streamSupplier;
+    private final CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException> streamSupplier;
     private final long partSize;
     private final long lastPartSize;
     private final int numberOfParts;
@@ -29,7 +31,7 @@ public class StreamContext {
      * @param numberOfParts Total number of parts
      */
     public StreamContext(
-        CheckedTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> streamSupplier,
+        CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException> streamSupplier,
         long partSize,
         long lastPartSize,
         int numberOfParts
@@ -47,7 +49,7 @@ public class StreamContext {
      * @param partNumber The index of the part
      * @return A stream reference to the part requested
      */
-    public OffsetStreamContainer provideStream(int partNumber) throws IOException {
+    public InputStreamContainer provideStream(int partNumber) throws IOException {
         long position = partSize * partNumber;
         long size = (partNumber == numberOfParts - 1) ? lastPartSize : partSize;
         return streamSupplier.apply(partNumber, size, position);

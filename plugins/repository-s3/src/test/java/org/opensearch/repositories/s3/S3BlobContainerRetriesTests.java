@@ -39,7 +39,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.OffsetStreamContainer;
+import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.CheckedTriFunction;
@@ -311,16 +311,16 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
                 @Override
                 public StreamContext supplyStreamContext(long partSize) {
-                    return new StreamContext(new CheckedTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException>() {
+                    return new StreamContext(new CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException>() {
                         @Override
-                        public OffsetStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
+                        public InputStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
                             InputStream inputStream = new OffsetRangeIndexInputStream(
                                 new ByteArrayIndexInput("desc", bytes),
                                 size,
                                 position
                             );
                             openInputStreams.add(inputStream);
-                            return new OffsetStreamContainer(inputStream, size, position);
+                            return new InputStreamContainer(inputStream, size, position);
                         }
                     }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
                 }

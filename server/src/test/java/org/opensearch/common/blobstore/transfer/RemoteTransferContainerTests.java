@@ -9,7 +9,7 @@
 package org.opensearch.common.blobstore.transfer;
 
 import org.junit.Before;
-import org.opensearch.common.OffsetStreamContainer;
+import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
@@ -99,12 +99,10 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
         for (int partIdx = 0; partIdx < partCount; partIdx++) {
             int finalPartIdx = partIdx;
             long expectedPartSize = (partIdx == partCount - 1) ? lastPartSize : partSize;
-            long expectedOffset = partIdx * partSize;
             threads[partIdx] = new Thread(() -> {
                 try {
-                    OffsetStreamContainer offsetStreamContainer = streamContext.provideStream(finalPartIdx);
-                    assertEquals(expectedPartSize, offsetStreamContainer.getContentLength());
-                    assertEquals(expectedOffset, offsetStreamContainer.getOffset());
+                    InputStreamContainer inputStreamContainer = streamContext.provideStream(finalPartIdx);
+                    assertEquals(expectedPartSize, inputStreamContainer.getContentLength());
                 } catch (IOException e) {
                     fail("IOException during stream creation");
                 }
@@ -167,11 +165,11 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
             )
         ) {
             StreamContext streamContext = remoteTransferContainer.supplyStreamContext(16);
-            OffsetStreamContainer offsetStreamContainer = streamContext.provideStream(0);
+            InputStreamContainer inputStreamContainer = streamContext.provideStream(0);
             if (shouldOffsetInputStreamsBeChecked(isRemoteDataIntegritySupported, areInputStreamsDecorated)) {
-                assertTrue(offsetStreamContainer.getInputStream() instanceof ResettableCheckedInputStream);
+                assertTrue(inputStreamContainer.getInputStream() instanceof ResettableCheckedInputStream);
             } else {
-                assertTrue(offsetStreamContainer.getInputStream() instanceof OffsetRangeInputStream);
+                assertTrue(inputStreamContainer.getInputStream() instanceof OffsetRangeInputStream);
             }
             assertThrows(RuntimeException.class, () -> remoteTransferContainer.supplyStreamContext(16));
         }

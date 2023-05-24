@@ -12,7 +12,7 @@ import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
-import org.opensearch.common.OffsetStreamContainer;
+import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.CheckedTriFunction;
@@ -131,7 +131,7 @@ public class RemoteTransferContainer implements Closeable {
         return new StreamContext(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts);
     }
 
-    private CheckedTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> getTransferPartStreamSupplier() {
+    private CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException> getTransferPartStreamSupplier() {
         return ((partNo, size, position) -> {
             assert inputStreams.get() != null : "expected inputStreams to be initialised";
             return getMultipartStreamSupplier(partNo, size, position).get();
@@ -149,7 +149,7 @@ public class RemoteTransferContainer implements Closeable {
         Stream get() throws IOException;
     }
 
-    private LocalStreamSupplier<OffsetStreamContainer> getMultipartStreamSupplier(
+    private LocalStreamSupplier<InputStreamContainer> getMultipartStreamSupplier(
         final int streamIdx,
         final long size,
         final long position
@@ -162,7 +162,7 @@ public class RemoteTransferContainer implements Closeable {
                     : offsetRangeInputStream;
                 Objects.requireNonNull(inputStreams.get())[streamIdx] = inputStream;
 
-                return new OffsetStreamContainer(inputStream, size, position);
+                return new InputStreamContainer(inputStream, size, position);
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 throw e;

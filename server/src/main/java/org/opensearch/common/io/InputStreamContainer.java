@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common;
+package org.opensearch.common.io;
 
 import java.io.InputStream;
 
@@ -15,7 +15,7 @@ import java.io.InputStream;
  *
  * @opensearch.internal
  */
-public class OffsetStreamContainer {
+public class InputStreamContainer {
 
     private final InputStream inputStream;
     private final long contentLength;
@@ -28,7 +28,7 @@ public class OffsetStreamContainer {
      * @param contentLength The total content length that is to be read from the stream
      * @param offset The offset pointer that this stream reads from in the file
      */
-    public OffsetStreamContainer(InputStream inputStream, long contentLength, long offset) {
+    public InputStreamContainer(InputStream inputStream, long contentLength, long offset) {
         this.inputStream = inputStream;
         this.contentLength = contentLength;
         this.offset = offset;
@@ -46,12 +46,5 @@ public class OffsetStreamContainer {
      */
     public long getContentLength() {
         return contentLength;
-    }
-
-    /**
-     * @return The offset pointer in the file that this stream is reading from
-     */
-    public long getOffset() {
-        return offset;
     }
 }

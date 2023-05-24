@@ -11,7 +11,7 @@ package org.opensearch.repositories.s3.async;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.common.OffsetStreamContainer;
+import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -252,13 +252,13 @@ public final class AsyncUploadUtils {
     ) throws IOException {
         List<CompletableFuture<CompletedPart>> futures = new ArrayList<>();
         for (int partIdx = 0; partIdx < streamContext.getNumberOfParts(); partIdx++) {
-            OffsetStreamContainer offsetStreamContainer = streamContext.provideStream(partIdx);
+            InputStreamContainer inputStreamContainer = streamContext.provideStream(partIdx);
             UploadPartRequest.Builder uploadPartRequestBuilder = UploadPartRequest.builder()
                 .bucket(uploadRequest.getBucket())
                 .partNumber(partIdx + 1)
                 .key(uploadRequest.getKey())
                 .uploadId(uploadId)
-                .contentLength(offsetStreamContainer.getContentLength());
+                .contentLength(inputStreamContainer.getContentLength());
             if (uploadRequest.doRemoteDataIntegrityCheck()) {
                 uploadPartRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
             }
@@ -267,7 +267,7 @@ public final class AsyncUploadUtils {
                 completedParts,
                 futures,
                 uploadPartRequestBuilder.build(),
-                offsetStreamContainer,
+                inputStreamContainer,
                 uploadRequest
             );
         }
@@ -280,7 +280,7 @@ public final class AsyncUploadUtils {
         AtomicReferenceArray<CompletedPart> completedParts,
         List<CompletableFuture<CompletedPart>> futures,
         UploadPartRequest uploadPartRequest,
-        OffsetStreamContainer offsetStreamContainer,
+        InputStreamContainer inputStreamContainer,
         UploadRequest uploadRequest
     ) {
         Integer partNumber = uploadPartRequest.partNumber();
@@ -292,8 +292,8 @@ public final class AsyncUploadUtils {
             () -> s3AsyncClient.uploadPart(
                 uploadPartRequest,
                 AsyncRequestBody.fromInputStream(
-                    offsetStreamContainer.getInputStream(),
-                    offsetStreamContainer.getContentLength(),
+                    inputStreamContainer.getInputStream(),
+                    inputStreamContainer.getContentLength(),
                     streamReadExecutor
                 )
             )
@@ -342,7 +342,7 @@ public final class AsyncUploadUtils {
     private void uploadInOneChunk(
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
-        OffsetStreamContainer offsetStreamContainer,
+        InputStreamContainer inputStreamContainer,
         CompletableFuture<UploadResponse> returnFuture
     ) {
         PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
@@ -362,8 +362,8 @@ public final class AsyncUploadUtils {
             () -> s3AsyncClient.putObject(
                 putObjectRequestBuilder.build(),
                 AsyncRequestBody.fromInputStream(
-                    offsetStreamContainer.getInputStream(),
-                    offsetStreamContainer.getContentLength(),
+                    inputStreamContainer.getInputStream(),
+                    inputStreamContainer.getContentLength(),
                     streamReadExecutor
                 )
             ).handle((resp, throwable) -> {
