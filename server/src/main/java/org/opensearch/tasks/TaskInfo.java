@@ -185,7 +185,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         } else {
             resourceStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
             cancellationStartTime = in.readOptionalLong();
         } else {
             cancellationStartTime = null;
@@ -210,7 +210,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_1_0)) {
             out.writeOptionalWriteable(resourceStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_8_0)) {
             out.writeOptionalLong(cancellationStartTime);
         }
     }
