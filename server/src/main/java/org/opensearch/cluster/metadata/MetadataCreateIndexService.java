@@ -583,7 +583,8 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            systemIndices.validateSystemIndex(request.index())
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -647,7 +648,8 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            systemIndices.validateSystemIndex(request.index())
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -727,7 +729,8 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            sourceMetadata.isSystem()
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -810,7 +813,8 @@ public class MetadataCreateIndexService {
         Settings settings,
         IndexScopedSettings indexScopedSettings,
         ShardLimitValidator shardLimitValidator,
-        Set<IndexSettingProvider> indexSettingProviders
+        Set<IndexSettingProvider> indexSettingProviders,
+        boolean isSystemIndex
     ) {
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
@@ -894,6 +898,7 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
+        updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, isSystemIndex);
         updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
 
         if (sourceMetadata != null) {
@@ -926,6 +931,27 @@ public class MetadataCreateIndexService {
         validateStoreTypeSettings(indexSettings);
 
         return indexSettings;
+    }
+
+    /**
+     * Updates index settings to set replication strategy by default based on cluster level settings
+     * @param settingsBuilder index settings builder to be updated with relevant settings
+     * @param requestSettings settings passed in during index create request
+     * @param clusterSettings cluster level settings
+     */
+    private static void updateReplicationStrategy(
+        Settings.Builder settingsBuilder,
+        Settings requestSettings,
+        Settings clusterSettings,
+        boolean isSystemIndex
+    ) {
+        if (isSystemIndex || IndexMetadata.INDEX_HIDDEN_SETTING.get(requestSettings)) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+            return;
+        }
+        if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings) && INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
+        }
     }
 
     /**
