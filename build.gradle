@@ -57,6 +57,7 @@ plugins {
   id "org.gradle.test-retry" version "1.5.3" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
+  id "com.dorongold.task-tree" version "2.1.1"
 }
 
 apply from: 'gradle/build-complete.gradle'
@@ -643,3 +644,48 @@ tasks.withType(TestTaskReports).configureEach {
 tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
   dependsOn tasks.named('testAggregateTestReport', TestReport)
 }
+
+task checkCompatibility {
+  def repositoryUrls = project.hasProperty('repositoryUrls') ? project.property('repositoryUrls').split(',') : [];
+  String refToCheckout = project.hasProperty('refToCheckout') ?: 'main'
+  def failedComponents = []
+  doLast {
+    if (repositoryUrls.size() == 0) {
+      throw new IllegalArgumentException("repositoryUrls must be provided as arguments.")
+    }
+    def tempDir = File.createTempDir()
+    repositoryUrls.each { repositoryUrl ->
+      try {
+        exec {
+          commandLine 'git', 'clone', repositoryUrl, tempDir
+        }
+        exec {
+          def stdout = new ByteArrayOutputStream()
+          workingDir = tempDir
+          commandLine 'git', 'checkout', refToCheckout
+          commandLine './gradlew', 'assemble'
+          standardOutput stdout
+        }
+      } catch (ignored) {
+        failedComponents.add(repositoryUrl)
+        logger.info("Failed for component: ", repositoryUrl)
+      } finally {
+        tempDir.deleteDir()
+      }
+    }
+    if (!failedComponents.isEmpty()) {
+      println("Components incompatible with this change: $failedComponents")
+    } else {
+      println('Everything looks good!')
+    }
+  }
+}
+
+allprojects {project ->
+  project.afterEvaluate {
+    if (project.tasks.findByName('publishToMavenLocal')){
+      checkCompatibility.dependsOn(project.tasks.publishToMavenLocal)
+    }
+  }
+}
+
