@@ -39,7 +39,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.common.compress.CompressionHelper;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.IncompatibleClusterStateVersionException;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -162,11 +161,12 @@ public class PublicationTransportHandler {
     }
 
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
-        StreamInput in = CompressionHelper.decompressClusterState(request, namedWriteableRegistry);
-        ClusterState incomingState;
+        StreamInput in = null;
         try {
+            in = ClusterStateUtils.decompressClusterState(request, namedWriteableRegistry);
+            ClusterState incomingState;
             if (in.readBoolean()) {
-                incomingState = CompressionHelper.deserializeFullClusterState(in, transportService.getLocalNode());
+                incomingState = ClusterStateUtils.deserializeFullClusterState(in, transportService.getLocalNode());
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
                 final PublishWithJoinResponse response = acceptState(incomingState);
@@ -180,7 +180,7 @@ public class PublicationTransportHandler {
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 } else {
                     try {
-                        Diff<ClusterState> diff = CompressionHelper.deserializeClusterStateDiff(in, lastSeen.getNodes().getLocalNode());
+                        Diff<ClusterState> diff = ClusterStateUtils.deserializeClusterStateDiff(in, lastSeen.getNodes().getLocalNode());
                         incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
                     } catch (IncompatibleClusterStateVersionException e) {
                         incompatibleClusterStateDiffReceivedCount.incrementAndGet();
@@ -255,7 +255,7 @@ public class PublicationTransportHandler {
                 try {
                     if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
                         if (serializedStates.containsKey(node.getVersion()) == false) {
-                            serializedStates.put(node.getVersion(), CompressionHelper.serializeClusterState(newState, node, true));
+                            serializedStates.put(node.getVersion(), ClusterStateUtils.serializeClusterState(newState, node, true));
                         }
                     } else {
                         // will send a diff
@@ -263,7 +263,7 @@ public class PublicationTransportHandler {
                             diff = newState.diff(previousState);
                         }
                         if (serializedDiffs.containsKey(node.getVersion()) == false) {
-                            final BytesReference serializedDiff = CompressionHelper.serializeClusterState(diff, node, false);
+                            final BytesReference serializedDiff = ClusterStateUtils.serializeClusterState(diff, node, false);
                             serializedDiffs.put(node.getVersion(), serializedDiff);
                             logger.trace(
                                 "serialized cluster state diff for version [{}] in for node version [{}] with size [{}]",
@@ -359,7 +359,7 @@ public class PublicationTransportHandler {
             BytesReference bytes = serializedStates.get(destination.getVersion());
             if (bytes == null) {
                 try {
-                    bytes = CompressionHelper.serializeClusterState(newState, destination, true);
+                    bytes = ClusterStateUtils.serializeClusterState(newState, destination, true);
                     serializedStates.put(destination.getVersion(), bytes);
                 } catch (Exception e) {
                     logger.warn(

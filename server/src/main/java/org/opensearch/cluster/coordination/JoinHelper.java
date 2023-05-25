@@ -43,7 +43,6 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
-import org.opensearch.common.compress.CompressionHelper;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
@@ -107,7 +106,7 @@ public class JoinHelper {
 
     public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
     public static final String VALIDATE_JOIN_ACTION_NAME = "internal:cluster/coordination/join/validate";
-    public static final String VALIDATE_COMPRESSED_JOIN_ACTION_NAME = "internal:cluster/coordination/join" + "/validate_compressed";
+    public static final String VALIDATE_COMPRESSED_JOIN_ACTION_NAME = JOIN_ACTION_NAME + "/validate_compressed";
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
 
     // the timeout for Zen1 join attempts
@@ -133,15 +132,7 @@ public class JoinHelper {
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
     private final Consumer<Boolean> nodeCommissioned;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private Cache<Version, BytesReference> serializedStates;
-    public static final Setting<TimeValue> CLUSTER_MANAGER_VALIDATE_JOIN_CACHE_INTERVAL = Setting.timeSetting(
-        "cluster_manager.validate_join.cache_interval",
-        TimeValue.timeValueMillis(30000),
-        TimeValue.timeValueMillis(0),
-        TimeValue.timeValueMillis(60000),
-        Setting.Property.NodeScope
-    );
-    private final long clusterStateRefreshInterval;
+    private final Cache<Long, BytesReference> serializedStates;
 
     JoinHelper(
         Settings settings,
@@ -164,12 +155,8 @@ public class JoinHelper {
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
         this.nodeCommissioned = nodeCommissioned;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.clusterStateRefreshInterval = CLUSTER_MANAGER_VALIDATE_JOIN_CACHE_INTERVAL.get(settings).getMillis();
-        if (clusterStateRefreshInterval != 0) {
-            CacheBuilder<Version, BytesReference> cacheBuilder = CacheBuilder.builder();
-            cacheBuilder.setExpireAfterWrite(CLUSTER_MANAGER_VALIDATE_JOIN_CACHE_INTERVAL.get(settings));
-            this.serializedStates = cacheBuilder.build();
-        }
+        CacheBuilder<Long, BytesReference> cacheBuilder = CacheBuilder.builder();
+        this.serializedStates = cacheBuilder.build();
 
         this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
 
@@ -247,7 +234,7 @@ public class JoinHelper {
             ThreadPool.Names.GENERIC,
             BytesTransportRequest::new,
             (request, channel, task) -> {
-                handleValidateJoinRequest(currentStateSupplier, joinValidators, request);
+                handleCompressedValidateJoinRequest(currentStateSupplier, joinValidators, request);
                 channel.sendResponse(Empty.INSTANCE);
             }
         );
@@ -274,16 +261,16 @@ public class JoinHelper {
         joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), incomingState));
     }
 
-    private void handleValidateJoinRequest(
+    private void handleCompressedValidateJoinRequest(
         Supplier<ClusterState> currentStateSupplier,
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
         BytesTransportRequest request
     ) throws IOException {
-        StreamInput in = CompressionHelper.decompressClusterState(request, namedWriteableRegistry);
-        ClusterState incomingState;
+        StreamInput in = null;
         try {
+            in = ClusterStateUtils.decompressClusterState(request, namedWriteableRegistry);
             if (in.readBoolean()) {
-                incomingState = CompressionHelper.deserializeFullClusterState(in, transportService.getLocalNode());
+                ClusterState incomingState = ClusterStateUtils.deserializeFullClusterState(in, transportService.getLocalNode());
                 runJoinValidators(currentStateSupplier, incomingState, joinValidators);
             } else {
                 logger.error("validate new node join request requires full cluster state");
@@ -475,26 +462,34 @@ public class JoinHelper {
     }
 
     public void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
-        try {
-            BytesReference bytes;
-            if (clusterStateRefreshInterval == 0) {
-                bytes = CompressionHelper.serializeClusterState(state, node, true);
-            } else {
-                bytes = serializedStates.computeIfAbsent(
-                    node.getVersion(),
-                    key -> CompressionHelper.serializeClusterState(state, node, true)
-                );
-            }
-            final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
+        if (node.getVersion().before(Version.V_2_8_0)) {
             transportService.sendRequest(
                 node,
-                VALIDATE_COMPRESSED_JOIN_ACTION_NAME,
-                request,
+                VALIDATE_JOIN_ACTION_NAME,
+                new ValidateJoinRequest(state),
                 new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC)
             );
-        } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", node), e);
-            listener.onFailure(e);
+        } else {
+            try {
+                BytesReference bytes;
+                if (serializedStates.get(state.getVersion()) == null){
+                    serializedStates.invalidateAll();
+                }
+                bytes = serializedStates.computeIfAbsent(
+                    state.version(),
+                    key -> ClusterStateUtils.serializeClusterState(state, node, true)
+                );
+                final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
+                transportService.sendRequest(
+                    node,
+                    VALIDATE_COMPRESSED_JOIN_ACTION_NAME,
+                    request,
+                    new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC)
+                );
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", node), e);
+                listener.onFailure(e);
+            }
         }
     }
 

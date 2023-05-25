@@ -38,7 +38,6 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.common.compress.CompressionHelper;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -68,6 +67,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.cluster.coordination.JoinHelper.VALIDATE_COMPRESSED_JOIN_ACTION_NAME;
+import static org.opensearch.cluster.coordination.JoinHelper.VALIDATE_JOIN_ACTION_NAME;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
@@ -216,13 +216,13 @@ public class JoinHelperTests extends OpenSearchTestCase {
             "join validation on cluster state with a different cluster uuid"
         );
         assertJoinValidationRejectsMismatchedClusterUUID(
-            JoinHelper.VALIDATE_JOIN_ACTION_NAME,
+            VALIDATE_JOIN_ACTION_NAME,
             "join validation on cluster state with a different cluster uuid"
         );
     }
 
     private void assertJoinValidationRejectsMismatchedClusterUUID(String actionName, String expectedMessage) throws IOException {
-        TestClusterSetup testCluster = getTestClusterSetup();
+        TestClusterSetup testCluster = getTestClusterSetup(null, false);
 
         final ClusterState otherClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().generateClusterUuidIfNeeded())
@@ -230,7 +230,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
         TransportRequest request;
         final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
         if (actionName.equals(VALIDATE_COMPRESSED_JOIN_ACTION_NAME)) {
-            BytesReference bytes = CompressionHelper.serializeClusterState(otherClusterState, testCluster.localNode, true);
+            BytesReference bytes = ClusterStateUtils.serializeClusterState(otherClusterState, testCluster.localNode, true);
             request = new BytesTransportRequest(bytes, testCluster.localNode.getVersion());
             testCluster.transportService.sendRequest(
                 testCluster.localNode,
@@ -238,7 +238,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
                 request,
                 new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
             );
-        } else if (actionName.equals(JoinHelper.VALIDATE_JOIN_ACTION_NAME)) {
+        } else if (actionName.equals(VALIDATE_JOIN_ACTION_NAME)) {
             request = new ValidateJoinRequest(otherClusterState);
             testCluster.transportService.sendRequest(
                 testCluster.localNode,
@@ -331,9 +331,8 @@ public class JoinHelperTests extends OpenSearchTestCase {
         assertEquals(node1, capturedRequest1a.node);
     }
 
-    public void testSendValidateJoinFailsOnCompressionHelperException() throws IOException, ExecutionException, InterruptedException,
-        TimeoutException {
-        TestClusterSetup testCluster = getTestClusterSetup();
+    public void testSendCompressedValidateJoinFailOnSerializeFailure() throws ExecutionException, InterruptedException, TimeoutException {
+        TestClusterSetup testCluster = getTestClusterSetup(Version.CURRENT, false);
         final CompletableFuture<Throwable> future = new CompletableFuture<>();
         testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, null, new ActionListener<>() {
             @Override
@@ -347,18 +346,42 @@ public class JoinHelperTests extends OpenSearchTestCase {
             }
         });
         Throwable t = future.get(10, TimeUnit.SECONDS);
-        assertTrue(t instanceof ExecutionException);
-        assertTrue(t.getCause() instanceof NullPointerException);
+        assertTrue(t instanceof NullPointerException);
     }
 
-    public void testJoinValidationFailsOnCompressionHelperException() throws IOException {
-        TestClusterSetup testCluster = getTestClusterSetup();
-        final ClusterState otherClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().generateClusterUuidIfNeeded())
-            .build();
+    public void testValidateJoinSentWithCorrectActionForVersions() {
+        verifyValidateJoinActionSent(VALIDATE_JOIN_ACTION_NAME, Version.V_2_1_0);
+        verifyValidateJoinActionSent(VALIDATE_JOIN_ACTION_NAME, Version.V_2_7_0);
+        verifyValidateJoinActionSent(VALIDATE_COMPRESSED_JOIN_ACTION_NAME, Version.V_2_8_0);
+        verifyValidateJoinActionSent(VALIDATE_COMPRESSED_JOIN_ACTION_NAME, Version.CURRENT);
+    }
+
+    private void verifyValidateJoinActionSent(String expectedActionName, Version version) {
+        TestClusterSetup testCluster = getTestClusterSetup(version, true);
+        final CompletableFuture<Throwable> future = new CompletableFuture<>();
+        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), version);
+        testCluster.joinHelper.sendValidateJoinRequest(node1, testCluster.localClusterState, new ActionListener<>() {
+            @Override
+            public void onResponse(TransportResponse.Empty empty) {
+                throw new AssertionError("capturing transport shouldn't run");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                future.complete(e);
+            }
+        });
+
+        CapturedRequest[] validateRequests = testCluster.capturingTransport.getCapturedRequestsAndClear();
+        assertEquals(1, validateRequests.length);
+        assertEquals(expectedActionName, validateRequests[0].action);
+    }
+
+    public void testJoinValidationFailsOnSendingCompressedDiffClusterState() throws IOException {
+        TestClusterSetup testCluster = getTestClusterSetup(Version.CURRENT, false);
         TransportRequest request;
         final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
-        BytesReference bytes = CompressionHelper.serializeClusterState(otherClusterState, testCluster.localNode, false);
+        BytesReference bytes = ClusterStateUtils.serializeClusterState(testCluster.localClusterState, testCluster.localNode, false);
         request = new BytesTransportRequest(bytes, testCluster.localNode.getVersion());
         testCluster.transportService.sendRequest(
             testCluster.localNode,
@@ -374,8 +397,23 @@ public class JoinHelperTests extends OpenSearchTestCase {
         assertTrue(invalidStateException.getCause().getMessage().contains("requires full cluster state"));
     }
 
-    public void testJoinHelperCachingOnClusterState() throws IOException, ExecutionException, InterruptedException, TimeoutException {
-        TestClusterSetup testCluster = getTestClusterSetup();
+    public void testJoinValidationFailsOnDecompressionFailure() {
+        TestClusterSetup testCluster = getTestClusterSetup(Version.CURRENT, false);
+        TransportRequest request;
+        final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
+        request = new BytesTransportRequest(null, testCluster.localNode.getVersion());
+        testCluster.transportService.sendRequest(
+            testCluster.localNode,
+            VALIDATE_COMPRESSED_JOIN_ACTION_NAME,
+            request,
+            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
+        );
+        testCluster.deterministicTaskQueue.runAllTasks();
+        expectThrows(NullPointerException.class, future::actionGet);
+    }
+
+    public void testJoinHelperCachingOnClusterState() throws ExecutionException, InterruptedException, TimeoutException {
+        TestClusterSetup testCluster = getTestClusterSetup(Version.CURRENT, false);
         final CompletableFuture<Throwable> future = new CompletableFuture<>();
         ActionListener<TransportResponse.Empty> listener = new ActionListener<>() {
             @Override
@@ -390,7 +428,9 @@ public class JoinHelperTests extends OpenSearchTestCase {
         };
         testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, testCluster.localClusterState, listener);
         // validation will pass due to cached cluster state
-        testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, null, listener);
+        ClusterState randomState = ClusterState.builder(new ClusterName("random")).version(testCluster.localClusterState.version()).build();
+        testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, randomState, listener);
+
         final CompletableFuture<Throwable> future2 = new CompletableFuture<>();
         ActionListener<TransportResponse.Empty> listener2 = new ActionListener<>() {
             @Override
@@ -403,34 +443,55 @@ public class JoinHelperTests extends OpenSearchTestCase {
                 future2.complete(e);
             }
         };
-        Thread.sleep(30 * 1000);
-        // now sending the validate join request will fail due to null cluster state
-        testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, null, listener2);
+        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
+        ClusterState randomState2 = ClusterState.builder(new ClusterName("random"))
+            .stateUUID("random2")
+            .version(testCluster.localClusterState.version() + 1)
+            .build();
+        // now sending the validate join request will fail due to random cluster name because version is changed
+        // and cache will be invalidated
+        testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, randomState2, listener2);
+        testCluster.deterministicTaskQueue.runAllTasks();
+
         Throwable t = future2.get(10, TimeUnit.SECONDS);
-        assertTrue(t instanceof ExecutionException);
-        assertTrue(t.getCause() instanceof NullPointerException);
+        assertTrue(t instanceof RemoteTransportException);
+        assertTrue(t.getCause() instanceof CoordinationStateRejectedException);
+        assertTrue(t.getCause().getMessage().contains("different cluster uuid"));
     }
 
-    private TestClusterSetup getTestClusterSetup() {
+    private TestClusterSetup getTestClusterSetup(Version version, boolean isCapturingTransport) {
+        version = version == null ? Version.CURRENT : version;
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(),
             random()
         );
         MockTransport mockTransport = new MockTransport();
-        DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        CapturingTransport capturingTransport = new CapturingTransport();
+        DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), version);
 
         final ClusterState localClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().generateClusterUuidIfNeeded().clusterUUIDCommitted(true))
             .build();
-
-        TransportService transportService = mockTransport.createTransportService(
-            Settings.EMPTY,
-            deterministicTaskQueue.getThreadPool(),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> localNode,
-            null,
-            Collections.emptySet()
-        );
+        TransportService transportService;
+        if (isCapturingTransport) {
+            transportService = capturingTransport.createTransportService(
+                Settings.EMPTY,
+                deterministicTaskQueue.getThreadPool(),
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                x -> localNode,
+                null,
+                Collections.emptySet()
+            );
+        } else {
+            transportService = mockTransport.createTransportService(
+                Settings.EMPTY,
+                deterministicTaskQueue.getThreadPool(),
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                x -> localNode,
+                null,
+                Collections.emptySet()
+            );
+        }
         JoinHelper joinHelper = new JoinHelper(
             Settings.EMPTY,
             null,
@@ -452,28 +513,31 @@ public class JoinHelperTests extends OpenSearchTestCase {
            // handler
         transportService.start();
         transportService.acceptIncomingRequests();
-        return new TestClusterSetup(deterministicTaskQueue, localNode, transportService, localClusterState, joinHelper);
+        return new TestClusterSetup(deterministicTaskQueue, localNode, transportService, localClusterState, joinHelper, capturingTransport);
     }
 
     private static class TestClusterSetup {
         public final DeterministicTaskQueue deterministicTaskQueue;
         public final DiscoveryNode localNode;
-        public final TransportService transportService;
+        public TransportService transportService;
         public final ClusterState localClusterState;
         public final JoinHelper joinHelper;
+        public final CapturingTransport capturingTransport;
 
         public TestClusterSetup(
             DeterministicTaskQueue deterministicTaskQueue,
             DiscoveryNode localNode,
             TransportService transportService,
             ClusterState localClusterState,
-            JoinHelper joinHelper
+            JoinHelper joinHelper,
+            CapturingTransport capturingTransport
         ) {
             this.deterministicTaskQueue = deterministicTaskQueue;
             this.localNode = localNode;
             this.transportService = transportService;
             this.localClusterState = localClusterState;
             this.joinHelper = joinHelper;
+            this.capturingTransport = capturingTransport;
         }
     }
 }
