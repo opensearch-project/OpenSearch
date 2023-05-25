@@ -323,7 +323,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new HashMap<String, String>(),
                 Version.fromString("3.0.0"),
                 Version.fromString("3.0.0"),
->>>>>>> 277eb3d59fb ([Extensions] Add ExtensionAwarePlugin extension point to add custom settings for extensions (#7526))
                 Collections.emptyList()
             )
         );

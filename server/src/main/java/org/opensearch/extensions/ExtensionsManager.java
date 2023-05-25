@@ -14,6 +14,7 @@ import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -534,14 +535,6 @@ public class ExtensionsManager {
                             extAdditionalSettings
                         )
                     );
-                    for (HashMap<String, ?> dependency : extensionDependencies) {
-                        extensionDependencyList.add(
-                            new ExtensionDependency(
-                                dependency.get("uniqueId").toString(),
-                                Version.fromString(dependency.get("version").toString())
-                            )
-                        );
-                    }
                 } catch (IOException e) {
                     logger.warn("loading extension has been failed because of exception : " + e.getMessage());
                 }
