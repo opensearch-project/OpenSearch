@@ -615,6 +615,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             }
             if (fieldName.equals(fieldType().name())) {
                 context.doc().add(field);
+                if (fieldType().hasDocValues()) {
+                    context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+                }
             }
             if (valueType.equals(VALUE_SUFFIX)) {
                 if (valueFieldMapper != null) {
@@ -628,10 +631,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             }
 
             if (fieldType().hasDocValues()) {
-                if (context.doc().getField(fieldType().name()) == null || !context.doc().getFields(fieldType().name()).equals(field)) {
-                    if (fieldName.equals(fieldType().name())) {
-                        context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-                    }
+                if (context.doc().getField(fieldType().name()) == null || !context.doc().getField(fieldType().name()).equals(field)) {
                     if (valueType.equals(VALUE_SUFFIX)) {
                         if (valueFieldMapper != null) {
                             context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_SUFFIX, binaryValue));
