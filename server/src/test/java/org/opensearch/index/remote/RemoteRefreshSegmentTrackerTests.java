@@ -411,9 +411,8 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         pressureTracker = constructTracker();
         RemoteRefreshSegmentTracker.Stats pressureTrackerStats = pressureTracker.stats();
         assertEquals(pressureTracker.getShardId(), pressureTrackerStats.shardId);
-        assertEquals(pressureTracker.getLocalRefreshTimeMs(), (int) pressureTrackerStats.localRefreshTimeMs);
+        assertEquals(pressureTracker.getTimeMsLag(), (int) pressureTrackerStats.refreshTimeLagMs);
         assertEquals(pressureTracker.getLocalRefreshSeqNo(), (int) pressureTrackerStats.localRefreshNumber);
-        assertEquals(pressureTracker.getRemoteRefreshTimeMs(), (int) pressureTrackerStats.remoteRefreshTimeMs);
         assertEquals(pressureTracker.getRemoteRefreshSeqNo(), (int) pressureTrackerStats.remoteRefreshNumber);
         assertEquals(pressureTracker.getBytesLag(), (int) pressureTrackerStats.bytesLag);
         assertEquals(pressureTracker.getRejectionCount(), (int) pressureTrackerStats.rejectionCount);
@@ -441,9 +440,8 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 RemoteRefreshSegmentTracker.Stats deserializedStats = new RemoteRefreshSegmentTracker.Stats(in);
                 assertEquals(deserializedStats.shardId, pressureTrackerStats.shardId);
-                assertEquals((int) deserializedStats.localRefreshTimeMs, (int) pressureTrackerStats.localRefreshTimeMs);
+                assertEquals((int) deserializedStats.refreshTimeLagMs, (int) pressureTrackerStats.refreshTimeLagMs);
                 assertEquals((int) deserializedStats.localRefreshNumber, (int) pressureTrackerStats.localRefreshNumber);
-                assertEquals((int) deserializedStats.remoteRefreshTimeMs, (int) pressureTrackerStats.remoteRefreshTimeMs);
                 assertEquals((int) deserializedStats.remoteRefreshNumber, (int) pressureTrackerStats.remoteRefreshNumber);
                 assertEquals((int) deserializedStats.bytesLag, (int) pressureTrackerStats.bytesLag);
                 assertEquals((int) deserializedStats.rejectionCount, (int) pressureTrackerStats.rejectionCount);

@@ -54,6 +54,7 @@ import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.NoopExtensionsManager;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
+import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
@@ -234,6 +235,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -466,7 +468,12 @@ public class Node implements Closeable {
             final IdentityService identityService = new IdentityService(settings, identityPlugins);
 
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                this.extensionsManager = new ExtensionsManager(initialEnvironment.extensionDir());
+                final List<ExtensionAwarePlugin> extensionAwarePlugins = pluginsService.filterPlugins(ExtensionAwarePlugin.class);
+                Set<Setting<?>> additionalSettings = new HashSet<>();
+                for (ExtensionAwarePlugin extAwarePlugin : extensionAwarePlugins) {
+                    additionalSettings.addAll(extAwarePlugin.getExtensionSettings());
+                }
+                this.extensionsManager = new ExtensionsManager(initialEnvironment.extensionDir(), additionalSettings);
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
@@ -707,7 +714,6 @@ public class Node implements Closeable {
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,
-                extensionsManager,
                 nodeEnvironment,
                 xContentRegistry,
                 analysisModule.getAnalysisRegistry(),
