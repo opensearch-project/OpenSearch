@@ -48,6 +48,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -73,6 +74,10 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     private TransportService transportService;
     private TestThreadPool testThreadPool;
     private DiscoveryNode localNode;
+
+    private IndicesService indicesService;
+
+    private static long TRANSPORT_TIMEOUT = 30000;// 30sec
 
     @Override
     public void setUp() throws Exception {
@@ -110,7 +115,9 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        sut = prepareForReplication(primaryShard, null, transportService);
+        indicesService = mock(IndicesService.class);
+
+        sut = prepareForReplication(primaryShard, null, transportService, indicesService);
         initialCheckpoint = replicaShard.getLatestReplicationCheckpoint();
         aheadCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),
@@ -383,14 +390,38 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testForceSegmentSyncHandler() throws Exception {
-        ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, primaryShard.shardId());
+        ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, replicaShard.shardId());
+        when(indicesService.getShardOrNull(forceSyncRequest.getShardId())).thenReturn(replicaShard);
         TransportResponse response = transportService.submitRequest(
             localNode,
             SegmentReplicationTargetService.Actions.FORCE_SYNC,
             forceSyncRequest,
-            TransportRequestOptions.builder().withTimeout(30).build(),
+            TransportRequestOptions.builder().withTimeout(TRANSPORT_TIMEOUT).build(),
             EmptyTransportResponseHandler.INSTANCE_SAME
         ).txGet();
         assertEquals(TransportResponse.Empty.INSTANCE, response);
+    }
+
+    public void testForceSegmentSyncHandlerWithFailure() throws Exception {
+        IndexShard spyReplicaShard = spy(replicaShard);
+        ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, replicaShard.shardId());
+        when(indicesService.getShardOrNull(forceSyncRequest.getShardId())).thenReturn(spyReplicaShard);
+        IOException exception = new IOException("dummy failure");
+        doThrow(exception).when(spyReplicaShard).finalizeReplication(any());
+
+        // prevent shard failure to avoid test setup assertion
+        doNothing().when(spyReplicaShard).failShard(eq("replication failure"), any());
+        Exception finalizeException = expectThrows(Exception.class, () -> {
+            transportService.submitRequest(
+                localNode,
+                SegmentReplicationTargetService.Actions.FORCE_SYNC,
+                forceSyncRequest,
+                TransportRequestOptions.builder().withTimeout(TRANSPORT_TIMEOUT).build(),
+                EmptyTransportResponseHandler.INSTANCE_SAME
+            ).txGet();
+        });
+        Throwable nestedException = finalizeException.getCause().getCause();
+        assertTrue(nestedException instanceof IOException);
+        assertTrue(nestedException.getMessage().contains("dummy failure"));
     }
 }

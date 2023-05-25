@@ -1301,10 +1301,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     public final SegmentReplicationTargetService prepareForReplication(
         IndexShard primaryShard,
         IndexShard target,
-        TransportService transportService
+        TransportService transportService,
+        IndicesService indicesService
     ) {
         final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
-        final IndicesService indicesService = mock(IndicesService.class);
         final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
             threadPool,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
@@ -1378,7 +1378,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             final SegmentReplicationTargetService targetService = prepareForReplication(
                 primaryShard,
                 replica,
-                mock(TransportService.class)
+                mock(TransportService.class),
+                mock(IndicesService.class)
             );
             final SegmentReplicationTarget target = targetService.startReplication(
                 replica,
