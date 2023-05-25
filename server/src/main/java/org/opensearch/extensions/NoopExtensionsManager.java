@@ -11,6 +11,7 @@ package org.opensearch.extensions;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.Set;
 
 import org.opensearch.action.ActionModule;
 import org.opensearch.client.node.NodeClient;
@@ -31,7 +32,7 @@ import org.opensearch.transport.TransportService;
 public class NoopExtensionsManager extends ExtensionsManager {
 
     public NoopExtensionsManager() throws IOException {
-        super(Path.of(""));
+        super(Path.of(""), Set.of());
     }
 
     @Override
