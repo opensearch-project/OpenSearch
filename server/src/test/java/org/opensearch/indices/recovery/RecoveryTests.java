@@ -108,7 +108,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
 
     public void testWithSegmentReplication_ReplicaUsesPrimaryTranslogUUID() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
-        try (ReplicationGroup shards = createGroup(2, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(2, settings, new NRTReplicationEngineFactory(null))) {
             shards.startAll();
             final String expectedUUID = getTranslog(shards.getPrimary()).getTranslogUUID();
             assertTrue(

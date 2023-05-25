@@ -52,7 +52,6 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.NoopExtensionsManager;
-import org.opensearch.indices.replication.SegmentReplicationUpgradeService;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.plugins.ExtensionAwarePlugin;
@@ -1098,8 +1097,6 @@ public class Node implements Closeable {
                     b.bind(SegmentReplicationSourceService.class)
                         .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
                 }
-                b.bind(SegmentReplicationUpgradeService.class)
-                    .toInstance(new SegmentReplicationUpgradeService(indicesService, clusterService.getClusterApplierService()));
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
                 b.bind(PersistentTasksService.class).toInstance(persistentTasksService);

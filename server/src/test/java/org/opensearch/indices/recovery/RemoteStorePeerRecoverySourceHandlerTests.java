@@ -27,7 +27,7 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
         .build();
 
     public void testReplicaShardRecoveryUptoLastFlushedCommit() throws Exception {
-        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory(null))) {
 
             // Step1 - Start primary, index docs and flush
             shards.startPrimary();

@@ -1354,6 +1354,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         };
         when(sourceFactory.get(any())).thenReturn(replicationSource);
         when(indicesService.getShardOrNull(any())).thenReturn(target);
+        when(indicesService.clusterService()).thenReturn(clusterService);
         return targetService;
     }
 

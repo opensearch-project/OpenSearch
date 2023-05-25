@@ -52,7 +52,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         super.setUp();
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT").put(Settings.EMPTY).build();
         primary = newStartedShard(true, settings);
-        replica = newShard(false, settings, new NRTReplicationEngineFactory());
+        replica = newShard(false, settings, new NRTReplicationEngineFactory(null));
         recoverReplica(replica, primary, true);
         replicaDiscoveryNode = replica.recoveryState().getTargetNode();
     }

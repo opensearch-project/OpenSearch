@@ -11,11 +11,13 @@ package org.opensearch.indices.replication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -37,7 +39,9 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -168,6 +172,35 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                         }
                     }
                 }
+            }
+        }
+        if (event.nodesChanged()) {
+            List<IndexShard> indexShardList = new ArrayList<>();
+            DiscoveryNodes nodes = event.state().nodes();
+            if (nodes.getMinNodeVersion().equals(nodes.getMaxNodeVersion())) {
+                for (IndexService indexService : indicesService) {
+                    if (indexService.getIndexSettings().isSegRepEnabled() && (indexService.getIndexSettings().getNumberOfReplicas() > 0)) {
+                        for (IndexShard indexShard : indexService) {
+                            try {
+                                if (indexShard.routingEntry().primary()
+                                    && (indexShard.getEngine().config().getClusterMinVersion() != nodes.getMaxNodeVersion())) {
+                                    indexShardList.add(indexShard);
+                                }
+                            } catch (AlreadyClosedException e) {
+                                logger.warn("Index shard [{}] engine is already closed.", indexShard.shardId());
+                            }
+                        }
+                    }
+                }
+            }
+            try {
+                if (indexShardList.isEmpty() == false) {
+                    for (IndexShard indexShard : indexShardList) {
+                        indexShard.resetEngine();
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("Received unexpected exception: [{}]", e.getMessage());
             }
         }
     }

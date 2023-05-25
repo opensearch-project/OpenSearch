@@ -67,7 +67,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
     public void setUp() throws Exception {
         super.setUp();
         primary = newStartedShard(true, settings);
-        replica = newShard(false, settings, new NRTReplicationEngineFactory());
+        replica = newShard(false, settings, new NRTReplicationEngineFactory(null));
         recoverReplica(replica, primary, true);
         replicaDiscoveryNode = replica.recoveryState().getTargetNode();
         primaryDiscoveryNode = replica.recoveryState().getSourceNode();

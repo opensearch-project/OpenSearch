@@ -88,7 +88,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             .build();
         primaryShard = newStartedShard(true, settings);
         String primaryCodec = primaryShard.getLatestReplicationCheckpoint().getCodec();
-        replicaShard = newShard(false, settings, new NRTReplicationEngineFactory());
+        replicaShard = newShard(false, settings, new NRTReplicationEngineFactory(null));
         recoverReplica(replicaShard, primaryShard, true, getReplicationFunc(replicaShard));
         checkpoint = new ReplicationCheckpoint(
             replicaShard.shardId(),

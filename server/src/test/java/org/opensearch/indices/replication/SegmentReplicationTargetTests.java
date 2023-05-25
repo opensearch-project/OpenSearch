@@ -93,7 +93,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
 
-        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory(null));
         spyIndexShard = spy(indexShard);
 
         Mockito.doNothing().when(spyIndexShard).finalizeReplication(any(SegmentInfos.class));
