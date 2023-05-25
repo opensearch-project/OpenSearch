@@ -131,12 +131,16 @@ public class FailAwareWeightedRouting {
      * @param nodeID the id of the node containing current shard copy
      */
     public void updateFailOpenStatsForOneHealthyCopy(final SearchShardIterator shardsIt, ClusterState clusterState, String nodeID) {
-        if (ignoreWeightedRouting(clusterState) && isFailOpenDisabled(clusterState)) {
-            return;
+        if (clusterState != null) {
+            if (ignoreWeightedRouting(clusterState) && isFailOpenDisabled(clusterState)) {
+                return;
+            }
+            if (shardsIt.size() == 1 && WeightedRoutingUtils.isWeighedAway(nodeID, clusterState)) {
+                getWeightedRoutingStats().updateFailOpenCount();
+            }
+
         }
-        if (shardsIt.size() == 1 && WeightedRoutingUtils.isWeighedAway(nodeID, clusterState)) {
-            getWeightedRoutingStats().updateFailOpenCount();
-        }
+
     }
 
     /**
