@@ -276,14 +276,14 @@ public class ProtobufJvmInfo implements ProtobufReportingService.ProtobufInfo {
     }
 
     public ProtobufJvmInfo(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         pid = in.readInt64();
         version = in.readString();
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
         bundledJdk = in.readBool();
-        usingBundledJdk = protobufStreamInput.readOptionalBoolean(in);
+        usingBundledJdk = protobufStreamInput.readOptionalBoolean();
         startTime = in.readInt64();
         inputArguments = new String[in.readInt32()];
         for (int i = 0; i < inputArguments.length; i++) {
@@ -291,10 +291,10 @@ public class ProtobufJvmInfo implements ProtobufReportingService.ProtobufInfo {
         }
         bootClassPath = in.readString();
         classPath = in.readString();
-        systemProperties = protobufStreamInput.readMap(CodedInputStream::readString, CodedInputStream::readString, in);
+        systemProperties = protobufStreamInput.readMap(CodedInputStream::readString, CodedInputStream::readString);
         mem = new Mem(in);
-        gcCollectors = protobufStreamInput.readStringArray(in);
-        memoryPools = protobufStreamInput.readStringArray(in);
+        gcCollectors = protobufStreamInput.readStringArray();
+        memoryPools = protobufStreamInput.readStringArray();
         useCompressedOops = in.readString();
         // the following members are only used locally for bootstrap checks, never serialized nor printed out
         this.configuredMaxHeapSize = -1;
@@ -308,14 +308,14 @@ public class ProtobufJvmInfo implements ProtobufReportingService.ProtobufInfo {
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         out.writeInt64NoTag(pid);
         out.writeStringNoTag(version);
         out.writeStringNoTag(vmName);
         out.writeStringNoTag(vmVersion);
         out.writeStringNoTag(vmVendor);
         out.writeBoolNoTag(bundledJdk);
-        protobufStreamOutput.writeOptionalBoolean(usingBundledJdk, out);
+        protobufStreamOutput.writeOptionalBoolean(usingBundledJdk);
         out.writeInt64NoTag(startTime);
         out.writeInt32NoTag(inputArguments.length);
         for (String inputArgument : inputArguments) {
@@ -329,8 +329,8 @@ public class ProtobufJvmInfo implements ProtobufReportingService.ProtobufInfo {
             out.writeStringNoTag(entry.getValue());
         }
         mem.writeTo(out);
-        protobufStreamOutput.writeStringArray(gcCollectors, out);
-        protobufStreamOutput.writeStringArray(memoryPools, out);
+        protobufStreamOutput.writeStringArray(gcCollectors);
+        protobufStreamOutput.writeStringArray(memoryPools);
         out.writeStringNoTag(useCompressedOops);
     }
 

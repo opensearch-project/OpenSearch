@@ -10,11 +10,11 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.ProtobufDiscoveryNode;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.transport.ProtobufBoundTransportAddress;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
@@ -39,7 +39,7 @@ public interface ProtobufTransport extends LifecycleComponent {
     /**
      * Registers a new request handler
     */
-    default <Request extends ProtobufTransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+    default <Request extends ProtobufTransportRequest> void registerRequestHandler(ProtobufRequestHandlerRegistry<Request> reg) {
         getRequestHandlers().registerHandler(reg);
     }
 
@@ -65,7 +65,7 @@ public interface ProtobufTransport extends LifecycleComponent {
     /**
      * Returns an address from its string representation.
     */
-    TransportAddress[] addressesFromString(String address) throws UnknownHostException;
+    ProtobufTransportAddress[] addressesFromString(String address) throws UnknownHostException;
 
     /**
      * Returns a list of all local addresses for this transport
@@ -76,7 +76,11 @@ public interface ProtobufTransport extends LifecycleComponent {
      * Opens a new connection to the given node. When the connection is fully connected, the listener is called.
     * The ActionListener will be called on the calling thread or the generic thread pool.
     */
-    void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<ProtobufTransport.Connection> listener);
+    void openConnection(
+        ProtobufDiscoveryNode node,
+        ProtobufConnectionProfile profile,
+        ActionListener<ProtobufTransport.Connection> listener
+    );
 
     TransportStats getStats();
 
@@ -85,13 +89,13 @@ public interface ProtobufTransport extends LifecycleComponent {
     RequestHandlers getRequestHandlers();
 
     /**
-     * A unidirectional connection to a {@link DiscoveryNode}
+     * A unidirectional connection to a {@link ProtobufDiscoveryNode}
     */
     interface Connection extends Closeable {
         /**
          * The node this connection is associated with
         */
-        DiscoveryNode getNode();
+        ProtobufDiscoveryNode getNode();
 
         /**
          * Sends the request to the node this connection is associated with
@@ -101,8 +105,8 @@ public interface ProtobufTransport extends LifecycleComponent {
         * @param options request options to apply
         * @throws NodeNotConnectedException if the given node is not connected
         */
-        void sendRequest(long requestId, String action, ProtobufTransportRequest request, TransportRequestOptions options) throws IOException,
-            TransportException;
+        void sendRequest(long requestId, String action, ProtobufTransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException;
 
         /**
          * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
@@ -138,21 +142,21 @@ public interface ProtobufTransport extends LifecycleComponent {
      * This class represents a response context that encapsulates the actual response handler, the action and the connection it was
     * executed on.
     */
-    final class ResponseContext<T extends TransportResponse> {
+    final class ResponseContext<T extends ProtobufTransportResponse> {
 
-        private final TransportResponseHandler<T> handler;
+        private final ProtobufTransportResponseHandler<T> handler;
 
         private final Connection connection;
 
         private final String action;
 
-        ResponseContext(TransportResponseHandler<T> handler, Connection connection, String action) {
+        ResponseContext(ProtobufTransportResponseHandler<T> handler, Connection connection, String action) {
             this.handler = handler;
             this.connection = connection;
             this.action = action;
         }
 
-        public TransportResponseHandler<T> handler() {
+        public ProtobufTransportResponseHandler<T> handler() {
             return handler;
         }
 
@@ -169,7 +173,7 @@ public interface ProtobufTransport extends LifecycleComponent {
      * This class is a registry that allows
     */
     final class ResponseHandlers {
-        private final ConcurrentMapLong<ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
+        private final ConcurrentMapLong<ResponseContext<? extends ProtobufTransportResponse>> handlers = ConcurrentCollections
             .newConcurrentMapLongWithAggressiveConcurrency();
         private final AtomicLong requestIdGenerator = new AtomicLong();
 
@@ -184,7 +188,7 @@ public interface ProtobufTransport extends LifecycleComponent {
          * Removes and return the {@link ResponseContext} for the given request ID or returns
         * <code>null</code> if no context is associated with this request ID.
         */
-        public ResponseContext<? extends TransportResponse> remove(long requestId) {
+        public ResponseContext<? extends ProtobufTransportResponse> remove(long requestId) {
             return handlers.remove(requestId);
         }
 
@@ -193,9 +197,9 @@ public interface ProtobufTransport extends LifecycleComponent {
         * @return the new request ID
         * @see Connection#sendRequest(long, String, ProtobufTransportRequest, TransportRequestOptions)
         */
-        public long add(ResponseContext<? extends TransportResponse> holder) {
+        public long add(ResponseContext<? extends ProtobufTransportResponse> holder) {
             long requestId = newRequestId();
-            ResponseContext<? extends TransportResponse> existing = handlers.put(requestId, holder);
+            ResponseContext<? extends ProtobufTransportResponse> existing = handlers.put(requestId, holder);
             assert existing == null : "request ID already in use: " + requestId;
             return requestId;
         }
@@ -211,12 +215,14 @@ public interface ProtobufTransport extends LifecycleComponent {
         /**
          * Removes and returns all {@link ResponseContext} instances that match the predicate
         */
-        public List<ResponseContext<? extends TransportResponse>> prune(Predicate<ResponseContext<? extends TransportResponse>> predicate) {
-            final List<ResponseContext<? extends TransportResponse>> holders = new ArrayList<>();
-            for (Map.Entry<Long, ResponseContext<? extends TransportResponse>> entry : handlers.entrySet()) {
-                ResponseContext<? extends TransportResponse> holder = entry.getValue();
+        public List<ResponseContext<? extends ProtobufTransportResponse>> prune(
+            Predicate<ResponseContext<? extends ProtobufTransportResponse>> predicate
+        ) {
+            final List<ResponseContext<? extends ProtobufTransportResponse>> holders = new ArrayList<>();
+            for (Map.Entry<Long, ResponseContext<? extends ProtobufTransportResponse>> entry : handlers.entrySet()) {
+                ResponseContext<? extends ProtobufTransportResponse> holder = entry.getValue();
                 if (predicate.test(holder)) {
-                    ResponseContext<? extends TransportResponse> remove = handlers.remove(entry.getKey());
+                    ResponseContext<? extends ProtobufTransportResponse> remove = handlers.remove(entry.getKey());
                     if (remove != null) {
                         holders.add(holder);
                     }
@@ -230,11 +236,11 @@ public interface ProtobufTransport extends LifecycleComponent {
         * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
         * found.
         */
-        public TransportResponseHandler<? extends TransportResponse> onResponseReceived(
+        public ProtobufTransportResponseHandler<? extends ProtobufTransportResponse> onResponseReceived(
             final long requestId,
             final ProtobufTransportMessageListener listener
         ) {
-            ResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
+            ResponseContext<? extends ProtobufTransportResponse> context = handlers.remove(requestId);
             listener.onResponseReceived(requestId, context);
             if (context == null) {
                 return null;
@@ -251,9 +257,10 @@ public interface ProtobufTransport extends LifecycleComponent {
     */
     final class RequestHandlers {
 
-        private volatile Map<String, RequestHandlerRegistry<? extends ProtobufTransportRequest>> requestHandlers = Collections.emptyMap();
+        private volatile Map<String, ProtobufRequestHandlerRegistry<? extends ProtobufTransportRequest>> requestHandlers = Collections
+            .emptyMap();
 
-        synchronized <Request extends ProtobufTransportRequest> void registerHandler(RequestHandlerRegistry<Request> reg) {
+        synchronized <Request extends ProtobufTransportRequest> void registerHandler(ProtobufRequestHandlerRegistry<Request> reg) {
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
@@ -262,13 +269,13 @@ public interface ProtobufTransport extends LifecycleComponent {
 
         // TODO: Only visible for testing. Perhaps move StubbableTransport from
         // org.opensearch.test.transport to org.opensearch.transport
-        public synchronized <Request extends ProtobufTransportRequest> void forceRegister(RequestHandlerRegistry<Request> reg) {
+        public synchronized <Request extends ProtobufTransportRequest> void forceRegister(ProtobufRequestHandlerRegistry<Request> reg) {
             requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
         }
 
         @SuppressWarnings("unchecked")
-        public <T extends ProtobufTransportRequest> RequestHandlerRegistry<T> getHandler(String action) {
-            return (RequestHandlerRegistry<T>) requestHandlers.get(action);
+        public <T extends ProtobufTransportRequest> ProtobufRequestHandlerRegistry<T> getHandler(String action) {
+            return (ProtobufRequestHandlerRegistry<T>) requestHandlers.get(action);
         }
     }
 }

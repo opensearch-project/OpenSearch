@@ -24,10 +24,10 @@ import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExcl
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.ProtobufDiscoveryNode;
 import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -114,7 +114,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
             final CodedOutputStream out,
             final T custom
         ) {
-            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
             return protobufStreamOutput.getVersion().onOrAfter(custom.getMinimalSupportedVersion());
         }
 
@@ -306,13 +306,13 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
     /**
      * Returns a built (on demand) routing nodes view of the routing table.
     */
-    public RoutingNodes getRoutingNodes() {
-        if (routingNodes != null) {
-            return routingNodes;
-        }
-        routingNodes = new RoutingNodes(this);
-        return routingNodes;
-    }
+    // public RoutingNodes getRoutingNodes() {
+    // if (routingNodes != null) {
+    // return routingNodes;
+    // }
+    // routingNodes = new RoutingNodes(this);
+    // return routingNodes;
+    // }
 
     /**
      * Metrics for cluster state.
@@ -426,7 +426,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         // nodes
         if (metrics.contains(Metric.NODES)) {
             builder.startObject("nodes");
-            for (DiscoveryNode node : nodes) {
+            for (ProtobufDiscoveryNode node : nodes) {
                 node.toXContent(builder, params);
             }
             builder.endObject();
@@ -459,26 +459,26 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         }
 
         // routing nodes
-        if (metrics.contains(Metric.ROUTING_NODES)) {
-            builder.startObject("routing_nodes");
-            builder.startArray("unassigned");
-            for (ShardRouting shardRouting : getRoutingNodes().unassigned()) {
-                shardRouting.toXContent(builder, params);
-            }
-            builder.endArray();
+        // if (metrics.contains(Metric.ROUTING_NODES)) {
+        // builder.startObject("routing_nodes");
+        // builder.startArray("unassigned");
+        // for (ShardRouting shardRouting : getRoutingNodes().unassigned()) {
+        // shardRouting.toXContent(builder, params);
+        // }
+        // builder.endArray();
 
-            builder.startObject("nodes");
-            for (RoutingNode routingNode : getRoutingNodes()) {
-                builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId());
-                for (ShardRouting shardRouting : routingNode) {
-                    shardRouting.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
-            builder.endObject();
+        // builder.startObject("nodes");
+        // for (RoutingNode routingNode : getRoutingNodes()) {
+        // builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId());
+        // for (ShardRouting shardRouting : routingNode) {
+        // shardRouting.toXContent(builder, params);
+        // }
+        // builder.endArray();
+        // }
+        // builder.endObject();
 
-            builder.endObject();
-        }
+        // builder.endObject();
+        // }
         if (metrics.contains(Metric.CUSTOMS)) {
             for (ObjectObjectCursor<String, Custom> cursor : customs) {
                 builder.startObject(cursor.key);
@@ -658,7 +658,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
     }
 
     public static ProtobufClusterState readFrom(CodedInputStream in, DiscoveryNode localNode) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         ProtobufClusterName clusterName = new ProtobufClusterName(in);
         Builder builder = new Builder(clusterName);
         builder.version = in.readInt64();
@@ -678,7 +678,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         clusterName.writeTo(out);
         out.writeInt64NoTag(version);
         out.writeStringNoTag(stateUUID);
@@ -696,7 +696,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         out.writeInt32NoTag(numberOfCustoms);
         for (final ObjectCursor<Custom> cursor : customs.values()) {
             if (FeatureAware.shouldSerialize(out, cursor.value)) {
-                protobufStreamOutput.writeNamedWriteable(cursor.value, out);
+                protobufStreamOutput.writeNamedWriteable(cursor.value);
             }
         }
         out.writeInt32NoTag(minimumClusterManagerNodesOnPublishingClusterManager);

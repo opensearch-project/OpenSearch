@@ -64,13 +64,13 @@ public class ProtobufNodesInfoResponse extends ProtobufBaseNodesResponse<Protobu
 
     @Override
     protected List<ProtobufNodeInfo> readNodesFrom(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
-        return protobufStreamInput.readList(ProtobufNodeInfo::new, in);
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        return protobufStreamInput.readList(ProtobufNodeInfo::new);
     }
 
     @Override
     protected void writeNodesTo(CodedOutputStream out, List<ProtobufNodeInfo> nodes) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
-        protobufStreamOutput.writeCollection(nodes, (o, v) -> v.writeTo(o), out);
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        protobufStreamOutput.writeCollection(nodes, (o, v) -> v.writeTo(o));
     }
 }

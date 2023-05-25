@@ -81,11 +81,11 @@ public final class ProtobufTaskResult implements ProtobufWriteable, ToXContentOb
     * Read from a stream.
     */
     public ProtobufTaskResult(CodedInputStream in) throws IOException {
-        protobufStreamInput = new ProtobufStreamInput();
+        protobufStreamInput = new ProtobufStreamInput(in);
         completed = in.readBool();
         task = new ProtobufTaskInfo(in);
-        error = protobufStreamInput.readOptionalBytesReference(in);
-        response = protobufStreamInput.readOptionalBytesReference(in);
+        error = protobufStreamInput.readOptionalBytesReference();
+        response = protobufStreamInput.readOptionalBytesReference();
     }
 
     @Override

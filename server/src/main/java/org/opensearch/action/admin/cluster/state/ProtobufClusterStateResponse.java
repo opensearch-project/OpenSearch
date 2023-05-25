@@ -35,13 +35,11 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
     private ProtobufClusterState clusterState;
     private boolean waitForTimedOut = false;
 
-    private final ProtobufStreamInput protobufStreamInput;
-
     public ProtobufClusterStateResponse(CodedInputStream in) throws IOException {
         super(in);
-        protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         clusterName = new ProtobufClusterName(in);
-        clusterState = protobufStreamInput.readOptionalWriteable(innerIn -> ProtobufClusterState.readFrom(innerIn, null), in);
+        clusterState = protobufStreamInput.readOptionalWriteable(innerIn -> ProtobufClusterState.readFrom(innerIn, null));
         waitForTimedOut = in.readBool();
     }
 
@@ -49,7 +47,6 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
         this.clusterName = clusterName;
         this.clusterState = clusterState;
         this.waitForTimedOut = waitForTimedOut;
-        protobufStreamInput = new ProtobufStreamInput();
     }
 
     /**
@@ -77,9 +74,9 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         clusterName.writeTo(out);
-        protobufStreamOutput.writeOptionalWriteable(clusterState, out);
+        protobufStreamOutput.writeOptionalWriteable(clusterState);
         out.writeBoolNoTag(waitForTimedOut);
     }
 }

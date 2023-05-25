@@ -9,11 +9,9 @@
 package org.opensearch.action.support;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ProtobufActionResponse;
-import org.opensearch.tasks.Task;
+import org.opensearch.tasks.ProtobufTask;
 
 /**
  * A filter allowing to filter transport actions
@@ -32,7 +30,7 @@ public interface ProtobufActionFilter {
     * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
     */
     <Request extends ProtobufActionRequest, Response extends ProtobufActionResponse> void apply(
-        Task task,
+        ProtobufTask task,
         String action,
         Request request,
         ActionListener<Response> listener,
@@ -47,7 +45,7 @@ public interface ProtobufActionFilter {
     abstract class Simple implements ProtobufActionFilter {
         @Override
         public final <Request extends ProtobufActionRequest, Response extends ProtobufActionResponse> void apply(
-            Task task,
+            ProtobufTask task,
             String action,
             Request request,
             ActionListener<Response> listener,

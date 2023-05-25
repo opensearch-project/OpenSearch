@@ -461,18 +461,18 @@ public final class ProtobufDiffableUtils {
         }
 
         protected MapDiff(CodedInputStream in, KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) throws IOException {
-            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
             this.keySerializer = keySerializer;
             this.valueSerializer = valueSerializer;
-            deletes = protobufStreamInput.readList(keySerializer::readKey, in);
-            int diffsCount = protobufStreamInput.readVInt(in);
+            deletes = protobufStreamInput.readList(keySerializer::readKey);
+            int diffsCount = protobufStreamInput.readVInt();
             diffs = diffsCount == 0 ? Collections.emptyMap() : new HashMap<>(diffsCount);
             for (int i = 0; i < diffsCount; i++) {
                 K key = keySerializer.readKey(in);
                 ProtobufDiff<T> diff = valueSerializer.readDiff(in, key);
                 diffs.put(key, diff);
             }
-            int upsertsCount = protobufStreamInput.readVInt(in);
+            int upsertsCount = protobufStreamInput.readVInt();
             upserts = upsertsCount == 0 ? Collections.emptyMap() : new HashMap<>(upsertsCount);
             for (int i = 0; i < upsertsCount; i++) {
                 K key = keySerializer.readKey(in);
@@ -513,8 +513,8 @@ public final class ProtobufDiffableUtils {
 
         @Override
         public void writeTo(CodedOutputStream out) throws IOException {
-            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
-            protobufStreamOutput.writeCollection(deletes, (o, v) -> keySerializer.writeKey(v, o), out);
+            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+            protobufStreamOutput.writeCollection(deletes, (o, v) -> keySerializer.writeKey(v, o));
             Version version = protobufStreamOutput.getVersion();
             // filter out custom states not supported by the other node
             int diffCount = 0;
@@ -799,14 +799,14 @@ public final class ProtobufDiffableUtils {
 
         @Override
         public void write(Set<String> value, CodedOutputStream out) throws IOException {
-            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
-            protobufStreamOutput.writeCollection(value, CodedOutputStream::writeStringNoTag, out);
+            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+            protobufStreamOutput.writeStringCollection(value);
         }
 
         @Override
         public Set<String> read(CodedInputStream in, K key) throws IOException {
-            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
-            return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(protobufStreamInput.readStringArray(in))));
+            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+            return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(protobufStreamInput.readStringArray())));
         }
     }
 }

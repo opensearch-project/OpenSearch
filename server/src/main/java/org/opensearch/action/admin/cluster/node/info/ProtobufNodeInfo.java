@@ -66,7 +66,7 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
 
     public ProtobufNodeInfo(CodedInputStream in) throws IOException {
         super(in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         version = Version.readVersionProtobuf(in);
         build = Build.readBuildProtobuf(in);
         if (in.readBool()) {
@@ -77,20 +77,17 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
         if (in.readBool()) {
             settings = Settings.readSettingsFromStreamProtobuf(in);
         }
-        addInfoIfNonNull(ProtobufOsInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufOsInfo::new, in));
-        addInfoIfNonNull(ProtobufProcessInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufProcessInfo::new, in));
-        addInfoIfNonNull(ProtobufJvmInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufJvmInfo::new, in));
-        addInfoIfNonNull(ProtobufThreadPoolInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufThreadPoolInfo::new, in));
-        addInfoIfNonNull(ProtobufTransportInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufTransportInfo::new, in));
-        addInfoIfNonNull(ProtobufHttpInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufHttpInfo::new, in));
-        addInfoIfNonNull(ProtobufPluginsAndModules.class, protobufStreamInput.readOptionalWriteable(ProtobufPluginsAndModules::new, in));
-        addInfoIfNonNull(ProtobufIngestInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufIngestInfo::new, in));
-        addInfoIfNonNull(ProtobufAggregationInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufAggregationInfo::new, in));
+        addInfoIfNonNull(ProtobufOsInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufOsInfo::new));
+        addInfoIfNonNull(ProtobufProcessInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufProcessInfo::new));
+        addInfoIfNonNull(ProtobufJvmInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufJvmInfo::new));
+        addInfoIfNonNull(ProtobufThreadPoolInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufThreadPoolInfo::new));
+        addInfoIfNonNull(ProtobufTransportInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufTransportInfo::new));
+        addInfoIfNonNull(ProtobufHttpInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufHttpInfo::new));
+        addInfoIfNonNull(ProtobufPluginsAndModules.class, protobufStreamInput.readOptionalWriteable(ProtobufPluginsAndModules::new));
+        addInfoIfNonNull(ProtobufIngestInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufIngestInfo::new));
+        addInfoIfNonNull(ProtobufAggregationInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufAggregationInfo::new));
         if (protobufStreamInput.getVersion().onOrAfter(Version.V_2_7_0)) {
-            addInfoIfNonNull(
-                ProtobufSearchPipelineInfo.class,
-                protobufStreamInput.readOptionalWriteable(ProtobufSearchPipelineInfo::new, in)
-            );
+            addInfoIfNonNull(ProtobufSearchPipelineInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufSearchPipelineInfo::new));
         }
     }
 
@@ -190,7 +187,7 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
         super.writeTo(out);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         out.writeInt32NoTag(version.id);
         Build.writeBuildProtobuf(build, out);
         if (totalIndexingBuffer == null) {
@@ -205,17 +202,17 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
             out.writeBoolNoTag(true);
             Settings.writeSettingsToStreamProtobuf(settings, out);
         }
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufOsInfo.class), out);
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufProcessInfo.class), out);
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufJvmInfo.class), out);
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufThreadPoolInfo.class), out);
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufTransportInfo.class), out);
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufHttpInfo.class), out);
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufPluginsAndModules.class), out);
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufIngestInfo.class), out);
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufAggregationInfo.class), out);
+        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufOsInfo.class));
+        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufProcessInfo.class));
+        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufJvmInfo.class));
+        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufThreadPoolInfo.class));
+        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufTransportInfo.class));
+        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufHttpInfo.class));
+        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufPluginsAndModules.class));
+        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufIngestInfo.class));
+        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufAggregationInfo.class));
         if (protobufStreamOutput.getVersion().onOrAfter(Version.V_2_7_0)) {
-            protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufSearchPipelineInfo.class), out);
+            protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufSearchPipelineInfo.class));
         }
     }
 

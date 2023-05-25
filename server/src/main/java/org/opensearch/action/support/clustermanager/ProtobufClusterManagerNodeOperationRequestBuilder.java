@@ -8,13 +8,9 @@
 
 package org.opensearch.action.support.clustermanager;
 
-import org.opensearch.action.ActionType;
 import org.opensearch.action.ProtobufActionRequestBuilder;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.action.ProtobufActionType;
-import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.client.ProtobufOpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
@@ -26,11 +22,14 @@ import org.opensearch.common.unit.TimeValue;
 public abstract class ProtobufClusterManagerNodeOperationRequestBuilder<
     Request extends ProtobufClusterManagerNodeRequest<Request>,
     Response extends ProtobufActionResponse,
-    RequestBuilder extends ProtobufClusterManagerNodeOperationRequestBuilder<Request, Response, RequestBuilder>> extends ProtobufActionRequestBuilder<
-        Request,
-        Response> {
+    RequestBuilder extends ProtobufClusterManagerNodeOperationRequestBuilder<Request, Response, RequestBuilder>> extends
+    ProtobufActionRequestBuilder<Request, Response> {
 
-    protected ProtobufClusterManagerNodeOperationRequestBuilder(ProtobufOpenSearchClient client, ProtobufActionType<Response> action, Request request) {
+    protected ProtobufClusterManagerNodeOperationRequestBuilder(
+        ProtobufOpenSearchClient client,
+        ProtobufActionType<Response> action,
+        Request request
+    ) {
         super(client, action, request);
     }
 

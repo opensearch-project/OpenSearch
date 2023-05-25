@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import org.opensearch.action.ActionType;
 import org.opensearch.action.ProtobufActionType;
 
 /**

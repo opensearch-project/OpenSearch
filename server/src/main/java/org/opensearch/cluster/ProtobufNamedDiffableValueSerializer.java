@@ -36,7 +36,7 @@ public class ProtobufNamedDiffableValueSerializer<T extends ProtobufNamedDiffabl
 
     @Override
     public T read(CodedInputStream in, String key) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         return protobufStreamInput.readNamedWriteable(tClass, key);
     }
 
@@ -53,7 +53,7 @@ public class ProtobufNamedDiffableValueSerializer<T extends ProtobufNamedDiffabl
     @SuppressWarnings("unchecked")
     @Override
     public ProtobufDiff<T> readDiff(CodedInputStream in, String key) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         return protobufStreamInput.readNamedWriteable(ProtobufNamedDiff.class, key);
     }
 }

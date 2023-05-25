@@ -8,11 +8,10 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.common.io.stream.StreamInput;
+import com.google.protobuf.CodedInputStream;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.ProtobufCancellableTask;
 import org.opensearch.tasks.ProtobufTask;
@@ -57,24 +56,24 @@ public final class ProtobufRequestHandlerRegistry<Request extends ProtobufTransp
         return action;
     }
 
-    public Request newRequest(StreamInput in) throws IOException {
+    public Request newRequest(CodedInputStream in) throws IOException {
         return requestReader.read(in);
     }
 
-    public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
+    public void processMessageReceived(Request request, ProtobufTransportChannel channel) throws Exception {
         final ProtobufTask task = taskManager.register(channel.getChannelType(), action, request);
         ThreadContext.StoredContext contextToRestore = taskManager.taskExecutionStarted(task);
 
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
-            if (channel instanceof TcpTransportChannel && task instanceof ProtobufCancellableTask) {
+            if (channel instanceof ProtobufTcpTransportChannel && task instanceof ProtobufCancellableTask) {
                 // if (request instanceof ShardSearchRequest) {
-                //     // on receiving request, update the inbound network time to reflect time spent in transit over the network
-                //     ((ShardSearchRequest) request).setInboundNetworkTime(
-                //         Math.max(0, System.currentTimeMillis() - ((ShardSearchRequest) request).getInboundNetworkTime())
-                //     );
+                // // on receiving request, update the inbound network time to reflect time spent in transit over the network
+                // ((ShardSearchRequest) request).setInboundNetworkTime(
+                // Math.max(0, System.currentTimeMillis() - ((ShardSearchRequest) request).getInboundNetworkTime())
+                // );
                 // }
-                final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
+                final TcpChannel tcpChannel = ((ProtobufTcpTransportChannel) channel).getChannel();
                 final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (ProtobufCancellableTask) task);
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
@@ -108,11 +107,11 @@ public final class ProtobufRequestHandlerRegistry<Request extends ProtobufTransp
         return handler.toString();
     }
 
-    public static <R extends ProtobufTransportRequest> RequestHandlerRegistry<R> replaceHandler(
-        RequestHandlerRegistry<R> registry,
+    public static <R extends ProtobufTransportRequest> ProtobufRequestHandlerRegistry<R> replaceHandler(
+        ProtobufRequestHandlerRegistry<R> registry,
         ProtobufTransportRequestHandler<R> handler
     ) {
-        return new RequestHandlerRegistry<>(
+        return new ProtobufRequestHandlerRegistry<>(
             registry.action,
             registry.requestReader,
             registry.taskManager,

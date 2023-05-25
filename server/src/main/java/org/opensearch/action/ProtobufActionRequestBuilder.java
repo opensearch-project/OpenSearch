@@ -8,7 +8,6 @@
 
 package org.opensearch.action;
 
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.client.ProtobufOpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 

@@ -9,7 +9,6 @@
 package org.opensearch.transport;
 
 import org.opensearch.tasks.ProtobufTask;
-import org.opensearch.tasks.Task;
 
 /**
  * Handles transport requests
@@ -18,5 +17,5 @@ import org.opensearch.tasks.Task;
 */
 public interface ProtobufTransportRequestHandler<T extends ProtobufTransportRequest> {
 
-    void messageReceived(T request, TransportChannel channel, ProtobufTask task) throws Exception;
+    void messageReceived(T request, ProtobufTransportChannel channel, ProtobufTask task) throws Exception;
 }

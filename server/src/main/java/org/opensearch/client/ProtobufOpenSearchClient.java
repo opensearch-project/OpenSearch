@@ -8,16 +8,12 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionType;
 import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.action.ProtobufActionType;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.threadpool.ProtobufThreadPool;
-import org.opensearch.threadpool.ThreadPool;
 
 /**
  * Interface for an OpenSearch client implementation

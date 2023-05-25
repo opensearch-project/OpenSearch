@@ -45,9 +45,9 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
      */
     public ProtobufNodesInfoRequest(CodedInputStream in) throws IOException {
         super(in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         requestedMetrics.clear();
-        requestedMetrics.addAll(Arrays.asList(protobufStreamInput.readStringArray(in)));
+        requestedMetrics.addAll(Arrays.asList(protobufStreamInput.readStringArray()));
     }
 
     /**
@@ -121,8 +121,8 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
         super.writeTo(out);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
-        protobufStreamOutput.writeStringArray(requestedMetrics.toArray(new String[0]), out);
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        protobufStreamOutput.writeStringArray(requestedMetrics.toArray(new String[0]));
     }
 
     /**

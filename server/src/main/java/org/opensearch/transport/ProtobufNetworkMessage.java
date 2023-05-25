@@ -26,7 +26,7 @@ public abstract class ProtobufNetworkMessage {
     protected final byte status;
 
     ProtobufNetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId) {
-        this.threadContext = (ProtobufWriteable) threadContext.captureAsWriteable();
+        this.threadContext = (ProtobufWriteable) threadContext.captureAsProtobufWriteable();
         this.version = version;
         this.requestId = requestId;
         this.status = status;

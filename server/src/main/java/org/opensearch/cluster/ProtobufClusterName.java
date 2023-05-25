@@ -20,6 +20,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 /**
  * Cluster Name
@@ -57,5 +58,19 @@ public class ProtobufClusterName implements ProtobufWriteable {
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
         out.writeStringNoTag(value);
+    }
+
+    public Predicate<ProtobufClusterName> getEqualityPredicate() {
+        return new Predicate<ProtobufClusterName>() {
+            @Override
+            public boolean test(ProtobufClusterName o) {
+                return ProtobufClusterName.this.equals(o);
+            }
+
+            @Override
+            public String toString() {
+                return "local cluster name [" + ProtobufClusterName.this.value() + "]";
+            }
+        };
     }
 }

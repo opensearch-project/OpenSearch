@@ -9,11 +9,9 @@
 package org.opensearch.action.support;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ProtobufActionResponse;
-import org.opensearch.tasks.Task;
+import org.opensearch.tasks.ProtobufTask;
 
 /**
  * A filter chain allowing to continue and process the transport action request
@@ -26,5 +24,5 @@ public interface ProtobufActionFilterChain<Request extends ProtobufActionRequest
      * Continue processing the request. Should only be called if a response has not been sent through
     * the given {@link ActionListener listener}
     */
-    void proceed(Task task, String action, Request request, ActionListener<Response> listener);
+    void proceed(ProtobufTask task, String action, Request request, ActionListener<Response> listener);
 }

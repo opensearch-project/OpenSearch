@@ -10,7 +10,6 @@ package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.action.ProtobufActionType;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.client.ProtobufOpenSearchClient;
 
 /**
@@ -24,7 +23,11 @@ public abstract class ProtobufClusterManagerNodeReadOperationRequestBuilder<
     RequestBuilder extends ProtobufClusterManagerNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>> extends
     ProtobufClusterManagerNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected ProtobufClusterManagerNodeReadOperationRequestBuilder(ProtobufOpenSearchClient client, ProtobufActionType<Response> action, Request request) {
+    protected ProtobufClusterManagerNodeReadOperationRequestBuilder(
+        ProtobufOpenSearchClient client,
+        ProtobufActionType<Response> action,
+        Request request
+    ) {
         super(client, action, request);
     }
 

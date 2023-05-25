@@ -283,10 +283,10 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     public void writeIndicesOptionsProtobuf(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         EnumSet<Option> options = this.options;
-        protobufStreamOutput.writeEnumSet(options, out);
-        protobufStreamOutput.writeEnumSet(expandWildcards, out);
+        protobufStreamOutput.writeEnumSet(options);
+        protobufStreamOutput.writeEnumSet(expandWildcards);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
@@ -296,9 +296,9 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     public static IndicesOptions readIndicesOptionsProtobuf(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
-        EnumSet<Option> options = protobufStreamInput.readEnumSet(Option.class, in);
-        EnumSet<WildcardStates> states = protobufStreamInput.readEnumSet(WildcardStates.class, in);
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        EnumSet<Option> options = protobufStreamInput.readEnumSet(Option.class);
+        EnumSet<WildcardStates> states = protobufStreamInput.readEnumSet(WildcardStates.class);
         return new IndicesOptions(options, states);
     }
 

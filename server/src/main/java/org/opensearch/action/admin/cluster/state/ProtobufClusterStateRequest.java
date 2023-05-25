@@ -51,31 +51,31 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
 
     public ProtobufClusterStateRequest(CodedInputStream in) throws IOException {
         super(in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         routingTable = in.readBool();
         nodes = in.readBool();
         metadata = in.readBool();
         blocks = in.readBool();
         customs = in.readBool();
-        indices = protobufStreamInput.readStringArray(in);
+        indices = protobufStreamInput.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptionsProtobuf(in);
-        waitForTimeout = protobufStreamInput.readTimeValue(in);
-        waitForMetadataVersion = protobufStreamInput.readOptionalLong(in);
+        waitForTimeout = protobufStreamInput.readTimeValue();
+        waitForMetadataVersion = protobufStreamInput.readOptionalLong();
     }
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
         super.writeTo(out);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         out.writeBoolNoTag(routingTable);
         out.writeBoolNoTag(nodes);
         out.writeBoolNoTag(metadata);
         out.writeBoolNoTag(blocks);
         out.writeBoolNoTag(customs);
-        protobufStreamOutput.writeStringArray(indices, out);
+        protobufStreamOutput.writeStringArray(indices);
         indicesOptions.writeIndicesOptionsProtobuf(out);
-        protobufStreamOutput.writeTimeValue(waitForTimeout, out);
-        protobufStreamOutput.writeOptionalLong(waitForMetadataVersion, out);
+        protobufStreamOutput.writeTimeValue(waitForTimeout);
+        protobufStreamOutput.writeOptionalLong(waitForMetadataVersion);
     }
 
     @Override

@@ -23,6 +23,8 @@ import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.ProtobufTransportAddress;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
@@ -47,7 +49,7 @@ import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 *
 * @opensearch.internal
 */
-public class ProtobufDiscoveryNode implements ProtobufWriteable {
+public class ProtobufDiscoveryNode implements ProtobufWriteable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
 
@@ -290,7 +292,7 @@ public class ProtobufDiscoveryNode implements ProtobufWriteable {
     * @throws IOException if there is an error while reading from the stream
     */
     public ProtobufDiscoveryNode(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         this.nodeName = in.readString();
         this.nodeId = in.readString();
         this.ephemeralId = in.readString();
@@ -331,7 +333,7 @@ public class ProtobufDiscoveryNode implements ProtobufWriteable {
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         out.writeStringNoTag(nodeName);
         out.writeStringNoTag(nodeId);
         out.writeStringNoTag(ephemeralId);
@@ -513,6 +515,23 @@ public class ProtobufDiscoveryNode implements ProtobufWriteable {
 
     public static Set<String> getPossibleRoleNames() {
         return roleMap.keySet();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(getId());
+        builder.field("name", getName());
+        builder.field("ephemeral_id", getEphemeralId());
+        builder.field("transport_address", getAddress().toString());
+
+        builder.startObject("attributes");
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
+        }
+        builder.endObject();
+
+        builder.endObject();
+        return builder;
     }
 
 }

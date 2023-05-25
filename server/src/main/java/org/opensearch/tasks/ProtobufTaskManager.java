@@ -22,10 +22,8 @@ import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.cluster.ProtobufClusterChangedEvent;
 import org.opensearch.cluster.ProtobufClusterStateApplier;
-import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.ProtobufDiscoveryNode;
 import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -105,7 +103,7 @@ public class ProtobufTaskManager implements ProtobufClusterStateApplier {
 
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
-    private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
+    private final SetOnce<ProtobufTaskCancellationService> cancellationService = new SetOnce<>();
 
     private volatile boolean taskResourceConsumersEnabled;
     private final Set<Consumer<ProtobufTask>> taskResourceConsumer;
@@ -138,7 +136,7 @@ public class ProtobufTaskManager implements ProtobufClusterStateApplier {
         this.taskResultsService = taskResultsService;
     }
 
-    public void setTaskCancellationService(TaskCancellationService taskCancellationService) {
+    public void setTaskCancellationService(ProtobufTaskCancellationService taskCancellationService) {
         this.cancellationService.set(taskCancellationService);
     }
 
@@ -302,7 +300,11 @@ public class ProtobufTaskManager implements ProtobufClusterStateApplier {
     /**
      * Stores the task failure
     */
-    public <Response extends ProtobufActionResponse> void storeResult(ProtobufTask task, Exception error, ActionListener<Response> listener) {
+    public <Response extends ProtobufActionResponse> void storeResult(
+        ProtobufTask task,
+        Exception error,
+        ActionListener<Response> listener
+    ) {
         ProtobufDiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
         if (localNode == null) {
             // too early to store anything, shouldn't really be here - just pass the error along
@@ -334,7 +336,11 @@ public class ProtobufTaskManager implements ProtobufClusterStateApplier {
     /**
      * Stores the task result
     */
-    public <Response extends ProtobufActionResponse> void storeResult(ProtobufTask task, Response response, ActionListener<Response> listener) {
+    public <Response extends ProtobufActionResponse> void storeResult(
+        ProtobufTask task,
+        Response response,
+        ActionListener<Response> listener
+    ) {
         ProtobufDiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
         if (localNode == null) {
             // too early to store anything, shouldn't really be here - just pass the response along
@@ -740,13 +746,18 @@ public class ProtobufTaskManager implements ProtobufClusterStateApplier {
         }
     }
 
-    public void cancelTaskAndDescendants(ProtobufCancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
-        final TaskCancellationService service = cancellationService.get();
+    public void cancelTaskAndDescendants(
+        ProtobufCancellableTask task,
+        String reason,
+        boolean waitForCompletion,
+        ActionListener<Void> listener
+    ) {
+        final ProtobufTaskCancellationService service = cancellationService.get();
         if (service != null) {
             service.cancelTaskAndDescendants(task, reason, waitForCompletion, listener);
         } else {
-            assert false : "TaskCancellationService is not initialized";
-            throw new IllegalStateException("TaskCancellationService is not initialized");
+            assert false : "ProtobufTaskCancellationService is not initialized";
+            throw new IllegalStateException("ProtobufTaskCancellationService is not initialized");
         }
     }
 }
