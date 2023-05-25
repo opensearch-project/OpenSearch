@@ -314,7 +314,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L, Codec.getDefault().getName()), spyShard);
 
         // Verify that checkpoint is not processed as shard routing is primary.
-        verify(spy, times(0)).startReplication(any(), any(), any());
+        verify(spy, times(0)).startReplication(any(), any());
         closeShards(primaryShard);
     }
 
@@ -1041,7 +1041,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         final SegmentReplicationTarget target = targetService.startReplication(
-            ReplicationCheckpoint.empty(replica.shardId, replica.getEngineCodec()),
             replica,
             new SegmentReplicationTargetService.SegmentReplicationListener() {
                 @Override

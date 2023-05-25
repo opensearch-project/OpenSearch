@@ -1373,7 +1373,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         for (IndexShard replica : replicaShards) {
             final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
             final SegmentReplicationTarget target = targetService.startReplication(
-                ReplicationCheckpoint.empty(replica.shardId, replica.getEngineCodec()),
                 replica,
                 new SegmentReplicationTargetService.SegmentReplicationListener() {
                     @Override
