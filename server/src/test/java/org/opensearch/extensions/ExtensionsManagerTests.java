@@ -118,11 +118,11 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     hostAddress: '127.0.0.1'",
         "     port: '9301'",
         "     version: '3.14.16'",
-        "     opensearchVersion: '" + Version.CURRENT.toString() + "'",
-        "     minimumCompatibleVersion: '" + Version.CURRENT.toString() + "'",
+        "     opensearchVersion: '1.0.0'",
+        "     minimumCompatibleVersion: '1.0.0'",
         "     dependencies:",
         "       - uniqueId: 'uniqueid0'",
-        "         version: '2.0.0'"
+        "         version: '1.0.0'"
     );
 
     private DiscoveryExtensionNode extensionNode;
@@ -187,7 +187,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "uniqueid1",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
             Version.CURRENT,
             Collections.emptyList()
         );
@@ -211,7 +211,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
 
         String expectedUniqueId = "uniqueid0";
-        Version expectedVersion = Version.fromString("2.0.0");
+        Version expectedVersion = Version.fromString("1.0.0");
         ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
         expectedExtensions.add(
@@ -232,8 +232,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid2",
                 new TransportAddress(InetAddress.getByName("127.0.0.1"), 9301),
                 new HashMap<String, String>(),
-                Version.CURRENT,
-                Version.CURRENT,
+                Version.fromString("1.0.0"),
+                Version.fromString("1.0.0"),
                 List.of(expectedDependency)
             )
         );
@@ -293,7 +293,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         Path emptyExtensionDir = createTempDir();
         ExtensionsManager extensionsManager;
         List<String> requiredFieldMissingYmlLines = extensionsYmlLines.stream()
-            .map(s -> s.replace("     minimumCompatibleVersion: '2.0.0'", ""))
+            .map(s -> s.replace("     minimumCompatibleVersion: '1.0.0'", ""))
             .collect(Collectors.toList());
         Files.write(emptyExtensionDir.resolve("extensions.yml"), requiredFieldMissingYmlLines, StandardCharsets.UTF_8);
 
@@ -321,8 +321,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 Collections.emptyList()
             )
         );
@@ -371,7 +371,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testExtensionDependency() throws Exception {
         String expectedUniqueId = "Test uniqueId";
-        Version expectedVersion = Version.fromString("3.0.0");
+        Version expectedVersion = Version.CURRENT;
 
         ExtensionDependency dependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
@@ -851,7 +851,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "Could not load extension with uniqueId",
                     "org.opensearch.extensions.ExtensionsManager",
                     Level.ERROR,
-                    "Could not load extension with uniqueId uniqueid1 due to OpenSearchException[Extension minimumCompatibleVersion: 3.99.0 is greater than current"
+                    "Could not load extension with uniqueId uniqueid1 due to OpenSearchException[Extension minimumCompatibleVersion: 3.0.0 is greater than current"
                 )
             );
 
@@ -862,8 +862,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "     hostAddress: '127.0.0.0'",
                 "     port: '9300'",
                 "     version: '0.0.7'",
-                "     opensearchVersion: '3.0.0'",
-                "     minimumCompatibleVersion: '3.99.0'"
+                "     opensearchVersion: '" + Version.CURRENT.toString() + "'",
+                "     minimumCompatibleVersion: '3.0.0'"
             );
 
             Files.write(extensionDir.resolve("extensions.yml"), incompatibleExtension, StandardCharsets.UTF_8);
@@ -885,8 +885,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "uniqueid1",
             new TransportAddress(InetAddress.getByName("127.0.0.1"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
+            Version.CURRENT,
             List.of()
         );
         DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
