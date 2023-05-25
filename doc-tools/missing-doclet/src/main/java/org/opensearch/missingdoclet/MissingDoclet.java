@@ -309,6 +309,11 @@ public class MissingDoclet extends StandardDoclet {
         if (ignored.contains(elementStr)) {
             return;
         }
+
+        if (element.getAnnotation(javax.annotation.Generated.class) != null) {
+            return;
+        }
+
         var tree = docTrees.getDocCommentTree(element);
         if (tree == null || tree.getFirstSentence().isEmpty()) {
             // Check for methods that override other stuff and perhaps inherit their Javadocs.
