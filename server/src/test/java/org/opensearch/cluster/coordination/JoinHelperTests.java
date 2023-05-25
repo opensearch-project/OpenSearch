@@ -428,7 +428,8 @@ public class JoinHelperTests extends OpenSearchTestCase {
         };
         testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, testCluster.localClusterState, listener);
         // validation will pass due to cached cluster state
-        ClusterState randomState = ClusterState.builder(new ClusterName("random")).version(testCluster.localClusterState.version()).build();
+        ClusterState randomState = ClusterState.builder(new ClusterName("random")).stateUUID("random2").
+            version(testCluster.localClusterState.version()).build();
         testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, randomState, listener);
 
         final CompletableFuture<Throwable> future2 = new CompletableFuture<>();
@@ -443,12 +444,11 @@ public class JoinHelperTests extends OpenSearchTestCase {
                 future2.complete(e);
             }
         };
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
         ClusterState randomState2 = ClusterState.builder(new ClusterName("random"))
             .stateUUID("random2")
             .version(testCluster.localClusterState.version() + 1)
             .build();
-        // now sending the validate join request will fail due to random cluster name because version is changed
+        // now sending the validate join request will fail due to random cluster uuid because version is changed
         // and cache will be invalidated
         testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, randomState2, listener2);
         testCluster.deterministicTaskQueue.runAllTasks();

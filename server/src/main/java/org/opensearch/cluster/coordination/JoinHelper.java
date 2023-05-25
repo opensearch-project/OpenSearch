@@ -472,7 +472,7 @@ public class JoinHelper {
         } else {
             try {
                 BytesReference bytes;
-                if (serializedStates.get(state.getVersion()) == null){
+                if (serializedStates.get(state.getVersion()) == null) {
                     serializedStates.invalidateAll();
                 }
                 bytes = serializedStates.computeIfAbsent(
