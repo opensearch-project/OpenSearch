@@ -9,9 +9,9 @@
 package org.opensearch.extensions;
 
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.Set;
 
 import org.opensearch.action.ActionModule;
 import org.opensearch.client.node.NodeClient;
@@ -22,7 +22,6 @@ import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.extensions.action.ExtensionActionRequest;
 import org.opensearch.extensions.action.ExtensionActionResponse;
 import org.opensearch.extensions.action.RemoteExtensionActionResponse;
-import org.opensearch.index.IndexModule;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -33,7 +32,7 @@ import org.opensearch.transport.TransportService;
 public class NoopExtensionsManager extends ExtensionsManager {
 
     public NoopExtensionsManager() throws IOException {
-        super(Path.of(""));
+        super(Path.of(""), Set.of());
     }
 
     @Override
@@ -67,11 +66,6 @@ public class NoopExtensionsManager extends ExtensionsManager {
 
     @Override
     public void initialize() {
-        // no-op
-    }
-
-    @Override
-    public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
         // no-op
     }
 
