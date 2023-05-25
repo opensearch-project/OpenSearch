@@ -680,12 +680,12 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         requestProcessorConfig.put("scale", 2);
         Map<String, Object> requestProcessorObject = new HashMap<>();
         requestProcessorObject.put("scale_request_size", requestProcessorConfig);
-        pipelineSourceMap.put("request_processors", List.of(requestProcessorObject));
+        pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(requestProcessorObject));
         Map<String, Object> responseProcessorConfig = new HashMap<>();
         responseProcessorConfig.put("score", 2);
         Map<String, Object> responseProcessorObject = new HashMap<>();
         responseProcessorObject.put("fixed_score", responseProcessorConfig);
-        pipelineSourceMap.put("response_processors", List.of(responseProcessorObject));
+        pipelineSourceMap.put(Pipeline.RESPONSE_PROCESSORS_KEY, List.of(responseProcessorObject));
 
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
         SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
@@ -722,5 +722,68 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchPipelineInfo info = searchPipelineService.info();
         assertTrue(info.containsProcessor(Pipeline.REQUEST_PROCESSORS_KEY, "scale_request_size"));
         assertTrue(info.containsProcessor(Pipeline.RESPONSE_PROCESSORS_KEY, "fixed_score"));
+    }
+
+    public void testExceptionOnPipelineCreation() {
+        Map<String, Processor.Factory<SearchRequestProcessor>> badFactory = Map.of(
+            "bad_factory",
+            (pf, t, f, c) -> { throw new RuntimeException(); }
+        );
+        SearchPipelineService searchPipelineService = createWithProcessors(badFactory, Collections.emptyMap());
+
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(Map.of("bad_factory", Collections.emptyMap())));
+
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+
+        // Exception thrown when creating the pipeline
+        expectThrows(SearchPipelineProcessingException.class, () -> searchPipelineService.resolvePipeline(searchRequest));
+
+    }
+
+    public void testExceptionOnRequestProcessing() {
+        SearchRequestProcessor throwingRequestProcessor = new FakeRequestProcessor("throwing_request", null, null, r -> {
+            throw new RuntimeException();
+        });
+        Map<String, Processor.Factory<SearchRequestProcessor>> throwingRequestProcessorFactory = Map.of(
+            "throwing_request",
+            (pf, t, f, c) -> throwingRequestProcessor
+        );
+
+        SearchPipelineService searchPipelineService = createWithProcessors(throwingRequestProcessorFactory, Collections.emptyMap());
+
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(Map.of("throwing_request", Collections.emptyMap())));
+
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+
+        // Exception thrown when processing the request
+        expectThrows(SearchPipelineProcessingException.class, () -> searchPipelineService.resolvePipeline(searchRequest));
+    }
+
+    public void testExceptionOnResponseProcessing() throws Exception {
+        SearchResponseProcessor throwingResponseProcessor = new FakeResponseProcessor("throwing_response", null, null, r -> {
+            throw new RuntimeException();
+        });
+        Map<String, Processor.Factory<SearchResponseProcessor>> throwingResponseProcessorFactory = Map.of(
+            "throwing_response",
+            (pf, t, f, c) -> throwingResponseProcessor
+        );
+
+        SearchPipelineService searchPipelineService = createWithProcessors(Collections.emptyMap(), throwingResponseProcessorFactory);
+
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        pipelineSourceMap.put(Pipeline.RESPONSE_PROCESSORS_KEY, List.of(Map.of("throwing_response", Collections.emptyMap())));
+
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
+
+        SearchResponse response = new SearchResponse(null, null, 0, 0, 0, 0, null, null);
+        // Exception thrown when processing response
+        expectThrows(SearchPipelineProcessingException.class, () -> pipelinedRequest.transformResponse(response));
     }
 }
