@@ -86,6 +86,11 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
     }
 
     @Override
+    public void tearDown() throws Exception {
+        SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+    }
+
+    @Override
     protected String repositoryType() {
         return S3Repository.TYPE;
     }

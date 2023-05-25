@@ -64,6 +64,12 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     }
 
     @Override
+    @SuppressForbidden(reason = "Need to reset system property here for AWS SDK v2")
+    public void tearDown() throws Exception {
+        SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(S3RepositoryPlugin.class);
     }

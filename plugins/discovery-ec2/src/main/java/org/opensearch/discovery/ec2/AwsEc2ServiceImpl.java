@@ -66,7 +66,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         SocketAccess.doPrivilegedVoid(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
         final AwsCredentialsProvider awsCredentialsProvider = buildCredentials(logger, clientSettings);
         final ClientOverrideConfiguration overrideConfiguration = buildOverrideConfiguration(logger, clientSettings);
-        final ProxyConfiguration proxyConfiguration = buildProxyConfiguration(logger, clientSettings);
+        final ProxyConfiguration proxyConfiguration = SocketAccess.doPrivileged(() -> buildProxyConfiguration(logger, clientSettings));
         return buildClient(
             awsCredentialsProvider,
             proxyConfiguration,
@@ -124,8 +124,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
                     .password(clientSettings.proxyPassword)
                     .build();
             } catch (URISyntaxException e) {
-                logger.error("Exception during URI construction for specified proxy", e);
-                throw new RuntimeException(e);
+                throw new RuntimeException("Invalid proxy URL", e);
             }
         } else {
             return ProxyConfiguration.builder().build();

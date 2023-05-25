@@ -131,8 +131,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
             DescribeInstancesRequest instancesRequest = buildDescribeInstancesRequest();
             descInstances = SocketAccess.doPrivileged(() -> clientReference.get().describeInstances(instancesRequest));
         } catch (final RuntimeException e) {
-            logger.warn("Exception while retrieving instance list from AWS API: {}", e.getMessage());
-            logger.warn("Full exception:", e);
+            logger.warn("error retrieving instance list from IMDS", e);
             return dynamicHosts;
         }
 
@@ -228,9 +227,8 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
     }
 
     private DescribeInstancesRequest buildDescribeInstancesRequest() {
-        ArrayList<Filter> filters = new ArrayList<Filter>(
-            List.of(Filter.builder().name("instance-state-name").values("running", "pending").build())
-        );
+        ArrayList<Filter> filters = new ArrayList<Filter>();
+        filters.add(Filter.builder().name("instance-state-name").values("running", "pending").build());
 
         for (final Map.Entry<String, List<String>> tagFilter : tags.entrySet()) {
             // for a given tag key, OR relationship for multiple different values

@@ -282,9 +282,11 @@ class S3Service implements Closeable {
         if (clientSettings.proxySettings.getType() == ProxySettings.ProxyType.SOCKS) {
             return proxyConfiguration.build();
         }
+
         Protocol proxyProtocol = clientSettings.proxySettings.getType() == ProxySettings.ProxyType.DIRECT
             ? Protocol.HTTP
             : clientSettings.proxySettings.getType().toProtocol();
+
         try {
             proxyConfiguration = proxyConfiguration.endpoint(
                 new URI(
@@ -298,9 +300,9 @@ class S3Service implements Closeable {
                 )
             );
         } catch (URISyntaxException e) {
-            logger.error("Exception during URI construction for specified proxy", e);
-            throw new RuntimeException(e);
+            throw new RuntimeException("Invalid proxy URL", e);
         }
+
         proxyConfiguration = proxyConfiguration.username(clientSettings.proxySettings.getUsername());
         proxyConfiguration = proxyConfiguration.password(clientSettings.proxySettings.getPassword());
 
