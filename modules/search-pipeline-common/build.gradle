@@ -15,9 +15,11 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description 'Module for search pipeline processors that do not require additional security permissions or have large dependencies and resources'
   classname 'org.opensearch.search.pipeline.common.SearchPipelineCommonModulePlugin'
+  extendedPlugins = ['lang-painless']
 }
 
 dependencies {
+  compileOnly project(':modules:lang-painless')
 }
 
 restResources {

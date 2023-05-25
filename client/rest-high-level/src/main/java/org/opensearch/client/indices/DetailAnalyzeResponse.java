@@ -32,8 +32,8 @@
 
 package org.opensearch.client.indices;
 
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentParser;
 

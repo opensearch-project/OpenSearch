@@ -50,10 +50,9 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
     public RemoteRefreshSegmentPressureService(ClusterService clusterService, Settings settings) {
         pressureSettings = new RemoteRefreshSegmentPressureSettings(clusterService, settings, this);
         lagValidators = Arrays.asList(
-            new RefreshSeqNoLagValidator(pressureSettings),
+            new ConsecutiveFailureValidator(pressureSettings),
             new BytesLagValidator(pressureSettings),
-            new TimeLagValidator(pressureSettings),
-            new ConsecutiveFailureValidator(pressureSettings)
+            new TimeLagValidator(pressureSettings)
         );
     }
 
@@ -87,11 +86,10 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
     @Override
     public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-        if (indexShard.indexSettings().isRemoteStoreEnabled() == false) {
-            return;
+        RemoteRefreshSegmentTracker remoteRefreshSegmentTracker = trackerMap.remove(shardId);
+        if (remoteRefreshSegmentTracker != null) {
+            logger.trace("Deleted tracker for shardId={}", shardId);
         }
-        trackerMap.remove(shardId);
-        logger.trace("Deleted tracker for shardId={}", shardId);
     }
 
     /**
@@ -103,11 +101,16 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
         return pressureSettings.isRemoteRefreshSegmentPressureEnabled();
     }
 
+    /**
+     * Validates if segments are lagging more than the limits. If yes, it would lead to rejections of the requests.
+     *
+     * @param shardId shardId for which the validation needs to be done.
+     */
     public void validateSegmentsUploadLag(ShardId shardId) {
         RemoteRefreshSegmentTracker remoteRefreshSegmentTracker = getRemoteRefreshSegmentTracker(shardId);
-        // Check if refresh checkpoint (a.k.a. seq number) lag is 2 or below - this is to handle segment merges that can
-        // increase the bytes to upload almost suddenly.
-        if (remoteRefreshSegmentTracker.getRefreshSeqNoLag() <= 1) {
+        // condition 1 - This will be null for non-remote backed indexes
+        // condition 2 - This will be zero if the remote store is
+        if (remoteRefreshSegmentTracker == null || remoteRefreshSegmentTracker.getRefreshSeqNoLag() == 0) {
             return;
         }
 
@@ -168,43 +171,6 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
     }
 
     /**
-     * Check if the remote store seq no lag is above the min seq no lag limit
-     *
-     * @opensearch.internal
-     */
-    private static class RefreshSeqNoLagValidator extends LagValidator {
-
-        private static final String NAME = "refresh_seq_no_lag";
-
-        private RefreshSeqNoLagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
-            super(pressureSettings);
-        }
-
-        @Override
-        public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
-            // Check if the remote store seq no lag is above the min seq no lag limit
-            return pressureTracker.getRefreshSeqNoLag() <= pressureSettings.getMinRefreshSeqNoLagLimit();
-        }
-
-        @Override
-        String rejectionMessage(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
-            return String.format(
-                Locale.ROOT,
-                "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
-                    + "remote_refresh_seq_no:%s local_refresh_seq_no:%s",
-                shardId,
-                pressureTracker.getRemoteRefreshSeqNo(),
-                pressureTracker.getLocalRefreshSeqNo()
-            );
-        }
-
-        @Override
-        String name() {
-            return NAME;
-        }
-    }
-
-    /**
      * Check if the remote store is lagging more than the upload bytes average multiplied by a variance factor
      *
      * @opensearch.internal
@@ -219,6 +185,9 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
         @Override
         public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            if (pressureTracker.getRefreshSeqNoLag() <= 1) {
+                return true;
+            }
             if (pressureTracker.isUploadBytesAverageReady() == false) {
                 logger.trace("upload bytes moving average is not ready");
                 return true;
@@ -262,6 +231,9 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
         @Override
         public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            if (pressureTracker.getRefreshSeqNoLag() <= 1) {
+                return true;
+            }
             if (pressureTracker.isUploadTimeMsAverageReady() == false) {
                 logger.trace("upload time moving average is not ready");
                 return true;

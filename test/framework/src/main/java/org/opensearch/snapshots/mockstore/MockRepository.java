@@ -78,6 +78,8 @@ import java.util.stream.Collectors;
 public class MockRepository extends FsRepository {
     private static final Logger logger = LogManager.getLogger(MockRepository.class);
 
+    private static final String DUMMY_FILE_NAME_LIST_BLOBS = "dummy-name-list-blobs";
+
     public static class Plugin extends org.opensearch.plugins.Plugin implements RepositoryPlugin {
 
         public static final Setting<String> USERNAME_SETTING = Setting.simpleString("secret.mock.username", Property.NodeScope);
@@ -115,6 +117,12 @@ public class MockRepository extends FsRepository {
     private final double randomControlIOExceptionRate;
 
     private final double randomDataFileIOExceptionRate;
+
+    private final boolean skipExceptionOnVerificationFile;
+
+    private final boolean skipExceptionOnListBlobs;
+
+    private final List<String> skipExceptionOnBlobs;
 
     private final boolean useLuceneCorruptionException;
 
@@ -174,6 +182,9 @@ public class MockRepository extends FsRepository {
         super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, recoverySettings);
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
+        skipExceptionOnVerificationFile = metadata.settings().getAsBoolean("skip_exception_on_verification_file", false);
+        skipExceptionOnListBlobs = metadata.settings().getAsBoolean("skip_exception_on_list_blobs", false);
+        skipExceptionOnBlobs = metadata.settings().getAsList("skip_exception_on_blobs");
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);
         maximumNumberOfFailures = metadata.settings().getAsLong("max_failure_number", 100L);
         blockOnAnyFiles = metadata.settings().getAsBoolean("block_on_control", false);
@@ -360,9 +371,16 @@ public class MockRepository extends FsRepository {
             }
 
             private void maybeIOExceptionOrBlock(String blobName) throws IOException {
-                if (INDEX_LATEST_BLOB.equals(blobName)) {
-                    // Don't mess with the index.latest blob here, failures to write to it are ignored by upstream logic and we have
-                    // specific tests that cover the error handling around this blob.
+                if (INDEX_LATEST_BLOB.equals(blobName) // Condition 1
+                    || skipExceptionOnVerificationFiles(blobName) // Condition 2
+                    || skipExceptionOnListBlobs(blobName) // Condition 3
+                    || skipExceptionOnBlob(blobName)) { // Condition 4
+                    // Condition 1 - Don't mess with the index.latest blob here, failures to write to it are ignored by
+                    // upstream logic and we have specific tests that cover the error handling around this blob.
+                    // Condition 2 & 3 - This condition has been added to allow creation of repository which throws IO
+                    // exception during normal remote store operations. However, if we fail during verification as well,
+                    // then we can not add the repository as well.
+                    // Condition 4 - This condition allows to skip exception on specific blobName or blobPrefix
                     return;
                 }
                 if (blobName.startsWith("__")) {
@@ -482,7 +500,7 @@ public class MockRepository extends FsRepository {
 
             @Override
             public Map<String, BlobMetadata> listBlobs() throws IOException {
-                maybeIOExceptionOrBlock("");
+                maybeIOExceptionOrBlock(DUMMY_FILE_NAME_LIST_BLOBS);
                 return super.listBlobs();
             }
 
@@ -549,6 +567,29 @@ public class MockRepository extends FsRepository {
                     super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
                 }
             }
+        }
+
+        private boolean skipExceptionOnVerificationFiles(String blobName) {
+            return skipExceptionOnVerificationFile && isVerificationFile(blobName);
+        }
+
+        /**
+         * Checks if the file name is one of the types of verification files that is created at the time of creation of
+         * repository.
+         *
+         * @param blobName name of the blob
+         * @return true if it is the file created at the time of repository creation
+         */
+        private boolean isVerificationFile(String blobName) {
+            return blobName.equals("master.dat") || (blobName.startsWith("data-") && blobName.endsWith(".dat"));
+        }
+
+        private boolean skipExceptionOnListBlobs(String blobName) {
+            return skipExceptionOnListBlobs && DUMMY_FILE_NAME_LIST_BLOBS.equals(blobName);
+        }
+
+        private boolean skipExceptionOnBlob(String blobName) {
+            return skipExceptionOnBlobs.contains(blobName);
         }
     }
 }

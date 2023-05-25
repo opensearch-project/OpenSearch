@@ -171,6 +171,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
@@ -194,7 +195,6 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
-import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -1806,7 +1806,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 indicesService = new IndicesService(
                     settings,
                     mock(PluginsService.class),
-                    mock(ExtensionsManager.class),
                     nodeEnv,
                     namedXContentRegistry,
                     new AnalysisRegistry(
@@ -1870,7 +1869,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
                         indicesService
                     ),
-                    SegmentReplicationSourceService.NO_OP,
+                    mock(SegmentReplicationSourceService.class),
                     shardStateAction,
                     new NodeMappingRefreshAction(transportService, metadataMappingService),
                     repositoriesService,
@@ -1901,7 +1900,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         actionFilters
                     ),
                     RetentionLeaseSyncer.EMPTY,
-                    SegmentReplicationCheckpointPublisher.EMPTY
+                    SegmentReplicationCheckpointPublisher.EMPTY,
+                    mock(RemoteRefreshSegmentPressureService.class)
                 );
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());
@@ -1952,6 +1952,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         mock(ShardStateAction.class),
                         mock(ThreadPool.class)
                     ),
+                    mock(RemoteRefreshSegmentPressureService.class),
                     new SystemIndices(emptyMap())
                 );
                 actions.put(

@@ -57,7 +57,6 @@ import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -67,6 +66,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.Index;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.index.shard.ShardId;
@@ -401,7 +401,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
         } catch (Exception e) {
             originalListener.onFailure(e);
-            throw new RuntimeException(e);
+            return;
         }
 
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {

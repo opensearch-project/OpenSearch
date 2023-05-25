@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.support;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.Aggregator.BucketComparator;

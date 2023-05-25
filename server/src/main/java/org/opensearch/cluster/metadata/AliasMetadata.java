@@ -36,7 +36,6 @@ import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.StreamInput;
@@ -45,6 +44,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -259,7 +259,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return org.opensearch.common.Strings.toString(XContentType.JSON, this, true, true);
     }
 
     @Override
@@ -303,7 +303,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
 
         public Builder filter(String filter) {
-            if (!Strings.hasLength(filter)) {
+            if (Strings.hasLength(filter) == false) {
                 this.filter = null;
                 return this;
             }

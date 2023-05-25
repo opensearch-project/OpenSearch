@@ -32,6 +32,7 @@
 
 package org.opensearch.action.bulk;
 
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -94,7 +95,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
             builder.startObject(ERROR);
-            OpenSearchException.generateThrowableXContent(builder, params, failure.getCause());
+            BaseExceptionsHelper.generateThrowableXContent(builder, params, failure.getCause());
             builder.endObject();
         }
         builder.endObject();
@@ -356,7 +357,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 builder.field(ID_FIELD, id);
             }
             builder.startObject(CAUSE_FIELD);
-            OpenSearchException.generateThrowableXContent(builder, params, cause);
+            BaseExceptionsHelper.generateThrowableXContent(builder, params, cause);
             builder.endObject();
             builder.field(STATUS_FIELD, status.getStatus());
             return builder;

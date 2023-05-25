@@ -181,6 +181,21 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
 
+        // We should check the source index's setting `index.blocks.read_only`, because the setting will be copied to target index,
+        // it will block target index's metadata writes and then cause the new shards to be unassigned,
+        // but if user overwrites the setting to `false` or `null`, everything is fine.
+        // We don't need to check the setting `index.blocks.metadata`, because it was checked when fetching index stats
+        if (IndexMetadata.INDEX_READ_ONLY_SETTING.get(metadata.getSettings()) == true
+            && IndexMetadata.INDEX_READ_ONLY_SETTING.exists(targetIndexSettings) == false) {
+            throw new IllegalArgumentException(
+                "target index ["
+                    + targetIndexName
+                    + "] will be blocked by [index.blocks.read_only=true] which is copied from the source index ["
+                    + sourceIndexName
+                    + "], this will disable metadata writes and cause the shards to be unassigned"
+            );
+        }
+
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
         } else {
