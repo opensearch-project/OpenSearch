@@ -1317,7 +1317,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             ) {
                 try {
                     final CopyState copyState = new CopyState(
-                        ReplicationCheckpoint.empty(primaryShard.shardId, primaryShard.getCodecName()),
+                        ReplicationCheckpoint.empty(primaryShard.shardId, primaryShard.getLatestReplicationCheckpoint().getCodec()),
                         primaryShard
                     );
                     listener.onResponse(
