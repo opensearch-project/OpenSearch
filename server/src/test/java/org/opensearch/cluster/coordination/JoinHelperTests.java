@@ -428,8 +428,10 @@ public class JoinHelperTests extends OpenSearchTestCase {
         };
         testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, testCluster.localClusterState, listener);
         // validation will pass due to cached cluster state
-        ClusterState randomState = ClusterState.builder(new ClusterName("random")).stateUUID("random2").
-            version(testCluster.localClusterState.version()).build();
+        ClusterState randomState = ClusterState.builder(new ClusterName("random"))
+            .stateUUID("random2")
+            .version(testCluster.localClusterState.version())
+            .build();
         testCluster.joinHelper.sendValidateJoinRequest(testCluster.localNode, randomState, listener);
 
         final CompletableFuture<Throwable> future2 = new CompletableFuture<>();
