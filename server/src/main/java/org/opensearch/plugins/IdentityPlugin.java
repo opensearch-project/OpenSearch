@@ -22,5 +22,5 @@ public interface IdentityPlugin {
      *
      * Should never return null
      * */
-    public Subject getSubject();
+    Subject getSubject();
 }

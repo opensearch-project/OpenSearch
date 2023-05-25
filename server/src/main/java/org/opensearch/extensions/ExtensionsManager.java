@@ -16,9 +16,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +39,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
@@ -105,6 +108,7 @@ public class ExtensionsManager {
     private CustomSettingsRequestHandler customSettingsRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
+    private final Set<Setting<?>> additionalSettings;
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
@@ -113,9 +117,10 @@ public class ExtensionsManager {
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
      *
      * @param extensionsPath  Path to a directory containing extensions.
+     * @param additionalSettings  Additional settings to read in from extensions.yml
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
-    public ExtensionsManager(Path extensionsPath) throws IOException {
+    public ExtensionsManager(Path extensionsPath, Set<Setting<?>> additionalSettings) throws IOException {
         logger.info("ExtensionsManager initialized");
         this.extensionsPath = extensionsPath;
         this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
@@ -124,6 +129,11 @@ public class ExtensionsManager {
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
+        // Settings added to extensions.yml by ExtensionAwarePlugins, such as security settings
+        this.additionalSettings = new HashSet<>();
+        if (additionalSettings != null) {
+            this.additionalSettings.addAll(additionalSettings);
+        }
         this.client = null;
         this.extensionTransportActionsHandler = null;
 
@@ -465,12 +475,64 @@ public class ExtensionsManager {
             }
             List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
             List<Extension> readExtensions = new ArrayList<Extension>();
+            Set<String> additionalSettingsKeys = additionalSettings.stream().map(s -> s.getKey()).collect(Collectors.toSet());
             for (HashMap<String, ?> extensionMap : unreadExtensions) {
-                // Parse extension dependencies
-                List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
-                if (extensionMap.get("dependencies") != null) {
-                    List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
-                        (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
+                try {
+                    // checking to see whether any required fields are missing from extension.yml file or not
+                    String[] requiredFields = {
+                        "name",
+                        "uniqueId",
+                        "hostAddress",
+                        "port",
+                        "version",
+                        "opensearchVersion",
+                        "minimumCompatibleVersion" };
+                    List<String> missingFields = Arrays.stream(requiredFields)
+                        .filter(field -> !extensionMap.containsKey(field))
+                        .collect(Collectors.toList());
+                    if (!missingFields.isEmpty()) {
+                        throw new IOException("Extension is missing these required fields : " + missingFields);
+                    }
+
+                    // Parse extension dependencies
+                    List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
+                    if (extensionMap.get("dependencies") != null) {
+                        List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
+                            (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
+                        );
+                        for (HashMap<String, ?> dependency : extensionDependencies) {
+                            extensionDependencyList.add(
+                                new ExtensionDependency(
+                                    dependency.get("uniqueId").toString(),
+                                    Version.fromString(dependency.get("version").toString())
+                                )
+                            );
+                        }
+                    }
+
+                    ExtensionScopedSettings extAdditionalSettings = new ExtensionScopedSettings(additionalSettings);
+                    Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
+                        .stream()
+                        .filter(kv -> additionalSettingsKeys.contains(kv.getKey()))
+                        .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
+
+                    Settings.Builder output = Settings.builder();
+                    output.loadFromMap(additionalSettingsMap);
+                    extAdditionalSettings.applySettings(output.build());
+
+                    // Create extension read from yml config
+                    readExtensions.add(
+                        new Extension(
+                            extensionMap.get("name").toString(),
+                            extensionMap.get("uniqueId").toString(),
+                            extensionMap.get("hostAddress").toString(),
+                            extensionMap.get("port").toString(),
+                            extensionMap.get("version").toString(),
+                            extensionMap.get("opensearchVersion").toString(),
+                            extensionMap.get("minimumCompatibleVersion").toString(),
+                            extensionDependencyList,
+                            extAdditionalSettings
+                        )
                     );
                     for (HashMap<String, ?> dependency : extensionDependencies) {
                         extensionDependencyList.add(
@@ -480,20 +542,9 @@ public class ExtensionsManager {
                             )
                         );
                     }
+                } catch (IOException e) {
+                    logger.warn("loading extension has been failed because of exception : " + e.getMessage());
                 }
-                // Create extension read from yml config
-                readExtensions.add(
-                    new Extension(
-                        extensionMap.get("name").toString(),
-                        extensionMap.get("uniqueId").toString(),
-                        extensionMap.get("hostAddress").toString(),
-                        extensionMap.get("port").toString(),
-                        extensionMap.get("version").toString(),
-                        extensionMap.get("opensearchVersion").toString(),
-                        extensionMap.get("minimumCompatibleVersion").toString(),
-                        extensionDependencyList
-                    )
-                );
             }
             inputStream.close();
             return new ExtensionsSettings(readExtensions);
