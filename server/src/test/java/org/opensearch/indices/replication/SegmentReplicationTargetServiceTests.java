@@ -69,10 +69,10 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             .put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName())
             .build();
         primaryShard = newStartedShard(true, settings);
-        String primaryCodec = primaryShard.getEngineCodec();
+        String primaryCodec = primaryShard.getCodecName();
         replicaShard = newShard(false, settings, new NRTReplicationEngineFactory());
         recoverReplica(replicaShard, primaryShard, true, getReplicationFunc(replicaShard));
-        checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L, replicaShard.getEngineCodec());
+        checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L, replicaShard.getCodecName());
         SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
         replicationSource = mock(SegmentReplicationSource.class);
         when(replicationSourceFactory.get(replicaShard)).thenReturn(replicationSource);

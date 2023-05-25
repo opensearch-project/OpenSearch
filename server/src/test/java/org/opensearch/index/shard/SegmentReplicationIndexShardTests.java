@@ -1027,7 +1027,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
     private void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
         try {
-            final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primary.shardId, primary.getEngineCodec()), primary);
+            final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primary.shardId, primary.getCodecName()), primary);
             listener.onResponse(
                 new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );

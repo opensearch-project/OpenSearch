@@ -512,7 +512,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return codecService.codec(CodecService.DEFAULT_CODEC).getName();
     }
 
-    public String getEngineCodec() {
+    public String getCodecName() {
         return getEngine().config().getCodec().getName();
     }
 
