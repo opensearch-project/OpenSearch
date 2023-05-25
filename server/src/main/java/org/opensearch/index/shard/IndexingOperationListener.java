@@ -105,7 +105,8 @@ public interface IndexingOperationListener {
             assert operation != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
-                    listener.preIndex(shardId, operation);
+                    operation = listener.preIndex(shardId, operation);
+                    assert operation != null;
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("preIndex listener [{}] failed", listener), e);
                 }
