@@ -899,7 +899,6 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, isSystemIndex);
-
         updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
 
         if (sourceMetadata != null) {
@@ -946,7 +945,7 @@ public class MetadataCreateIndexService {
         Settings clusterSettings,
         boolean isSystemIndex
     ) {
-        if (isSystemIndex == true || IndexMetadata.INDEX_HIDDEN_SETTING.get(requestSettings) == true) {
+        if (isSystemIndex || IndexMetadata.INDEX_HIDDEN_SETTING.get(requestSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
             return;
         }
@@ -963,7 +962,6 @@ public class MetadataCreateIndexService {
      */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
         if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings)) {
-
             // Verify if we can create a remote store based index based on user provided settings
             if (canCreateRemoteStoreIndex(requestSettings) == false) {
                 return;
