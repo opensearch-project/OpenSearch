@@ -1298,13 +1298,17 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param primaryShard {@link IndexShard} - The primary shard to replicate from.
      * @param target {@link IndexShard} - The target replica shard in segment replication.
      */
-    public final SegmentReplicationTargetService prepareForReplication(IndexShard primaryShard, IndexShard target) {
+    public final SegmentReplicationTargetService prepareForReplication(
+        IndexShard primaryShard,
+        IndexShard target,
+        TransportService transportService
+    ) {
         final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
         final IndicesService indicesService = mock(IndicesService.class);
         final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
             threadPool,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            mock(TransportService.class),
+            transportService,
             sourceFactory,
             indicesService
         );
@@ -1371,7 +1375,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
         List<SegmentReplicationTarget> ids = new ArrayList<>();
         for (IndexShard replica : replicaShards) {
-            final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
+            final SegmentReplicationTargetService targetService = prepareForReplication(
+                primaryShard,
+                replica,
+                mock(TransportService.class)
+            );
             final SegmentReplicationTarget target = targetService.startReplication(
                 replica,
                 new SegmentReplicationTargetService.SegmentReplicationListener() {

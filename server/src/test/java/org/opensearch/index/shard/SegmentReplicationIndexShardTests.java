@@ -294,7 +294,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testRejectCheckpointOnShardRoutingPrimary() throws IOException {
         IndexShard primaryShard = newStartedShard(true);
         SegmentReplicationTargetService sut;
-        sut = prepareForReplication(primaryShard, null);
+        sut = prepareForReplication(primaryShard, null, mock(TransportService.class));
         SegmentReplicationTargetService spy = spy(sut);
 
         // Starting a new shard in PrimaryMode and shard routing primary.

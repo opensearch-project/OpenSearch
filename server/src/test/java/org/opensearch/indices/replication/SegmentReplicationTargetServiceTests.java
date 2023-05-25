@@ -11,8 +11,10 @@ package org.opensearch.indices.replication;
 import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
@@ -23,14 +25,21 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.ForceSyncRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.EmptyTransportResponseHandler;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
-
+import org.opensearch.test.transport.CapturingTransport;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -61,6 +70,10 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
     private ReplicationCheckpoint newPrimaryCheckpoint;
 
+    private TransportService transportService;
+    private TestThreadPool testThreadPool;
+    private DiscoveryNode localNode;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -83,7 +96,21 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         replicationSource = mock(SegmentReplicationSource.class);
         when(replicationSourceFactory.get(replicaShard)).thenReturn(replicationSource);
 
-        sut = prepareForReplication(primaryShard, null);
+        testThreadPool = new TestThreadPool("test", Settings.EMPTY);
+        localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        CapturingTransport transport = new CapturingTransport();
+        transportService = transport.createTransportService(
+            Settings.EMPTY,
+            testThreadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> localNode,
+            null,
+            Collections.emptySet()
+        );
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        sut = prepareForReplication(primaryShard, null, transportService);
         initialCheckpoint = replicaShard.getLatestReplicationCheckpoint();
         aheadCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),
@@ -104,6 +131,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     @Override
     public void tearDown() throws Exception {
         closeShards(primaryShard, replicaShard);
+        ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
+        testThreadPool = null;
         super.tearDown();
     }
 
@@ -351,5 +380,17 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         sut.updateLatestReceivedCheckpoint(checkpoint, replicaShard);
         sut.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
         assertEquals(sut.latestReceivedCheckpoint.get(replicaShard.shardId()), aheadCheckpoint);
+    }
+
+    public void testForceSegmentSyncHandler() throws Exception {
+        ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, primaryShard.shardId());
+        TransportResponse response = transportService.submitRequest(
+            localNode,
+            SegmentReplicationTargetService.Actions.FORCE_SYNC,
+            forceSyncRequest,
+            TransportRequestOptions.builder().withTimeout(30).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME
+        ).txGet();
+        assertEquals(TransportResponse.Empty.INSTANCE, response);
     }
 }
