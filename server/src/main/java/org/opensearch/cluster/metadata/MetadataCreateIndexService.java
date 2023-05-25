@@ -377,14 +377,9 @@ public class MetadataCreateIndexService {
 
     private void normalizeRequestSetting(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest) {
         Settings.Builder updatedSettingsBuilder = Settings.builder();
-        updatedSettingsBuilder.put(createIndexClusterStateRequest.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
-        updateReplicationStrategy(
-            updatedSettingsBuilder,
-            createIndexClusterStateRequest.settings(),
-            clusterService.getSettings(),
-            systemIndices.validateSystemIndex(createIndexClusterStateRequest.index())
-        );
-        Settings build = updatedSettingsBuilder.build();
+        Settings build = updatedSettingsBuilder.put(createIndexClusterStateRequest.settings())
+            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
+            .build();
         indexScopedSettings.validate(build, true);
         createIndexClusterStateRequest.settings(build);
     }
@@ -588,7 +583,8 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            systemIndices.validateSystemIndex(request.index())
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -652,7 +648,8 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            systemIndices.validateSystemIndex(request.index())
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -732,7 +729,8 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            sourceMetadata.isSystem()
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -815,7 +813,8 @@ public class MetadataCreateIndexService {
         Settings settings,
         IndexScopedSettings indexScopedSettings,
         ShardLimitValidator shardLimitValidator,
-        Set<IndexSettingProvider> indexSettingProviders
+        Set<IndexSettingProvider> indexSettingProviders,
+        boolean isSystemIndex
     ) {
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
@@ -899,6 +898,8 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
+        updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, isSystemIndex);
+
         updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
 
         if (sourceMetadata != null) {
@@ -939,7 +940,7 @@ public class MetadataCreateIndexService {
      * @param requestSettings settings passed in during index create request
      * @param clusterSettings cluster level settings
      */
-    void updateReplicationStrategy(
+    private static void updateReplicationStrategy(
         Settings.Builder settingsBuilder,
         Settings requestSettings,
         Settings clusterSettings,
@@ -966,6 +967,19 @@ public class MetadataCreateIndexService {
             // Verify if we can create a remote store based index based on user provided settings
             if (canCreateRemoteStoreIndex(requestSettings) == false) {
                 return;
+            }
+
+            // Verify REPLICATION_TYPE cluster level setting is not conflicting with Remote Store
+            if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false
+                && CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings).equals(ReplicationType.DOCUMENT)) {
+                throw new IllegalArgumentException(
+                    "Cannot enable ["
+                        + SETTING_REMOTE_STORE_ENABLED
+                        + "] when ["
+                        + CLUSTER_REPLICATION_TYPE_SETTING.getKey()
+                        + "] is "
+                        + ReplicationType.DOCUMENT
+                );
             }
 
             settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).put(SETTING_REMOTE_STORE_ENABLED, true);

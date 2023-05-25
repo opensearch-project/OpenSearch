@@ -113,6 +113,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -816,7 +817,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
 
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
@@ -878,7 +880,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
 
         assertThat(resolvedAliases.get(0).getSearchRouting(), equalTo("fromRequest"));
@@ -900,7 +903,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
@@ -915,7 +919,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
@@ -952,7 +957,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(
             request.index(),
@@ -991,7 +997,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
 
         assertThat(aggregatedIndexSettings.get("templateSetting"), is(nullValue()));
@@ -1192,6 +1199,37 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         threadPool.shutdown();
     }
 
+    public void testRemoteStoreNoUserOverrideConflictingReplicationTypeIndexSettings() {
+        Settings settings = Settings.builder()
+            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
+            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
+            .build();
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                settings,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet(),
+                false
+            )
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString("Cannot enable [index.remote_store.enabled] when [cluster.indices.replication.strategy] is DOCUMENT")
+        );
+    }
+
     public void testRemoteStoreNoUserOverrideExceptReplicationTypeSegmentIndexSettings() {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
@@ -1214,7 +1252,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             settings,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
         verifyRemoteStoreIndexSettings(
             indexSettings,
@@ -1246,7 +1285,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             settings,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
         verifyRemoteStoreIndexSettings(
             indexSettings,
@@ -1280,9 +1320,10 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             settings,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
-        verifyRemoteStoreIndexSettings(indexSettings, "false", null, null, null, null, null);
+        verifyRemoteStoreIndexSettings(indexSettings, "false", null, null, null, ReplicationType.SEGMENT.toString(), null);
     }
 
     public void testRemoteStoreTranslogDisabledByUserIndexSettings() {
@@ -1306,7 +1347,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             settings,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
         verifyRemoteStoreIndexSettings(indexSettings, "true", "my-segment-repo-1", "false", null, ReplicationType.SEGMENT.toString(), null);
     }
@@ -1335,7 +1377,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             settings,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
         verifyRemoteStoreIndexSettings(
             indexSettings,
@@ -1369,7 +1412,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             settings,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
         verifyRemoteStoreIndexSettings(
             indexSettings,
@@ -1403,7 +1447,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             settings,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
         verifyRemoteStoreIndexSettings(indexSettings, null, null, null, null, ReplicationType.DOCUMENT.toString(), null);
     }
@@ -1477,7 +1522,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 Settings.EMPTY,
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 randomShardLimitService(),
-                Collections.emptySet()
+                Collections.emptySet(),
+                false
             );
         });
         assertThat(
@@ -1506,7 +1552,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
         assertWarnings(
             "Translog retention settings [index.translog.retention.age] "
@@ -1553,7 +1600,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            false
         );
         assertWarnings(
             "[simplefs] is deprecated and will be removed in 2.0. Use [niofs], which offers equal "
@@ -1565,15 +1613,18 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build();
         FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        final Settings.Builder requestSettings = Settings.builder();
-
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        MetadataCreateIndexService checkerService = getMetadataCreateIndexServiceInstance(settings, threadPool);
-        checkerService.updateReplicationStrategy(requestSettings, request.settings(), settings, false);
-
-        // Verify if index setting overrides cluster replication setting
-        assertEquals(ReplicationType.SEGMENT.toString(), requestSettings.build().get(SETTING_REPLICATION_TYPE));
-        threadPool.shutdown();
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            false
+        );
+        assertEquals(ReplicationType.SEGMENT.toString(), indexSettings.get(SETTING_REPLICATION_TYPE));
     }
 
     public void testIndexSettingOverridesClusterReplicationSetting() {
@@ -1584,12 +1635,19 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // Set index setting replication type as DOCUMENT
         requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
         request.settings(requestSettings.build());
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        MetadataCreateIndexService checkerService = getMetadataCreateIndexServiceInstance(settings, threadPool);
-        checkerService.updateReplicationStrategy(requestSettings, request.settings(), settings, false);
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            false
+        );
         // Verify if index setting overrides cluster replication setting
-        assertEquals(ReplicationType.DOCUMENT.toString(), requestSettings.build().get(SETTING_REPLICATION_TYPE));
-        threadPool.shutdown();
+        assertEquals(ReplicationType.DOCUMENT.toString(), indexSettings.get(SETTING_REPLICATION_TYPE));
     }
 
     public void testHiddenIndexUsesDocumentReplication() {
@@ -1600,43 +1658,19 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // Set index setting replication type as DOCUMENT
         requestSettings.put("index.hidden", true);
         request.settings(requestSettings.build());
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        MetadataCreateIndexService checkerService = getMetadataCreateIndexServiceInstance(settings, threadPool);
-        checkerService.updateReplicationStrategy(requestSettings, request.settings(), settings, false);
-        // Verify replication type is Document Replication
-        assertEquals(ReplicationType.DOCUMENT.toString(), requestSettings.build().get(SETTING_REPLICATION_TYPE));
-        threadPool.shutdown();
-    }
-
-    private MetadataCreateIndexService getMetadataCreateIndexServiceInstance(Settings settings, ThreadPool threadPool) {
-        ClusterService clusterService = mock(ClusterService.class);
-        Metadata metadata = Metadata.builder()
-            .transientSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 1).build())
-            .build();
-        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .build();
-
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        when(clusterService.state()).thenReturn(clusterState);
-        MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
             settings,
-            clusterService,
-            null,
-            null,
-            null,
-            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
-            new Environment(Settings.builder().put("path.home", "dummy").build(), null),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            threadPool,
-            null,
-            new SystemIndices(Collections.emptyMap()),
-            true,
-            new AwarenessReplicaBalance(settings, clusterService.getClusterSettings())
+            randomShardLimitService(),
+            Collections.emptySet(),
+            false
         );
-        return checkerService;
+        // Verify replication type is Document Replication
+        assertEquals(ReplicationType.DOCUMENT.toString(), indexSettings.get(SETTING_REPLICATION_TYPE));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

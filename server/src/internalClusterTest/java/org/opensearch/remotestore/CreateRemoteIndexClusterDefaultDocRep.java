@@ -15,6 +15,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -46,6 +47,22 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
             .get();
         Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
         verifyRemoteStoreIndexSettings(indexSettings, "true", "my-segment-repo-1", "false", null, ReplicationType.SEGMENT.toString(), null);
+    }
+
+    @Override
+    public void testDefaultRemoteStoreNoUserOverride() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString("Cannot enable [index.remote_store.enabled] when [cluster.indices.replication.strategy] is DOCUMENT")
+        );
     }
 
     public void testDefaultRemoteStoreNoUserOverrideExceptReplicationTypeSegment() throws Exception {
