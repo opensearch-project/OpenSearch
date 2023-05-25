@@ -67,8 +67,6 @@ import org.opensearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequest;
-import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -162,8 +160,6 @@ import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
-import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
@@ -863,21 +859,6 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<NodesInfoResponse> nodesInfo(final NodesInfoRequest request) {
-            return execute(NodesInfoAction.INSTANCE, request);
-        }
-
-        @Override
-        public void nodesInfo(final NodesInfoRequest request, final ActionListener<NodesInfoResponse> listener) {
-            execute(NodesInfoAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
-            return new NodesInfoRequestBuilder(this, NodesInfoAction.INSTANCE).setNodesIds(nodesIds);
-        }
-
-        @Override
-        public ActionFuture<ProtobufNodesInfoResponse> nodesInfo(final ProtobufNodesInfoRequest request) {
             return execute(NodesInfoAction.INSTANCE, request);
         }
 

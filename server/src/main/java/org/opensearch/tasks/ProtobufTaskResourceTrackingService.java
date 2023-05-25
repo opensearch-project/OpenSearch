@@ -50,7 +50,8 @@ public class ProtobufTaskResourceTrackingService implements RunnableTaskExecutio
 
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
-    private final ConcurrentMapLong<ProtobufTask> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
+    private final ConcurrentMapLong<ProtobufTask> resourceAwareTasks = ConcurrentCollections
+        .newConcurrentMapLongWithAggressiveConcurrency();
     private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
     private final ProtobufThreadPool threadPool;
     private volatile boolean taskResourceTrackingEnabled;

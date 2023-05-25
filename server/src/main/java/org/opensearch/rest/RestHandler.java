@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
  * @opensearch.api
  */
 @FunctionalInterface
-public interface RestHandler {
+public interface RestHandler extends ClientAgnosticRestHandler<NodeClient> {
 
     /**
      * Handles a rest request.

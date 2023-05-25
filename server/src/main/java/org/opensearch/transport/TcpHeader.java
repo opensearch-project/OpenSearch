@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import com.google.protobuf.CodedOutputStream;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamOutput;
 
@@ -90,5 +91,23 @@ public class TcpHeader {
         output.writeInt(version.id);
         assert variableHeaderSize != -1 : "Variable header size not set";
         output.writeInt(variableHeaderSize);
+    }
+
+    public static void writeHeaderProtobuf(
+        CodedOutputStream output,
+        long requestId,
+        byte status,
+        Version version,
+        int contentSize,
+        int variableHeaderSize
+    ) throws IOException {
+        output.writeByteArrayNoTag(PREFIX);
+        // write the size, the size indicates the remaining message size, not including the size int
+        output.writeInt32NoTag(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE + VARIABLE_HEADER_SIZE);
+        output.writeInt64NoTag(requestId);
+        output.writeRawByte(status);
+        output.writeInt32NoTag(version.id);
+        assert variableHeaderSize != -1 : "Variable header size not set";
+        output.writeInt32NoTag(variableHeaderSize);
     }
 }

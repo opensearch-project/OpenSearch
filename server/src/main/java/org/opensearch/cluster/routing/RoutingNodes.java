@@ -38,7 +38,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.core.Assertions;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ProtobufClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -107,64 +106,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public RoutingNodes(ClusterState clusterState, boolean readOnly) {
-        this.readOnly = readOnly;
-        final RoutingTable routingTable = clusterState.routingTable();
-
-        // fill in the nodeToShards with the "live" nodes
-        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            String nodeId = cursor.value.getId();
-            this.nodesToShards.put(cursor.value.getId(), new RoutingNode(nodeId, clusterState.nodes().get(nodeId)));
-        }
-
-        // fill in the inverse of node -> shards allocated
-        // also fill replicaSet information
-        for (ObjectCursor<IndexRoutingTable> indexRoutingTable : routingTable.indicesRouting().values()) {
-            for (IndexShardRoutingTable indexShard : indexRoutingTable.value) {
-                assert indexShard.primary != null;
-                for (ShardRouting shard : indexShard) {
-                    // to get all the shards belonging to an index, including the replicas,
-                    // we define a replica set and keep track of it. A replica set is identified
-                    // by the ShardId, as this is common for primary and replicas.
-                    // A replica Set might have one (and not more) replicas with the state of RELOCATING.
-                    if (shard.assignedToNode()) {
-                        RoutingNode routingNode = this.nodesToShards.computeIfAbsent(
-                            shard.currentNodeId(),
-                            k -> new RoutingNode(shard.currentNodeId(), clusterState.nodes().get(shard.currentNodeId()))
-                        );
-                        routingNode.add(shard);
-                        assignedShardsAdd(shard);
-                        if (shard.relocating()) {
-                            relocatingShards++;
-                            // Add the counterpart shard with relocatingNodeId reflecting the source from which
-                            // it's relocating from.
-                            routingNode = nodesToShards.computeIfAbsent(
-                                shard.relocatingNodeId(),
-                                k -> new RoutingNode(shard.relocatingNodeId(), clusterState.nodes().get(shard.relocatingNodeId()))
-                            );
-                            ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
-                            addInitialRecovery(targetShardRouting, indexShard.primary);
-                            routingNode.add(targetShardRouting);
-                            assignedShardsAdd(targetShardRouting);
-                        } else if (shard.initializing()) {
-                            if (shard.primary()) {
-                                inactivePrimaryCount++;
-                            }
-                            inactiveShardCount++;
-                            addInitialRecovery(shard, indexShard.primary);
-                        }
-                    } else {
-                        unassignedShards.add(shard);
-                    }
-                }
-            }
-        }
-    }
-
-    public RoutingNodes(ProtobufClusterState clusterState) {
-        this(clusterState, true);
-    }
-
-    public RoutingNodes(ProtobufClusterState clusterState, boolean readOnly) {
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
 

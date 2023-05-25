@@ -100,11 +100,11 @@ public final class ProtobufTaskInfo implements ProtobufWriteable, ToXContentFrag
     */
     @SuppressWarnings("unchecked")
     public ProtobufTaskInfo(CodedInputStream in) throws IOException {
-        protobufStreamInput = new ProtobufStreamInput();
+        protobufStreamInput = new ProtobufStreamInput(in);
         taskId = ProtobufTaskId.readFromStream(in);
         type = in.readString();
         action = in.readString();
-        description = protobufStreamInput.readOptionalString(in);
+        description = protobufStreamInput.readOptionalString();
         // TODO: fix this
         status = null;
         startTime = in.readInt64();
@@ -119,9 +119,9 @@ public final class ProtobufTaskInfo implements ProtobufWriteable, ToXContentFrag
             throw new IllegalArgumentException("task cannot be cancelled");
         }
         parentTaskId = ProtobufTaskId.readFromStream(in);
-        headers = protobufStreamInput.readMap(CodedInputStream::readString, CodedInputStream::readString, in);
+        headers = protobufStreamInput.readMap(CodedInputStream::readString, CodedInputStream::readString);
         if (protobufStreamInput.getVersion().onOrAfter(Version.V_2_1_0)) {
-            resourceStats = protobufStreamInput.readOptionalWriteable(ProtobufTaskResourceStats::new, in);
+            resourceStats = protobufStreamInput.readOptionalWriteable(ProtobufTaskResourceStats::new);
         } else {
             resourceStats = null;
         }
@@ -129,7 +129,7 @@ public final class ProtobufTaskInfo implements ProtobufWriteable, ToXContentFrag
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        protobufStreamOutput = new ProtobufStreamOutput();
+        protobufStreamOutput = new ProtobufStreamOutput(out);
         taskId.writeTo(out);
         out.writeStringNoTag(type);
         out.writeStringNoTag(action);
@@ -143,9 +143,9 @@ public final class ProtobufTaskInfo implements ProtobufWriteable, ToXContentFrag
             out.writeBoolNoTag(cancelled);
         }
         parentTaskId.writeTo(out);
-        protobufStreamOutput.writeMap(headers, CodedOutputStream::writeStringNoTag, CodedOutputStream::writeStringNoTag, out);
+        protobufStreamOutput.writeMap(headers, CodedOutputStream::writeStringNoTag, CodedOutputStream::writeStringNoTag);
         if (protobufStreamOutput.getVersion().onOrAfter(Version.V_2_1_0)) {
-            protobufStreamOutput.writeOptionalWriteable(resourceStats, out);
+            protobufStreamOutput.writeOptionalWriteable(resourceStats);
         }
     }
 

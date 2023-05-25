@@ -13,49 +13,45 @@ import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.action.ProtobufActionType;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionModule.DynamicActionRegistry;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.action.support.TransportAction;
-import org.opensearch.client.Client;
-import org.opensearch.client.support.AbstractClient;
+import org.opensearch.action.ActionModule.ProtobufDynamicActionRegistry;
+import org.opensearch.action.support.ProtobufTransportAction;
+import org.opensearch.client.ProtobufClient;
 import org.opensearch.client.support.ProtobufAbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.ProtobufNamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskListener;
+import org.opensearch.tasks.ProtobufTask;
+import org.opensearch.tasks.ProtobufTaskListener;
 import org.opensearch.threadpool.ProtobufThreadPool;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.ProtobufRemoteClusterService;
 
 import java.util.function.Supplier;
 
 /**
- * Client that executes actions on the local node.
+ * ProtobufClient that executes actions on the local node.
 *
 * @opensearch.internal
 */
 public class ProtobufNodeClient extends ProtobufAbstractClient {
 
-    private DynamicActionRegistry actionRegistry;
+    private ProtobufDynamicActionRegistry actionRegistry;
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-    * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
+    * {@link #executeLocally(ProtobufActionType, ProtobufActionRequest, ProtobufTaskListener)}.
     */
     private Supplier<String> localNodeId;
-    private RemoteClusterService remoteClusterService;
-    private NamedWriteableRegistry namedWriteableRegistry;
+    private ProtobufRemoteClusterService remoteClusterService;
+    private ProtobufNamedWriteableRegistry namedWriteableRegistry;
 
     public ProtobufNodeClient(Settings settings, ProtobufThreadPool threadPool) {
         super(settings, threadPool);
     }
 
     public void initialize(
-        DynamicActionRegistry actionRegistry,
+        ProtobufDynamicActionRegistry actionRegistry,
         Supplier<String> localNodeId,
-        RemoteClusterService remoteClusterService,
-        NamedWriteableRegistry namedWriteableRegistry
+        ProtobufRemoteClusterService remoteClusterService,
+        ProtobufNamedWriteableRegistry namedWriteableRegistry
     ) {
         this.actionRegistry = actionRegistry;
         this.localNodeId = localNodeId;
@@ -74,16 +70,16 @@ public class ProtobufNodeClient extends ProtobufAbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        // Discard the task because the Client interface doesn't use it.
+        // Discard the task because the ProtobufClient interface doesn't use it.
         executeLocally(action, request, listener);
     }
 
     /**
-     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link ActionListener}.
+     * Execute an {@link ActionType} locally, returning that {@link ProtobufTask} used to track it, and linking an {@link ActionListener}.
     * Prefer this method if you don't need access to the task when listening for the response. This is the method used to implement
-    * the {@link Client} interface.
+    * the {@link ProtobufClient} interface.
     */
-    public <Request extends ProtobufActionRequest, Response extends ProtobufActionResponse> Task executeLocally(
+    public <Request extends ProtobufActionRequest, Response extends ProtobufActionResponse> ProtobufTask executeLocally(
         ProtobufActionType<Response> action,
         Request request,
         ActionListener<Response> listener
@@ -92,36 +88,40 @@ public class ProtobufNodeClient extends ProtobufAbstractClient {
     }
 
     /**
-     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}. Prefer this
+     * Execute an {@link ActionType} locally, returning that {@link ProtobufTask} used to track it, and linking an {@link ProtobufTaskListener}. Prefer this
     * method if you need access to the task when listening for the response.
     */
-    public <Request extends ProtobufActionRequest, Response extends ProtobufActionResponse> Task executeLocally(
+    public <Request extends ProtobufActionRequest, Response extends ProtobufActionResponse> ProtobufTask executeLocally(
         ProtobufActionType<Response> action,
         Request request,
-        TaskListener<Response> listener
+        ProtobufTaskListener<Response> listener
     ) {
         return transportAction(action).execute(request, listener);
     }
 
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-    * {@link #executeLocally(ProtobufActionType, ProtobufActionRequest, TaskListener)}.
+    * {@link #executeLocally(ProtobufActionType, ProtobufActionRequest, ProtobufTaskListener)}.
     */
     public String getLocalNodeId() {
         return localNodeId.get();
     }
 
     /**
-     * Get the {@link TransportAction} for an {@link ActionType}, throwing exceptions if the action isn't available.
+     * Get the {@link ProtobufTransportAction} for an {@link ActionType}, throwing exceptions if the action isn't available.
     */
     @SuppressWarnings("unchecked")
-    private <Request extends ProtobufActionRequest, Response extends ProtobufActionResponse> TransportAction<Request, Response> transportAction(
-        ProtobufActionType<Response> action
-    ) {
+    private <
+        Request extends ProtobufActionRequest,
+        Response extends ProtobufActionResponse> ProtobufTransportAction<Request, Response> transportAction(
+            ProtobufActionType<Response> action
+        ) {
         if (actionRegistry == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }
-        TransportAction<Request, Response> transportAction = (TransportAction<Request, Response>) actionRegistry.get(action);
+        ProtobufTransportAction<Request, Response> transportAction = (ProtobufTransportAction<Request, Response>) actionRegistry.get(
+            action
+        );
         if (transportAction == null) {
             throw new IllegalStateException("failed to find action [" + action + "] to execute");
         }
@@ -129,11 +129,11 @@ public class ProtobufNodeClient extends ProtobufAbstractClient {
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
+    public ProtobufClient getRemoteClusterClient(String clusterAlias) {
         return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
     }
 
-    public NamedWriteableRegistry getNamedWriteableRegistry() {
+    public ProtobufNamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
     }
 }

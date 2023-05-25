@@ -9,7 +9,6 @@
 package org.opensearch.action;
 
 import org.opensearch.common.io.stream.ProtobufWriteable;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.TransportRequestOptions;
 

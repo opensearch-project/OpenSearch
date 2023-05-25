@@ -51,26 +51,26 @@ public class ProtobufOsInfo implements ProtobufReportingService.ProtobufInfo {
     }
 
     public ProtobufOsInfo(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         this.refreshInterval = in.readInt64();
         this.availableProcessors = in.readInt32();
         this.allocatedProcessors = in.readInt32();
-        this.name = protobufStreamInput.readOptionalString(in);
-        this.prettyName = protobufStreamInput.readOptionalString(in);
-        this.arch = protobufStreamInput.readOptionalString(in);
-        this.version = protobufStreamInput.readOptionalString(in);
+        this.name = protobufStreamInput.readOptionalString();
+        this.prettyName = protobufStreamInput.readOptionalString();
+        this.arch = protobufStreamInput.readOptionalString();
+        this.version = protobufStreamInput.readOptionalString();
     }
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         out.writeInt64NoTag(refreshInterval);
         out.writeInt32NoTag(availableProcessors);
         out.writeInt32NoTag(allocatedProcessors);
-        protobufStreamOutput.writeOptionalString(name, out);
-        protobufStreamOutput.writeOptionalString(prettyName, out);
-        protobufStreamOutput.writeOptionalString(arch, out);
-        protobufStreamOutput.writeOptionalString(version, out);
+        protobufStreamOutput.writeOptionalString(name);
+        protobufStreamOutput.writeOptionalString(prettyName);
+        protobufStreamOutput.writeOptionalString(arch);
+        protobufStreamOutput.writeOptionalString(version);
     }
 
     public long getRefreshInterval() {

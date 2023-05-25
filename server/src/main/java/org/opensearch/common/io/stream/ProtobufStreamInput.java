@@ -11,6 +11,14 @@ package org.opensearch.common.io.stream;
 import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
+import java.nio.file.FileSystemLoopException;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -27,18 +35,26 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.ProtobufOpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
+
+import static org.opensearch.ProtobufOpenSearchException.readStackTrace;
 
 /**
  * A class for additional methods to read from a {@link CodedInputStream}.
  */
 public class ProtobufStreamInput {
 
+    private CodedInputStream in;
     private Version version = Version.CURRENT;
 
     private static final TimeUnit[] TIME_UNITS = TimeUnit.values();
+
+    public ProtobufStreamInput(CodedInputStream in) {
+        this.in = in;
+    }
 
     /**
      * The version of the node on the other side of this stream.
@@ -55,24 +71,24 @@ public class ProtobufStreamInput {
     }
 
     @Nullable
-    public String readOptionalString(CodedInputStream in) throws IOException {
-        if (readBoolean(in)) {
-            return in.readString();
+    public String readOptionalString() throws IOException {
+        if (readBoolean()) {
+            return this.in.readString();
         }
         return null;
     }
 
     @Nullable
-    public Long readOptionalLong(CodedInputStream in) throws IOException {
-        if (readBoolean(in)) {
-            return in.readInt64();
+    public Long readOptionalLong() throws IOException {
+        if (readBoolean()) {
+            return this.in.readInt64();
         }
         return null;
     }
 
     @Nullable
-    public final Boolean readOptionalBoolean(CodedInputStream in) throws IOException {
-        final byte value = in.readRawByte();
+    public final Boolean readOptionalBoolean() throws IOException {
+        final byte value = this.in.readRawByte();
         if (value == 2) {
             return null;
         } else {
@@ -83,26 +99,24 @@ public class ProtobufStreamInput {
     /**
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
-    public <K, V> Map<K, V> readMap(ProtobufWriteable.Reader<K> keyReader, ProtobufWriteable.Reader<V> valueReader, CodedInputStream in)
-        throws IOException {
-        int size = readArraySize(in);
+    public <K, V> Map<K, V> readMap(ProtobufWriteable.Reader<K> keyReader, ProtobufWriteable.Reader<V> valueReader) throws IOException {
+        int size = readArraySize();
         if (size == 0) {
             return Collections.emptyMap();
         }
         Map<K, V> map = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            K key = keyReader.read(in);
-            V value = valueReader.read(in);
+            K key = keyReader.read(this.in);
+            V value = valueReader.read(this.in);
             map.put(key, value);
         }
         return map;
     }
 
     @Nullable
-    public <T extends ProtobufWriteable> T readOptionalWriteable(ProtobufWriteable.Reader<T> reader, CodedInputStream in)
-        throws IOException {
-        if (readBoolean(in)) {
-            T t = reader.read(in);
+    public <T extends ProtobufWriteable> T readOptionalWriteable(ProtobufWriteable.Reader<T> reader) throws IOException {
+        if (readBoolean()) {
+            T t = reader.read(this.in);
             if (t == null) {
                 throw new IOException(
                     "Writeable.Reader [" + reader + "] returned null which is not allowed and probably means it screwed up the stream."
@@ -114,8 +128,8 @@ public class ProtobufStreamInput {
         }
     }
 
-    private int readArraySize(CodedInputStream in) throws IOException {
-        final int arraySize = readVInt(in);
+    private int readArraySize() throws IOException {
+        final int arraySize = readVInt();
         if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
             throw new IllegalStateException("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH + " but was: " + arraySize);
         }
@@ -129,28 +143,28 @@ public class ProtobufStreamInput {
         return arraySize;
     }
 
-    public int readVInt(CodedInputStream in) throws IOException {
-        byte b = in.readRawByte();
+    public int readVInt() throws IOException {
+        byte b = this.in.readRawByte();
         int i = b & 0x7F;
         if ((b & 0x80) == 0) {
             return i;
         }
-        b = in.readRawByte();
+        b = this.in.readRawByte();
         i |= (b & 0x7F) << 7;
         if ((b & 0x80) == 0) {
             return i;
         }
-        b = in.readRawByte();
+        b = this.in.readRawByte();
         i |= (b & 0x7F) << 14;
         if ((b & 0x80) == 0) {
             return i;
         }
-        b = in.readRawByte();
+        b = this.in.readRawByte();
         i |= (b & 0x7F) << 21;
         if ((b & 0x80) == 0) {
             return i;
         }
-        b = in.readRawByte();
+        b = this.in.readRawByte();
         if ((b & 0x80) != 0) {
             throw new IOException("Invalid vInt ((" + Integer.toHexString(b) + " & 0x7f) << 28) | " + Integer.toHexString(i));
         }
@@ -160,8 +174,8 @@ public class ProtobufStreamInput {
     /**
      * Reads a boolean.
      */
-    public final boolean readBoolean(CodedInputStream in) throws IOException {
-        return readBoolean(in.readRawByte());
+    public final boolean readBoolean() throws IOException {
+        return readBoolean(this.in.readRawByte());
     }
 
     /**
@@ -169,50 +183,66 @@ public class ProtobufStreamInput {
      * only if you must differentiate null from empty.
      */
     @Nullable
-    public BytesReference readOptionalBytesReference(CodedInputStream in) throws IOException {
-        int length = readVInt(in) - 1;
+    public BytesReference readOptionalBytesReference() throws IOException {
+        int length = readVInt() - 1;
         if (length < 0) {
             return null;
         }
-        return readBytesReference(length, in);
+        return readBytesReference(length);
     }
 
     /**
      * Reads a bytes reference from this stream, might hold an actual reference to the underlying
      * bytes of the stream.
      */
-    public BytesReference readBytesReference(int length, CodedInputStream in) throws IOException {
+    public BytesReference readBytesReference() throws IOException {
+        int length = readArraySize();
+        return readBytesReference(length);
+    }
+
+    /**
+     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
+     * bytes of the stream.
+     */
+    public BytesReference readBytesReference(int length) throws IOException {
         if (length == 0) {
             return BytesArray.EMPTY;
         }
         byte[] bytes = new byte[length];
-        bytes = in.readByteArray();
+        bytes = this.in.readByteArray();
         return new BytesArray(bytes, 0, length);
     }
 
     /**
      * Read a {@link TimeValue} from the stream
      */
-    public TimeValue readTimeValue(CodedInputStream in) throws IOException {
-        long duration = in.readInt64();
-        TimeUnit timeUnit = TIME_UNITS[in.readRawByte()];
+    public TimeValue readTimeValue() throws IOException {
+        long duration = this.in.readInt64();
+        TimeUnit timeUnit = TIME_UNITS[this.in.readRawByte()];
         return new TimeValue(duration, timeUnit);
     }
 
-    public String[] readStringArray(CodedInputStream in) throws IOException {
-        int size = readArraySize(in);
+    public String[] readStringArray() throws IOException {
+        int size = readArraySize();
         if (size == 0) {
             return Strings.EMPTY_ARRAY;
         }
         String[] ret = new String[size];
         for (int i = 0; i < size; i++) {
-            ret[i] = in.readString();
+            ret[i] = this.in.readString();
         }
         return ret;
     }
 
-    private <E extends Enum<E>> E readEnum(Class<E> enumClass, E[] values, CodedInputStream in) throws IOException {
-        int ordinal = readVInt(in);
+    /**
+    * Reads an enum with type E that was serialized based on the value of its ordinal
+    */
+    public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
+        return readEnum(enumClass, enumClass.getEnumConstants());
+    }
+
+    private <E extends Enum<E>> E readEnum(Class<E> enumClass, E[] values) throws IOException {
+        int ordinal = readVInt();
         if (ordinal < 0 || ordinal >= values.length) {
             throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
         }
@@ -222,15 +252,15 @@ public class ProtobufStreamInput {
     /**
      * Reads an enum with type E that was serialized based on the value of it's ordinal
      */
-    public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass, CodedInputStream in) throws IOException {
-        int size = readVInt(in);
+    public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass) throws IOException {
+        int size = readVInt();
         final EnumSet<E> res = EnumSet.noneOf(enumClass);
         if (size == 0) {
             return res;
         }
         final E[] values = enumClass.getEnumConstants();
         for (int i = 0; i < size; i++) {
-            res.add(readEnum(enumClass, values, in));
+            res.add(readEnum(enumClass, values));
         }
         return res;
     }
@@ -253,26 +283,22 @@ public class ProtobufStreamInput {
      * @return the list of objects
      * @throws IOException if an I/O exception occurs reading the list
      */
-    public <T> List<T> readList(final ProtobufWriteable.Reader<T> reader, CodedInputStream in) throws IOException {
-        return readCollection(reader, ArrayList::new, Collections.emptyList(), in);
+    public <T> List<T> readList(final ProtobufWriteable.Reader<T> reader) throws IOException {
+        return readCollection(reader, ArrayList::new, Collections.emptyList());
     }
 
     /**
      * Reads a collection of objects
      */
-    private <T, C extends Collection<? super T>> C readCollection(
-        ProtobufWriteable.Reader<T> reader,
-        IntFunction<C> constructor,
-        C empty,
-        CodedInputStream in
-    ) throws IOException {
-        int count = readArraySize(in);
+    private <T, C extends Collection<? super T>> C readCollection(ProtobufWriteable.Reader<T> reader, IntFunction<C> constructor, C empty)
+        throws IOException {
+        int count = readArraySize();
         if (count == 0) {
             return empty;
         }
         C builder = constructor.apply(count);
         for (int i = 0; i < count; i++) {
-            builder.add(reader.read(in));
+            builder.add(reader.read(this.in));
         }
         return builder;
     }
@@ -301,17 +327,15 @@ public class ProtobufStreamInput {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
-    public <T> T[] readOptionalArray(ProtobufWriteable.Reader<T> reader, IntFunction<T[]> arraySupplier, CodedInputStream in)
-        throws IOException {
-        return readBoolean(in) ? readArray(reader, arraySupplier, in) : null;
+    public <T> T[] readOptionalArray(ProtobufWriteable.Reader<T> reader, IntFunction<T[]> arraySupplier) throws IOException {
+        return readBoolean() ? readArray(reader, arraySupplier) : null;
     }
 
-    public <T> T[] readArray(final ProtobufWriteable.Reader<T> reader, final IntFunction<T[]> arraySupplier, CodedInputStream in)
-        throws IOException {
-        final int length = readArraySize(in);
+    public <T> T[] readArray(final ProtobufWriteable.Reader<T> reader, final IntFunction<T[]> arraySupplier) throws IOException {
+        final int length = readArraySize();
         final T[] values = arraySupplier.apply(length);
         for (int i = 0; i < length; i++) {
-            values[i] = reader.read(in);
+            values[i] = reader.read(this.in);
         }
         return values;
     }
@@ -319,12 +343,94 @@ public class ProtobufStreamInput {
     /**
      * Read an optional {@link TimeValue} from the stream, returning null if no TimeValue was written.
      */
-    public @Nullable TimeValue readOptionalTimeValue(CodedInputStream in) throws IOException {
-        if (readBoolean(in)) {
-            return readTimeValue(in);
+    public @Nullable TimeValue readOptionalTimeValue() throws IOException {
+        if (readBoolean()) {
+            return readTimeValue();
         } else {
             return null;
         }
+    }
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    public <T extends Exception> T readException() throws IOException {
+        if (readBoolean()) {
+            int key = readVInt();
+            switch (key) {
+                case 0:
+                    final int ord = readVInt();
+                    return (T) ProtobufOpenSearchException.readException(this.in, ord);
+                case 4:
+                    return (T) readStackTrace(new NullPointerException(readOptionalString()), this.in);
+                case 5:
+                    return (T) readStackTrace(new NumberFormatException(readOptionalString()), this.in);
+                case 6:
+                    return (T) readStackTrace(new IllegalArgumentException(readOptionalString(), readException()), this.in);
+                case 13:
+                    final int subclass = readVInt();
+                    final String file = readOptionalString();
+                    final String other = readOptionalString();
+                    final String reason = readOptionalString();
+                    readOptionalString(); // skip the msg - it's composed from file, other and reason
+                    final Exception exception;
+                    switch (subclass) {
+                        case 0:
+                            exception = new NoSuchFileException(file, other, reason);
+                            break;
+                        case 1:
+                            exception = new NotDirectoryException(file);
+                            break;
+                        case 2:
+                            exception = new DirectoryNotEmptyException(file);
+                            break;
+                        case 3:
+                            exception = new AtomicMoveNotSupportedException(file, other, reason);
+                            break;
+                        case 4:
+                            exception = new FileAlreadyExistsException(file, other, reason);
+                            break;
+                        case 5:
+                            exception = new AccessDeniedException(file, other, reason);
+                            break;
+                        case 6:
+                            exception = new FileSystemLoopException(file);
+                            break;
+                        case 7:
+                            exception = new FileSystemException(file, other, reason);
+                            break;
+                        default:
+                            throw new IllegalStateException("unknown FileSystemException with index " + subclass);
+                    }
+                    return (T) readStackTrace(exception, this.in);
+                case 14:
+                    return (T) readStackTrace(new IllegalStateException(readOptionalString(), readException()), this.in);
+                case 16:
+                    return (T) readStackTrace(new InterruptedException(readOptionalString()), this.in);
+                case 17:
+                    return (T) readStackTrace(new IOException(readOptionalString(), readException()), this.in);
+                default:
+                    throw new IOException("no such exception for id: " + key);
+            }
+        }
+        return null;
+    }
+
+    public short readShort() throws IOException {
+        return (short) (((this.in.readRawByte() & 0xFF) << 8) | (this.in.readRawByte() & 0xFF));
+    }
+
+    private static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
+
+    public double[] readDoubleArray() throws IOException {
+        int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_DOUBLE_ARRAY;
+        }
+        double[] values = new double[length];
+        for (int i = 0; i < length; i++) {
+            values[i] = this.in.readDouble();
+        }
+        return values;
     }
 
 }

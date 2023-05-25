@@ -175,7 +175,7 @@ public final class ThreadContext implements Writeable, ProtobufWriteable {
     /**
      * Captures the current thread context as writeable, allowing it to be serialized out later
      */
-    public ProtobufWriteable captureAsWriteable() {
+    public ProtobufWriteable captureAsProtobufWriteable() {
         final ThreadContextStruct context = threadLocal.get();
         return out -> context.writeTo(out, defaultHeader);
     }
@@ -548,6 +548,7 @@ public final class ThreadContext implements Writeable, ProtobufWriteable {
         private final boolean isSystemContext;
         // saving current warning headers' size not to recalculate the size with every new warning header
         private final long warningHeadersSize;
+        private ProtobufStreamOutput protobufStreamOutput;
 
         private ThreadContextStruct setSystemContext() {
             if (isSystemContext) {
@@ -753,8 +754,13 @@ public final class ThreadContext implements Writeable, ProtobufWriteable {
                 out.writeStringNoTag(entry.getValue());
             }
 
-            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
-            protobufStreamOutput.writeMap(responseHeaders, CodedOutputStream::writeStringNoTag, CodedOutputStream::writeStringNoTag, out);
+            protobufStreamOutput = new ProtobufStreamOutput(out);
+            protobufStreamOutput.writeMap(responseHeaders, CodedOutputStream::writeStringNoTag, (o, v) -> {
+                o.writeInt32NoTag(v.size());
+                for (String s : v) {
+                    o.writeStringNoTag(s);
+                }
+            });
         }
     }
 

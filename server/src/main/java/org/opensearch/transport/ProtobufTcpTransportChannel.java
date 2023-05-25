@@ -10,8 +10,6 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.search.query.QuerySearchResult;
-
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,7 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class ProtobufTcpTransportChannel implements ProtobufTransportChannel {
 
     private final AtomicBoolean released = new AtomicBoolean();
-    private final OutboundHandler outboundHandler;
+    private final ProtobufOutboundHandler outboundHandler;
     private final TcpChannel channel;
     private final String action;
     private final long requestId;
@@ -35,7 +33,7 @@ public final class ProtobufTcpTransportChannel implements ProtobufTransportChann
     private final Releasable breakerRelease;
 
     ProtobufTcpTransportChannel(
-        OutboundHandler outboundHandler,
+        ProtobufOutboundHandler outboundHandler,
         TcpChannel channel,
         String action,
         long requestId,
@@ -65,8 +63,8 @@ public final class ProtobufTcpTransportChannel implements ProtobufTransportChann
     public void sendResponse(ProtobufTransportResponse response) throws IOException {
         try {
             // if (response instanceof QuerySearchResult && ((QuerySearchResult) response).getShardSearchRequest() != null) {
-            //     // update outbound network time with current time before sending response over network
-            //     ((QuerySearchResult) response).getShardSearchRequest().setOutboundNetworkTime(System.currentTimeMillis());
+            // // update outbound network time with current time before sending response over network
+            // ((QuerySearchResult) response).getShardSearchRequest().setOutboundNetworkTime(System.currentTimeMillis());
             // }
             outboundHandler.sendResponse(version, features, channel, requestId, action, response, compressResponse, isHandshake);
         } finally {

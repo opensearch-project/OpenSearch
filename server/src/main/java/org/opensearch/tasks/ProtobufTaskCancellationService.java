@@ -8,25 +8,25 @@
 
 package org.opensearch.tasks;
 
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
-import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.ProtobufChannelActionListener;
 import org.opensearch.action.support.GroupedActionListener;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.EmptyTransportResponseHandler;
-import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportRequest;
-import org.opensearch.transport.TransportRequestHandler;
-import org.opensearch.transport.TransportResponse;
-import org.opensearch.transport.TransportService;
+import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.transport.ProtobufEmptyTransportResponseHandler;
+import org.opensearch.transport.ProtobufTransportChannel;
+import org.opensearch.transport.ProtobufTransportException;
+import org.opensearch.transport.ProtobufTransportRequest;
+import org.opensearch.transport.ProtobufTransportRequestHandler;
+import org.opensearch.transport.ProtobufTransportResponse;
+import org.opensearch.transport.ProtobufTransportService;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -40,15 +40,15 @@ import java.util.List;
 public class ProtobufTaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
     private static final Logger logger = LogManager.getLogger(ProtobufTaskCancellationService.class);
-    private final TransportService transportService;
+    private final ProtobufTransportService transportService;
     private final ProtobufTaskManager taskManager;
 
-    public ProtobufTaskCancellationService(TransportService transportService) {
+    public ProtobufTaskCancellationService(ProtobufTransportService transportService) {
         this.transportService = transportService;
         this.taskManager = transportService.getTaskManager();
         transportService.registerRequestHandler(
             BAN_PARENT_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            ProtobufThreadPool.Names.SAME,
             BanParentTaskRequest::new,
             new BanParentRequestHandler()
         );
@@ -58,13 +58,13 @@ public class ProtobufTaskCancellationService {
         return transportService.getLocalNode().getId();
     }
 
-    void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
-        final TaskId taskId = task.taskInfo(localNodeId(), false).getTaskId();
+    void cancelTaskAndDescendants(ProtobufCancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
+        final ProtobufTaskId taskId = task.taskInfo(localNodeId(), false).getTaskId();
         if (task.shouldCancelChildrenOnCancellation()) {
             logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();
             GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(completedListener, r -> null), 3);
-            Collection<DiscoveryNode> childrenNodes = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
+            Collection<ProtobufDiscoveryNode> childrenNodes = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
                 logger.trace("child tasks of parent [{}] are completed", taskId);
                 groupedListener.onResponse(null);
             });
@@ -103,35 +103,35 @@ public class ProtobufTaskCancellationService {
     private void setBanOnNodes(
         String reason,
         boolean waitForCompletion,
-        CancellableTask task,
-        Collection<DiscoveryNode> childNodes,
+        ProtobufCancellableTask task,
+        Collection<ProtobufDiscoveryNode> childNodes,
         ActionListener<Void> listener
     ) {
         if (childNodes.isEmpty()) {
             listener.onResponse(null);
             return;
         }
-        final TaskId taskId = new TaskId(localNodeId(), task.getId());
+        final ProtobufTaskId taskId = new ProtobufTaskId(localNodeId(), task.getId());
         logger.trace("cancelling child tasks of [{}] on child nodes {}", taskId, childNodes);
         GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(
             ActionListener.map(listener, r -> null),
             childNodes.size()
         );
         final BanParentTaskRequest banRequest = BanParentTaskRequest.createSetBanParentTaskRequest(taskId, reason, waitForCompletion);
-        for (DiscoveryNode node : childNodes) {
+        for (ProtobufDiscoveryNode node : childNodes) {
             transportService.sendRequest(
                 node,
                 BAN_PARENT_ACTION_NAME,
                 banRequest,
-                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                new ProtobufEmptyTransportResponseHandler(ProtobufThreadPool.Names.SAME) {
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse(ProtobufTransportResponse.Empty response) {
                         logger.trace("sent ban for tasks with the parent [{}] to the node [{}]", taskId, node);
                         groupedListener.onResponse(null);
                     }
 
                     @Override
-                    public void handleException(TransportException exp) {
+                    public void handleException(ProtobufTransportException exp) {
                         assert ExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
                         logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", taskId, node);
                         groupedListener.onFailure(exp);
@@ -141,72 +141,80 @@ public class ProtobufTaskCancellationService {
         }
     }
 
-    private void removeBanOnNodes(CancellableTask task, Collection<DiscoveryNode> childNodes) {
-        final BanParentTaskRequest request = BanParentTaskRequest.createRemoveBanParentTaskRequest(new TaskId(localNodeId(), task.getId()));
-        for (DiscoveryNode node : childNodes) {
+    private void removeBanOnNodes(ProtobufCancellableTask task, Collection<ProtobufDiscoveryNode> childNodes) {
+        final BanParentTaskRequest request = BanParentTaskRequest.createRemoveBanParentTaskRequest(
+            new ProtobufTaskId(localNodeId(), task.getId())
+        );
+        for (ProtobufDiscoveryNode node : childNodes) {
             logger.trace("Sending remove ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node);
-            transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                @Override
-                public void handleException(TransportException exp) {
-                    assert ExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
-                    logger.info("failed to remove the parent ban for task {} on node {}", request.parentTaskId, node);
+            transportService.sendRequest(
+                node,
+                BAN_PARENT_ACTION_NAME,
+                request,
+                new ProtobufEmptyTransportResponseHandler(ProtobufThreadPool.Names.SAME) {
+                    @Override
+                    public void handleException(ProtobufTransportException exp) {
+                        assert ExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
+                        logger.info("failed to remove the parent ban for task {} on node {}", request.parentTaskId, node);
+                    }
                 }
-            });
+            );
         }
     }
 
-    private static class BanParentTaskRequest extends TransportRequest {
+    private static class BanParentTaskRequest extends ProtobufTransportRequest {
 
-        private final TaskId parentTaskId;
+        private final ProtobufTaskId parentTaskId;
         private final boolean ban;
         private final boolean waitForCompletion;
         private final String reason;
 
-        static BanParentTaskRequest createSetBanParentTaskRequest(TaskId parentTaskId, String reason, boolean waitForCompletion) {
+        static BanParentTaskRequest createSetBanParentTaskRequest(ProtobufTaskId parentTaskId, String reason, boolean waitForCompletion) {
             return new BanParentTaskRequest(parentTaskId, reason, waitForCompletion);
         }
 
-        static BanParentTaskRequest createRemoveBanParentTaskRequest(TaskId parentTaskId) {
+        static BanParentTaskRequest createRemoveBanParentTaskRequest(ProtobufTaskId parentTaskId) {
             return new BanParentTaskRequest(parentTaskId);
         }
 
-        private BanParentTaskRequest(TaskId parentTaskId, String reason, boolean waitForCompletion) {
+        private BanParentTaskRequest(ProtobufTaskId parentTaskId, String reason, boolean waitForCompletion) {
             this.parentTaskId = parentTaskId;
             this.ban = true;
             this.reason = reason;
             this.waitForCompletion = waitForCompletion;
         }
 
-        private BanParentTaskRequest(TaskId parentTaskId) {
+        private BanParentTaskRequest(ProtobufTaskId parentTaskId) {
             this.parentTaskId = parentTaskId;
             this.ban = false;
             this.reason = null;
             this.waitForCompletion = false;
         }
 
-        private BanParentTaskRequest(StreamInput in) throws IOException {
+        private BanParentTaskRequest(CodedInputStream in) throws IOException {
             super(in);
-            parentTaskId = TaskId.readFromStream(in);
-            ban = in.readBoolean();
+            parentTaskId = ProtobufTaskId.readFromStream(in);
+            ban = in.readBool();
             reason = ban ? in.readString() : null;
-            waitForCompletion = in.readBoolean();
+            waitForCompletion = in.readBool();
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(CodedOutputStream out) throws IOException {
             super.writeTo(out);
             parentTaskId.writeTo(out);
-            out.writeBoolean(ban);
+            out.writeBoolNoTag(ban);
             if (ban) {
-                out.writeString(reason);
+                out.writeStringNoTag(reason);
             }
-            out.writeBoolean(waitForCompletion);
+            out.writeBoolNoTag(waitForCompletion);
         }
     }
 
-    private class BanParentRequestHandler implements TransportRequestHandler<BanParentTaskRequest> {
+    private class BanParentRequestHandler implements ProtobufTransportRequestHandler<BanParentTaskRequest> {
         @Override
-        public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(final BanParentTaskRequest request, final ProtobufTransportChannel channel, ProtobufTask task)
+            throws Exception {
             if (request.ban) {
                 logger.debug(
                     "Received ban for the parent [{}] on the node [{}], reason: [{}]",
@@ -214,22 +222,22 @@ public class ProtobufTaskCancellationService {
                     localNodeId(),
                     request.reason
                 );
-                final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason);
+                final List<ProtobufCancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                     ActionListener.map(
-                        new ChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request),
-                        r -> TransportResponse.Empty.INSTANCE
+                        new ProtobufChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request),
+                        r -> ProtobufTransportResponse.Empty.INSTANCE
                     ),
                     childTasks.size() + 1
                 );
-                for (CancellableTask childTask : childTasks) {
+                for (ProtobufCancellableTask childTask : childTasks) {
                     cancelTaskAndDescendants(childTask, request.reason, request.waitForCompletion, listener);
                 }
                 listener.onResponse(null);
             } else {
                 logger.debug("Removing ban for the parent [{}] on the node [{}]", request.parentTaskId, localNodeId());
                 taskManager.removeBan(request.parentTaskId);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                channel.sendResponse(ProtobufTransportResponse.Empty.INSTANCE);
             }
         }
     }

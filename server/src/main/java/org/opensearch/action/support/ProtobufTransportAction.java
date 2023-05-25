@@ -11,22 +11,17 @@ package org.opensearch.action.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ProtobufActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.tasks.ProtobufTaskId;
-import org.opensearch.tasks.Task;
+import org.opensearch.tasks.ProtobufTaskManager;
 import org.opensearch.tasks.TaskCancelledException;
-import org.opensearch.tasks.TaskId;
-import org.opensearch.tasks.TaskListener;
-import org.opensearch.tasks.TaskManager;
-
+import org.opensearch.tasks.ProtobufTaskListener;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -38,14 +33,14 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
 
     public final String actionName;
     private final ProtobufActionFilter[] filters;
-    protected final TaskManager taskManager;
+    protected final ProtobufTaskManager taskManager;
     /**
      * @deprecated declare your own logger.
     */
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
 
-    protected ProtobufTransportAction(String actionName, ProtobufActionFilters actionFilters, TaskManager taskManager) {
+    protected ProtobufTransportAction(String actionName, ProtobufActionFilters actionFilters, ProtobufTaskManager taskManager) {
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;
@@ -66,7 +61,7 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
     */
     public final ProtobufTask execute(Request request, ActionListener<Response> listener) {
         /*
-        * While this version of execute could delegate to the TaskListener
+        * While this version of execute could delegate to the ProtobufTaskListener
         * version of execute that'd add yet another layer of wrapping on the
         * listener and prevent us from using the listener bare if there isn't a
         * task. That just seems like too many objects. Thus the two versions of
@@ -111,12 +106,12 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
     }
 
     /**
-     * Execute the transport action on the local node, returning the {@link Task} used to track its execution and accepting a
-    * {@link TaskListener} which listens for the completion of the action.
+     * Execute the transport action on the local node, returning the {@link ProtobufTask} used to track its execution and accepting a
+    * {@link ProtobufTaskListener} which listens for the completion of the action.
     */
-    public final Task execute(Request request, TaskListener<Response> listener) {
+    public final ProtobufTask execute(Request request, ProtobufTaskListener<Response> listener) {
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
-        final Task task;
+        final ProtobufTask task;
         try {
             task = taskManager.register("transport", actionName, request);
         } catch (TaskCancelledException e) {
@@ -153,7 +148,7 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
     /**
      * Use this method when the transport action should continue to run in the context of the current task
     */
-    public final void execute(Task task, Request request, ActionListener<Response> listener) {
+    public final void execute(ProtobufTask task, Request request, ActionListener<Response> listener) {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -168,28 +163,28 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
         requestFilterChain.proceed(task, actionName, request, listener);
     }
 
-    protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);
+    protected abstract void doExecute(ProtobufTask task, Request request, ActionListener<Response> listener);
 
     /**
      * A request filter chain
     *
     * @opensearch.internal
     */
-    private static class RequestFilterChain<Request extends ActionRequest, Response extends ActionResponse>
+    private static class RequestFilterChain<Request extends ProtobufActionRequest, Response extends ProtobufActionResponse>
         implements
-            ActionFilterChain<Request, Response> {
+            ProtobufActionFilterChain<Request, Response> {
 
-        private final TransportAction<Request, Response> action;
+        private final ProtobufTransportAction<Request, Response> action;
         private final AtomicInteger index = new AtomicInteger();
         private final Logger logger;
 
-        private RequestFilterChain(TransportAction<Request, Response> action, Logger logger) {
+        private RequestFilterChain(ProtobufTransportAction<Request, Response> action, Logger logger) {
             this.action = action;
             this.logger = logger;
         }
 
         @Override
-        public void proceed(Task task, String actionName, Request request, ActionListener<Response> listener) {
+        public void proceed(ProtobufTask task, String actionName, Request request, ActionListener<Response> listener) {
             int i = index.getAndIncrement();
             try {
                 if (i < this.action.filters.length) {
@@ -212,12 +207,12 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
     *
     * @opensearch.internal
     */
-    private static class TaskResultStoringActionListener<Response extends ActionResponse> implements ActionListener<Response> {
+    private static class TaskResultStoringActionListener<Response extends ProtobufActionResponse> implements ActionListener<Response> {
         private final ActionListener<Response> delegate;
-        private final Task task;
-        private final TaskManager taskManager;
+        private final ProtobufTask task;
+        private final ProtobufTaskManager taskManager;
 
-        private TaskResultStoringActionListener(TaskManager taskManager, Task task, ActionListener<Response> delegate) {
+        private TaskResultStoringActionListener(ProtobufTaskManager taskManager, ProtobufTask task, ActionListener<Response> delegate) {
             this.taskManager = taskManager;
             this.task = task;
             this.delegate = delegate;

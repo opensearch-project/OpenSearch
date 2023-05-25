@@ -54,10 +54,10 @@ public abstract class ProtobufBaseNodesRequest<Request extends ProtobufBaseNodes
 
     protected ProtobufBaseNodesRequest(CodedInputStream in) throws IOException {
         super(in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
-        nodesIds = protobufStreamInput.readStringArray(in);
-        concreteNodes = protobufStreamInput.readOptionalArray(ProtobufDiscoveryNode::new, ProtobufDiscoveryNode[]::new, in);
-        timeout = protobufStreamInput.readOptionalTimeValue(in);
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        nodesIds = protobufStreamInput.readStringArray();
+        concreteNodes = protobufStreamInput.readOptionalArray(ProtobufDiscoveryNode::new, ProtobufDiscoveryNode[]::new);
+        timeout = protobufStreamInput.readOptionalTimeValue();
     }
 
     protected ProtobufBaseNodesRequest(String... nodesIds) {
@@ -109,11 +109,11 @@ public abstract class ProtobufBaseNodesRequest<Request extends ProtobufBaseNodes
     }
 
     @Override
-    public void writeTo(CodedOutputStream output) throws IOException {
-        super.writeTo(output);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
-        protobufStreamOutput.writeStringArrayNullable(nodesIds, output);
-        protobufStreamOutput.writeOptionalArray((out, value) -> value.writeTo(out), concreteNodes, output);
-        protobufStreamOutput.writeOptionalTimeValue(timeout, output);
+    public void writeTo(CodedOutputStream out) throws IOException {
+        super.writeTo(out);
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        protobufStreamOutput.writeStringArrayNullable(nodesIds);
+        protobufStreamOutput.writeOptionalArray((o, v) -> v.writeTo(o), concreteNodes);
+        protobufStreamOutput.writeOptionalTimeValue(timeout);
     }
 }

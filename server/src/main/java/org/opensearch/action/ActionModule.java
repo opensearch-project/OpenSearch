@@ -272,6 +272,7 @@ import org.opensearch.action.search.TransportSearchScrollAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
+import org.opensearch.action.support.ProtobufTransportAction;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.termvectors.MultiTermVectorsAction;
 import org.opensearch.action.termvectors.TermVectorsAction;
@@ -1064,6 +1065,74 @@ public class ActionModule extends AbstractModule {
          */
         @SuppressWarnings("unchecked")
         public TransportAction<? extends ActionRequest, ? extends ActionResponse> get(ActionType<?> action) {
+            if (actions.containsKey(action)) {
+                return actions.get(action);
+            }
+            return registry.get(action);
+        }
+    }
+
+    /**
+     * The DynamicActionRegistry maintains a registry mapping {@link ActionType} instances to {@link TransportAction} instances.
+     * <p>
+     * This class is modeled after {@link NamedRegistry} but provides both register and unregister capabilities.
+     *
+     * @opensearch.internal
+     */
+    public static class ProtobufDynamicActionRegistry {
+        // This is the unmodifiable actions map created during node bootstrap, which
+        // will continue to link ActionType and TransportAction pairs from core and plugin
+        // action handler registration.
+        private Map<ProtobufActionType, ProtobufTransportAction> actions = Collections.emptyMap();
+        // A dynamic registry to add or remove ActionType / TransportAction pairs
+        // at times other than node bootstrap.
+        private final Map<ProtobufActionType<?>, ProtobufTransportAction<?, ?>> registry = new ConcurrentHashMap<>();
+
+        /**
+         * Register the immutable actions in the registry.
+         *
+         * @param actions The injected map of {@link ProtobufActionType} to {@link ProtobufTransportAction}
+         */
+        public void registerUnmodifiableActionMap(Map<ProtobufActionType, ProtobufTransportAction> actions) {
+            this.actions = actions;
+        }
+
+        /**
+         * Add a dynamic action to the registry.
+         *
+         * @param action The action instance to add
+         * @param transportAction The corresponding instance of transportAction to execute
+         */
+        public void registerDynamicAction(ProtobufActionType<?> action, ProtobufTransportAction<?, ?> transportAction) {
+            requireNonNull(action, "action is required");
+            requireNonNull(transportAction, "transportAction is required");
+            if (actions.containsKey(action) || registry.putIfAbsent(action, transportAction) != null) {
+                throw new IllegalArgumentException("action [" + action.name() + "] already registered");
+            }
+        }
+
+        /**
+         * Remove a dynamic action from the registry.
+         *
+         * @param action The action to remove
+         */
+        public void unregisterDynamicAction(ProtobufActionType<?> action) {
+            requireNonNull(action, "action is required");
+            if (registry.remove(action) == null) {
+                throw new IllegalArgumentException("action [" + action.name() + "] was not registered");
+            }
+        }
+
+        /**
+         * Gets the {@link ProtobufTransportAction} instance corresponding to the {@link ProtobufActionType} instance.
+         *
+         * @param action The {@link ProtobufActionType}.
+         * @return the corresponding {@link ProtobufTransportAction} if it is registered, null otherwise.
+         */
+        @SuppressWarnings("unchecked")
+        public ProtobufTransportAction<? extends ProtobufActionRequest, ? extends ProtobufActionResponse> get(
+            ProtobufActionType<?> action
+        ) {
             if (actions.containsKey(action)) {
                 return actions.get(action);
             }

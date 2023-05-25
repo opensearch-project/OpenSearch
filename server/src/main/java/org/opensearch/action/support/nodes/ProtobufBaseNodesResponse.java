@@ -41,10 +41,10 @@ public abstract class ProtobufBaseNodesResponse<TNodeResponse extends ProtobufBa
 
     protected ProtobufBaseNodesResponse(CodedInputStream in) throws IOException {
         super(in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         clusterName = new ProtobufClusterName(in);
         nodes = readNodesFrom(in);
-        failures = protobufStreamInput.readList(ProtobufFailedNodeException::new, in);
+        failures = protobufStreamInput.readList(ProtobufFailedNodeException::new);
     }
 
     protected ProtobufBaseNodesResponse(
@@ -112,10 +112,10 @@ public abstract class ProtobufBaseNodesResponse<TNodeResponse extends ProtobufBa
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         clusterName.writeTo(out);
         writeNodesTo(out, nodes);
-        protobufStreamOutput.writeCollection(failures, (o, v) -> v.writeTo(o), out);
+        protobufStreamOutput.writeCollection(failures, (o, v) -> v.writeTo(o));
     }
 
     /**

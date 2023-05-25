@@ -55,8 +55,6 @@ import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRespon
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequest;
-import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
@@ -125,8 +123,6 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRespo
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
-import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;

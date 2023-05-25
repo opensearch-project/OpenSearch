@@ -10,12 +10,10 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.ProtobufCommonStatsFlags;
-import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
+import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -43,7 +41,8 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
 
         indices = new ProtobufCommonStatsFlags(in);
         requestedMetrics.clear();
-        requestedMetrics.addAll(in.readStringList());
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        requestedMetrics.addAll(protobufStreamInput.readList(CodedInputStream::readString));
     }
 
     /**
@@ -153,7 +152,8 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
     public void writeTo(CodedOutputStream out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
-        out.writeStringArray(requestedMetrics.toArray(new String[0]));
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        protobufStreamOutput.writeStringArray(requestedMetrics.toArray(new String[0]));
     }
 
     /**

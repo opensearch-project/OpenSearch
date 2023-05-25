@@ -15,9 +15,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,8 +27,8 @@ import java.util.EnumSet;
 */
 public class ProtobufCommonStatsFlags implements ProtobufWriteable, Cloneable {
 
-    public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
-    public static final CommonStatsFlags NONE = new CommonStatsFlags().clear();
+    public static final ProtobufCommonStatsFlags ALL = new ProtobufCommonStatsFlags().all();
+    public static final ProtobufCommonStatsFlags NONE = new ProtobufCommonStatsFlags().clear();
 
     private EnumSet<Flag> flags = EnumSet.allOf(Flag.class);
     private String[] groups = null;
@@ -53,8 +50,8 @@ public class ProtobufCommonStatsFlags implements ProtobufWriteable, Cloneable {
     }
 
     public ProtobufCommonStatsFlags(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
-        final long longFlags = in.readLong();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        final long longFlags = in.readInt64();
         flags.clear();
         for (Flag flag : Flag.values()) {
             if ((longFlags & (1 << flag.getIndex())) != 0) {
@@ -62,11 +59,11 @@ public class ProtobufCommonStatsFlags implements ProtobufWriteable, Cloneable {
             }
         }
         if (protobufStreamInput.getVersion().before(Version.V_2_0_0)) {
-            protobufStreamInput.readStringArray(in);
+            protobufStreamInput.readStringArray();
         }
-        groups = protobufStreamInput.readStringArray(in);
-        fieldDataFields = protobufStreamInput.readStringArray(in);
-        completionDataFields = protobufStreamInput.readStringArray(in);
+        groups = protobufStreamInput.readStringArray();
+        fieldDataFields = protobufStreamInput.readStringArray();
+        completionDataFields = protobufStreamInput.readStringArray();
         includeSegmentFileSizes = in.readBool();
         includeUnloadedSegments = in.readBool();
         includeAllShardIndexingPressureTrackers = in.readBool();
@@ -75,7 +72,7 @@ public class ProtobufCommonStatsFlags implements ProtobufWriteable, Cloneable {
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         long longFlags = 0;
         for (Flag flag : flags) {
             longFlags |= (1 << flag.getIndex());
@@ -83,11 +80,11 @@ public class ProtobufCommonStatsFlags implements ProtobufWriteable, Cloneable {
         out.writeInt64NoTag(longFlags);
 
         if (protobufStreamOutput.getVersion().before(Version.V_2_0_0)) {
-            protobufStreamOutput.writeStringArrayNullable(Strings.EMPTY_ARRAY, out);
+            protobufStreamOutput.writeStringArrayNullable(Strings.EMPTY_ARRAY);
         }
-        protobufStreamOutput.writeStringArrayNullable(groups, out);
-        protobufStreamOutput.writeStringArrayNullable(fieldDataFields, out);
-        protobufStreamOutput.writeStringArrayNullable(completionDataFields, out);
+        protobufStreamOutput.writeStringArrayNullable(groups);
+        protobufStreamOutput.writeStringArrayNullable(fieldDataFields);
+        protobufStreamOutput.writeStringArrayNullable(completionDataFields);
         out.writeBoolNoTag(includeSegmentFileSizes);
         out.writeBoolNoTag(includeUnloadedSegments);
         out.writeBoolNoTag(includeAllShardIndexingPressureTrackers);

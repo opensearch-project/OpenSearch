@@ -37,16 +37,16 @@ public class ProtobufPluginsAndModules implements ProtobufReportingService.Proto
     }
 
     public ProtobufPluginsAndModules(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
-        this.plugins = Collections.unmodifiableList(protobufStreamInput.readList(ProtobufPluginInfo::new, in));
-        this.modules = Collections.unmodifiableList(protobufStreamInput.readList(ProtobufPluginInfo::new, in));
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        this.plugins = Collections.unmodifiableList(protobufStreamInput.readList(ProtobufPluginInfo::new));
+        this.modules = Collections.unmodifiableList(protobufStreamInput.readList(ProtobufPluginInfo::new));
     }
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
-        protobufStreamOutput.writeCollection(plugins, (o, v) -> v.writeTo(o), out);
-        protobufStreamOutput.writeCollection(modules, (o, v) -> v.writeTo(o), out);
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        protobufStreamOutput.writeCollection(plugins, (o, v) -> v.writeTo(o));
+        protobufStreamOutput.writeCollection(modules, (o, v) -> v.writeTo(o));
     }
 
     /**

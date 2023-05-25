@@ -14,14 +14,13 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Version;
-import org.opensearch.cluster.AbstractDiffable;
-import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.ProtobufAbstractDiffable;
+import org.opensearch.cluster.ProtobufDiff;
+import org.opensearch.cluster.ProtobufAbstractDiffable;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.set.Sets;
@@ -43,7 +42,7 @@ import java.util.stream.StreamSupport;
 *
 * @opensearch.internal
 */
-public class ProtobufDiscoveryNodes extends AbstractDiffable<ProtobufDiscoveryNodes> implements Iterable<ProtobufDiscoveryNode> {
+public class ProtobufDiscoveryNodes extends ProtobufAbstractDiffable<ProtobufDiscoveryNodes> implements Iterable<ProtobufDiscoveryNode> {
 
     public static final ProtobufDiscoveryNodes EMPTY_NODES = builder().build();
 
@@ -700,8 +699,9 @@ public class ProtobufDiscoveryNodes extends AbstractDiffable<ProtobufDiscoveryNo
         return builder.build();
     }
 
-    public static Diff<ProtobufDiscoveryNodes> readDiffFrom(CodedInputStream in, ProtobufDiscoveryNode localNode) throws IOException {
-        return AbstractDiffable.readDiffFrom(in1 -> readFrom(in1, localNode), in);
+    public static ProtobufDiff<ProtobufDiscoveryNodes> readDiffFrom(CodedInputStream in, ProtobufDiscoveryNode localNode)
+        throws IOException {
+        return ProtobufAbstractDiffable.readDiffFrom(in1 -> readFrom(in1, localNode), in);
     }
 
     public static Builder builder() {

@@ -34,14 +34,14 @@ public class ProtobufThreadPoolInfo implements ProtobufReportingService.Protobuf
     }
 
     public ProtobufThreadPoolInfo(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
-        this.infos = Collections.unmodifiableList(protobufStreamInput.readList(ProtobufThreadPool.Info::new, in));
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        this.infos = Collections.unmodifiableList(protobufStreamInput.readList(ProtobufThreadPool.Info::new));
     }
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
-        protobufStreamOutput.writeCollection(infos, (o, v) -> v.writeTo(o), out);
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        protobufStreamOutput.writeCollection(infos, (o, v) -> v.writeTo(o));
     }
 
     @Override

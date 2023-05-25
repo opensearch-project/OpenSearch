@@ -716,7 +716,7 @@ public class ProtobufThreadPool implements ProtobufReportingService<ProtobufThre
         }
 
         public Info(CodedInputStream in) throws IOException {
-            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
             name = in.readString();
             final String typeStr = in.readString();
             // Opensearch on or after 3.0.0 version doesn't know about "fixed_auto_queue_size" thread pool. Convert it to RESIZABLE.
@@ -727,13 +727,13 @@ public class ProtobufThreadPool implements ProtobufReportingService<ProtobufThre
             }
             min = in.readInt32();
             max = in.readInt32();
-            keepAlive = protobufStreamInput.readOptionalTimeValue(in);
-            queueSize = protobufStreamInput.readOptionalWriteable(ProtobufSizeValue::new, in);
+            keepAlive = protobufStreamInput.readOptionalTimeValue();
+            queueSize = protobufStreamInput.readOptionalWriteable(ProtobufSizeValue::new);
         }
 
         @Override
         public void writeTo(CodedOutputStream out) throws IOException {
-            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
             out.writeStringNoTag(name);
             if (type == ThreadPoolType.RESIZABLE && protobufStreamOutput.getVersion().before(Version.V_3_0_0)) {
                 // Opensearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
@@ -744,8 +744,8 @@ public class ProtobufThreadPool implements ProtobufReportingService<ProtobufThre
             }
             out.writeInt32NoTag(min);
             out.writeInt32NoTag(max);
-            protobufStreamOutput.writeOptionalTimeValue(keepAlive, out);
-            protobufStreamOutput.writeOptionalWriteable(queueSize, out);
+            protobufStreamOutput.writeOptionalTimeValue(keepAlive);
+            protobufStreamOutput.writeOptionalWriteable(queueSize);
         }
 
         public String getName() {

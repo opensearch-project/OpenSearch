@@ -127,7 +127,7 @@ public class ProtobufPluginInfo implements ProtobufWriteable {
     * @throws IOException if an I/O exception occurred reading the plugin info from the stream
     */
     public ProtobufPluginInfo(final CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
@@ -135,13 +135,13 @@ public class ProtobufPluginInfo implements ProtobufWriteable {
         this.javaVersion = in.readString();
         this.classname = in.readString();
         this.customFolderName = in.readString();
-        this.extendedPlugins = protobufStreamInput.readList(CodedInputStream::readString, in);
+        this.extendedPlugins = protobufStreamInput.readList(CodedInputStream::readString);
         this.hasNativeController = in.readBool();
     }
 
     @Override
     public void writeTo(final CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         out.writeStringNoTag(name);
         out.writeStringNoTag(description);
         out.writeStringNoTag(version);
@@ -153,7 +153,7 @@ public class ProtobufPluginInfo implements ProtobufWriteable {
         } else {
             out.writeStringNoTag(name);
         }
-        protobufStreamOutput.writeCollection(extendedPlugins, CodedOutputStream::writeStringNoTag, out);
+        protobufStreamOutput.writeCollection(extendedPlugins, CodedOutputStream::writeStringNoTag);
         out.writeBoolNoTag(hasNativeController);
     }
 

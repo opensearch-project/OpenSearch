@@ -46,15 +46,15 @@ public abstract class ProtobufClusterManagerNodeRequest<Request extends Protobuf
 
     protected ProtobufClusterManagerNodeRequest(CodedInputStream in) throws IOException {
         super(in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput();
-        clusterManagerNodeTimeout = protobufStreamInput.readTimeValue(in);
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        clusterManagerNodeTimeout = protobufStreamInput.readTimeValue();
     }
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
         super.writeTo(out);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
-        protobufStreamOutput.writeTimeValue(clusterManagerNodeTimeout, out);
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        protobufStreamOutput.writeTimeValue(clusterManagerNodeTimeout);
     }
 
     /**
