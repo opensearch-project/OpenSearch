@@ -308,7 +308,6 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         );
     }
 
-    // @Ignore
     public void testSocksProxyConfiguration() throws IOException {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.default.proxy.username", "aws_proxy_username");

@@ -91,7 +91,7 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        return SocketAccess.doPrivileged(() -> service.client(repositoryMetadata));
+        return service.client(repositoryMetadata);
     }
 
     int getMaxRetries() {

@@ -248,7 +248,7 @@ class S3RetryingInputStream extends InputStream {
      * suppressing all thrown exceptions.
      */
     private void maybeAbort(ResponseInputStream<GetObjectResponse> stream) {
-        if (isEof()) {
+        if (isEof() || isAborted()) {
             return;
         }
         try {
