@@ -60,7 +60,6 @@ public class MissingDoclet extends StandardDoclet {
     private static final int METHOD = 2;
     // checks that @param tags are present for any method/constructor parameters
     private static final int PARAMETER = 3;
-    // TODO Should we stick this list in missing-javadoc.gradle instead?
     int level = PARAMETER;
     Reporter reporter;
     DocletEnvironment docEnv;
@@ -294,17 +293,17 @@ public class MissingDoclet extends StandardDoclet {
             return;
         }
         // Ignore classes annotated with @Generated and all enclosed elements in them.
-        if (element.getAnnotation(javax.annotation.Generated.class) != null) {
+        if (isGenerated(element)) {
             return;
         }
         Element enclosing = element.getEnclosingElement();
-        if (enclosing != null && enclosing.getAnnotation(javax.annotation.Generated.class) != null) {
+        if (enclosing != null && isGenerated(enclosing)) {
             return;
         }
         // If a package contains only generated classes, ignore the package as well.
         if (element.getKind() == ElementKind.PACKAGE) {
             List<? extends Element> enclosedElements = element.getEnclosedElements();
-            Optional<?> elm = enclosedElements.stream().findFirst().filter(e -> ((e.getKind() != ElementKind.CLASS) || (e.getAnnotation(javax.annotation.Generated.class) == null)));
+            Optional<?> elm = enclosedElements.stream().findFirst().filter(e -> ((e.getKind() != ElementKind.CLASS) || !isGenerated(e)));
             if (elm.isEmpty()) {
                 return;
             }
@@ -329,6 +328,17 @@ public class MissingDoclet extends StandardDoclet {
         if (level >= PARAMETER) {
             checkParameters(element, tree);
         }
+    }
+
+    // Ignore classes annotated with @Generated and all enclosed elements in them.
+    private boolean isGenerated(Element element) {
+        return element
+            .getAnnotationMirrors()
+            .stream()
+            .anyMatch(m -> m
+                .getAnnotationType()
+                .toString() /* ClassSymbol.toString() returns class name */
+                .equalsIgnoreCase("javax.annotation.Generated"));
     }
 
     private boolean hasInheritedJavadocs(Element element) {
