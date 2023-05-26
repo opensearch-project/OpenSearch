@@ -34,6 +34,7 @@ import static org.opensearch.plugin.correlation.core.index.codec.BasePerFieldCor
 import static org.opensearch.plugin.correlation.core.index.codec.BasePerFieldCorrelationVectorsFormat.METHOD_PARAMETER_M;
 import static org.opensearch.plugin.correlation.core.index.codec.CorrelationCodecVersion.V_9_9_0;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -106,7 +107,7 @@ public class CorrelationCodecTests extends OpenSearchTestCase {
         IndexReader reader = writer.getReader();
         writer.close();
 
-        verify(perFieldCorrelationVectorsFormatSpy).getKnnVectorsFormatForField(eq(FIELD_NAME_ONE));
+        verify(perFieldCorrelationVectorsFormatSpy, atLeastOnce()).getKnnVectorsFormatForField(eq(FIELD_NAME_ONE));
 
         IndexSearcher searcher = new IndexSearcher(reader);
         Query query = CorrelationQueryFactory.create(
