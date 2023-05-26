@@ -41,7 +41,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
-import org.joda.time.DateTimeZone;
 import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -825,24 +824,7 @@ public abstract class StreamInput extends BaseStreamInput {
     }
 
     /**
-     * Read a {@linkplain DateTimeZone}.
-     */
-    public DateTimeZone readTimeZone() throws IOException {
-        return DateTimeZone.forID(readString());
-    }
-
-    /**
-     * Read an optional {@linkplain DateTimeZone}.
-     */
-    public DateTimeZone readOptionalTimeZone() throws IOException {
-        if (readBoolean()) {
-            return DateTimeZone.forID(readString());
-        }
-        return null;
-    }
-
-    /**
-     * Read a {@linkplain DateTimeZone}.
+     * Read a {@linkplain ZoneId}.
      */
     public ZoneId readZoneId() throws IOException {
         return ZoneId.of(readString());

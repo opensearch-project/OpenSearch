@@ -28,6 +28,7 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
      */
     class WriteableRegistry {
         private static final Map<Class<?>, Writer<? extends BaseStreamOutput, ?>> WRITER_REGISTRY = new ConcurrentHashMap<>();
+        private static final Map<Class<?>, Class<?>> WRITER_CUSTOM_CLASS_MAP = new ConcurrentHashMap<>();
         private static final Map<Byte, Reader<? extends BaseStreamInput, ?>> READER_REGISTRY = new ConcurrentHashMap<>();
 
         /**
@@ -54,6 +55,13 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
             READER_REGISTRY.put(ordinal, reader);
         }
 
+        public static void registerWriterCustomClass(final Class<?> classInstance, final Class<?> classGeneric) {
+            if (WRITER_CUSTOM_CLASS_MAP.containsKey(classInstance)) {
+                throw new IllegalArgumentException("Streamable custom class already registered [" + classInstance.getClass() + "]");
+            }
+            WRITER_CUSTOM_CLASS_MAP.put(classInstance, classGeneric);
+        }
+
         /**
          * Returns the registered writer keyed by the class type
          */
@@ -68,6 +76,21 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
         @SuppressWarnings("unchecked")
         public static <R extends Reader<? extends BaseStreamInput, ?>> R getReader(final byte b) {
             return (R) READER_REGISTRY.get(b);
+        }
+
+        public static Class<?> getCustomClassFromValue(final Object value) {
+            if (value == null) {
+                throw new IllegalArgumentException("Attempting to retrieve a class type from a null value");
+            }
+            // rip through registered classes; return the class iff 'value' is an instant
+            // we do it this way to cover inheritance and interfaces (e.g., joda DateTime is an instanceof
+            // a ReadableInstant interface)
+            for (final Class<?> clazz : WRITER_CUSTOM_CLASS_MAP.values()) {
+                if (clazz.isInstance(value)) {
+                    return clazz;
+                }
+            }
+            return null;
         }
     }
 
