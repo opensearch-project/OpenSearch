@@ -1429,6 +1429,18 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         WeightedRoutingStats.getInstance().resetFailOpenCount();
     }
 
+    /**
+     * Shard routing request is served by data nodes in az with weight set as 0,
+     * in case shard copies are not available in other azs.(with fail open enabled)
+     * This is tested by setting up a 3 node cluster with one data node per az.
+     * Weighted shard routing weight is set as 0 for az-c.
+     * Indices are created with two replica copy and data nodes in az-a and az-b are stopped,
+     * Since two copies of a shard are unhealthy, (fail open is triggered) shard search requests are served by standby
+     * az data node.
+     * Assertions are put to make sure such shard search requests are served by data node in zone c.
+     * Asserts are put to make sure fail open count is correct
+     * @throws IOException throws exception
+     */
     public void testFailOpenStatsWithOneHealthyStandbyShardCopy() throws Exception {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
@@ -1490,6 +1502,18 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         WeightedRoutingStats.getInstance().resetFailOpenCount();
     }
 
+    /**
+     * Shard routing request is served by data nodes in az with weight set as 0,
+     * in case shard copies are not available in other azs.(with fail open enabled)
+     * This is tested by setting up a 3 node cluster with one data node per az.
+     * Weighted shard routing weight is set as 0 for az-c.
+     * Indices are created with two replica copy and data nodes in az-a and az-b are stopped,
+     * Since two copies of a shard are unhealthy, (fail open is triggered) shard search requests are served by standby
+     * az data node.
+     * Assertions are put to make sure such shard search requests are served by data node in zone c.
+     * Asserts are put to make sure fail open count is correct
+     * @throws IOException throws exception
+     */
     public void testFailOpenStatsForMultiGetOneHealthyStandbyShardCopy() throws Exception {
 
         WeightedRoutingStats.getInstance().resetFailOpenCount();
@@ -1558,7 +1582,5 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         NodeStats nodeStatsC = stats.get(nodeIDMap.get(nodeMap.get("c").get(0)));
         assertEquals(20 * 2, nodeStatsC.getWeightedRoutingStats().getFailOpenCount());
         WeightedRoutingStats.getInstance().resetFailOpenCount();
-
     }
-
 }
