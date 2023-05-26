@@ -132,7 +132,7 @@ public class FailAwareWeightedRouting {
      */
     public void updateFailOpenStatsForOneHealthyCopy(final SearchShardIterator shardsIt, ClusterState clusterState, String nodeID) {
         if (clusterState != null) {
-            if (ignoreWeightedRouting(clusterState) || isFailOpenDisabled(clusterState)) {
+            if (ignoreWeightedRouting(clusterState) == true || isFailOpenEnabled(clusterState) == false) {
                 return;
             }
             if (shardsIt.size() == 1 && WeightedRoutingUtils.isWeighedAway(nodeID, clusterState)) {
@@ -152,7 +152,7 @@ public class FailAwareWeightedRouting {
      * @param nodeID the id of the node containing current shard copy
      */
     public void updateFailOpenStatsForOneHealthyCopy(final ShardsIterator shardsIt, ClusterState clusterState, String nodeID) {
-        if (ignoreWeightedRouting(clusterState) || isFailOpenDisabled(clusterState)) {
+        if (ignoreWeightedRouting(clusterState) == true || isFailOpenEnabled(clusterState) == false) {
             return;
         }
         if (shardsIt.size() == 1 && WeightedRoutingUtils.isWeighedAway(nodeID, clusterState)) {
@@ -183,7 +183,7 @@ public class FailAwareWeightedRouting {
         return IGNORE_WEIGHTED_SHARD_ROUTING.get(clusterState.getMetadata().settings());
     }
 
-    private boolean isFailOpenDisabled(ClusterState clusterState) {
+    private boolean isFailOpenEnabled(ClusterState clusterState) {
         return WEIGHTED_ROUTING_FAILOPEN_ENABLED.get(clusterState.getMetadata().settings());
     }
 

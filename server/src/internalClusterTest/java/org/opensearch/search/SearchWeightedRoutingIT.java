@@ -1446,6 +1446,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
             .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.ignore_weighted_routing", false)
             .build();
         WeightedRoutingStats.getInstance().resetFailOpenCount();
 
@@ -1522,6 +1523,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
             .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.ignore_weighted_routing", false)
             .build();
 
         int nodeCountPerAZ = 1;
