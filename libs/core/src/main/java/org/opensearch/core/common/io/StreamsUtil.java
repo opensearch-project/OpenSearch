@@ -11,6 +11,11 @@ package org.opensearch.core.common.io;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Util library for reading streams
+ *
+ * @opensearch.internal
+ */
 public class StreamsUtil {
     public static int readFully(InputStream reader, byte[] dest, int offset, int len) throws IOException {
         int read = 0;
