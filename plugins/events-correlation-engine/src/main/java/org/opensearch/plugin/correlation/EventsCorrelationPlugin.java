@@ -30,10 +30,19 @@ import org.opensearch.plugin.correlation.core.index.codec.CorrelationCodecServic
 import org.opensearch.plugin.correlation.core.index.mapper.CorrelationVectorFieldMapper;
 import org.opensearch.plugin.correlation.core.index.mapper.VectorFieldMapper;
 import org.opensearch.plugin.correlation.core.index.query.CorrelationQueryBuilder;
+import org.opensearch.plugin.correlation.events.action.IndexCorrelationAction;
+import org.opensearch.plugin.correlation.events.action.SearchCorrelatedEventsAction;
+import org.opensearch.plugin.correlation.events.action.StoreCorrelationAction;
+import org.opensearch.plugin.correlation.events.resthandler.RestIndexCorrelationAction;
+import org.opensearch.plugin.correlation.events.resthandler.RestSearchCorrelatedEventsAction;
+import org.opensearch.plugin.correlation.events.transport.TransportIndexCorrelationAction;
+import org.opensearch.plugin.correlation.events.transport.TransportSearchCorrelatedEventsAction;
+import org.opensearch.plugin.correlation.events.transport.TransportStoreCorrelationAction;
 import org.opensearch.plugin.correlation.rules.action.IndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.rules.resthandler.RestIndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.rules.transport.TransportIndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.settings.EventsCorrelationSettings;
+import org.opensearch.plugin.correlation.utils.CorrelationIndices;
 import org.opensearch.plugin.correlation.utils.CorrelationRuleIndices;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.EnginePlugin;
@@ -67,8 +76,11 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
      * events-correlation-engine rules uri
      */
     public static final String CORRELATION_RULES_BASE_URI = PLUGINS_BASE_URI + "/rules";
+    public static final String CORRELATION_EVENTS_BASE_URI = PLUGINS_BASE_URI + "/events";
 
     private CorrelationRuleIndices correlationRuleIndices;
+
+    private CorrelationIndices correlationIndices;
 
     /**
      * Default constructor
@@ -90,7 +102,8 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         correlationRuleIndices = new CorrelationRuleIndices(client, clusterService);
-        return List.of(correlationRuleIndices);
+        correlationIndices = new CorrelationIndices(client, clusterService, clusterService.getSettings());
+        return List.of(correlationRuleIndices, correlationIndices);
     }
 
     @Override
@@ -103,7 +116,7 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestIndexCorrelationRuleAction());
+        return List.of(new RestIndexCorrelationRuleAction(), new RestSearchCorrelatedEventsAction(), new RestIndexCorrelationAction());
     }
 
     @Override
@@ -132,11 +145,20 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionPlugin.ActionHandler<>(IndexCorrelationRuleAction.INSTANCE, TransportIndexCorrelationRuleAction.class));
+        return List.of(
+            new ActionPlugin.ActionHandler<>(IndexCorrelationRuleAction.INSTANCE, TransportIndexCorrelationRuleAction.class),
+            new ActionPlugin.ActionHandler<>(IndexCorrelationAction.INSTANCE, TransportIndexCorrelationAction.class),
+            new ActionPlugin.ActionHandler<>(StoreCorrelationAction.INSTANCE, TransportStoreCorrelationAction.class),
+            new ActionPlugin.ActionHandler<>(SearchCorrelatedEventsAction.INSTANCE, TransportSearchCorrelatedEventsAction.class)
+        );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(EventsCorrelationSettings.IS_CORRELATION_INDEX_SETTING, EventsCorrelationSettings.CORRELATION_TIME_WINDOW);
+        return List.of(
+            EventsCorrelationSettings.IS_CORRELATION_INDEX_SETTING,
+            EventsCorrelationSettings.CORRELATION_HISTORY_INDEX_SHARDS,
+            EventsCorrelationSettings.CORRELATION_TIME_WINDOW
+        );
     }
 }

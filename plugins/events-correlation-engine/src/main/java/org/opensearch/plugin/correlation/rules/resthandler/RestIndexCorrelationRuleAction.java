@@ -68,7 +68,10 @@ public class RestIndexCorrelationRuleAction extends BaseRestHandler {
 
         XContentParser xcp = request.contentParser();
 
-        CorrelationRule correlationRule = CorrelationRule.parse(xcp, id, 1L);
+        CorrelationRule correlationRule = CorrelationRule.parse(xcp);
+        correlationRule.setId(id);
+        correlationRule.setVersion(1L);
+
         IndexCorrelationRuleRequest indexCorrelationRuleRequest = new IndexCorrelationRuleRequest(id, correlationRule, request.method());
         return channel -> client.execute(
             IndexCorrelationRuleAction.INSTANCE,

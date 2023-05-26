@@ -1,0 +1,50 @@
+{
+  "_meta" : {
+    "schema_version": 1
+  },
+  "properties": {
+    "root": {
+      "type": "boolean"
+    },
+    "level":{
+      "type": "long"
+    },
+    "event1":{
+      "type": "keyword"
+    },
+    "event2":{
+      "type": "keyword"
+    },
+    "corr_vector": {
+      "type": "correlation_vector",
+      "dimension": 3,
+      "correlation_ctx": {
+        "similarityFunction": "EUCLIDEAN",
+        "parameters": {
+          "m": 16,
+          "ef_construction": 128
+        }
+      }
+    },
+    "timestamp":{
+      "type": "long"
+    },
+    "index1": {
+      "type": "keyword"
+    },
+    "index2": {
+      "type": "keyword"
+    },
+    "tags": {
+      "type": "text",
+      "fields" : {
+        "keyword" : {
+          "type" : "keyword"
+        }
+      }
+    },
+    "score_timestamp": {
+      "type": "long"
+    }
+  }
+}
