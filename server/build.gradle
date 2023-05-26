@@ -356,20 +356,6 @@ tasks.named("dependencyLicenses").configure {
     }
 }
 
-tasks.named("missingJavadoc").configure {
-  /*
-   * Generated code doesn't follow javadocs formats.
-   * Unfortunately the missingJavadoc task doesnt take *.
-   * TODO: Add support to missingJavadoc task to ignore all generated source code
-   *  https://github.com/opensearch-project/OpenSearch/issues/7264
-   */
-  dependsOn("generateProto")
-  javadocMissingIgnore = [
-    // Packages containing only generated classes annotated with @javax.annotation.Generated
-    // do not need to be listed here as they are ignored in code.
-  ]
-}
-
 tasks.named("filepermissions").configure {
   mustRunAfter("generateProto")
 }
