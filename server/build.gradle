@@ -365,8 +365,8 @@ tasks.named("missingJavadoc").configure {
    */
   dependsOn("generateProto")
   javadocMissingIgnore = [
-    "org.opensearch.extensions.proto",
-    "org.opensearch.extensions.proto.*"
+    // Packages containing only generated classes annotated with @javax.annotation.Generated
+    // do not need to be listed here as they are ignored in code.
   ]
 }
 

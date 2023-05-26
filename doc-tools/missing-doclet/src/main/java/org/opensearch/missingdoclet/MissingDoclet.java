@@ -61,15 +61,12 @@ public class MissingDoclet extends StandardDoclet {
     // checks that @param tags are present for any method/constructor parameters
     private static final int PARAMETER = 3;
     // TODO Should we stick this list in missing-javadoc.gradle instead?
-    private static final Set<String> ALLOWED_TO_BE_IGNORED = new HashSet<>(List.of(
-        "org.opensearch.extensions.proto"));
     int level = PARAMETER;
     Reporter reporter;
     DocletEnvironment docEnv;
     DocTrees docTrees;
     Elements elementUtils;
-    Set<String> ignored = new HashSet<>();
-    Set<String> ignoredGroups = new HashSet<>();
+    Set<String> ignored = Collections.emptySet();
     Set<String> methodPackages = Collections.emptySet();
 
     @Override
@@ -150,14 +147,7 @@ public class MissingDoclet extends StandardDoclet {
 
             @Override
             public boolean process(String option, List<String> arguments) {
-                String[] tokens = arguments.get(0).split(",");
-                for (String token : tokens) {
-                    if (token.endsWith(".*")) {
-                        validateAndParseIgnoredGroup(token).ifPresent(ignoredGroups::add);
-                    } else {
-                        ignored.add(token);
-                    }
-                }
+                ignored = new HashSet<>(Arrays.asList(arguments.get(0).split(",")));
                 return true;
             }
         });
@@ -300,20 +290,25 @@ public class MissingDoclet extends StandardDoclet {
         // check that this element isn't on our ignore list. This is only used as a workaround for "split packages".
         // ignoring a package isn't recursive (on purpose), we still check all the classes, etc. inside it.
         // we just need to cope with the fact package-info.java isn't there because it is split across multiple jars.
-        String elementStr = element.toString();
-        for (String group : ignoredGroups) {
-            if (elementStr.startsWith(group)) {
-                return;
-            }
-        }
-        if (ignored.contains(elementStr)) {
+        if (ignored.contains(element.toString())) {
             return;
         }
-
+        // Ignore classes annotated with @Generated and all enclosed elements in them.
         if (element.getAnnotation(javax.annotation.Generated.class) != null) {
             return;
         }
-
+        Element enclosing = element.getEnclosingElement();
+        if (enclosing != null && enclosing.getAnnotation(javax.annotation.Generated.class) != null) {
+            return;
+        }
+        // If a package contains only generated classes, ignore the package as well.
+        if (element.getKind() == ElementKind.PACKAGE) {
+            List<? extends Element> enclosedElements = element.getEnclosedElements();
+            Optional<?> elm = enclosedElements.stream().findFirst().filter(e -> ((e.getKind() != ElementKind.CLASS) || (e.getAnnotation(javax.annotation.Generated.class) == null)));
+            if (elm.isEmpty()) {
+                return;
+            }
+        }
         var tree = docTrees.getDocCommentTree(element);
         if (tree == null || tree.getFirstSentence().isEmpty()) {
             // Check for methods that override other stuff and perhaps inherit their Javadocs.
@@ -451,21 +446,5 @@ public class MissingDoclet extends StandardDoclet {
         } else {
             reporter.print(Diagnostic.Kind.ERROR, element, fullMessage.toString());
         }
-    }
-
-    /**
-     * Given 'com.foo.bar.*', we check 'com.foo.bar' is allowlisted to be ignored.
-     * If allowed, we return 'com.foo.bar.' so we can do string match on full package names.
-     * Otherwise, we return Optional.empty so this group is not used.
-     *
-     * @param group
-     * @return
-     */
-    private Optional<String> validateAndParseIgnoredGroup(String group) {
-        // Ideally, basic validation on the group string should have been done in build.gradle.
-        if (group.length() > 2 && !ALLOWED_TO_BE_IGNORED.contains(group.substring(0, group.length()-2))) {
-            return Optional.empty();
-        }
-        return Optional.of(group.substring(0, group.length()-1));
     }
 }
