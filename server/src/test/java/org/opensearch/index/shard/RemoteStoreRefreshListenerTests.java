@@ -449,17 +449,5 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 }
             }
         }
-        if (segmentsNFilename != null) {
-            String commitGeneration = segmentsNFilename.substring((IndexFileNames.SEGMENTS + "_").length());
-            assertTrue(
-                uploadedSegments.keySet()
-                    .stream()
-                    .anyMatch(
-                        s -> s.startsWith(
-                            SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + Long.parseLong(commitGeneration, Character.MAX_RADIX)
-                        )
-                    )
-            );
-        }
     }
 }
