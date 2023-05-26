@@ -37,6 +37,9 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.hamcrest.Matchers;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
 
 import java.io.IOException;
 import java.util.ArrayList;

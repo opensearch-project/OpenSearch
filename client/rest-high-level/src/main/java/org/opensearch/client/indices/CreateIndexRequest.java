@@ -39,8 +39,9 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.Validatable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -201,7 +202,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(XContentBuilder source) {
-        return mapping(BytesReference.bytes(source), source.contentType());
+        return mapping(BytesReferenceUtil.bytes(source), source.contentType());
     }
 
     /**
@@ -215,7 +216,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            return mapping(BytesReference.bytes(builder), builder.contentType());
+            return mapping(BytesReferenceUtil.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -265,7 +266,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return aliases(BytesReference.bytes(builder), builder.contentType());
+            return aliases(BytesReferenceUtil.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -275,7 +276,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(XContentBuilder source) {
-        return aliases(BytesReference.bytes(source), source.contentType());
+        return aliases(BytesReferenceUtil.bytes(source), source.contentType());
     }
 
     /**
@@ -372,7 +373,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * Note that the mapping definition should *not* be nested under a type name.
      */
     public CreateIndexRequest source(XContentBuilder source) {
-        return source(BytesReference.bytes(source), source.contentType());
+        return source(BytesReferenceUtil.bytes(source), source.contentType());
     }
 
     /**

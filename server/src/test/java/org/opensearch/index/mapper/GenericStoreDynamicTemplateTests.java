@@ -33,7 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.ParseContext.Document;

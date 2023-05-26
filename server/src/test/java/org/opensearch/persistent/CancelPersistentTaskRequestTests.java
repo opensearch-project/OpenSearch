@@ -31,7 +31,7 @@
 
 package org.opensearch.persistent;
 
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.persistent.RemovePersistentTaskAction.Request;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 

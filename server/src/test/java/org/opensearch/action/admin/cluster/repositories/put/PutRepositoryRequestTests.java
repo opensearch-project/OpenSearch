@@ -31,7 +31,7 @@
 
 package org.opensearch.action.admin.cluster.repositories.put;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -71,7 +71,7 @@ public class PutRepositoryRequestTests extends OpenSearchTestCase {
         request.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.flush();
 
-        Map<String, Object> outputMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        Map<String, Object> outputMap = XContentHelper.convertToMap(BytesReferenceUtil.bytes(builder), false, builder.contentType()).v2();
 
         assertThat(outputMap.get("name"), equalTo(request.name()));
         assertThat(outputMap.get("verify"), equalTo(request.verify()));

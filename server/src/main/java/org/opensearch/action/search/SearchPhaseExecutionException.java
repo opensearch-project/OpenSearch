@@ -36,12 +36,12 @@ import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ShardOperationFailedException;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.action.ShardOperationFailedException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,7 +101,7 @@ public class SearchPhaseExecutionException extends OpenSearchException {
         if (shardFailures.length == 0) {
             // if no successful shards, the failure can be due to OpenSearchRejectedExecutionException during fetch phase
             // on coordinator node. so get the status from cause instead of returning SERVICE_UNAVAILABLE blindly
-            return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : ExceptionsHelper.status(getCause());
+            return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : BaseExceptionsHelper.status(getCause());
         }
         RestStatus status = shardFailures[0].status();
         if (shardFailures.length > 1) {

@@ -36,7 +36,8 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -102,7 +103,7 @@ public class IndicesShardStoreResponseTests extends OpenSearchTestCase {
         contentBuilder.startObject();
         storesResponse.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
-        BytesReference bytes = BytesReference.bytes(contentBuilder);
+        BytesReference bytes = BytesReferenceUtil.bytes(contentBuilder);
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
             Map<String, Object> map = parser.map();

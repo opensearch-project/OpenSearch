@@ -40,11 +40,11 @@ import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAll
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -244,7 +244,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
         FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
         requestBuilder.withParams(params);
         if (hasBody) {
-            requestBuilder.withContent(BytesReference.bytes(builder), XContentType.fromMediaType(builder.contentType()));
+            requestBuilder.withContent(BytesReferenceUtil.bytes(builder), XContentType.fromMediaType(builder.contentType()));
         }
         return requestBuilder.build();
     }

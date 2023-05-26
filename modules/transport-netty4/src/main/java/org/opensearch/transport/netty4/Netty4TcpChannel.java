@@ -38,7 +38,7 @@ import io.netty.channel.ChannelPromise;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TransportException;

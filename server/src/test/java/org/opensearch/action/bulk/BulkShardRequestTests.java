@@ -33,7 +33,7 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;

@@ -36,13 +36,13 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.transport.ActionNotFoundTransportException;
 

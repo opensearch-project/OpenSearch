@@ -33,14 +33,15 @@
 package org.opensearch.search.suggest;
 
 import org.opensearch.Version;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -67,8 +68,8 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -234,7 +235,7 @@ public class SuggestTests extends OpenSearchTestCase {
             builder.endArray();
         }
         builder.endObject();
-        BytesReference originalBytes = BytesReference.bytes(builder);
+        BytesReference originalBytes = BytesReferenceUtil.bytes(builder);
         try (XContentParser parser = createParser(builder.contentType().xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             ParsingException ex = expectThrows(ParsingException.class, () -> Suggest.fromXContent(parser));

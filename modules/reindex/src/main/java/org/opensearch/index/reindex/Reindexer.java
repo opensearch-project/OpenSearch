@@ -57,7 +57,7 @@ import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -390,7 +390,7 @@ public class Reindexer {
                 ) {
                     parser.nextToken();
                     builder.copyCurrentStructure(parser);
-                    index.source(BytesReference.bytes(builder), builder.contentType());
+                    index.source(BytesReferenceUtil.bytes(builder), builder.contentType());
                 } catch (IOException e) {
                     throw new UncheckedIOException(
                         "failed to convert hit from " + sourceXContentType + " to " + mainRequestXContentType,

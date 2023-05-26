@@ -49,13 +49,14 @@ import org.opensearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.action.termvectors.TermVectorsResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.lucene.search.MoreLikeThisQuery;
 import org.opensearch.common.lucene.search.XMoreLikeThis;
 import org.opensearch.common.lucene.uid.Versions;
@@ -220,7 +221,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 throw new IllegalArgumentException("Item requires doc to be non-null");
             }
             this.index = index;
-            this.doc = BytesReference.bytes(doc);
+            this.doc = BytesReferenceUtil.bytes(doc);
             this.xContentType = XContentType.fromMediaType(doc.contentType());
         }
 
@@ -373,7 +374,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.id = parser.text();
                     } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
-                        item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
+                        item.doc = BytesReferenceUtil.bytes(jsonBuilder().copyCurrentStructure(parser));
                         item.xContentType = XContentType.JSON;
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token == XContentParser.Token.START_ARRAY) {

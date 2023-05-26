@@ -70,7 +70,7 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
@@ -95,9 +95,10 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
@@ -123,7 +124,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyConfig;
@@ -141,7 +142,7 @@ import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.MockSearchService;
@@ -1201,13 +1202,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 builder.startObject();
                 metadataWithoutIndices.toXContent(builder, serializationFormatParams);
                 builder.endObject();
-                final BytesReference originalBytes = BytesReference.bytes(builder);
+                final BytesReference originalBytes = BytesReferenceUtil.bytes(builder);
 
                 XContentBuilder compareBuilder = SmileXContent.contentBuilder();
                 compareBuilder.startObject();
                 metadataWithoutIndices.toXContent(compareBuilder, compareFormatParams);
                 compareBuilder.endObject();
-                final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
+                final BytesReference compareOriginalBytes = BytesReferenceUtil.bytes(compareBuilder);
 
                 final Metadata loadedMetadata;
                 try (
@@ -1223,7 +1224,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 builder.startObject();
                 loadedMetadata.toXContent(builder, compareFormatParams);
                 builder.endObject();
-                final BytesReference parsedBytes = BytesReference.bytes(builder);
+                final BytesReference parsedBytes = BytesReferenceUtil.bytes(builder);
 
                 assertNull(
                     "cluster state XContent serialization does not match, expected "
@@ -1242,13 +1243,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 builder.startObject();
                 indexMetadata.toXContent(builder, serializationFormatParams);
                 builder.endObject();
-                final BytesReference originalBytes = BytesReference.bytes(builder);
+                final BytesReference originalBytes = BytesReferenceUtil.bytes(builder);
 
                 XContentBuilder compareBuilder = SmileXContent.contentBuilder();
                 compareBuilder.startObject();
                 indexMetadata.toXContent(compareBuilder, compareFormatParams);
                 compareBuilder.endObject();
-                final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
+                final BytesReference compareOriginalBytes = BytesReferenceUtil.bytes(compareBuilder);
 
                 final IndexMetadata loadedIndexMetadata;
                 try (
@@ -1264,7 +1265,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 builder.startObject();
                 loadedIndexMetadata.toXContent(builder, compareFormatParams);
                 builder.endObject();
-                final BytesReference parsedBytes = BytesReference.bytes(builder);
+                final BytesReference parsedBytes = BytesReferenceUtil.bytes(builder);
 
                 assertNull(
                     "cluster state XContent serialization does not match, expected "

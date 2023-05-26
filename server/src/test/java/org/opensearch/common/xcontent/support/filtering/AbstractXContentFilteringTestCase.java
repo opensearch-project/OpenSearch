@@ -34,7 +34,7 @@ package org.opensearch.common.xcontent.support.filtering;
 
 import org.junit.Assert;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
@@ -94,12 +94,12 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             XContentParser jsonParser = xContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(expected).streamInput()
+                BytesReferenceUtil.bytes(expected).streamInput()
             );
             XContentParser testParser = xContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(actual).streamInput()
+                BytesReferenceUtil.bytes(actual).streamInput()
             );
         ) {
             while (true) {

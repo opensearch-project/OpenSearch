@@ -32,7 +32,7 @@
 
 package org.opensearch.cluster.routing;
 
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.List;
 

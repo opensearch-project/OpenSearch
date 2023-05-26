@@ -34,23 +34,22 @@ package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.SearchHit;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -409,7 +408,7 @@ public abstract class ScrollableHitSource {
         public static final String STATUS_FIELD = BulkItemResponse.Failure.STATUS_FIELD;
 
         public SearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId) {
-            this(reason, index, shardId, nodeId, ExceptionsHelper.status(reason));
+            this(reason, index, shardId, nodeId, BaseExceptionsHelper.status(reason));
         }
 
         public SearchFailure(
@@ -441,7 +440,7 @@ public abstract class ScrollableHitSource {
             index = in.readOptionalString();
             shardId = in.readOptionalVInt();
             nodeId = in.readOptionalString();
-            status = ExceptionsHelper.status(reason);
+            status = BaseExceptionsHelper.status(reason);
         }
 
         @Override

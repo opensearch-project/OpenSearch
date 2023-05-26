@@ -32,6 +32,8 @@
 
 package org.opensearch.common.io.stream;
 
+import org.opensearch.core.common.io.stream.StreamOutput;
+
 import java.io.Closeable;
 import java.io.DataOutput;
 import java.io.IOException;

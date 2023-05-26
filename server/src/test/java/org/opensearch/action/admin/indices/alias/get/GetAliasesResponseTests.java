@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.AliasMetadata.Builder;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;

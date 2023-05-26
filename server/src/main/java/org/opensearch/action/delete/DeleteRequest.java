@@ -39,13 +39,13 @@ import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 

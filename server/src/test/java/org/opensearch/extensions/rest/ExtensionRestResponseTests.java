@@ -14,21 +14,20 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
-import org.opensearch.http.HttpRequest.HttpVersion;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
-import static org.opensearch.rest.RestStatus.ACCEPTED;
-import static org.opensearch.rest.RestStatus.OK;
+import static org.opensearch.core.rest.RestStatus.ACCEPTED;
+import static org.opensearch.core.rest.RestStatus.OK;
 
 public class ExtensionRestResponseTests extends OpenSearchTestCase {
 

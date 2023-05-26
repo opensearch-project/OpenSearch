@@ -34,8 +34,9 @@ package org.opensearch.common.xcontent;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.Compressor;
 import org.opensearch.common.compress.CompressorFactory;
@@ -520,7 +521,7 @@ public class XContentHelper {
             if (toXContent.isFragment()) {
                 builder.endObject();
             }
-            return BytesReference.bytes(builder);
+            return BytesReferenceUtil.bytes(builder);
         }
     }
 
@@ -540,7 +541,7 @@ public class XContentHelper {
             if (toXContent.isFragment()) {
                 builder.endObject();
             }
-            return BytesReference.bytes(builder);
+            return BytesReferenceUtil.bytes(builder);
         }
     }
 
@@ -585,6 +586,6 @@ public class XContentHelper {
         }
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
         builder.copyCurrentStructure(parser);
-        return BytesReference.bytes(builder);
+        return BytesReferenceUtil.bytes(builder);
     }
 }

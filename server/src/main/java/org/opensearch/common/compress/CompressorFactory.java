@@ -33,8 +33,9 @@
 package org.opensearch.common.compress;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.compress.NotXContentException;
 
 import java.io.IOException;
 import java.util.Objects;

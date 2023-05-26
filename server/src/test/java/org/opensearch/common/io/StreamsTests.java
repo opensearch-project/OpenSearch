@@ -33,8 +33,8 @@
 package org.opensearch.common.io;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayOutputStream;

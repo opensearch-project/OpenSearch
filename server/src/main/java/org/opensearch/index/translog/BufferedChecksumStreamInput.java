@@ -34,7 +34,7 @@ package org.opensearch.index.translog;
 
 import org.apache.lucene.store.BufferedChecksum;
 import org.opensearch.common.io.stream.FilterStreamInput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;

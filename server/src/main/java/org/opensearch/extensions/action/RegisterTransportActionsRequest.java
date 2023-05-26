@@ -8,8 +8,8 @@
 
 package org.opensearch.extensions.action;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.extensions.proto.RegisterTransportActionsProto.RegisterTransportActions;
 import org.opensearch.extensions.proto.ExtensionIdentityProto.ExtensionIdentity;
 import org.opensearch.transport.TransportRequest;

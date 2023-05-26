@@ -49,13 +49,14 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -1319,7 +1320,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
      * Test that we can safely concurrently index and get stats. This test was inspired by a serialization issue that arose due to a race
      * getting doc stats during heavy indexing. The race could lead to deleted docs being negative which would then be serialized as a
      * variable-length long. Since serialization of negative longs using a variable-length format was unsupported
-     * ({@link org.opensearch.common.io.stream.StreamOutput#writeVLong(long)}), the stream would become corrupted. Here, we want to test
+     * ({@link StreamOutput#writeVLong(long)}), the stream would become corrupted. Here, we want to test
      * that we can continue to get stats while indexing.
      */
     public void testConcurrentIndexingAndStatsRequests() throws BrokenBarrierException, InterruptedException, ExecutionException {

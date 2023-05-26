@@ -39,13 +39,14 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -124,11 +125,11 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
     }
 
     public void testStartEndObject() throws IOException {
-        expectUnclosedException(() -> BytesReference.bytes(builder().startObject()));
+        expectUnclosedException(() -> BytesReferenceUtil.bytes(builder().startObject()));
         expectUnclosedException(() -> builder().startObject().close());
         expectUnclosedException(() -> Strings.toString(builder().startObject()));
 
-        expectObjectException(() -> BytesReference.bytes(builder().endObject()));
+        expectObjectException(() -> BytesReferenceUtil.bytes(builder().endObject()));
         expectObjectException(() -> builder().endObject().close());
         expectObjectException(() -> Strings.toString(builder().endObject()));
 
@@ -145,11 +146,11 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
     }
 
     public void testStartEndArray() throws IOException {
-        expectUnclosedException(() -> BytesReference.bytes(builder().startArray()));
+        expectUnclosedException(() -> BytesReferenceUtil.bytes(builder().startArray()));
         expectUnclosedException(() -> builder().startArray().close());
         expectUnclosedException(() -> Strings.toString(builder().startArray()));
 
-        expectArrayException(() -> BytesReference.bytes(builder().endArray()));
+        expectArrayException(() -> BytesReferenceUtil.bytes(builder().endArray()));
         expectArrayException(() -> builder().endArray().close());
         expectArrayException(() -> Strings.toString(builder().endArray()));
 
@@ -162,17 +163,17 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
     }
 
     public void testField() throws IOException {
-        expectValueException(() -> BytesReference.bytes(builder().field("foo")));
-        expectNonNullFieldException(() -> BytesReference.bytes(builder().field(null)));
-        expectUnclosedException(() -> BytesReference.bytes(builder().startObject().field("foo")));
+        expectValueException(() -> BytesReferenceUtil.bytes(builder().field("foo")));
+        expectNonNullFieldException(() -> BytesReferenceUtil.bytes(builder().field(null)));
+        expectUnclosedException(() -> BytesReferenceUtil.bytes(builder().startObject().field("foo")));
 
         assertResult("{'foo':'bar'}", () -> builder().startObject().field("foo").value("bar").endObject());
     }
 
     public void testNullField() throws IOException {
-        expectValueException(() -> BytesReference.bytes(builder().nullField("foo")));
-        expectNonNullFieldException(() -> BytesReference.bytes(builder().nullField(null)));
-        expectUnclosedException(() -> BytesReference.bytes(builder().startObject().nullField("foo")));
+        expectValueException(() -> BytesReferenceUtil.bytes(builder().nullField("foo")));
+        expectNonNullFieldException(() -> BytesReferenceUtil.bytes(builder().nullField(null)));
+        expectUnclosedException(() -> BytesReferenceUtil.bytes(builder().startObject().nullField("foo")));
 
         assertResult("{'foo':null}", () -> builder().startObject().nullField("foo").endObject());
     }
@@ -326,7 +327,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         assertResult("{'binary':null}", () -> builder().startObject().field("binary", (byte[]) null).endObject());
 
         final byte[] randomBytes = randomBytes();
-        BytesReference bytes = BytesReference.bytes(builder().startObject().field("binary", randomBytes).endObject());
+        BytesReference bytes = BytesReferenceUtil.bytes(builder().startObject().field("binary", randomBytes).endObject());
 
         try (XContentParser parser = createParser(xcontentType().xContent(), bytes)) {
             assertSame(parser.nextToken(), Token.START_OBJECT);
@@ -343,7 +344,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         assertResult("{'binary':null}", () -> builder().startObject().field("binary").value((byte[]) null).endObject());
 
         final byte[] randomBytes = randomBytes();
-        BytesReference bytes = BytesReference.bytes(builder().startObject().field("binary").value(randomBytes).endObject());
+        BytesReference bytes = BytesReferenceUtil.bytes(builder().startObject().field("binary").value(randomBytes).endObject());
 
         try (XContentParser parser = createParser(xcontentType().xContent(), bytes)) {
             assertSame(parser.nextToken(), Token.START_OBJECT);
@@ -371,7 +372,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         }
         builder.endObject();
 
-        try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
+        try (XContentParser parser = createParser(xcontentType().xContent(), BytesReferenceUtil.bytes(builder))) {
             assertSame(parser.nextToken(), Token.START_OBJECT);
             assertSame(parser.nextToken(), Token.FIELD_NAME);
             assertEquals(parser.currentName(), "bin");
@@ -390,7 +391,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         builder.field("utf8").utf8Value(randomBytesRef.bytes, randomBytesRef.offset, randomBytesRef.length);
         builder.endObject();
 
-        try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
+        try (XContentParser parser = createParser(xcontentType().xContent(), BytesReferenceUtil.bytes(builder))) {
             assertSame(parser.nextToken(), Token.START_OBJECT);
             assertSame(parser.nextToken(), Token.FIELD_NAME);
             assertEquals(parser.currentName(), "utf8");
@@ -409,7 +410,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         final BytesReference random = new BytesArray(randomBytes());
         XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
 
-        try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
+        try (XContentParser parser = createParser(xcontentType().xContent(), BytesReferenceUtil.bytes(builder))) {
             assertSame(parser.nextToken(), Token.START_OBJECT);
             assertSame(parser.nextToken(), Token.FIELD_NAME);
             assertEquals(parser.currentName(), "text");
@@ -1192,7 +1193,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         b.value("test");
         try (
             XContentParser p = xcontentType().xContent()
-                .createParser(registry, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(b).streamInput())
+                .createParser(registry, LoggingDeprecationHandler.INSTANCE, BytesReferenceUtil.bytes(b).streamInput())
         ) {
             assertEquals(test1, p.namedObject(Object.class, "test1", null));
             assertEquals(test2, p.namedObject(Object.class, "test2", null));
@@ -1264,7 +1265,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
 
     private static void assertResult(String expected, Builder builder) throws IOException {
         // Build the XContentBuilder, convert its bytes to JSON and check it matches
-        assertThat(XContentHelper.convertToJson(BytesReference.bytes(builder.build()), randomBoolean()), equalToJson(expected));
+        assertThat(XContentHelper.convertToJson(BytesReferenceUtil.bytes(builder.build()), randomBoolean()), equalToJson(expected));
     }
 
     private static byte[] randomBytes() throws Exception {

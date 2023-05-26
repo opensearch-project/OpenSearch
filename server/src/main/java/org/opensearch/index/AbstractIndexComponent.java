@@ -35,6 +35,7 @@ package org.opensearch.index;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.core.index.Index;
 
 /**
  * A base class for new index components

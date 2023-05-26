@@ -15,7 +15,7 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.ExtensionsManager;

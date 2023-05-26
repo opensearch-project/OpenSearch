@@ -32,7 +32,7 @@
 
 package org.opensearch.client.core;
 
-import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;

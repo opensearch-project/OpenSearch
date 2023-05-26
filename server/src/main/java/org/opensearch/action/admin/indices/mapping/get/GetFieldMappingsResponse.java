@@ -34,10 +34,11 @@ package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -195,7 +196,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             PARSER.declareField(optionalConstructorArg(), (p, c) -> p.text(), FULL_NAME, ObjectParser.ValueType.STRING);
             PARSER.declareField(optionalConstructorArg(), (p, c) -> {
                 final XContentBuilder jsonBuilder = jsonBuilder().copyCurrentStructure(p);
-                final BytesReference bytes = BytesReference.bytes(jsonBuilder);
+                final BytesReference bytes = BytesReferenceUtil.bytes(jsonBuilder);
                 return bytes;
             }, MAPPING, ObjectParser.ValueType.OBJECT);
         }

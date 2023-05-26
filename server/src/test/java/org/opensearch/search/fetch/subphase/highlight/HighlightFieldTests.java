@@ -34,8 +34,8 @@ package org.opensearch.search.fetch.subphase.highlight;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;

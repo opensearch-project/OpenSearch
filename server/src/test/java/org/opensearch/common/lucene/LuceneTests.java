@@ -81,7 +81,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;

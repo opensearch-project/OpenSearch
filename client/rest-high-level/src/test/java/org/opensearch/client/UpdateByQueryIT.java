@@ -46,7 +46,7 @@ import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.reindex.BulkByScrollResponse;
 import org.opensearch.index.reindex.UpdateByQueryAction;
 import org.opensearch.index.reindex.UpdateByQueryRequest;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.Script;
 import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.TaskId;

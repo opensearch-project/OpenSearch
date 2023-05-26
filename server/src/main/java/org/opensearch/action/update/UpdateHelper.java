@@ -40,10 +40,11 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -53,7 +54,7 @@ import org.opensearch.index.engine.DocumentSourceMissingException;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.UpdateScript;
@@ -369,7 +370,7 @@ public class UpdateHelper {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
                 try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
                     builder.value(value);
-                    sourceFilteredAsBytes = BytesReference.bytes(builder);
+                    sourceFilteredAsBytes = BytesReferenceUtil.bytes(builder);
                 }
             } catch (IOException e) {
                 throw new OpenSearchException("Error filtering source", e);

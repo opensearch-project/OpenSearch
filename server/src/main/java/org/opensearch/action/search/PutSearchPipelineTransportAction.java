@@ -22,7 +22,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.pipeline.SearchPipelineInfo;
 import org.opensearch.threadpool.ThreadPool;

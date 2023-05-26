@@ -45,7 +45,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.index.mapper.DateFieldMapper;

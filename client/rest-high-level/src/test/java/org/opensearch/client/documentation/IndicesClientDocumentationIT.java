@@ -32,6 +32,7 @@
 
 package org.opensearch.client.documentation;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
@@ -61,7 +62,7 @@ import org.opensearch.action.admin.indices.validate.query.QueryExplanation;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchRestHighLevelClientTestCase;
@@ -113,7 +114,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -1925,7 +1926,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
 
             // tag::get-alias-response-error
             RestStatus status = response.status(); // <1>
-            OpenSearchException exception = response.getException(); // <2>
+            BaseOpenSearchException exception = response.getException(); // <2>
             String error = response.getError(); // <3>
             // end::get-alias-response-error
 

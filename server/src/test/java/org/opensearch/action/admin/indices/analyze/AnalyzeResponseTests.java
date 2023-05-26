@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.indices.analyze;
 
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -68,7 +68,8 @@ public class AnalyzeResponseTests extends AbstractWireSerializingTestCase<Analyz
         AnalyzeAction.Response response = new AnalyzeAction.Response(null, detail);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Map<String, Object> converted = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            Map<String, Object> converted = XContentHelper.convertToMap(BytesReferenceUtil.bytes(builder), false, builder.contentType())
+                .v2();
             List<Map<String, Object>> tokenfiltersValue = (List<Map<String, Object>>) ((Map<String, Object>) converted.get("detail")).get(
                 "tokenfilters"
             );

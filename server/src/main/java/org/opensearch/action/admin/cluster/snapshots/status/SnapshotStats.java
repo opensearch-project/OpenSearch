@@ -33,17 +33,17 @@
 package org.opensearch.action.admin.cluster.snapshots.status;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 
@@ -233,7 +233,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         if (token == null) {
             token = parser.nextToken();
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         long startTime = 0;
         long time = 0;
         int incrementalFileCount = 0;
@@ -243,20 +243,28 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         long totalSize = 0;
         long processedSize = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+            org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String currentName = parser.currentName();
             token = parser.nextToken();
             if (currentName.equals(Fields.INCREMENTAL)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                    org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                     String innerName = parser.currentName();
                     token = parser.nextToken();
                     if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                            XContentParser.Token.VALUE_NUMBER,
+                            token,
+                            parser
+                        );
                         incrementalFileCount = parser.intValue();
                     } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                            XContentParser.Token.VALUE_NUMBER,
+                            token,
+                            parser
+                        );
                         incrementalSize = parser.longValue();
                     } else {
                         // Unknown sub field, skip
@@ -266,16 +274,24 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                     }
                 }
             } else if (currentName.equals(Fields.PROCESSED)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                    org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                     String innerName = parser.currentName();
                     token = parser.nextToken();
                     if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                            XContentParser.Token.VALUE_NUMBER,
+                            token,
+                            parser
+                        );
                         processedFileCount = parser.intValue();
                     } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                            XContentParser.Token.VALUE_NUMBER,
+                            token,
+                            parser
+                        );
                         processedSize = parser.longValue();
                     } else {
                         // Unknown sub field, skip
@@ -285,16 +301,24 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                     }
                 }
             } else if (currentName.equals(Fields.TOTAL)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                    org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                     String innerName = parser.currentName();
                     token = parser.nextToken();
                     if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                            XContentParser.Token.VALUE_NUMBER,
+                            token,
+                            parser
+                        );
                         totalFileCount = parser.intValue();
                     } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                            XContentParser.Token.VALUE_NUMBER,
+                            token,
+                            parser
+                        );
                         totalSize = parser.longValue();
                     } else {
                         // Unknown sub field, skip
@@ -304,7 +328,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                     }
                 }
             } else if (currentName.equals(Fields.START_TIME_IN_MILLIS)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                 startTime = parser.longValue();
             } else if (currentName.equals(Fields.TIME_IN_MILLIS)) {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);

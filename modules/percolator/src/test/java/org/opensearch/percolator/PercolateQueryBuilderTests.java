@@ -39,8 +39,9 @@ import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
@@ -319,7 +320,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
             XContentBuilder xContent = XContentFactory.jsonBuilder();
             xContent.map(source);
-            return BytesReference.bytes(xContent);
+            return BytesReferenceUtil.bytes(xContent);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

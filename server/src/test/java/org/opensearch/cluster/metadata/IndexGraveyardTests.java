@@ -34,7 +34,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
@@ -43,7 +43,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -93,7 +93,7 @@ public class IndexGraveyardTests extends OpenSearchTestCase {
                 )
             );
         }
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder));
         parser.nextToken(); // the beginning of the parser
         assertThat(IndexGraveyard.fromXContent(parser), equalTo(graveyard));
     }

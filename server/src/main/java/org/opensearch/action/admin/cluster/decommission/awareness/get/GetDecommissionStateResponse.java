@@ -11,8 +11,8 @@ package org.opensearch.action.admin.cluster.decommission.awareness.get;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.decommission.DecommissionStatus;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Response for decommission status

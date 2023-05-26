@@ -44,7 +44,7 @@ import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.util.set.Sets;

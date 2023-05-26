@@ -44,12 +44,12 @@ import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -182,7 +182,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
 
         AcknowledgedResponse acknowledgedResponse = client().admin()
             .cluster()
-            .putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), XContentType.JSON))
+            .putPipeline(new PutPipelineRequest(pipelineId, BytesReferenceUtil.bytes(pipeline), XContentType.JSON))
             .get();
 
         assertTrue(acknowledgedResponse.isAcknowledged());

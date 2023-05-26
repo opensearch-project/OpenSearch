@@ -46,7 +46,7 @@ import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.opensearch.common.geo.parsers.CoordinateNode;
-import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry.Entry;
 import org.opensearch.common.unit.DistanceUnit;
 
 import java.util.ArrayList;

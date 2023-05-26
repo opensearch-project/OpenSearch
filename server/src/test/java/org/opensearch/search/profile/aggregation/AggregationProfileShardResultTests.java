@@ -32,11 +32,11 @@
 
 package org.opensearch.search.profile.aggregation;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileResultTests;
 import org.opensearch.test.OpenSearchTestCase;
@@ -70,9 +70,17 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
 
         AggregationProfileShardResult parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                XContentParser.Token.START_OBJECT,
+                parser.nextToken(),
+                parser
+            );
             XContentParserUtils.ensureFieldName(parser, parser.nextToken(), AggregationProfileShardResult.AGGREGATIONS);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+            org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                XContentParser.Token.START_ARRAY,
+                parser.nextToken(),
+                parser
+            );
             parsed = AggregationProfileShardResult.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());

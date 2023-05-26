@@ -40,7 +40,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.RestoreService;
 

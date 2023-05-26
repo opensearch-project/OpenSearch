@@ -35,10 +35,10 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -89,7 +89,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.type = type;
         try {
             XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
-            this.source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
+            this.source = new CompressedXContent(BytesReferenceUtil.bytes(mappingBuilder));
         } catch (IOException e) {
             throw new UncheckedIOException(e);  // XContent exception, should never happen
         }

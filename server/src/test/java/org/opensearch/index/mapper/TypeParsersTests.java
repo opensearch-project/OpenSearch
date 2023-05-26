@@ -33,7 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.Version;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -85,7 +85,7 @@ public class TypeParsersTests extends OpenSearchTestCase {
 
         Mapper.TypeParser typeParser = KeywordFieldMapper.PARSER;
 
-        Map<String, Object> fieldNode = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
+        Map<String, Object> fieldNode = XContentHelper.convertToMap(BytesReferenceUtil.bytes(mapping), true, mapping.contentType()).v2();
 
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());

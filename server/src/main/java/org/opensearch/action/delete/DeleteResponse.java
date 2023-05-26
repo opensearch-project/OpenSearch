@@ -33,14 +33,14 @@
 package org.opensearch.action.delete;
 
 import org.opensearch.action.DocWriteResponse;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * The response of the delete action.

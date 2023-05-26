@@ -39,7 +39,7 @@ import org.apache.lucene.analysis.phonetic.DaitchMokotoffSoundexFilter;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.plugin.analysis.AnalysisPhoneticPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;

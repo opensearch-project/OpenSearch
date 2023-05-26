@@ -9,7 +9,7 @@
 package org.opensearch.action.admin.cluster.shards.routing.weighted.put;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
 

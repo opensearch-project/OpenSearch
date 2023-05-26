@@ -54,7 +54,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;

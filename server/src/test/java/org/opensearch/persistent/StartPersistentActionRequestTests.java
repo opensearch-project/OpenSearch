@@ -32,9 +32,9 @@
 package org.opensearch.persistent;
 
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry.Entry;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.persistent.StartPersistentTaskAction.Request;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;

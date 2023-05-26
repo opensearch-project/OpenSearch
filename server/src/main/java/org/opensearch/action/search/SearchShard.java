@@ -33,7 +33,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Comparator;
 import java.util.Objects;

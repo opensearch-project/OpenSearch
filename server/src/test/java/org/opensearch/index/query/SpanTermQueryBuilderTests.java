@@ -37,7 +37,7 @@ import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.index.mapper.MappedFieldType;
 

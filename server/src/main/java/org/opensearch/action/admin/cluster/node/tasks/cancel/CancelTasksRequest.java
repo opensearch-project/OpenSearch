@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
 import org.opensearch.action.support.tasks.BaseTasksRequest;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 

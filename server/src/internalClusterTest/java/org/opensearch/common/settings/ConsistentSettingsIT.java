@@ -34,6 +34,7 @@ package org.opensearch.common.settings;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting.AffixSetting;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;

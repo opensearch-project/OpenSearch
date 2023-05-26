@@ -37,13 +37,13 @@ import com.sun.net.httpserver.HttpHandler;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.hash.MessageDigests;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
 
 import java.io.BufferedInputStream;

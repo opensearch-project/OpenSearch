@@ -34,8 +34,8 @@ package org.opensearch.action.support.broadcast;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchWrapperException;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 

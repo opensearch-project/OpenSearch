@@ -33,7 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -66,7 +66,7 @@ public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder().startObject().startObject("obj1").endObject().field("value1", "test1").endObject()
                 ),
                 XContentType.JSON
@@ -79,7 +79,9 @@ public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("obj1").field("value1", "test1").endObject()),
+                BytesReferenceUtil.bytes(
+                    XContentFactory.jsonBuilder().startObject().nullField("obj1").field("value1", "test1").endObject()
+                ),
                 XContentType.JSON
             )
         );
@@ -90,7 +92,7 @@ public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("obj1")

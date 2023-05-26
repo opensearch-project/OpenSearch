@@ -31,7 +31,7 @@
 
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;

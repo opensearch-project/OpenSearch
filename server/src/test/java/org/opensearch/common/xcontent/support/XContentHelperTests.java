@@ -32,7 +32,8 @@
 
 package org.opensearch.common.xcontent.support;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -147,7 +148,7 @@ public class XContentHelperTests extends OpenSearchTestCase {
                 .endObject();
             builder.field("field", "value");
             builder.endObject().endObject();
-            BytesReference input = BytesReference.bytes(builder);
+            BytesReference input = BytesReferenceUtil.bytes(builder);
 
             BytesReference bytes;
             try (
@@ -217,7 +218,7 @@ public class XContentHelperTests extends OpenSearchTestCase {
         CompressedXContent embedded = new CompressedXContent("{\"field\":\"value\"}");
         builder.field("bytes", embedded.compressed());
         builder.endObject().endObject();
-        BytesReference bytes = BytesReference.bytes(builder);
+        BytesReference bytes = BytesReferenceUtil.bytes(builder);
 
         BytesReference inner;
         try (

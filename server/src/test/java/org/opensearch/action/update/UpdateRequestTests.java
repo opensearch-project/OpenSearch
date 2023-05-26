@@ -37,10 +37,11 @@ import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -52,7 +53,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.env.Environment;
 import org.opensearch.index.get.GetResult;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
@@ -490,7 +491,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
 
         if (randomBoolean()) {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                originalBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
+                originalBytes = BytesReferenceUtil.bytes(shuffleXContent(parser, randomBoolean()));
             }
         }
 

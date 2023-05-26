@@ -42,7 +42,7 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 

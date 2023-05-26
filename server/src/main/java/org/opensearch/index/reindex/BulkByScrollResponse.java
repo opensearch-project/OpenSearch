@@ -32,7 +32,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
@@ -40,15 +40,15 @@ import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.index.reindex.BulkByScrollTask.Status;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +58,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Response used for actions that index many documents using a scroll request.
@@ -246,8 +246,8 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         Integer status = null;
         Integer shardId = null;
         String nodeId = null;
-        OpenSearchException bulkExc = null;
-        OpenSearchException searchExc = null;
+        BaseOpenSearchException bulkExc = null;
+        BaseOpenSearchException searchExc = null;
         while ((token = parser.nextToken()) != Token.END_OBJECT) {
             ensureExpectedToken(Token.FIELD_NAME, token, parser);
             String name = parser.currentName();
@@ -257,10 +257,10 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
             } else if (token == Token.START_OBJECT) {
                 switch (name) {
                     case SearchFailure.REASON_FIELD:
-                        searchExc = OpenSearchException.fromXContent(parser);
+                        searchExc = BaseOpenSearchException.fromXContent(parser);
                         break;
                     case Failure.CAUSE_FIELD:
-                        bulkExc = OpenSearchException.fromXContent(parser);
+                        bulkExc = BaseOpenSearchException.fromXContent(parser);
                         break;
                     default:
                         parser.skipChildren();

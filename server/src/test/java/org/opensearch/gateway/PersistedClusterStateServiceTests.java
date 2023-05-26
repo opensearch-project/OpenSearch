@@ -61,7 +61,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.gateway.PersistedClusterStateService.Writer;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;

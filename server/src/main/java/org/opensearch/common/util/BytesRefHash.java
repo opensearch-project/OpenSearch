@@ -36,6 +36,7 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.core.common.util.ByteArray;
 
 /**
  *  Specialized hash table implementation similar to Lucene's BytesRefHash that maps

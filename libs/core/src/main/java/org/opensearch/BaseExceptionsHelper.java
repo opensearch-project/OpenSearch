@@ -35,7 +35,9 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.common.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -279,5 +281,22 @@ public abstract class BaseExceptionsHelper {
                 builder.endArray();
             }
         }
+    }
+
+    public static RestStatus status(Throwable t) {
+        if (t != null) {
+            if (t instanceof BaseOpenSearchException) {
+                return ((BaseOpenSearchException) t).status();
+            } else if (t instanceof IllegalArgumentException) {
+                return RestStatus.BAD_REQUEST;
+            } else if (t instanceof JsonParseException) {
+                return RestStatus.BAD_REQUEST;
+            } else if (t instanceof OpenSearchRejectedExecutionException) {
+                return RestStatus.TOO_MANY_REQUESTS;
+            } else if (t instanceof NotXContentException) {
+                return RestStatus.BAD_REQUEST;
+            }
+        }
+        return RestStatus.INTERNAL_SERVER_ERROR;
     }
 }

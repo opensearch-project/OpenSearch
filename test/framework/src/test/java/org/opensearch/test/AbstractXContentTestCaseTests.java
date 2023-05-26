@@ -34,7 +34,8 @@ package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
@@ -58,7 +59,7 @@ public class AbstractXContentTestCaseTests extends OpenSearchTestCase {
             .runWithPrivateRandomness(
                 1,
                 () -> AbstractXContentTestCase.insertRandomFieldsAndShuffle(
-                    BytesReference.bytes(builder),
+                    BytesReferenceUtil.bytes(builder),
                     XContentType.JSON,
                     true,
                     new String[] {},

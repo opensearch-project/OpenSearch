@@ -33,12 +33,11 @@
 package org.opensearch.action.get;
 
 import org.opensearch.BaseOpenSearchException;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -209,7 +208,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         String currentFieldName = null;
         String index = null;
         String id = null;
-        OpenSearchException exception = null;
+        BaseOpenSearchException exception = null;
         GetResult getResult = null;
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
             switch (token) {
@@ -231,7 +230,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                     break;
                 case START_OBJECT:
                     if (ERROR.match(currentFieldName, parser.getDeprecationHandler())) {
-                        exception = OpenSearchException.fromXContent(parser);
+                        exception = BaseOpenSearchException.fromXContent(parser);
                     }
                     break;
                 default:

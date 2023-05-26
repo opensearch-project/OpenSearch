@@ -42,6 +42,7 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.KeyStoreAwareCommand;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 
 /**

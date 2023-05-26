@@ -54,7 +54,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectPath;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MetadataFieldMapper;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;

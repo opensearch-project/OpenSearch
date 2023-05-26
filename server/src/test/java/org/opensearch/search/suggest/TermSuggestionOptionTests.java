@@ -32,8 +32,8 @@
 
 package org.opensearch.search.suggest;
 
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -43,7 +43,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 

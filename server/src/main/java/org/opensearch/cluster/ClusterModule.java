@@ -79,9 +79,9 @@ import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDec
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.inject.AbstractModule;
-import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry.Entry;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;

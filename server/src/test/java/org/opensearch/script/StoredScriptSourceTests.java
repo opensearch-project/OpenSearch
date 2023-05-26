@@ -33,8 +33,8 @@
 package org.opensearch.script;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -66,7 +66,7 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
             if (randomBoolean()) {
                 options.put(Script.CONTENT_TYPE_OPTION, xContentType.mediaType());
             }
-            return StoredScriptSource.parse(BytesReference.bytes(template), xContentType);
+            return StoredScriptSource.parse(BytesReferenceUtil.bytes(template), xContentType);
         } catch (IOException e) {
             throw new AssertionError("Failed to create test instance", e);
         }

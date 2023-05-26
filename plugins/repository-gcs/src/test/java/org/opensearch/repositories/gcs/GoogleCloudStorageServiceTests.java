@@ -36,7 +36,8 @@ import com.google.auth.Credentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import org.hamcrest.Matchers;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -185,7 +186,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
             .field("client_email", "integration_test@appspot.gserviceaccount.com")
             .field("client_id", "client_id")
             .endObject();
-        return BytesReference.toBytes(BytesReference.bytes(serviceAccountBuilder));
+        return BytesReference.toBytes(BytesReferenceUtil.bytes(serviceAccountBuilder));
     }
 
     public void testToTimeout() {

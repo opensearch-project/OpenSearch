@@ -34,9 +34,9 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -123,7 +123,8 @@ public class GrokProcessorGetActionTests extends OpenSearchTestCase {
         GrokProcessorGetAction.Response response = new GrokProcessorGetAction.Response(TEST_PATTERNS);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Map<String, Object> converted = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            Map<String, Object> converted = XContentHelper.convertToMap(BytesReferenceUtil.bytes(builder), false, builder.contentType())
+                .v2();
             Map<String, String> patterns = (Map<String, String>) converted.get("patterns");
             assertThat(patterns.size(), equalTo(2));
             assertThat(patterns.get("PATTERN1"), equalTo("foo1"));

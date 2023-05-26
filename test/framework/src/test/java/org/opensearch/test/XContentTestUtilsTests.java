@@ -32,7 +32,7 @@
 
 package org.opensearch.test;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -90,7 +90,7 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder),
+                BytesReferenceUtil.bytes(builder),
                 builder.contentType()
             )
         ) {
@@ -112,28 +112,28 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         builder.endObject();
         builder = XContentTestUtils.insertIntoXContent(
             XContentType.JSON.xContent(),
-            BytesReference.bytes(builder),
+            BytesReferenceUtil.bytes(builder),
             Collections.singletonList(""),
             () -> "inn.er1",
             () -> new HashMap<>()
         );
         builder = XContentTestUtils.insertIntoXContent(
             XContentType.JSON.xContent(),
-            BytesReference.bytes(builder),
+            BytesReferenceUtil.bytes(builder),
             Collections.singletonList(""),
             () -> "field1",
             () -> "value1"
         );
         builder = XContentTestUtils.insertIntoXContent(
             XContentType.JSON.xContent(),
-            BytesReference.bytes(builder),
+            BytesReferenceUtil.bytes(builder),
             Collections.singletonList("inn\\.er1"),
             () -> "inner2",
             () -> new HashMap<>()
         );
         builder = XContentTestUtils.insertIntoXContent(
             XContentType.JSON.xContent(),
-            BytesReference.bytes(builder),
+            BytesReferenceUtil.bytes(builder),
             Collections.singletonList("inn\\.er1"),
             () -> "field2",
             () -> "value2"
@@ -142,7 +142,7 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder),
+                BytesReferenceUtil.bytes(builder),
                 builder.contentType()
             )
         ) {
@@ -195,7 +195,7 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         try (
             XContentParser parser = createParser(
                 XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), null, random())
+                insertRandomFields(builder.contentType(), BytesReferenceUtil.bytes(builder), null, random())
             )
         ) {
             resultMap = parser.map();
@@ -213,7 +213,7 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         try (
             XContentParser parser = createParser(
                 XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), pathsToExclude, random())
+                insertRandomFields(builder.contentType(), BytesReferenceUtil.bytes(builder), pathsToExclude, random())
             )
         ) {
             resultMap = parser.map();
@@ -231,7 +231,7 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         try (
             XContentParser parser = createParser(
                 XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), pathsToExclude, random())
+                insertRandomFields(builder.contentType(), BytesReferenceUtil.bytes(builder), pathsToExclude, random())
             )
         ) {
             resultMap = parser.map();

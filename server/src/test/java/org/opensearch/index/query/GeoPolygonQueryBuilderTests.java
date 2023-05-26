@@ -37,7 +37,7 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.index.mapper.MappedFieldType;

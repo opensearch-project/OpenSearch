@@ -37,7 +37,7 @@ import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.concurrent.TimeUnit;
 

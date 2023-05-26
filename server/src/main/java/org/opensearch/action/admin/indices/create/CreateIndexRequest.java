@@ -43,10 +43,11 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -315,7 +316,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(XContentBuilder source) {
-        return mapping(BytesReference.bytes(source), source.contentType());
+        return mapping(BytesReferenceUtil.bytes(source), source.contentType());
     }
 
     /**
@@ -376,7 +377,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return aliases(BytesReference.bytes(builder));
+            return aliases(BytesReferenceUtil.bytes(builder));
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -386,7 +387,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(XContentBuilder source) {
-        return aliases(BytesReference.bytes(source));
+        return aliases(BytesReferenceUtil.bytes(source));
     }
 
     /**
@@ -444,7 +445,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(XContentBuilder source) {
-        return source(BytesReference.bytes(source), source.contentType());
+        return source(BytesReferenceUtil.bytes(source), source.contentType());
     }
 
     /**

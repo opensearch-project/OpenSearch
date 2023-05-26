@@ -33,7 +33,7 @@
 package org.opensearch.index.search.geo;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -140,12 +140,12 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         content.endObject();
         content.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
-        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
             assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
@@ -158,12 +158,12 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         content.field("lat", 0).field("geohash", stringEncode(0d, 0d));
         content.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
-        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
             assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
@@ -176,13 +176,13 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         content.field("lon", 0).field("geohash", stringEncode(0d, 0d));
         content.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content))) {
             parser.nextToken();
 
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
-        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
             assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
@@ -195,13 +195,13 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         content.field("lon", 0).field("lat", 0).field("test", 0);
         content.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
         }
 
-        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+        try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
             assertThat(e.getMessage(), is(ERR_MSG_INVALID_FIELDS));
@@ -214,7 +214,7 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         content.field("geohash", "!!!!");
         content.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content))) {
             parser.nextToken();
 
             Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
@@ -227,7 +227,7 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
         content.startObject();
         content.field("lat", lat).field("lon", lon);
         content.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content));
         parser.nextToken();
         return parser;
     }
@@ -235,7 +235,7 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
     private XContentParser arrayLatLon(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startArray().value(lon).value(lat).endArray();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content));
         parser.nextToken();
         return parser;
     }
@@ -243,7 +243,7 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
     private XContentParser stringLatLon(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.value(Double.toString(lat) + ", " + Double.toString(lon));
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content));
         parser.nextToken();
         return parser;
     }
@@ -251,7 +251,7 @@ public class GeoPointParsingTests extends OpenSearchTestCase {
     private XContentParser geohash(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.value(stringEncode(lon, lat));
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(content));
         parser.nextToken();
         return parser;
     }

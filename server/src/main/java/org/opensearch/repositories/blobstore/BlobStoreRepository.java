@@ -75,14 +75,12 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.compress.Compressor;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.compress.CompressorType;
-import org.opensearch.common.compress.NotXContentException;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
@@ -97,14 +95,17 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.compress.NotXContentException;
 import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.core.util.BytesRefUtils;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
-import org.opensearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
@@ -1667,7 +1668,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // since we're only caching the information that we just wrote and thus won't accidentally cache any information that
                     // isn't safe
                     cacheRepositoryData(
-                        BytesReference.bytes(loaded.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT)),
+                        BytesReferenceUtil.bytes(loaded.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT)),
                         genToLoad
                     );
                 }
@@ -2050,7 +2051,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
             logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
-            final BytesReference serializedRepoData = BytesReference.bytes(
+            final BytesReference serializedRepoData = BytesReferenceUtil.bytes(
                 newRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), version)
             );
             writeAtomic(blobContainer(), indexBlob, serializedRepoData, true);

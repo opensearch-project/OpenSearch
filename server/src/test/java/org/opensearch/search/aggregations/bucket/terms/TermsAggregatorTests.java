@@ -56,7 +56,7 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.index.mapper.DocumentMapper;

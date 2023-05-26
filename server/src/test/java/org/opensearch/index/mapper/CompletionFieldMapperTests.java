@@ -47,7 +47,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -209,7 +209,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         XContentBuilder builder = jsonBuilder().startObject();
         fieldMapper.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"))).endObject();
         builder.close();
-        Map<String, Object> serializedMap = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder)).map();
+        Map<String, Object> serializedMap = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder)).map();
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("field");
         assertThat(configMap.get("analyzer").toString(), is("simple"));
         assertThat(configMap.get("search_analyzer").toString(), is("standard"));

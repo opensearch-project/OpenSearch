@@ -33,7 +33,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 
 /**
  * This interface allows plugins to intercept requests on both the sender and the receiver side.

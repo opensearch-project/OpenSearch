@@ -52,7 +52,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchIntegTestCase;

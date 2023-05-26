@@ -32,7 +32,7 @@
 
 package org.opensearch.node;
 
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 
 /**

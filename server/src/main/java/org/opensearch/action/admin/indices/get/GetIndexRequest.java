@@ -34,8 +34,8 @@ package org.opensearch.action.admin.indices.get;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.info.ClusterInfoRequest;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.util.ArrayUtils;
 
 import java.io.IOException;

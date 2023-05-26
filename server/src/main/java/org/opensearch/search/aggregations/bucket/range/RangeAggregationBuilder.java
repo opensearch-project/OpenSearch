@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;

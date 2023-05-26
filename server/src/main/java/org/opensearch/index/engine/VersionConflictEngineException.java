@@ -31,10 +31,10 @@
 
 package org.opensearch.index.engine;
 
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 

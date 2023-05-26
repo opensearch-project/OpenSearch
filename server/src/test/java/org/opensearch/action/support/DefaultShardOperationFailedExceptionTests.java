@@ -40,17 +40,18 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.EOFException;
@@ -143,7 +144,7 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             .endObject();
         builder = shuffleXContent(builder);
         DefaultShardOperationFailedException parsed;
-        try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
+        try (XContentParser parser = createParser(xContent, BytesReferenceUtil.bytes(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = DefaultShardOperationFailedException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

@@ -45,8 +45,8 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.rest.RestStatus.NOT_FOUND;
-import static org.opensearch.rest.RestStatus.OK;
+import static org.opensearch.core.rest.RestStatus.NOT_FOUND;
+import static org.opensearch.core.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class Netty4HeadBodyIsEmptyIT extends OpenSearchRestTestCase {

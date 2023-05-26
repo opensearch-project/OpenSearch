@@ -31,7 +31,7 @@
 
 package org.opensearch.test.rest.yaml;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -68,7 +68,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         ObjectPath objectPath = ObjectPath.createFromXContent(
             xContentBuilder.contentType().xContent(),
-            BytesReference.bytes(xContentBuilder)
+            BytesReferenceUtil.bytes(xContentBuilder)
         );
         Object object = objectPath.evaluate("field1.field2\\.field3");
         assertThat(object, instanceOf(String.class));
@@ -84,7 +84,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         ObjectPath objectPath = ObjectPath.createFromXContent(
             xContentBuilder.contentType().xContent(),
-            BytesReference.bytes(xContentBuilder)
+            BytesReferenceUtil.bytes(xContentBuilder)
         );
         Object object = objectPath.evaluate("field1..field2");
         assertThat(object, instanceOf(String.class));
@@ -106,7 +106,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         ObjectPath objectPath = ObjectPath.createFromXContent(
             xContentBuilder.contentType().xContent(),
-            BytesReference.bytes(xContentBuilder)
+            BytesReferenceUtil.bytes(xContentBuilder)
         );
         Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Integer.class));
@@ -122,7 +122,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         ObjectPath objectPath = ObjectPath.createFromXContent(
             xContentBuilder.contentType().xContent(),
-            BytesReference.bytes(xContentBuilder)
+            BytesReferenceUtil.bytes(xContentBuilder)
         );
         Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Double.class));
@@ -138,7 +138,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         ObjectPath objectPath = ObjectPath.createFromXContent(
             xContentBuilder.contentType().xContent(),
-            BytesReference.bytes(xContentBuilder)
+            BytesReferenceUtil.bytes(xContentBuilder)
         );
         Object object = objectPath.evaluate("field1.array1");
         assertThat(object, instanceOf(List.class));
@@ -170,7 +170,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         ObjectPath objectPath = ObjectPath.createFromXContent(
             xContentBuilder.contentType().xContent(),
-            BytesReference.bytes(xContentBuilder)
+            BytesReferenceUtil.bytes(xContentBuilder)
         );
         Object object = objectPath.evaluate("field1.array1.1.element");
         assertThat(object, instanceOf(String.class));
@@ -200,7 +200,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         ObjectPath objectPath = ObjectPath.createFromXContent(
             xContentBuilder.contentType().xContent(),
-            BytesReference.bytes(xContentBuilder)
+            BytesReferenceUtil.bytes(xContentBuilder)
         );
         Object object = objectPath.evaluate("metadata.templates");
         assertThat(object, instanceOf(Map.class));
@@ -232,7 +232,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         ObjectPath objectPath = ObjectPath.createFromXContent(
             xContentBuilder.contentType().xContent(),
-            BytesReference.bytes(xContentBuilder)
+            BytesReferenceUtil.bytes(xContentBuilder)
         );
 
         {
@@ -277,7 +277,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         ObjectPath objectPath = ObjectPath.createFromXContent(
             xContentBuilder.contentType().xContent(),
-            BytesReference.bytes(xContentBuilder)
+            BytesReferenceUtil.bytes(xContentBuilder)
         );
         try {
             objectPath.evaluate("field1.$placeholder.element1");
@@ -343,7 +343,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endArray();
         ObjectPath objectPath = ObjectPath.createFromXContent(
             XContentFactory.xContent(xContentBuilder.contentType()),
-            BytesReference.bytes(xContentBuilder)
+            BytesReferenceUtil.bytes(xContentBuilder)
         );
         Object object = objectPath.evaluate("");
         assertThat(object, notNullValue());

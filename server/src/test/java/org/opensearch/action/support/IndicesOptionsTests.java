@@ -35,9 +35,10 @@ package org.opensearch.action.support;
 import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions.Option;
 import org.opensearch.action.support.IndicesOptions.WildcardStates;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent.MapParams;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -428,7 +429,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
             builder.field("ignore_unavailable", ignoreUnavailable);
             builder.field("allow_no_indices", allowNoIndices);
             builder.endObject();
-            xContentBytes = BytesReference.bytes(builder);
+            xContentBytes = BytesReferenceUtil.bytes(builder);
         }
 
         IndicesOptions fromXContentOptions;
@@ -447,7 +448,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
             builder.field("ignore_unavailable", ignoreUnavailable);
             builder.field("allow_no_indices", allowNoIndices);
             builder.endObject();
-            xContentBytes = BytesReference.bytes(builder);
+            xContentBytes = BytesReferenceUtil.bytes(builder);
         }
 
         try (XContentParser parser = type.xContent().createParser(NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
@@ -465,7 +466,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
             builder.startObject();
             indicesOptions.toXContent(builder, new MapParams(Collections.emptyMap()));
             builder.endObject();
-            return BytesReference.bytes(builder);
+            return BytesReferenceUtil.bytes(builder);
         }
     }
 }

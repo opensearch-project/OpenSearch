@@ -33,14 +33,14 @@
 package org.opensearch.index.rankeval;
 
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.index.rankeval.RatedDocument.DocumentKey;
 
 import java.io.IOException;
@@ -158,8 +158,12 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     }
 
     private static MetricDetail parseMetricDetail(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+            XContentParser.Token.START_OBJECT,
+            parser.currentToken(),
+            parser
+        );
+        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         MetricDetail metricDetail = parser.namedObject(MetricDetail.class, parser.currentName(), null);
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return metricDetail;

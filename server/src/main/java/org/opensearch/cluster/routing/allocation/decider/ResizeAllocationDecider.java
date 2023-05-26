@@ -38,8 +38,8 @@ import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 
 /**
  * An allocation decider that ensures we allocate the shards of a target index for resize operations next to the source primaries

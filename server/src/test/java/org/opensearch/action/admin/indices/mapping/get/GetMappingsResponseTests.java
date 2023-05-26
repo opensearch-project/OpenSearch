@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;

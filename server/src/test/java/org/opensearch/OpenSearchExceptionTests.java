@@ -43,11 +43,12 @@ import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
@@ -58,14 +59,14 @@ import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.shard.IndexShardRecoveringException;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.repositories.RepositoryException;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.ScriptException;
 import org.opensearch.search.SearchContextMissingException;
 import org.opensearch.search.SearchParseException;
@@ -514,10 +515,10 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
         assertExceptionAsJson(e, expectedJson);
 
-        OpenSearchException parsed;
+        BaseOpenSearchException parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), expectedJson)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = OpenSearchException.fromXContent(parser);
+            parsed = BaseOpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -554,10 +555,10 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             .endObject();
 
         builder = shuffleXContent(builder);
-        OpenSearchException parsed;
-        try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
+        BaseOpenSearchException parsed;
+        try (XContentParser parser = createParser(xContent, BytesReferenceUtil.bytes(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = OpenSearchException.fromXContent(parser);
+            parsed = BaseOpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -576,10 +577,10 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(e).endObject();
         builder = shuffleXContent(builder);
 
-        OpenSearchException parsed;
+        BaseOpenSearchException parsed;
         try (XContentParser parser = createParser(builder)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = OpenSearchException.fromXContent(parser);
+            parsed = BaseOpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -624,10 +625,10 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(foo).endObject();
         builder = shuffleXContent(builder);
 
-        OpenSearchException parsed;
+        BaseOpenSearchException parsed;
         try (XContentParser parser = createParser(builder)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = OpenSearchException.fromXContent(parser);
+            parsed = BaseOpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -705,14 +706,14 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
                 .endObject()
                 .endObject();
             try (XContentBuilder shuffledBuilder = shuffleXContent(builder)) {
-                originalBytes = BytesReference.bytes(shuffledBuilder);
+                originalBytes = BytesReferenceUtil.bytes(shuffledBuilder);
             }
         }
 
-        OpenSearchException parsedException;
+        BaseOpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsedException = OpenSearchException.fromXContent(parser);
+            parsedException = BaseOpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -744,10 +745,10 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             return builder;
         }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
-        OpenSearchException parsedException;
+        BaseOpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, throwableBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsedException = OpenSearchException.fromXContent(parser);
+            parsedException = BaseOpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -758,7 +759,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             builder.startObject();
             BaseExceptionsHelper.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, throwable);
             builder.endObject();
-            throwableBytes = BytesReference.bytes(builder);
+            throwableBytes = BytesReferenceUtil.bytes(builder);
             try (XContentParser parser = createParser(xContent, throwableBytes)) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 List<String> keys = new ArrayList<>(parser.mapOrdered().keySet());
@@ -776,11 +777,11 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             return builder;
         }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
-        OpenSearchException parsedFailure;
+        BaseOpenSearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            parsedFailure = OpenSearchException.failureFromXContent(parser);
+            parsedFailure = BaseOpenSearchException.failureFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
@@ -801,14 +802,14 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
-            failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
+            failureBytes = BytesReferenceUtil.bytes(shuffleXContent(parser, randomBoolean()));
         }
 
-        OpenSearchException parsedFailure;
+        BaseOpenSearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            parsedFailure = OpenSearchException.failureFromXContent(parser);
+            parsedFailure = BaseOpenSearchException.failureFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
@@ -955,14 +956,14 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
-            failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
+            failureBytes = BytesReferenceUtil.bytes(shuffleXContent(parser, randomBoolean()));
         }
 
-        OpenSearchException parsedFailure;
+        BaseOpenSearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            parsedFailure = OpenSearchException.failureFromXContent(parser);
+            parsedFailure = BaseOpenSearchException.failureFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
@@ -988,7 +989,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }, expectedJson);
     }
 
-    public static void assertDeepEquals(OpenSearchException expected, OpenSearchException actual) {
+    public static void assertDeepEquals(OpenSearchException expected, BaseOpenSearchException actual) {
         do {
             if (expected == null) {
                 assertNull(actual);

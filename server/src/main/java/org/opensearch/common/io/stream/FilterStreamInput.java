@@ -33,6 +33,8 @@
 package org.opensearch.common.io.stream;
 
 import org.opensearch.Version;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -106,7 +108,7 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    protected void ensureCanReadBytes(int length) throws EOFException {
+    public void ensureCanReadBytes(int length) throws EOFException {
         delegate.ensureCanReadBytes(length);
     }
 

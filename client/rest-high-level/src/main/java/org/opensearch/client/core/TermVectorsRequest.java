@@ -34,7 +34,8 @@ package org.opensearch.client.core;
 
 import org.opensearch.client.Validatable;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -280,7 +281,7 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         if (perFieldAnalyzer != null) builder.field("per_field_analyzer", perFieldAnalyzer);
 
         if (docBuilder != null) {
-            BytesReference doc = BytesReference.bytes(docBuilder);
+            BytesReference doc = BytesReferenceUtil.bytes(docBuilder);
             try (InputStream stream = doc.streamInput()) {
                 builder.rawField("doc", stream, docBuilder.contentType());
             }

@@ -39,7 +39,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;

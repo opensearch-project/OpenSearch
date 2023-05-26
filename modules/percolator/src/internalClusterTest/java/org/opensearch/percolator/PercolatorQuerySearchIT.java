@@ -36,8 +36,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
@@ -123,13 +124,13 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .get();
         client().admin().indices().prepareRefresh().get();
 
-        BytesReference source = BytesReference.bytes(jsonBuilder().startObject().endObject());
+        BytesReference source = BytesReferenceUtil.bytes(jsonBuilder().startObject().endObject());
         logger.info("percolating empty doc");
         SearchResponse response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
 
-        source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject());
+        source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "value").endObject());
         logger.info("percolating doc with 1 field");
         response = client().prepareSearch()
             .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
@@ -141,7 +142,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(1).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
 
-        source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").field("field2", "value").endObject());
+        source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "value").field("field2", "value").endObject());
         logger.info("percolating doc with 2 fields");
         response = client().prepareSearch()
             .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
@@ -161,8 +162,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                 new PercolateQueryBuilder(
                     "query",
                     Arrays.asList(
-                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
-                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").field("field2", "value").endObject())
+                        BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
+                        BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "value").field("field2", "value").endObject())
                     ),
                     XContentType.JSON
                 )
@@ -266,44 +267,44 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareRefresh().get();
 
         // Test long range:
-        BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", 12).endObject());
+        BytesReference source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", 12).endObject());
         SearchResponse response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
         logger.info("response={}", response);
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
         assertThat(response.getHits().getAt(1).getId(), equalTo("1"));
 
-        source = BytesReference.bytes(jsonBuilder().startObject().field("field1", 11).endObject());
+        source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", 11).endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
 
         // Test double range:
-        source = BytesReference.bytes(jsonBuilder().startObject().field("field2", 12).endObject());
+        source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field2", 12).endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("6"));
         assertThat(response.getHits().getAt(1).getId(), equalTo("4"));
 
-        source = BytesReference.bytes(jsonBuilder().startObject().field("field2", 11).endObject());
+        source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field2", 11).endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("4"));
 
         // Test IP range:
-        source = BytesReference.bytes(jsonBuilder().startObject().field("field3", "192.168.1.5").endObject());
+        source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field3", "192.168.1.5").endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("9"));
         assertThat(response.getHits().getAt(1).getId(), equalTo("7"));
 
-        source = BytesReference.bytes(jsonBuilder().startObject().field("field3", "192.168.1.4").endObject());
+        source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field3", "192.168.1.4").endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("7"));
 
         // Test date range:
-        source = BytesReference.bytes(jsonBuilder().startObject().field("field4", "2016-05-15").endObject());
+        source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field4", "2016-05-15").endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("10"));
@@ -351,7 +352,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .get();
         refresh();
 
-        BytesReference source = BytesReference.bytes(
+        BytesReference source = BytesReferenceUtil.bytes(
             jsonBuilder().startObject().startObject("field1").field("lat", 52.20).field("lon", 4.51).endObject().endObject()
         );
         SearchResponse response = client().prepareSearch()
@@ -521,7 +522,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .get();
         client().admin().indices().prepareRefresh().get();
 
-        BytesReference source = BytesReference.bytes(
+        BytesReference source = BytesReferenceUtil.bytes(
             jsonBuilder().startObject()
                 .field("field1", "the quick brown fox jumps over the lazy dog")
                 .field("field2", "the quick brown fox falls down into the well")
@@ -582,7 +583,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .actionGet();
         client().admin().indices().prepareRefresh().get();
 
-        BytesReference document = BytesReference.bytes(
+        BytesReference document = BytesReferenceUtil.bytes(
             jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()
         );
         SearchResponse searchResponse = client().prepareSearch()
@@ -613,10 +614,10 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             equalTo("The quick brown <em>fox</em> jumps over the lazy dog")
         );
 
-        BytesReference document1 = BytesReference.bytes(
+        BytesReference document1 = BytesReferenceUtil.bytes(
             jsonBuilder().startObject().field("field1", "The quick brown fox jumps").endObject()
         );
-        BytesReference document2 = BytesReference.bytes(jsonBuilder().startObject().field("field1", "over the lazy dog").endObject());
+        BytesReference document2 = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "over the lazy dog").endObject());
         searchResponse = client().prepareSearch()
             .setQuery(
                 boolQuery().should(new PercolateQueryBuilder("query", document1, XContentType.JSON).setName("query1"))
@@ -654,10 +655,10 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                 new PercolateQueryBuilder(
                     "query",
                     Arrays.asList(
-                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "dog").endObject()),
-                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "fox").endObject()),
-                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "jumps").endObject()),
-                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "brown fox").endObject())
+                        BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "dog").endObject()),
+                        BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "fox").endObject()),
+                        BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "jumps").endObject()),
+                        BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "brown fox").endObject())
                     ),
                     XContentType.JSON
                 )
@@ -709,8 +710,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                     new PercolateQueryBuilder(
                         "query",
                         Arrays.asList(
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "dog").endObject()),
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "fox").endObject())
+                            BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "dog").endObject()),
+                            BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "fox").endObject())
                         ),
                         XContentType.JSON
                     ).setName("query1")
@@ -719,8 +720,8 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                         new PercolateQueryBuilder(
                             "query",
                             Arrays.asList(
-                                BytesReference.bytes(jsonBuilder().startObject().field("field1", "jumps").endObject()),
-                                BytesReference.bytes(jsonBuilder().startObject().field("field1", "brown fox").endObject())
+                                BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "jumps").endObject()),
+                                BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "brown fox").endObject())
                             ),
                             XContentType.JSON
                         ).setName("query2")
@@ -897,7 +898,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .get();
         client().admin().indices().prepareRefresh().get();
 
-        BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field", "value").endObject());
+        BytesReference source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field", "value").endObject());
         SearchResponse response = client().prepareSearch()
             .setQuery(new PercolateQueryBuilder(queryFieldName, source, XContentType.JSON))
             .setIndices("test1")
@@ -998,7 +999,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .setQuery(
                 new PercolateQueryBuilder(
                     "query",
-                    BytesReference.bytes(
+                    BytesReferenceUtil.bytes(
                         XContentFactory.jsonBuilder()
                             .startObject()
                             .field("companyname", "stark")
@@ -1025,7 +1026,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .setQuery(
                 new PercolateQueryBuilder(
                     "query",
-                    BytesReference.bytes(
+                    BytesReferenceUtil.bytes(
                         XContentFactory.jsonBuilder()
                             .startObject()
                             .field("companyname", "notstark")
@@ -1051,7 +1052,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .setQuery(
                 new PercolateQueryBuilder(
                     "query",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("companyname", "notstark").endObject()),
+                    BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("companyname", "notstark").endObject()),
                     XContentType.JSON
                 )
             )
@@ -1065,7 +1066,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                 new PercolateQueryBuilder(
                     "query",
                     Arrays.asList(
-                        BytesReference.bytes(
+                        BytesReferenceUtil.bytes(
                             XContentFactory.jsonBuilder()
                                 .startObject()
                                 .field("companyname", "stark")
@@ -1079,7 +1080,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                                 .endArray()
                                 .endObject()
                         ),
-                        BytesReference.bytes(
+                        BytesReferenceUtil.bytes(
                             XContentFactory.jsonBuilder()
                                 .startObject()
                                 .field("companyname", "stark")
@@ -1093,7 +1094,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                                 .endArray()
                                 .endObject()
                         ),
-                        BytesReference.bytes(
+                        BytesReferenceUtil.bytes(
                             XContentFactory.jsonBuilder()
                                 .startObject()
                                 .field("companyname", "stark")
@@ -1157,7 +1158,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                     .setQuery(
                         new PercolateQueryBuilder(
                             "query",
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
+                            BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
                             XContentType.JSON
                         )
                     )
@@ -1167,7 +1168,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                     .setQuery(
                         new PercolateQueryBuilder(
                             "query",
-                            BytesReference.bytes(yamlBuilder().startObject().field("field1", "c").endObject()),
+                            BytesReferenceUtil.bytes(yamlBuilder().startObject().field("field1", "c").endObject()),
                             XContentType.YAML
                         )
                     )
@@ -1177,7 +1178,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                     .setQuery(
                         new PercolateQueryBuilder(
                             "query",
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "b c").endObject()),
+                            BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "b c").endObject()),
                             XContentType.JSON
                         )
                     )
@@ -1187,7 +1188,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                     .setQuery(
                         new PercolateQueryBuilder(
                             "query",
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "d").endObject()),
+                            BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "d").endObject()),
                             XContentType.JSON
                         )
                     )
@@ -1246,7 +1247,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             refresh();
 
             // Execute with search.allow_expensive_queries = null => default value = false => success
-            BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject());
+            BytesReference source = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "value").endObject());
             SearchResponse response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
                 .get();
@@ -1306,7 +1307,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .setQuery(
                 new PercolateQueryBuilder(
                     "q",
-                    BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
+                    BytesReferenceUtil.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
                     XContentType.JSON
                 )
             )
@@ -1317,7 +1318,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .setQuery(
                 new PercolateQueryBuilder(
                     "q",
-                    BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
+                    BytesReferenceUtil.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
                     XContentType.JSON
                 )
             )
@@ -1330,7 +1331,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                 constantScoreQuery(
                     new PercolateQueryBuilder(
                         "q",
-                        BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
+                        BytesReferenceUtil.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
                         XContentType.JSON
                     )
                 )

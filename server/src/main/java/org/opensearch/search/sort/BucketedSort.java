@@ -35,7 +35,7 @@ package org.opensearch.search.sort;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.common.lucene.ScorerAware;
-import org.opensearch.common.util.BigArray;
+import org.opensearch.core.common.util.BigArray;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.DoubleArray;

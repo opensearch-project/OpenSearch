@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.filter;
 
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 

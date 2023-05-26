@@ -51,11 +51,12 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -428,7 +429,9 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         );
         Files.write(
             repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
-            BytesReference.toBytes(BytesReference.bytes(downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
+            BytesReference.toBytes(
+                BytesReferenceUtil.bytes(downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))
+            ),
             StandardOpenOption.TRUNCATE_EXISTING
         );
         return oldVersionSnapshot;

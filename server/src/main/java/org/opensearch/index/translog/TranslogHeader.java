@@ -40,9 +40,9 @@ import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.io.Channels;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;

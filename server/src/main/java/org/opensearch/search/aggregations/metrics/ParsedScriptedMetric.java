@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.core.xcontent.XContentBuilder;

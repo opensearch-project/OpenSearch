@@ -32,8 +32,8 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;

@@ -15,7 +15,7 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.breaker.CircuitBreakingException;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;

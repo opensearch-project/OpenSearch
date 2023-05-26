@@ -34,8 +34,8 @@ package org.opensearch.rest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;

@@ -69,16 +69,17 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.joda.JodaDeprecationPatterns;
 import org.opensearch.common.logging.DeprecatedMessage;
 import org.opensearch.common.logging.HeaderWarning;
@@ -108,7 +109,7 @@ import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -1286,7 +1287,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
         try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
-                return BytesReference.bytes(builder);
+                return BytesReferenceUtil.bytes(builder);
             }
         }
     }
@@ -1306,7 +1307,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         BytesReference bytes = XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
         try (XContentParser parser = createParser(mediaType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
-                return BytesReference.bytes(builder);
+                return BytesReferenceUtil.bytes(builder);
             }
         }
     }
@@ -1463,7 +1464,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContentBuilder builder) throws IOException {
-        return createParser(builder.contentType().xContent(), BytesReference.bytes(builder));
+        return createParser(builder.contentType().xContent(), BytesReferenceUtil.bytes(builder));
     }
 
     /**

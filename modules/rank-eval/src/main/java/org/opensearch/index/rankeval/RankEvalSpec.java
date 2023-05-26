@@ -33,17 +33,17 @@
 package org.opensearch.index.rankeval;
 
 import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.script.Script;
 
 import java.io.IOException;
@@ -181,8 +181,12 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     }
 
     private static EvaluationMetric parseMetric(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+            XContentParser.Token.START_OBJECT,
+            parser.currentToken(),
+            parser
+        );
+        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         EvaluationMetric metric = parser.namedObject(EvaluationMetric.class, parser.currentName(), null);
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return metric;

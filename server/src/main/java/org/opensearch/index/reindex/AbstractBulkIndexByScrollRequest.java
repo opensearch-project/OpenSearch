@@ -34,8 +34,8 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.script.Script;
 import org.opensearch.tasks.TaskId;
 

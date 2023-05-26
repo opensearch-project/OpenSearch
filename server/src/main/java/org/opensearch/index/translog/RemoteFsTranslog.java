@@ -16,7 +16,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.core.common.lease.Releasables;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;

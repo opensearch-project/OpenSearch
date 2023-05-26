@@ -34,12 +34,13 @@ package org.opensearch.tasks;
 import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.InstantiatingObjectParser;
 import org.opensearch.common.xcontent.ObjectParserHelper;
 import org.opensearch.core.xcontent.ToXContent;
@@ -242,7 +243,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
             builder.startObject();
             BaseExceptionsHelper.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
             builder.endObject();
-            return BytesReference.bytes(builder);
+            return BytesReferenceUtil.bytes(builder);
         }
     }
 }

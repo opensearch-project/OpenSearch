@@ -16,9 +16,10 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.WeightedRouting;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -86,7 +87,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
             }
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            setWeightedRouting(BytesReference.bytes(builder), builder.contentType());
+            setWeightedRouting(BytesReferenceUtil.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }

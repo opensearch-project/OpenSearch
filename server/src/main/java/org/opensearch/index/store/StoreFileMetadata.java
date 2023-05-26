@@ -35,9 +35,9 @@ package org.opensearch.index.store;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 
 import java.io.IOException;

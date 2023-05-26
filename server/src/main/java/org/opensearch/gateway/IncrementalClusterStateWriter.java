@@ -42,7 +42,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 
 import java.util.ArrayList;
 import java.util.HashMap;

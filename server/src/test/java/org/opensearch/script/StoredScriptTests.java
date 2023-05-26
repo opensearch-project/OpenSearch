@@ -33,10 +33,10 @@
 package org.opensearch.script;
 
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
@@ -76,7 +76,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().startObject("script").field("lang", "lang").field("source", "code").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -98,7 +98,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 code = Strings.toString(cb.startObject().field("query", "code").endObject());
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource(
                 "mustache",
                 code,
@@ -112,7 +112,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -122,7 +122,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -142,7 +142,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 .endObject()
                 .endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -169,7 +169,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 code = Strings.toString(cb.startObject().field("query", "code").endObject());
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource(
                 "lang",
                 code,
@@ -187,7 +187,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON)
+                () -> StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON)
             );
             assertThat(iae.getMessage(), equalTo("must specify lang for stored script"));
         }
@@ -198,7 +198,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON)
+                () -> StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON)
             );
             assertThat(iae.getMessage(), equalTo("must specify source for stored script"));
         }
@@ -218,7 +218,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON)
+                () -> StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON)
             );
             assertThat(iae.getMessage(), equalTo("illegal compiler options [{option=option}] specified"));
         }
@@ -228,7 +228,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             builder.startObject().field("template", "code").endObject();
             ParsingException pEx = expectThrows(
                 ParsingException.class,
-                () -> StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON)
+                () -> StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON)
             );
             assertThat(
                 pEx.getMessage(),
@@ -241,7 +241,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -251,7 +251,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "mustache").field("source", "").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReferenceUtil.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));

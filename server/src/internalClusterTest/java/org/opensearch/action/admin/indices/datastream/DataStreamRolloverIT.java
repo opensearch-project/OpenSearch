@@ -10,7 +10,7 @@ package org.opensearch.action.admin.indices.datastream;
 
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
 import org.opensearch.cluster.metadata.DataStream;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 
 import java.util.Collections;
 import java.util.stream.Collectors;

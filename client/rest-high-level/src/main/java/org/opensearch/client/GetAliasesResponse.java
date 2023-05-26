@@ -32,14 +32,14 @@
 
 package org.opensearch.client;
 
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -48,7 +48,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Response obtained from the get aliases API.
@@ -63,7 +63,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
 
     private final RestStatus status;
     private final String error;
-    private final OpenSearchException exception;
+    private final BaseOpenSearchException exception;
 
     private final Map<String, Set<AliasMetadata>> aliases;
 
@@ -74,7 +74,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
         this.exception = null;
     }
 
-    private GetAliasesResponse(RestStatus status, OpenSearchException exception) {
+    private GetAliasesResponse(RestStatus status, BaseOpenSearchException exception) {
         this.status = status;
         this.error = null;
         this.aliases = Collections.emptyMap();
@@ -96,7 +96,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
     /**
      * Return the exception that may have been returned
      */
-    public OpenSearchException getException() {
+    public BaseOpenSearchException getException() {
         return exception;
     }
 
@@ -147,7 +147,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
         String currentFieldName;
         Token token;
         String error = null;
-        OpenSearchException exception = null;
+        BaseOpenSearchException exception = null;
         RestStatus status = RestStatus.OK;
 
         while (parser.nextToken() != Token.END_OBJECT) {
@@ -165,7 +165,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
                         error = parser.text();
                     } else if (token == Token.START_OBJECT) {
                         parser.nextToken();
-                        exception = OpenSearchException.innerFromXContent(parser, true);
+                        exception = BaseOpenSearchException.innerFromXContent(parser, true);
                     } else if (token == Token.START_ARRAY) {
                         parser.skipChildren();
                     }

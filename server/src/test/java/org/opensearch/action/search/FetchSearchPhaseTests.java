@@ -41,7 +41,7 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;

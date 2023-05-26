@@ -33,7 +33,7 @@
 package org.opensearch.repositories;
 
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -82,7 +82,7 @@ public class IndexIdTests extends OpenSearchTestCase {
         IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
         XContentBuilder builder = JsonXContent.contentBuilder();
         indexId.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder));
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         String name = null;
         String id = null;

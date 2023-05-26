@@ -49,7 +49,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.nio.file.Path;
 import java.util.Collections;

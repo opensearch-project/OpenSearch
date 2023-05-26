@@ -13,9 +13,9 @@ import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.test.OpenSearchTestCase;
 

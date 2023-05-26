@@ -34,7 +34,7 @@ package org.opensearch.transport;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.util.concurrent.BaseFuture;
 
 import java.io.IOException;

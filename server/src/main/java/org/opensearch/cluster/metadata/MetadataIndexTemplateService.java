@@ -50,7 +50,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.ValidationException;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.logging.HeaderWarning;
@@ -64,7 +64,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
@@ -1153,7 +1153,7 @@ public class MetadataIndexTemplateService {
                 .map(mapping -> {
                     try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                         builder.value(mapping);
-                        return new CompressedXContent(BytesReference.bytes(builder));
+                        return new CompressedXContent(BytesReferenceUtil.bytes(builder));
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }

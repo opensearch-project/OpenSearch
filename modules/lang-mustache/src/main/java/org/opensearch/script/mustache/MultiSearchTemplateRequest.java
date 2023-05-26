@@ -38,9 +38,9 @@ import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -164,12 +164,12 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
             final SearchRequest searchRequest = templateRequest.getRequest();
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
                 MultiSearchRequest.writeSearchRequestParams(searchRequest, xContentBuilder);
-                BytesReference.bytes(xContentBuilder).writeTo(output);
+                BytesReferenceUtil.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
                 templateRequest.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-                BytesReference.bytes(xContentBuilder).writeTo(output);
+                BytesReferenceUtil.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
         }

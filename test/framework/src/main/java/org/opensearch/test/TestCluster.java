@@ -44,7 +44,7 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.repositories.RepositoryMissingException;

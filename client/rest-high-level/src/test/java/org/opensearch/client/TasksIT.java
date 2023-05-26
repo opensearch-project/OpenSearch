@@ -47,7 +47,7 @@ import org.opensearch.client.tasks.TaskId;
 import org.opensearch.client.tasks.TaskSubmissionResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;

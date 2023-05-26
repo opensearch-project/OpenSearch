@@ -34,8 +34,8 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.common.io.stream.BytesStreamOutput;

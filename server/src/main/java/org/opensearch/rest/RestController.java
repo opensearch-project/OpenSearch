@@ -39,13 +39,14 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentType;
@@ -75,11 +76,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
-import static org.opensearch.rest.RestStatus.BAD_REQUEST;
-import static org.opensearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
-import static org.opensearch.rest.RestStatus.METHOD_NOT_ALLOWED;
-import static org.opensearch.rest.RestStatus.NOT_ACCEPTABLE;
-import static org.opensearch.rest.RestStatus.OK;
+import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
+import static org.opensearch.core.rest.RestStatus.INTERNAL_SERVER_ERROR;
+import static org.opensearch.core.rest.RestStatus.METHOD_NOT_ALLOWED;
+import static org.opensearch.core.rest.RestStatus.NOT_ACCEPTABLE;
+import static org.opensearch.core.rest.RestStatus.OK;
 
 /**
  * OpenSearch REST controller

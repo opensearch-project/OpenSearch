@@ -10,7 +10,8 @@ package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -113,7 +114,7 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
 
                     XContentBuilder builder = XContentBuilder.builder(typeAndSourceMap.v1().xContent());
                     builder.map(sourceAsMap);
-                    hit.sourceRef(BytesReference.bytes(builder));
+                    hit.sourceRef(BytesReferenceUtil.bytes(builder));
                 }
             }
 

@@ -35,7 +35,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import static org.opensearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 

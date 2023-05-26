@@ -43,10 +43,10 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Streamables;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
@@ -164,7 +164,11 @@ public class TransportService extends AbstractLifecycleComponent
 
     static {
         /**
+<<<<<<< HEAD
          * Registers server specific types as a streamables for serialization
+=======
+         * Registers server specific types as a streamable for serialization
+>>>>>>> [Refactor] StreamInput, StreamOutput, Writeable to core library
          * over the {@link StreamOutput} and {@link StreamInput} wire
          */
         Streamables.registerStreamables();

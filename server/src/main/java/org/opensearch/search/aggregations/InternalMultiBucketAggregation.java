@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.opensearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;

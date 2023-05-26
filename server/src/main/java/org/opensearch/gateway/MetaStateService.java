@@ -43,7 +43,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;

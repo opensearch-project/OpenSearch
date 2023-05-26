@@ -9,6 +9,7 @@
 package org.opensearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -106,7 +107,7 @@ public class BytesStreamInput extends StreamInput {
     }
 
     @Override
-    protected void ensureCanReadBytes(int length) throws EOFException {
+    public void ensureCanReadBytes(int length) throws EOFException {
         int available = available();
         if (length > available) {
             throw new EOFException("attempting to read " + length + " bytes but only " + available + " bytes are available");

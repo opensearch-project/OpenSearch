@@ -33,7 +33,7 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.test.AbstractXContentTestCase;

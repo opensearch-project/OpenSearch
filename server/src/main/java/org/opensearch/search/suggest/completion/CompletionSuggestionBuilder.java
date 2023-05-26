@@ -32,10 +32,11 @@
 package org.opensearch.search.suggest.completion;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -113,7 +114,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             // Copy the current structure. We will parse, once the mapping is provided
             XContentBuilder builder = XContentFactory.contentBuilder(CONTEXT_BYTES_XCONTENT_TYPE);
             builder.copyCurrentStructure(p);
-            v.contextBytes = BytesReference.bytes(builder);
+            v.contextBytes = BytesReferenceUtil.bytes(builder);
             p.skipChildren();
         }, CONTEXTS_FIELD, ObjectParser.ValueType.OBJECT); // context is deprecated
         PARSER.declareBoolean(CompletionSuggestionBuilder::skipDuplicates, SKIP_DUPLICATES_FIELD);
@@ -233,7 +234,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     private CompletionSuggestionBuilder contexts(XContentBuilder contextBuilder) {
-        contextBytes = BytesReference.bytes(contextBuilder);
+        contextBytes = BytesReferenceUtil.bytes(contextBuilder);
         return this;
     }
 

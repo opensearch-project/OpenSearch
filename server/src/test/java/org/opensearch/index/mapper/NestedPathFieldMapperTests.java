@@ -9,7 +9,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;

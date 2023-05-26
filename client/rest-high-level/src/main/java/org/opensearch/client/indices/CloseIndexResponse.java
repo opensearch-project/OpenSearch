@@ -32,13 +32,13 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 
 import java.util.List;
 import java.util.Objects;
@@ -107,8 +107,12 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         static {
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("closed"));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p);
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
+                org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                    XContentParser.Token.START_OBJECT,
+                    p.currentToken(),
+                    p
+                );
+                org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
                 Exception e = OpenSearchException.failureFromXContent(p);
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
                 return e;

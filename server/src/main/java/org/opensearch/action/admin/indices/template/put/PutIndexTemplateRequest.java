@@ -42,10 +42,11 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -271,7 +272,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      * @param source The mapping source
      */
     public PutIndexTemplateRequest mapping(XContentBuilder source) {
-        return mapping(BytesReference.bytes(source), source.contentType());
+        return mapping(BytesReferenceUtil.bytes(source), source.contentType());
     }
 
     /**
@@ -323,7 +324,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      */
     public PutIndexTemplateRequest source(XContentBuilder templateBuilder) {
         try {
-            return source(BytesReference.bytes(templateBuilder), templateBuilder.contentType());
+            return source(BytesReferenceUtil.bytes(templateBuilder), templateBuilder.contentType());
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to build json for template request", e);
         }
@@ -427,7 +428,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return aliases(BytesReference.bytes(builder));
+            return aliases(BytesReferenceUtil.bytes(builder));
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -437,7 +438,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      * Sets the aliases that will be associated with the index when it gets created
      */
     public PutIndexTemplateRequest aliases(XContentBuilder source) {
-        return aliases(BytesReference.bytes(source));
+        return aliases(BytesReferenceUtil.bytes(source));
     }
 
     /**

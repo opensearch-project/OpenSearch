@@ -36,7 +36,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.opensearch.test.AbstractQueryTestCase;

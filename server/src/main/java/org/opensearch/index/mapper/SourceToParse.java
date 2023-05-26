@@ -35,8 +35,8 @@ package org.opensearch.index.mapper;
 import java.util.Objects;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 
 /**

@@ -33,9 +33,9 @@
 package org.opensearch.cluster;
 
 import org.opensearch.Version;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;
 import java.util.ArrayList;

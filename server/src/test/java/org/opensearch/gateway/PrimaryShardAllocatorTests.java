@@ -62,7 +62,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.codec.CodecService;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;

@@ -58,6 +58,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
@@ -102,8 +103,10 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.gateway.WriteStateException;
-import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -184,7 +187,6 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -2189,7 +2191,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 onOperationRecovered.run();
             } catch (Exception e) {
                 // TODO: Don't enable this leniency unless users explicitly opt-in
-                if (origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY && ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
+                if (origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY && BaseExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
                     // mainly for MapperParsingException and Failure to detect xcontent
                     logger.info("ignoring recovery of a corrupt translog entry", e);
                 } else {

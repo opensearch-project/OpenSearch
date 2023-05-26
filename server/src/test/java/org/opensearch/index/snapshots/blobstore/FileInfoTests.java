@@ -34,7 +34,8 @@ package org.opensearch.index.snapshots.blobstore;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -75,7 +76,7 @@ public class FileInfoTests extends OpenSearchTestCase {
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
             BlobStoreIndexShardSnapshot.FileInfo.toXContent(info, builder, ToXContent.EMPTY_PARAMS);
-            byte[] xcontent = BytesReference.toBytes(BytesReference.bytes(shuffleXContent(builder)));
+            byte[] xcontent = BytesReference.toBytes(BytesReferenceUtil.bytes(shuffleXContent(builder)));
 
             final BlobStoreIndexShardSnapshot.FileInfo parsedInfo;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, xcontent)) {
@@ -134,7 +135,7 @@ public class FileInfoTests extends OpenSearchTestCase {
             builder.field(FileInfo.WRITTEN_BY, Version.LATEST.toString());
             builder.field(FileInfo.CHECKSUM, "666");
             builder.endObject();
-            byte[] xContent = BytesReference.toBytes(BytesReference.bytes(builder));
+            byte[] xContent = BytesReference.toBytes(BytesReferenceUtil.bytes(builder));
 
             if (failure == null) {
                 // No failures should read as usual

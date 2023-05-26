@@ -44,8 +44,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.rest.RestStatus.OK;
-import static org.opensearch.rest.RestStatus.NOT_FOUND;
+import static org.opensearch.core.rest.RestStatus.OK;
+import static org.opensearch.core.rest.RestStatus.NOT_FOUND;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RestGetAliasesActionTests extends OpenSearchTestCase {

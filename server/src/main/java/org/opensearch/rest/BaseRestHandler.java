@@ -44,6 +44,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;

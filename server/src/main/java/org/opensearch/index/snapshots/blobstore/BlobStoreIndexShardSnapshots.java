@@ -37,7 +37,7 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.io.IOException;
@@ -287,7 +287,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         Map<String, FileInfo> files = new HashMap<>();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                 String currentFieldName = parser.currentName();
                 token = parser.nextToken();
                 if (token == XContentParser.Token.START_ARRAY) {
@@ -303,7 +303,11 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                         throw new OpenSearchParseException("unknown object [{}]", currentFieldName);
                     }
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                            XContentParser.Token.FIELD_NAME,
+                            token,
+                            parser
+                        );
                         String snapshot = parser.currentName();
                         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

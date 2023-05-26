@@ -43,17 +43,18 @@ import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetRequestBuilder;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
@@ -606,7 +607,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                 )
         );
 
-        BytesReference source = BytesReference.bytes(
+        BytesReference source = BytesReferenceUtil.bytes(
             jsonBuilder().startObject()
                 .startArray("field1")
                 .startObject()

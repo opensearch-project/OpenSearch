@@ -34,7 +34,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlock;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 
 import java.util.Map;
 

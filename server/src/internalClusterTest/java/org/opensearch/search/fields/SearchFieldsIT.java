@@ -37,8 +37,9 @@ import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.settings.Settings;
@@ -52,7 +53,7 @@ import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -892,7 +893,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        BytesReference source = BytesReference.bytes(
+        BytesReference source = BytesReferenceUtil.bytes(
             jsonBuilder().startObject()
                 .startArray("field1")
                 .startObject()

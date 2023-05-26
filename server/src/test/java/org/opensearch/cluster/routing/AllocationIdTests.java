@@ -33,11 +33,12 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -165,7 +166,7 @@ public class AllocationIdTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             allocationId = AllocationId.newRelocation(allocationId);
         }
-        BytesReference bytes = BytesReference.bytes(allocationId.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+        BytesReference bytes = BytesReferenceUtil.bytes(allocationId.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
         AllocationId parsedAllocationId = AllocationId.fromXContent(createParser(JsonXContent.jsonXContent, bytes));
         assertEquals(allocationId, parsedAllocationId);
     }

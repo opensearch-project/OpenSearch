@@ -35,8 +35,8 @@ package org.opensearch.search;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.text.Text;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -358,7 +358,7 @@ public class RandomSearchRequestGenerator {
                     .createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(jsonBuilder).streamInput()
+                        BytesReferenceUtil.bytes(jsonBuilder).streamInput()
                     );
                 parser.nextToken();
                 parser.nextToken();

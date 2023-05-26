@@ -36,6 +36,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class NamedWriteableRegistryTests extends OpenSearchTestCase {

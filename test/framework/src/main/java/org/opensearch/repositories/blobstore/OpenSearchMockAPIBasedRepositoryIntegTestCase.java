@@ -44,7 +44,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;

@@ -42,7 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.suggest.CompletionSuggestSearchIT.CompletionMappingBuilder;
 import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.opensearch.search.suggest.completion.context.CategoryContextMapping;

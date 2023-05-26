@@ -39,7 +39,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
 
@@ -604,7 +604,7 @@ public final class RepositoryData {
      * Reads an instance of {@link RepositoryData} from x-content, loading the snapshots and indices metadata.
      */
     public static RepositoryData snapshotsFromXContent(XContentParser parser, long genId) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
 
         final Map<String, SnapshotId> snapshots = new HashMap<>();
         final Map<String, SnapshotState> snapshotStates = new HashMap<>();
@@ -624,7 +624,11 @@ public final class RepositoryData {
                     parseIndices(parser, snapshots, indexSnapshots, indexLookup, shardGenerations);
                     break;
                 case INDEX_METADATA_IDENTIFIERS:
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                    org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                        XContentParser.Token.START_OBJECT,
+                        parser.nextToken(),
+                        parser
+                    );
                     indexMetaIdentifiers = parser.mapStrings();
                     break;
                 case MIN_VERSION:
@@ -697,7 +701,7 @@ public final class RepositoryData {
         Map<String, Version> snapshotVersions,
         Map<SnapshotId, Map<String, String>> indexMetaLookup
     ) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
         final Map<String, String> stringDeduplicator = new HashMap<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             String name = null;
@@ -757,14 +761,18 @@ public final class RepositoryData {
         Map<String, IndexId> indexLookup,
         ShardGenerations.Builder shardGenerations
     ) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             final String indexName = parser.currentName();
             final List<SnapshotId> snapshotIds = new ArrayList<>();
             final List<String> gens = new ArrayList<>();
 
             IndexId indexId = null;
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                XContentParser.Token.START_OBJECT,
+                parser.nextToken(),
+                parser
+            );
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 final String indexMetaFieldName = parser.currentName();
                 final XContentParser.Token currentToken = parser.nextToken();
@@ -773,7 +781,11 @@ public final class RepositoryData {
                         indexId = new IndexId(indexName, parser.text());
                         break;
                     case SNAPSHOTS:
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser);
+                        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                            XContentParser.Token.START_ARRAY,
+                            currentToken,
+                            parser
+                        );
                         XContentParser.Token currToken;
                         while ((currToken = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             final String uuid;
@@ -803,7 +815,11 @@ public final class RepositoryData {
                         }
                         break;
                     case SHARD_GENERATIONS:
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser);
+                        org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken(
+                            XContentParser.Token.START_ARRAY,
+                            currentToken,
+                            parser
+                        );
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             gens.add(parser.textOrNull());
                         }

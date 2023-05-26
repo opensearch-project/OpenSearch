@@ -33,6 +33,7 @@
 package org.opensearch.common.io.stream;
 
 import org.opensearch.Version;
+import org.opensearch.core.common.io.stream.NamedWriteable;
 
 /**
  * A {@link NamedWriteable} that has a minimum version associated with it.

@@ -35,8 +35,8 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
 

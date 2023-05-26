@@ -14,7 +14,7 @@ import org.junit.Assert;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;

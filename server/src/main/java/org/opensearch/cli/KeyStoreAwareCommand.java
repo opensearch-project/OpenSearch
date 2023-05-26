@@ -34,7 +34,7 @@ package org.opensearch.cli;
 
 import joptsimple.OptionSet;
 import org.opensearch.common.settings.KeyStoreWrapper;
-import org.opensearch.common.settings.SecureString;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 
 import java.io.IOException;

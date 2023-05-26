@@ -60,12 +60,13 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -392,7 +393,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.copyCurrentStructure(parser);
             builder.flush();
-            return BytesReference.bytes(builder);
+            return BytesReferenceUtil.bytes(builder);
         }
     }
 

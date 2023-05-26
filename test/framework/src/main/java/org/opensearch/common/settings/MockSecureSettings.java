@@ -33,6 +33,7 @@
 package org.opensearch.common.settings;
 
 import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.core.common.settings.SecureString;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

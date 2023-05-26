@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParser;

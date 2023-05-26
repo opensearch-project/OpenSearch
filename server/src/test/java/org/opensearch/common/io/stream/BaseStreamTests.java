@@ -36,10 +36,14 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.settings.SecureString;
+import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.opensearch.test.OpenSearchTestCase;
 

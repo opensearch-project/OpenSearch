@@ -47,15 +47,15 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
@@ -128,7 +128,7 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                     )
                         .putMapping(
                             XContentHelper.convertToJson(
-                                BytesReference.bytes(
+                                BytesReferenceUtil.bytes(
                                     XContentFactory.jsonBuilder()
                                         .startObject()
                                         .startObject("_doc")
@@ -153,7 +153,7 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                         )
                             .putMapping(
                                 XContentHelper.convertToJson(
-                                    BytesReference.bytes(
+                                    BytesReferenceUtil.bytes(
                                         XContentFactory.jsonBuilder()
                                             .startObject()
                                             .startObject("_doc")

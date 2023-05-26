@@ -9,7 +9,7 @@
 package org.opensearch.extensions.rest;
 
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class RouteHandlerTests extends OpenSearchTestCase {

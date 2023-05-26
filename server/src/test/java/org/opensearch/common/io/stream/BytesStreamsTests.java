@@ -35,13 +35,19 @@ package org.opensearch.common.io.stream;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.joda.Joda;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.joda.Joda;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.opensearch.test.OpenSearchTestCase;
 import org.joda.time.DateTime;
@@ -931,7 +937,7 @@ public class BytesStreamsTests extends OpenSearchTestCase {
 
         BytesStreamOutput prodOut = new BytesStreamOutput() {
             @Override
-            boolean failOnTooManyNestedExceptions(Throwable throwable) {
+            protected boolean failOnTooManyNestedExceptions(Throwable throwable) {
                 assertThat(throwable, sameInstance(rootEx));
                 return true;
             }

@@ -33,9 +33,10 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -89,7 +90,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
         if (randomBoolean()) {
             try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint()) {
-                BytesReference query = BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
+                BytesReference query = BytesReferenceUtil.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
                 reindexRequest.setRemoteInfo(
                     new RemoteInfo(
                         randomAlphaOfLength(5),
@@ -365,7 +366,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                 b.endObject();
             }
             b.endObject();
-            request = BytesReference.bytes(b);
+            request = BytesReferenceUtil.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             ReindexRequest r = ReindexRequest.fromXContent(p);
@@ -422,7 +423,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                 b.endObject();
             }
             b.endObject();
-            request = BytesReference.bytes(b);
+            request = BytesReferenceUtil.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             return ReindexRequest.fromXContent(p);

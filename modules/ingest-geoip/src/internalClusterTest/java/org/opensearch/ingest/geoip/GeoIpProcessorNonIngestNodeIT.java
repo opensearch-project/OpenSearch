@@ -36,7 +36,8 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -44,7 +45,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.test.StreamsUtils;
@@ -156,7 +157,7 @@ public class GeoIpProcessorNonIngestNodeIT extends OpenSearchIntegTestCase {
                 builder.endArray();
             }
             builder.endObject();
-            bytes = BytesReference.bytes(builder);
+            bytes = BytesReferenceUtil.bytes(builder);
         }
         assertAcked(client().admin().cluster().putPipeline(new PutPipelineRequest("geoip", bytes, XContentType.JSON)).actionGet());
         // the geo-IP databases should not be loaded on any nodes as they are all non-ingest nodes

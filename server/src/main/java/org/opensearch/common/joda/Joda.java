@@ -58,6 +58,8 @@ import org.joda.time.format.DateTimePrinter;
 import org.joda.time.format.ISODateTimeFormat;
 import org.joda.time.format.StrictISODateTimeFormat;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.io.Writer;

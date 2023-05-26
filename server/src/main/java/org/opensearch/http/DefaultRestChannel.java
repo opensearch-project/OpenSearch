@@ -34,8 +34,8 @@ package org.opensearch.http;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.opensearch.common.network.CloseableChannel;
@@ -47,7 +47,7 @@ import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.util.ArrayList;
 import java.util.List;

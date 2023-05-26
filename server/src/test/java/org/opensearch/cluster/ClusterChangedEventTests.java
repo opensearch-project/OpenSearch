@@ -44,7 +44,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayService;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.TestCustomMetadata;
 

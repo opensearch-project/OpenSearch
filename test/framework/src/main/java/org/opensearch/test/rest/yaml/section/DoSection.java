@@ -38,7 +38,7 @@ import org.opensearch.Version;
 import org.opensearch.client.HasAttributeNodeSelector;
 import org.opensearch.client.Node;
 import org.opensearch.client.NodeSelector;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.core.common.Strings;

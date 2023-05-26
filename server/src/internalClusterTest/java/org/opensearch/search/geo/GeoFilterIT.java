@@ -48,7 +48,8 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.geo.builders.CoordinatesBuilder;
@@ -242,7 +243,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
             .polygon(
                 new PolygonBuilder(new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close())
             );
-        BytesReference data = BytesReference.bytes(jsonBuilder().startObject().field("area", polygon).endObject());
+        BytesReference data = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("area", polygon).endObject());
 
         client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
@@ -306,7 +307,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
             new LineStringBuilder(new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close())
         );
 
-        data = BytesReference.bytes(jsonBuilder().startObject().field("area", inverse).endObject());
+        data = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("area", inverse).endObject());
         client().prepareIndex("shapes").setId("2").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
@@ -345,7 +346,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
             new CoordinatesBuilder().coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close()
         );
 
-        data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
+        data = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("area", builder).endObject());
         client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
@@ -358,7 +359,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
             )
         );
 
-        data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
+        data = BytesReferenceUtil.bytes(jsonBuilder().startObject().field("area", builder).endObject());
         client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 

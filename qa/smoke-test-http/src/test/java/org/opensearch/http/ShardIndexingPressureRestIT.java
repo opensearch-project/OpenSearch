@@ -19,9 +19,9 @@ import org.opensearch.test.XContentTestUtils;
 import java.util.ArrayList;
 import java.util.Map;
 
-import static org.opensearch.rest.RestStatus.CREATED;
-import static org.opensearch.rest.RestStatus.OK;
-import static org.opensearch.rest.RestStatus.TOO_MANY_REQUESTS;
+import static org.opensearch.core.rest.RestStatus.CREATED;
+import static org.opensearch.core.rest.RestStatus.OK;
+import static org.opensearch.core.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;

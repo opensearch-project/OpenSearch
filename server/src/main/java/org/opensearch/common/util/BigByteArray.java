@@ -35,6 +35,7 @@ package org.opensearch.common.util;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.core.common.util.ByteArray;
 
 import java.util.Arrays;
 

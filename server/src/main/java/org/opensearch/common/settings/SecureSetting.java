@@ -34,6 +34,7 @@ package org.opensearch.common.settings;
 
 import org.opensearch.common.Booleans;
 import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.core.common.settings.SecureString;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;

@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.forcemerge;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractBroadcastResponseTestCase;
 

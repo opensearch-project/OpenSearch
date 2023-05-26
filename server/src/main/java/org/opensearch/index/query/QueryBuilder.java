@@ -33,7 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.xcontent.ToXContentObject;
 
 import java.io.IOException;

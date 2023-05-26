@@ -33,8 +33,9 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.AbstractObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
@@ -64,7 +65,7 @@ public final class ObjectParserHelper<Value, Context> {
         final CheckedFunction<XContentParser, BytesReference, IOException> bytesParser = p -> {
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.copyCurrentStructure(p);
-                return BytesReference.bytes(builder);
+                return BytesReferenceUtil.bytes(builder);
             }
         };
         parser.declareField(consumer, bytesParser, field, ValueType.OBJECT);

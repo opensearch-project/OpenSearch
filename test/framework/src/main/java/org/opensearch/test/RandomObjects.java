@@ -44,8 +44,9 @@ import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo.Failure;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
@@ -54,9 +55,9 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.IndexShardRecoveringException;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -209,7 +210,7 @@ public final class RandomObjects {
             builder.startObject();
             addFields(random, builder, minNumFields, 0);
             builder.endObject();
-            return BytesReference.bytes(builder);
+            return BytesReferenceUtil.bytes(builder);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

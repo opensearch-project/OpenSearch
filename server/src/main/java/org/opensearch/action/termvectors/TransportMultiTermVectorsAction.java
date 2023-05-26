@@ -43,7 +43,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 

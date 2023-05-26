@@ -50,7 +50,7 @@ import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.DocsStats;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;

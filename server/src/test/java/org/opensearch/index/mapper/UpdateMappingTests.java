@@ -35,7 +35,7 @@ package org.opensearch.index.mapper;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -91,7 +91,7 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
             indexService.mapperService()
                 .merge(
                     MapperService.SINGLE_MAPPING_NAME,
-                    new CompressedXContent(BytesReference.bytes(mappingUpdate)),
+                    new CompressedXContent(BytesReferenceUtil.bytes(mappingUpdate)),
                     MapperService.MergeReason.MAPPING_UPDATE
                 );
             fail();

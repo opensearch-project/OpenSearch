@@ -40,11 +40,12 @@ import org.opensearch.action.ValidateActions;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.MediaType;
@@ -293,7 +294,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Sets an artificial document from which term vectors are requested for.
      */
     public TermVectorsRequest doc(XContentBuilder documentBuilder) {
-        return this.doc(BytesReference.bytes(documentBuilder), true, documentBuilder.contentType());
+        return this.doc(BytesReferenceUtil.bytes(documentBuilder), true, documentBuilder.contentType());
     }
 
     /**

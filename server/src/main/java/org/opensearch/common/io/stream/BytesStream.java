@@ -32,7 +32,8 @@
 
 package org.opensearch.common.io.stream;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 /**
  * Base Bytes Stream.

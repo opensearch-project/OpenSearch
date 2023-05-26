@@ -32,8 +32,8 @@
 
 package org.opensearch.http;
 
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
 
 import java.util.ArrayList;
 import java.util.HashMap;

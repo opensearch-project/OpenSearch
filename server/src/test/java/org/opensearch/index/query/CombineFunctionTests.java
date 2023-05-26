@@ -33,7 +33,7 @@
 package org.opensearch.index.query;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.test.OpenSearchTestCase;
 

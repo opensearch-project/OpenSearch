@@ -47,7 +47,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Map;
 
-import static org.opensearch.rest.RestStatus.BAD_REQUEST;
+import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
 import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

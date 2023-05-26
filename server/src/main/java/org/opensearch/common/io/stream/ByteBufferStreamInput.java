@@ -31,6 +31,8 @@
 
 package org.opensearch.common.io.stream;
 
+import org.opensearch.core.common.io.stream.StreamInput;
+
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
@@ -147,7 +149,7 @@ public class ByteBufferStreamInput extends StreamInput {
     }
 
     @Override
-    protected void ensureCanReadBytes(int length) throws EOFException {
+    public void ensureCanReadBytes(int length) throws EOFException {
         if (buffer.remaining() < length) {
             throw new EOFException("tried to read: " + length + " bytes but only " + buffer.remaining() + " remaining");
         }

@@ -32,7 +32,8 @@
 
 package org.opensearch.test;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -71,13 +72,13 @@ public final class XContentTestUtils {
         builder.startObject();
         part.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        return XContentHelper.convertToMap(BytesReferenceUtil.bytes(builder), false, builder.contentType()).v2();
     }
 
     public static BytesReference convertToXContent(Map<String, ?> map, XContentType xContentType) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
             builder.map(map);
-            return BytesReference.bytes(builder);
+            return BytesReferenceUtil.bytes(builder);
         }
     }
 
@@ -241,7 +242,7 @@ public final class XContentTestUtils {
                 }
             }
         };
-        return BytesReference.bytes(
+        return BytesReferenceUtil.bytes(
             XContentTestUtils.insertIntoXContent(
                 contentType.xContent(),
                 xContent,

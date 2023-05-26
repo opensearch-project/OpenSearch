@@ -33,7 +33,7 @@
 package org.opensearch.common;
 
 import org.opensearch.common.Rounding.DateTimeUnit;
-import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 

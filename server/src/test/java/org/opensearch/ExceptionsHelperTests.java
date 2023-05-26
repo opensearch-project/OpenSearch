@@ -36,15 +36,15 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.commons.codec.DecoderException;
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.action.ShardOperationFailedException;
+import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.query.QueryShardException;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.RemoteClusterAware;
@@ -108,9 +108,12 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
     }
 
     public void testStatus() {
-        assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new JsonParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new OpenSearchRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(BaseExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(BaseExceptionsHelper.status(new JsonParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            BaseExceptionsHelper.status(new OpenSearchRejectedExecutionException("rejected")),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
     }
 
     public void testSummaryMessage() {

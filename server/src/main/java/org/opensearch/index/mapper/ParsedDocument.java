@@ -33,7 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.MapperService.MergeReason;

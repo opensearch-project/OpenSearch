@@ -74,7 +74,7 @@ import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.IndexingStats;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.warmer.WarmerStats;

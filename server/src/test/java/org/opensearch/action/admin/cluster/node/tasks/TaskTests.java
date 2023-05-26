@@ -32,7 +32,7 @@
 package org.opensearch.action.admin.cluster.node.tasks;
 
 import org.opensearch.action.search.SearchAction;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;

@@ -16,7 +16,7 @@ import org.opensearch.cluster.OpenSearchAllocationWithConstraintsTestCase;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.VersionUtils;
 
 import java.util.HashMap;

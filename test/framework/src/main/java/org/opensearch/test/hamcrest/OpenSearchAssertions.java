@@ -34,6 +34,7 @@ package org.opensearch.test.hamcrest;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionFuture;
@@ -49,7 +50,7 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
-import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -58,7 +59,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -66,7 +67,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.test.NotEqualMessageBuilder;
@@ -602,7 +603,7 @@ public class OpenSearchAssertions {
      * Run future.actionGet() and check that it throws an exception of the right type, optionally checking the exception's rest status
      *
      * @param exceptionClass expected exception class
-     * @param status         {@link org.opensearch.rest.RestStatus} to check for. Can be null to disable the check
+     * @param status         {@link RestStatus} to check for. Can be null to disable the check
      * @param extraInfo      extra information to add to the failure message. Can be null.
      */
     public static <E extends Throwable> void assertFutureThrows(
@@ -626,7 +627,7 @@ public class OpenSearchAssertions {
         }
 
         if (status != null) {
-            assertThat(extraInfo, ExceptionsHelper.status(expected), equalTo(status));
+            assertThat(extraInfo, BaseExceptionsHelper.status(expected), equalTo(status));
         }
     }
 
@@ -647,7 +648,7 @@ public class OpenSearchAssertions {
         extraInfo += "expected a " + status + " status exception to be thrown";
 
         Exception e = expectThrows(Exception.class, future::actionGet);
-        assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
+        assertThat(extraInfo, BaseExceptionsHelper.status(e), equalTo(status));
     }
 
     /**

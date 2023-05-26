@@ -44,7 +44,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.transport.CapturingTransport;

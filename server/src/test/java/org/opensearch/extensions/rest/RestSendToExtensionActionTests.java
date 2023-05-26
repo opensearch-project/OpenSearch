@@ -34,7 +34,7 @@ import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;

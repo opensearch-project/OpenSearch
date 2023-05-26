@@ -40,9 +40,10 @@ import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -50,7 +51,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 
 import static java.util.Collections.singletonMap;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * REST response in bytes
@@ -73,7 +74,7 @@ public class BytesRestResponse extends RestResponse {
      * Creates a new response based on {@link XContentBuilder}.
      */
     public BytesRestResponse(RestStatus status, XContentBuilder builder) {
-        this(status, builder.contentType().mediaType(), BytesReference.bytes(builder));
+        this(status, builder.contentType().mediaType(), BytesReferenceUtil.bytes(builder));
     }
 
     /**
@@ -107,7 +108,7 @@ public class BytesRestResponse extends RestResponse {
     }
 
     public BytesRestResponse(RestChannel channel, Exception e) throws IOException {
-        this(channel, ExceptionsHelper.status(e), e);
+        this(channel, BaseExceptionsHelper.status(e), e);
     }
 
     public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
@@ -131,7 +132,7 @@ public class BytesRestResponse extends RestResponse {
         this.status = status;
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
-            this.content = BytesReference.bytes(builder);
+            this.content = BytesReferenceUtil.bytes(builder);
             this.contentType = builder.contentType().mediaType();
         }
         if (e instanceof OpenSearchException) {
@@ -189,7 +190,7 @@ public class BytesRestResponse extends RestResponse {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
-        OpenSearchException exception = null;
+        BaseOpenSearchException exception = null;
         RestStatus status = null;
 
         String currentFieldName = null;
@@ -203,7 +204,7 @@ public class BytesRestResponse extends RestResponse {
                     status = RestStatus.fromCode(parser.intValue());
                 }
             } else {
-                exception = OpenSearchException.failureFromXContent(parser);
+                exception = BaseOpenSearchException.failureFromXContent(parser);
             }
         }
 

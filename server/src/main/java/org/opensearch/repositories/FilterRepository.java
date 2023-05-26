@@ -43,7 +43,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoveryState;

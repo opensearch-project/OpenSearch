@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.segments;
 
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Arrays;
 import java.util.Iterator;

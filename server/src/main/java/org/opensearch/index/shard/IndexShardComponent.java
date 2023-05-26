@@ -32,6 +32,7 @@
 
 package org.opensearch.index.shard;
 
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 
 /**

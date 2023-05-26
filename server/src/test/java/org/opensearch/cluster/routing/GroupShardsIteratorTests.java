@@ -35,8 +35,8 @@ package org.opensearch.cluster.routing;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.action.OriginalIndicesTests;
 import org.opensearch.action.search.SearchShardIterator;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;

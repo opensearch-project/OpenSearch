@@ -36,13 +36,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.LeafScoreFunction;
 import org.opensearch.common.lucene.search.function.ScoreFunction;
@@ -146,7 +147,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             }
             builder.field(DECAY, decay);
             builder.endObject();
-            this.functionBytes = BytesReference.bytes(builder);
+            this.functionBytes = BytesReferenceUtil.bytes(builder);
         } catch (IOException e) {
             throw new IllegalArgumentException("unable to build inner function object", e);
         }

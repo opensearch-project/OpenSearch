@@ -33,9 +33,10 @@
 package org.opensearch.action;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.action.ShardOperationFailedException;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
