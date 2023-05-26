@@ -67,7 +67,10 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryMissingException;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -350,10 +353,10 @@ final class StoreRecovery {
         }
     }
 
-    void recoverFromRepositoryAndRemoteStore(
+    void recoverFromSnapshotAndRemoteStore(
         final IndexShard indexShard,
         Repository repository,
-        RemoteSegmentStoreDirectoryFactory directoryFactory,
+        RepositoriesService repositoriesService,
         ActionListener<Boolean> listener
     ) {
         try {
@@ -374,12 +377,24 @@ final class StoreRecovery {
                 long commitGeneration = shallowCopyShardMetadata.getCommitGeneration();
                 String indexUUID = shallowCopyShardMetadata.getIndexUUID();
                 String remoteStoreRepository = shallowCopyShardMetadata.getRemoteStoreRepository();
+                String basePath = shallowCopyShardMetadata.getRemoteStoreRepositoryBasePath();
+                try {
+                    Repository remoteStoreRepo = repositoriesService.repository(remoteStoreRepository);
+                    if (!((BlobStoreRepository) remoteStoreRepo).basePath().toString().equals(basePath)) {
+                        throw new IndexShardRecoveryException(shardId, "Remote Store repository settings were modified after storing the shallow copy snapshot.", null);
+                    }
+
+                } catch(RepositoryMissingException e) {
+                    throw new IndexShardRecoveryException(shardId, "Remote Store Repository for shard is not found.", null);
+                }
+
+                RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService);
                 RemoteSegmentStoreDirectory tempRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
                     indexUUID,
                     String.valueOf(shardId.id())
                 );
-                indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, tempRemoteDirectory, primaryTerm, commitGeneration, true);
+                indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, tempRemoteDirectory, primaryTerm, commitGeneration);
                 bootstrap(indexShard, indexShard.store());
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
                 indexShard.openEngineAndRecoverFromTranslog();

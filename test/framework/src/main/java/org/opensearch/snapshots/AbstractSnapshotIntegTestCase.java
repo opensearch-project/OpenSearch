@@ -149,16 +149,19 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     @After
     public void assertRepoConsistency() {
         if (skipRepoConsistencyCheckReason == null) {
-            clusterAdmin().prepareGetRepositories().get().repositories().stream()
+            clusterAdmin().prepareGetRepositories()
+                .get()
+                .repositories()
+                .stream()
                 .filter(repositoryMetadata -> !repositoryMetadata.name().endsWith(TEST_REMOTE_STORE_REPO_SUFFIX))
                 .forEach(repositoryMetadata -> {
-                final String name = repositoryMetadata.name();
-                if (repositoryMetadata.settings().getAsBoolean("readonly", false) == false) {
-                    clusterAdmin().prepareDeleteSnapshot(name, OLD_VERSION_SNAPSHOT_PREFIX + "*").get();
-                    clusterAdmin().prepareCleanupRepository(name).get();
-                }
-                BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
-            });
+                    final String name = repositoryMetadata.name();
+                    if (repositoryMetadata.settings().getAsBoolean("readonly", false) == false) {
+                        clusterAdmin().prepareDeleteSnapshot(name, OLD_VERSION_SNAPSHOT_PREFIX + "*").get();
+                        clusterAdmin().prepareCleanupRepository(name).get();
+                    }
+                    BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
+                });
         } else {
             logger.info("--> skipped repo consistency checks because [{}]", skipRepoConsistencyCheckReason);
         }
