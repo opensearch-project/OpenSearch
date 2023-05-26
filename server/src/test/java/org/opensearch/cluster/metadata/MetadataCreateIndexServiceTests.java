@@ -1611,7 +1611,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testClusterReplicationSetting() {
         Settings settings = Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build();
-        FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = aggregateIndexSettings(
             ClusterState.EMPTY_STATE,
@@ -1629,7 +1628,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testIndexSettingOverridesClusterReplicationSetting() {
         Settings settings = Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build();
-        FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         // Set index setting replication type as DOCUMENT
@@ -1652,7 +1650,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testHiddenIndexUsesDocumentReplication() {
         Settings settings = Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build();
-        FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         // Set index setting replication type as DOCUMENT
@@ -1675,7 +1672,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testSystemIndexUsesDocumentReplication() {
         Settings settings = Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build();
-        FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         request.settings(requestSettings.build());
