@@ -26,6 +26,7 @@ public class InitializeExtensionRequestTests extends OpenSearchTestCase {
 
     public void testInitializeExtensionRequest() throws Exception {
         String expectedUniqueId = "test uniqueid";
+        String expectedHttpPort = "test httpPort";
         Version expectedVersion = Version.fromString("2.0.0");
         ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
         DiscoveryExtensionNode expectedExtensionNode = new DiscoveryExtensionNode(
@@ -46,9 +47,14 @@ public class InitializeExtensionRequestTests extends OpenSearchTestCase {
             Version.CURRENT
         );
 
-        InitializeExtensionRequest initializeExtensionRequest = new InitializeExtensionRequest(expectedSourceNode, expectedExtensionNode);
+        InitializeExtensionRequest initializeExtensionRequest = new InitializeExtensionRequest(
+            expectedSourceNode,
+            expectedExtensionNode,
+            expectedHttpPort
+        );
         assertEquals(expectedExtensionNode, initializeExtensionRequest.getExtension());
         assertEquals(expectedSourceNode, initializeExtensionRequest.getSourceNode());
+        assertEquals(expectedHttpPort, initializeExtensionRequest.getHttpPort());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             initializeExtensionRequest.writeTo(out);
@@ -58,6 +64,7 @@ public class InitializeExtensionRequestTests extends OpenSearchTestCase {
 
                 assertEquals(expectedExtensionNode, initializeExtensionRequest.getExtension());
                 assertEquals(expectedSourceNode, initializeExtensionRequest.getSourceNode());
+                assertEquals(expectedHttpPort, initializeExtensionRequest.getHttpPort());
             }
         }
     }

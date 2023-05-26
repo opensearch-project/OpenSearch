@@ -409,11 +409,13 @@ public class ExtensionsManager {
         };
         try {
             logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
+            // Defaults httpPort to 9200 if not set via opensearch.yml configuration
+            String httpPort = environmentSettings.get("http.port") != null ? environmentSettings.get("http.port") : "9200";
             transportService.connectToExtensionNode(extension);
             transportService.sendRequest(
                 extension,
                 REQUEST_EXTENSION_ACTION_NAME,
-                new InitializeExtensionRequest(transportService.getLocalNode(), extension),
+                new InitializeExtensionRequest(transportService.getLocalNode(), extension, httpPort),
                 initializeExtensionResponseHandler
             );
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
