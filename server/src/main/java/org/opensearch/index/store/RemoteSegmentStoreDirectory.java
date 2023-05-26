@@ -477,7 +477,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
             metadataStreamWrapper.writeStream(
                 indexOutput,
-                new RemoteSegmentMetadata(RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments), byteArray, segmentInfosSnapshot.getGeneration())
+                new RemoteSegmentMetadata(
+                    RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
+                    byteArray,
+                    segmentInfosSnapshot.getGeneration()
+                )
             );
             indexOutput.close();
             storeDirectory.sync(Collections.singleton(metadataFilename));

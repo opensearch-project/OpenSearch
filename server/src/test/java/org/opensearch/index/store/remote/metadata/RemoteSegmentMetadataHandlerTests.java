@@ -11,7 +11,6 @@ package org.opensearch.index.store.remote.metadata;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.junit.After;
 import org.junit.Before;
@@ -25,7 +24,6 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -43,9 +41,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
     public void setup() throws IOException {
         remoteSegmentMetadataHandler = new RemoteSegmentMetadataHandler();
 
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build();
 
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
         try (Store store = indexShard.store()) {
@@ -104,7 +100,11 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         segmentInfos.write(segmentInfosOutput);
         byte[] segmentInfosBytes = segmentInfosOutput.toArrayCopy();
 
-        RemoteSegmentMetadata remoteSegmentMetadata = new RemoteSegmentMetadata(RemoteSegmentMetadata.fromMapOfStrings(expectedOutput), segmentInfosBytes, 1234);
+        RemoteSegmentMetadata remoteSegmentMetadata = new RemoteSegmentMetadata(
+            RemoteSegmentMetadata.fromMapOfStrings(expectedOutput),
+            segmentInfosBytes,
+            1234
+        );
         remoteSegmentMetadataHandler.writeContent(indexOutput, remoteSegmentMetadata);
         indexOutput.close();
 

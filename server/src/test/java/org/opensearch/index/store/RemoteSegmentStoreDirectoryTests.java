@@ -74,9 +74,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory, mdLockManager);
 
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build();
 
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
         try (Store store = indexShard.store()) {
@@ -607,7 +605,10 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         when(storeDirectory.createOutput(startsWith("metadata__12__o"), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
 
         Collection<String> segmentFiles = List.of("s1", "s2", "s3");
-        assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, segmentInfos, storeDirectory, 12L));
+        assertThrows(
+            NoSuchFileException.class,
+            () -> remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, segmentInfos, storeDirectory, 12L)
+        );
     }
 
     public void testUploadMetadataNonEmpty() throws IOException {
@@ -636,12 +637,15 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             RemoteSegmentMetadata.CURRENT_VERSION,
             RemoteSegmentMetadata.METADATA_CODEC
         );
-        RemoteSegmentMetadata remoteSegmentMetadata = streamWrapper.readStream(new ByteArrayIndexInput("expected", BytesReference.toBytes(output.bytes())));
+        RemoteSegmentMetadata remoteSegmentMetadata = streamWrapper.readStream(
+            new ByteArrayIndexInput("expected", BytesReference.toBytes(output.bytes()))
+        );
 
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> actual = remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore();
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> actual = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore();
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> expected = remoteSegmentMetadata.getMetadata();
 
-        for(String filename: expected.keySet()) {
+        for (String filename : expected.keySet()) {
             assertEquals(expected.get(filename).toString(), actual.get(filename).toString());
         }
     }
