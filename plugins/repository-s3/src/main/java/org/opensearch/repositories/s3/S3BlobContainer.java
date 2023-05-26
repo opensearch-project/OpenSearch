@@ -338,12 +338,12 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private static List<ListObjectsV2Response> executeListing(AmazonS3Reference clientReference, ListObjectsV2Request listObjectsRequest) {
-        final List<ListObjectsV2Response> results = new ArrayList<>();
-        ListObjectsV2Iterable listObjectsIterable = SocketAccess.doPrivileged(
-            () -> clientReference.get().listObjectsV2Paginator(listObjectsRequest)
-        );
-        SocketAccess.doPrivilegedVoid(() -> listObjectsIterable.forEach(results::add));
-        return results;
+        return SocketAccess.doPrivileged(() -> {
+            final List<ListObjectsV2Response> results = new ArrayList<>();
+            ListObjectsV2Iterable listObjectsIterable = clientReference.get().listObjectsV2Paginator(listObjectsRequest);
+            listObjectsIterable.forEach(results::add);
+            return results;
+        });
     }
 
     private ListObjectsV2Request listObjectsRequest(String keyPath) {

@@ -317,7 +317,7 @@ class S3Service implements Closeable {
                 AwsRequestSigner.fromSignerName(clientSettings.signerOverride).getSigner()
             );
         }
-        RetryPolicy.Builder retryPolicy = RetryPolicy.builder().numRetries(clientSettings.maxRetries).retryCapacityCondition(null);
+        RetryPolicy.Builder retryPolicy = SocketAccess.doPrivileged(() -> RetryPolicy.builder().numRetries(clientSettings.maxRetries).retryCapacityCondition(null));
         if (!clientSettings.throttleRetries) {
             retryPolicy.throttlingBackoffStrategy(BackoffStrategy.none());
         }
@@ -327,7 +327,7 @@ class S3Service implements Closeable {
     private static SSLConnectionSocketFactory createSocksSslConnectionSocketFactory(final InetSocketAddress address) {
         // This part was taken from AWS settings
         try {
-            final SSLContext sslCtx = SSLContext.getDefault();
+            final SSLContext sslCtx = SSLContext.getInstance("TLS");
             sslCtx.init(SystemPropertyTlsKeyManagersProvider.create().keyManagers(), null, new SecureRandom());
             return new SdkTlsSocketFactory(sslCtx, new DefaultHostnameVerifier()) {
                 @Override
