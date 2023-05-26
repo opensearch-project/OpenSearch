@@ -9,7 +9,9 @@
 package org.opensearch.identity.noop;
 
 import org.opensearch.identity.ScheduledJobIdentityManager;
+import org.opensearch.identity.schedule.ScheduledJobOperator;
 import org.opensearch.identity.tokens.AuthToken;
+import org.opensearch.index.mapper.ParsedDocument;
 
 /**
  * Implementation of subject that is always authenticated
@@ -20,7 +22,7 @@ import org.opensearch.identity.tokens.AuthToken;
  */
 public class NoopScheduledJobIdentityManager implements ScheduledJobIdentityManager {
     @Override
-    public void saveUserDetails(String jobId, String indexName) {
+    public void saveUserDetails(String jobId, String indexName, ScheduledJobOperator operator) {
         return;
     }
 

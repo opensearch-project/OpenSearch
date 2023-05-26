@@ -8,7 +8,9 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.identity.schedule.ScheduledJobOperator;
 import org.opensearch.identity.tokens.AuthToken;
+import org.opensearch.index.mapper.ParsedDocument;
 
 /**
  * An interface with methods used to provide security for scheduled jobs
@@ -21,8 +23,9 @@ public interface ScheduledJobIdentityManager {
      * Method implemented by an identity plugin to store user information for a scheduled job
      * @param jobId The id of the scheduled job
      * @param indexName The index where scheduled job details is stored
+     * @param operator The operator of the scheduled job
      */
-    void saveUserDetails(String jobId, String indexName);
+    void saveUserDetails(String jobId, String indexName, ScheduledJobOperator operator);
 
     /**
      * Method implemented by an identity plugin to delete user information for a scheduled job
