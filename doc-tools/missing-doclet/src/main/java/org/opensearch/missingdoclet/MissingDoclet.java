@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -291,6 +292,22 @@ public class MissingDoclet extends StandardDoclet {
         if (ignored.contains(element.toString())) {
             return;
         }
+        // Ignore classes annotated with @Generated and all enclosed elements in them.
+        if (isGenerated(element)) {
+            return;
+        }
+        Element enclosing = element.getEnclosingElement();
+        if (enclosing != null && isGenerated(enclosing)) {
+            return;
+        }
+        // If a package contains only generated classes, ignore the package as well.
+        if (element.getKind() == ElementKind.PACKAGE) {
+            List<? extends Element> enclosedElements = element.getEnclosedElements();
+            Optional<?> elm = enclosedElements.stream().findFirst().filter(e -> ((e.getKind() != ElementKind.CLASS) || !isGenerated(e)));
+            if (elm.isEmpty()) {
+                return;
+            }
+        }
         var tree = docTrees.getDocCommentTree(element);
         if (tree == null || tree.getFirstSentence().isEmpty()) {
             // Check for methods that override other stuff and perhaps inherit their Javadocs.
@@ -311,6 +328,17 @@ public class MissingDoclet extends StandardDoclet {
         if (level >= PARAMETER) {
             checkParameters(element, tree);
         }
+    }
+
+    // Ignore classes annotated with @Generated and all enclosed elements in them.
+    private boolean isGenerated(Element element) {
+        return element
+            .getAnnotationMirrors()
+            .stream()
+            .anyMatch(m -> m
+                .getAnnotationType()
+                .toString() /* ClassSymbol.toString() returns class name */
+                .equalsIgnoreCase("javax.annotation.Generated"));
     }
 
     private boolean hasInheritedJavadocs(Element element) {
