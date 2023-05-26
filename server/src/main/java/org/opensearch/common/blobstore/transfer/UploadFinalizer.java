@@ -13,6 +13,7 @@ package org.opensearch.common.blobstore.transfer;
  *
  * @opensearch.internal
  */
+@FunctionalInterface
 public interface UploadFinalizer {
     void accept(boolean uploadSuccess);
 }

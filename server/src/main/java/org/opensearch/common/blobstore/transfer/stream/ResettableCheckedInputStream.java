@@ -120,9 +120,4 @@ public class ResettableCheckedInputStream extends FilterInputStream {
         checksum.reset(markedChecksum.getValue());
         super.reset();
     }
-
-    @Override
-    public void close() throws IOException {
-        super.close();
-    }
 }

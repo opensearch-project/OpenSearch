@@ -103,6 +103,7 @@ public class RemoteTransferContainer implements Closeable {
         );
     }
 
+    // package-private for testing
     /**
      * This method is called to create the {@link StreamContext} object that will be used by the vendor plugin to
      * open streams during uploads. Calling this method won't actually create the streams, for that the consumer needs
@@ -111,7 +112,7 @@ public class RemoteTransferContainer implements Closeable {
      * @param partSize Part sizes of all parts apart from the last one, which is determined internally
      * @return The {@link StreamContext} object that will be used by the vendor plugin to retrieve streams during upload
      */
-    public StreamContext supplyStreamContext(long partSize) {
+    StreamContext supplyStreamContext(long partSize) {
         try {
             return this.openMultipartStreams(partSize);
         } catch (IOException e) {
