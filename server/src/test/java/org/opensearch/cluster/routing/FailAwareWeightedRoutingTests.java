@@ -434,6 +434,12 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
         boolean update = FailAwareWeightedRouting.getInstance()
             .updateFailOpenStatsForOneHealthyCopy(searchShardIterator, clusterState, shardRoutingA.currentNodeId());
         assertTrue(update);
+
+        ShardsIterator shardIterator = new PlainShardIterator(shardId, shardRoutings);
+
+        update = FailAwareWeightedRouting.getInstance()
+            .updateFailOpenStatsForOneHealthyCopy(shardIterator, clusterState, shardRoutingA.currentNodeId());
+        assertTrue(update);
     }
 
     public void testUpdateFailOpenStatsForWithTwoHealthyCopies() {
@@ -483,6 +489,12 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
         boolean update = FailAwareWeightedRouting.getInstance()
             .updateFailOpenStatsForOneHealthyCopy(searchShardIterator, clusterState, shardRoutingA.currentNodeId());
         assertFalse(update);
+
+        ShardsIterator shardIterator = new PlainShardIterator(shardId, shardRoutings);
+
+        update = FailAwareWeightedRouting.getInstance()
+            .updateFailOpenStatsForOneHealthyCopy(shardIterator, clusterState, shardRoutingA.currentNodeId());
+        assertFalse(update);
     }
 
     public void testUpdateFailOpenStatsForOneHealthyCopyWithIgnoreWeightedRouting() {
@@ -531,6 +543,12 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
 
         boolean update = FailAwareWeightedRouting.getInstance()
             .updateFailOpenStatsForOneHealthyCopy(searchShardIterator, clusterState, shardRoutingA.currentNodeId());
+        assertFalse(update);
+
+        ShardsIterator shardIterator = new PlainShardIterator(shardId, shardRoutings);
+
+        update = FailAwareWeightedRouting.getInstance()
+            .updateFailOpenStatsForOneHealthyCopy(shardIterator, clusterState, shardRoutingA.currentNodeId());
         assertFalse(update);
     }
 
