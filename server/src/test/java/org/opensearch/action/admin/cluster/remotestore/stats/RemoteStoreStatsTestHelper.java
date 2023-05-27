@@ -14,43 +14,22 @@ import org.opensearch.index.shard.ShardId;
 import java.util.Map;
 
 import static org.opensearch.test.OpenSearchTestCase.assertEquals;
-import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
 
 /**
  * Helper utilities for Remote Store stats tests
  */
 public class RemoteStoreStatsTestHelper {
     static RemoteRefreshSegmentTracker.Stats createPressureTrackerStats(ShardId shardId) {
-        return new RemoteRefreshSegmentTracker.Stats(
-            shardId,
-            3,
-            System.nanoTime() / 1_000_000L + randomIntBetween(10, 100),
-            2,
-            System.nanoTime() / 1_000_000L + randomIntBetween(10, 100),
-            10,
-            5,
-            5,
-            10,
-            5,
-            5,
-            3,
-            2,
-            5,
-            2,
-            3,
-            4,
-            9
-        );
+        return new RemoteRefreshSegmentTracker.Stats(shardId, 100, 3, 2, 10, 5, 5, 10, 5, 5, 3, 2, 5, 2, 3, 4, 9);
     }
 
     static void compareStatsResponse(Map<String, Object> statsObject, RemoteRefreshSegmentTracker.Stats pressureTrackerStats) {
         assertEquals(statsObject.get(RemoteStoreStats.Fields.SHARD_ID), pressureTrackerStats.shardId.toString());
-        assertEquals(statsObject.get(RemoteStoreStats.Fields.LOCAL_REFRESH_TIMESTAMP), (int) pressureTrackerStats.localRefreshTimeMs);
+        assertEquals(statsObject.get(RemoteStoreStats.Fields.REFRESH_TIME_LAG_IN_MILLIS), (int) pressureTrackerStats.refreshTimeLagMs);
         assertEquals(
             statsObject.get(RemoteStoreStats.Fields.REFRESH_LAG),
             (int) (pressureTrackerStats.localRefreshNumber - pressureTrackerStats.remoteRefreshNumber)
         );
-        assertEquals(statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_TIMESTAMP), (int) pressureTrackerStats.remoteRefreshTimeMs);
         assertEquals(statsObject.get(RemoteStoreStats.Fields.BYTES_LAG), (int) pressureTrackerStats.bytesLag);
 
         assertEquals(statsObject.get(RemoteStoreStats.Fields.BACKPRESSURE_REJECTION_COUNT), (int) pressureTrackerStats.rejectionCount);

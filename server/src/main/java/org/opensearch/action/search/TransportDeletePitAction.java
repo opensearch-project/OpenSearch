@@ -18,8 +18,10 @@ import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -46,8 +48,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
      */
     @Override
     protected void doExecute(Task task, DeletePitRequest request, ActionListener<DeletePitResponse> listener) {
-        List<String> pitIds = request.getPitIds();
-        if (pitIds.size() == 1 && "_all".equals(pitIds.get(0))) {
+        if (request.getPitIds().size() == 1 && "_all".equals(request.getPitIds().get(0))) {
             deleteAllPits(listener);
         } else {
             deletePits(listener, request);
@@ -59,7 +60,9 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
      */
     private void deletePits(ActionListener<DeletePitResponse> listener, DeletePitRequest request) {
         Map<String, List<PitSearchContextIdForNode>> nodeToContextsMap = new HashMap<>();
-        for (String pitId : request.getPitIds()) {
+        // remove duplicates from the request
+        Set<String> uniquePitIds = new LinkedHashSet<>(request.getPitIds());
+        for (String pitId : uniquePitIds) {
             SearchContextId contextId = SearchContextId.decode(namedWriteableRegistry, pitId);
             for (SearchContextIdForNode contextIdForNode : contextId.shards().values()) {
                 PitSearchContextIdForNode pitSearchContext = new PitSearchContextIdForNode(pitId, contextIdForNode);
