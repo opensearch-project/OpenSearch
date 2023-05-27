@@ -534,5 +534,4 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
         assertFalse(update);
     }
 
-
 }
