@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
@@ -94,5 +95,14 @@ public class RemoteSegmentMetadata {
         out.writeLong(generation);
         out.writeLong(segmentInfosBytes.length);
         out.writeBytes(segmentInfosBytes, segmentInfosBytes.length);
+    }
+
+    public static RemoteSegmentMetadata read(IndexInput indexInput) throws IOException {
+        Map<String, String> metadata = indexInput.readMapOfStrings();
+        long generation = indexInput.readLong();
+        int byteArraySize = (int) indexInput.readLong();
+        byte[] segmentInfosBytes = new byte[byteArraySize];
+        indexInput.readBytes(segmentInfosBytes, 0, byteArraySize);
+        return new RemoteSegmentMetadata(RemoteSegmentMetadata.fromMapOfStrings(metadata), segmentInfosBytes, generation);
     }
 }

@@ -472,7 +472,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             }
 
             ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
-            segmentInfosSnapshot.write(new ByteBuffersIndexOutput(byteBuffersIndexOutput, "", ""));
+            segmentInfosSnapshot.write(new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos"));
             byte[] byteArray = byteBuffersIndexOutput.toArrayCopy();
 
             metadataStreamWrapper.writeStream(

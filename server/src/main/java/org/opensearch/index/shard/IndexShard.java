@@ -4522,7 +4522,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        new ByteArrayIndexInput("", remoteSegmentMetadata.getSegmentInfosBytes())
+                        new ByteArrayIndexInput("Snapshot of SegmentInfos", remoteSegmentMetadata.getSegmentInfosBytes())
                     );
                 ) {
                     SegmentInfos infosSnapshot = SegmentInfos.readCommit(
