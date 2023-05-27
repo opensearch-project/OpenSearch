@@ -485,4 +485,54 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
         assertFalse(update);
     }
 
+    public void testUpdateFailOpenStatsForOneHealthyCopyWithIgnoreWeightedRouting() {
+        ClusterState clusterState = setUpCluster(Settings.builder().put("cluster.routing.ignore_weighted_routing", true).build());
+
+        // set up index
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+            )
+            .build();
+
+        ShardRouting shardRoutingA = TestShardRouting.newShardRouting("test", 0, "node_zone_c", true, ShardRoutingState.STARTED);
+        ShardRouting shardRoutingB = TestShardRouting.newShardRouting("test", 0, "node_zone_b", true, ShardRoutingState.STARTED);
+
+        List<ShardRouting> shardRoutings = new ArrayList<>();
+        shardRoutings.add(shardRoutingA);
+        shardRoutings.add(shardRoutingB);
+
+        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+        metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+
+        indexShardRoutingBuilder.addShard(shardRoutingA);
+        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+
+        routingTableBuilder.add(indexRoutingTableBuilder.build());
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
+
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+
+        SearchShardIterator searchShardIterator = new SearchShardIterator(
+            clusterAlias,
+            shardId,
+            shardRoutings,
+            OriginalIndicesTests.randomOriginalIndices()
+        );
+
+        boolean update = FailAwareWeightedRouting.getInstance()
+            .updateFailOpenStatsForOneHealthyCopy(searchShardIterator, clusterState, shardRoutingA.currentNodeId());
+        assertFalse(update);
+    }
+
+
 }
