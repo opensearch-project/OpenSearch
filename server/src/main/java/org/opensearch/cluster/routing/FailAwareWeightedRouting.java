@@ -130,16 +130,17 @@ public class FailAwareWeightedRouting {
      * @param clusterState The current cluster state
      * @param nodeID the id of the node containing current shard copy
      */
-    public void updateFailOpenStatsForOneHealthyCopy(final SearchShardIterator shardsIt, ClusterState clusterState, String nodeID) {
+    public boolean updateFailOpenStatsForOneHealthyCopy(final SearchShardIterator shardsIt, ClusterState clusterState, String nodeID) {
         if (clusterState != null) {
             if (ignoreWeightedRouting(clusterState) == true || isFailOpenEnabled(clusterState) == false) {
-                return;
+                return false;
             }
             if (shardsIt.size() == 1 && WeightedRoutingUtils.isWeighedAway(nodeID, clusterState)) {
                 getWeightedRoutingStats().updateFailOpenCount();
+                return true;
             }
-
         }
+        return false;
 
     }
 
@@ -151,13 +152,17 @@ public class FailAwareWeightedRouting {
      * @param clusterState The current cluster state
      * @param nodeID the id of the node containing current shard copy
      */
-    public void updateFailOpenStatsForOneHealthyCopy(final ShardsIterator shardsIt, ClusterState clusterState, String nodeID) {
-        if (ignoreWeightedRouting(clusterState) == true || isFailOpenEnabled(clusterState) == false) {
-            return;
+    public boolean updateFailOpenStatsForOneHealthyCopy(final ShardsIterator shardsIt, ClusterState clusterState, String nodeID) {
+        if (clusterState != null) {
+            if (ignoreWeightedRouting(clusterState) == true || isFailOpenEnabled(clusterState) == false) {
+                return false;
+            }
+            if (shardsIt.size() == 1 && WeightedRoutingUtils.isWeighedAway(nodeID, clusterState)) {
+                getWeightedRoutingStats().updateFailOpenCount();
+                return true;
+            }
         }
-        if (shardsIt.size() == 1 && WeightedRoutingUtils.isWeighedAway(nodeID, clusterState)) {
-            getWeightedRoutingStats().updateFailOpenCount();
-        }
+        return false;
     }
 
     /**
