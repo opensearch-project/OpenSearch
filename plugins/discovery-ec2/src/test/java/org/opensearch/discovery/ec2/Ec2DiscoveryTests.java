@@ -129,7 +129,7 @@ public class Ec2DiscoveryTests extends AbstractEc2MockAPITestCase implements Con
                         final String[] params = request.split("&");
                         Arrays.stream(params).filter(entry -> entry.startsWith("Filter.") && entry.contains("=tag%3A")).forEach(entry -> {
                             final int startIndex = "Filter.".length();
-                            final int filterId = Integer.parseInt(entry.substring(startIndex, entry.indexOf(".", startIndex)));
+                            final String filterId = entry.substring(startIndex, entry.indexOf(".", startIndex));
                             tagsIncluded.put(
                                 entry.substring(entry.indexOf("=tag%3A") + "=tag%3A".length()),
                                 Arrays.stream(params)
