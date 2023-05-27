@@ -153,7 +153,7 @@ public class LeafFieldsLookup implements Map {
             List<Object> values = new ArrayList<>(2);
             SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
             try {
-                reader.document(docId, visitor);
+                reader.storedFields().document(docId, visitor);
             } catch (IOException e) {
                 throw new OpenSearchParseException("failed to load field [{}]", e, name);
             }

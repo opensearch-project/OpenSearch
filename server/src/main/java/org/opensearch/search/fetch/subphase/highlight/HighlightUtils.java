@@ -72,7 +72,7 @@ public final class HighlightUtils {
     ) throws IOException {
         if (forceSource == false && fieldType.isStored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
-            hitContext.reader().document(hitContext.docId(), fieldVisitor);
+            hitContext.reader().storedFields().document(hitContext.docId(), fieldVisitor);
             List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());
             return textsToHighlight != null ? textsToHighlight : Collections.emptyList();
         }

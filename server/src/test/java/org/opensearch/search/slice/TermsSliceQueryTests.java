@@ -120,7 +120,7 @@ public class TermsSliceQueryTests extends OpenSearchTestCase {
 
                         @Override
                         public void collect(int doc) throws IOException {
-                            Document d = context.reader().document(doc, Collections.singleton("uuid"));
+                            Document d = context.reader().storedFields().document(doc, Collections.singleton("uuid"));
                             String uuid = d.get("uuid");
                             assertThat(keys.contains(uuid), equalTo(true));
                             keys.remove(uuid);

@@ -39,6 +39,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.opensearch.OpenSearchException;
@@ -127,7 +128,8 @@ public class TermVectorsService {
             /* or from an existing document */
             else if (docIdAndVersion != null) {
                 // fields with stored term vectors
-                termVectorsByField = docIdAndVersion.reader.getTermVectors(docIdAndVersion.docId);
+                TermVectors termVectors = docIdAndVersion.reader.termVectors();
+                termVectorsByField = termVectors.get(docIdAndVersion.docId);
                 Set<String> selectedFields = request.selectedFields();
                 // generate tvs for fields where analyzer is overridden
                 if (selectedFields == null && request.perFieldAnalyzer() != null) {
@@ -322,7 +324,8 @@ public class TermVectorsService {
             }
         }
         /* and read vectors from it */
-        return index.createSearcher().getIndexReader().getTermVectors(0);
+        TermVectors termVectors = index.createSearcher().getIndexReader().termVectors();
+        return termVectors.get(0);
     }
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {

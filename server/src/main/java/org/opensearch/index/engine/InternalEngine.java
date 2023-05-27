@@ -49,6 +49,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -2881,6 +2882,7 @@ public class InternalEngine extends Engine {
             final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
             final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
             final DocIdSetIterator iterator = scorer.iterator();
+            final StoredFields storedFields = leaf.reader().storedFields();
             int docId;
             while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                 final long primaryTerm = dv.docPrimaryTerm(docId);
@@ -2888,7 +2890,7 @@ public class InternalEngine extends Engine {
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
                 localCheckpointTracker.markSeqNoAsPersisted(seqNo);
                 idFieldVisitor.reset();
-                leaf.reader().document(docId, idFieldVisitor);
+                storedFields.document(docId, idFieldVisitor);
                 if (idFieldVisitor.getId() == null) {
                     assert dv.isTombstone(docId);
                     continue;

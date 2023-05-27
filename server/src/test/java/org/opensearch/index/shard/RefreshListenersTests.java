@@ -36,6 +36,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
@@ -368,7 +369,8 @@ public class RefreshListenersTests extends OpenSearchTestCase {
                         try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
-                            org.apache.lucene.document.Document document = getResult.docIdAndVersion().reader.document(
+                            StoredFields storedFields = getResult.docIdAndVersion().reader.storedFields();
+                            org.apache.lucene.document.Document document = storedFields.document(
                                 getResult.docIdAndVersion().docId
                             );
                             assertThat(document.getValues("test"), arrayContaining(testFieldValue));

@@ -38,6 +38,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -286,7 +287,7 @@ final class ShardSplittingQuery extends Query {
         boolean matches(int doc) throws IOException {
             routing = id = null;
             leftToVisit = 2;
-            leafReader.document(doc, this);
+            leafReader.storedFields().document(doc, this);
             assert id != null : "docID must not be null - we might have hit a nested document";
             int targetShardId = OperationRouting.generateShardId(indexMetadata, id, routing);
             return targetShardId != shardId;

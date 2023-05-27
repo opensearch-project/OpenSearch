@@ -93,7 +93,7 @@ public class LeafFieldsLookupTests extends OpenSearchTestCase {
             StoredFieldVisitor visitor = (StoredFieldVisitor) args[1];
             visitor.doubleField(mockFieldInfo, 2.718);
             return null;
-        }).when(leafReader).document(anyInt(), any(StoredFieldVisitor.class));
+        }).when(leafReader).storedFields().document(anyInt(), any(StoredFieldVisitor.class));
 
         fieldsLookup = new LeafFieldsLookup(mapperService, leafReader);
     }

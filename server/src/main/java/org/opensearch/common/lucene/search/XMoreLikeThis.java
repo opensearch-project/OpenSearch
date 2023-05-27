@@ -56,7 +56,9 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
@@ -808,8 +810,10 @@ public final class XMoreLikeThis {
      */
     private PriorityQueue<ScoreTerm> retrieveTerms(int docNum) throws IOException {
         Map<String, Int> termFreqMap = new HashMap<>();
+        final TermVectors termVectors = ir.termVectors();
+        final StoredFields storedFields = ir.storedFields();
         for (String fieldName : fieldNames) {
-            final Fields vectors = ir.getTermVectors(docNum);
+            final Fields vectors = termVectors.get(docNum);
             final Terms vector;
             if (vectors != null) {
                 vector = vectors.terms(fieldName);
@@ -819,7 +823,7 @@ public final class XMoreLikeThis {
 
             // field does not store term vector info
             if (vector == null) {
-                Document d = ir.document(docNum);
+                Document d = storedFields.document(docNum);
                 IndexableField fields[] = d.getFields(fieldName);
                 for (IndexableField field : fields) {
                     final String stringValue = field.stringValue();
