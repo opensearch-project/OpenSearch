@@ -140,7 +140,7 @@ public class SourceLookup implements Map {
                     SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
                     fieldReader = lf.getSequentialStoredFieldsReader()::document;
                 } else {
-                    fieldReader = context.reader()::document;
+                    fieldReader = context.reader().storedFields()::document;
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

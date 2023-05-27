@@ -36,6 +36,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -43,6 +44,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -88,12 +90,12 @@ public class LeafFieldsLookupTests extends OpenSearchTestCase {
         );
 
         LeafReader leafReader = mock(LeafReader.class);
-        doAnswer(invocation -> {
-            Object[] args = invocation.getArguments();
-            StoredFieldVisitor visitor = (StoredFieldVisitor) args[1];
-            visitor.doubleField(mockFieldInfo, 2.718);
-            return null;
-        }).when(leafReader).storedFields().document(anyInt(), any(StoredFieldVisitor.class));
+        doAnswer(invocation -> new StoredFields() {
+            @Override
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                visitor.doubleField(mockFieldInfo, 2.718);
+            }
+        }).when(leafReader).storedFields();
 
         fieldsLookup = new LeafFieldsLookup(mapperService, leafReader);
     }
