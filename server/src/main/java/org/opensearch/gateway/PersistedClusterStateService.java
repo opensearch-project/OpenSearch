@@ -512,9 +512,7 @@ public class PersistedClusterStateService {
                 while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     if (isLiveDoc.test(docIdSetIterator.docID())) {
                         logger.trace("processing doc {}", docIdSetIterator.docID());
-                        bytesRefConsumer.accept(
-                            storedFields.document(docIdSetIterator.docID()).getBinaryValue(DATA_FIELD_NAME)
-                        );
+                        bytesRefConsumer.accept(storedFields.document(docIdSetIterator.docID()).getBinaryValue(DATA_FIELD_NAME));
                     }
                 }
             }

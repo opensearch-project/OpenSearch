@@ -370,9 +370,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             StoredFields storedFields = getResult.docIdAndVersion().reader.storedFields();
-                            org.apache.lucene.document.Document document = storedFields.document(
-                                getResult.docIdAndVersion().docId
-                            );
+                            org.apache.lucene.document.Document document = storedFields.document(getResult.docIdAndVersion().docId);
                             assertThat(document.getValues("test"), arrayContaining(testFieldValue));
                         }
                     } catch (Exception t) {
