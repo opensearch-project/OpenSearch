@@ -17,7 +17,6 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.IndicesService;
@@ -270,7 +269,6 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     public void testSnapshotRestoreOnIndexWithSegRepClusterSetting() throws Exception {
         Settings settings = Settings.builder()
             .put(super.featureFlagSettings())
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
             .put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
 
@@ -304,7 +302,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
 
         // Verify index setting isSegRepEnabled.
         Index index = resolveIndex(RESTORED_INDEX_NAME);
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNode);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
         assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), false);
     }
 }
