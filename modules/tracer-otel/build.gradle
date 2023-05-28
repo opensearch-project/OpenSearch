@@ -1,0 +1,124 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.info.BuildParams
+
+opensearchplugin {
+  description 'Opentelemetry based Tracer implementation.'
+  classname 'org.opensearch.tracing.OTelTracerModulePlugin'
+  hasClientJar = true
+}
+
+dependencies {
+  api 'io.opentelemetry:opentelemetry-api:1.23.1'
+  api 'io.opentelemetry:opentelemetry-context:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk-common:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk-metrics:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk-trace:1.23.1'
+  api 'io.opentelemetry:opentelemetry-exporter-otlp:1.23.1'
+  api 'io.opentelemetry:opentelemetry-exporter-common:1.23.1'
+  api 'io.opentelemetry:opentelemetry-exporter-otlp-common:1.23.1'
+  api 'io.opentelemetry:opentelemetry-semconv:1.23.1-alpha'
+  api 'com.squareup.okhttp3:okhttp:4.10.0'
+  api 'org.jetbrains.kotlin:kotlin-stdlib:1.6.20'
+  api 'com.squareup.okio:okio-jvm:3.0.0'
+  api 'io.opentelemetry:opentelemetry-sdk-logs:1.23.1-alpha'
+  api 'io.opentelemetry:opentelemetry-api-logs:1.23.1-alpha'
+}
+
+
+thirdPartyAudit {
+  ignoreViolations(
+   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueConsumerIndexField',
+   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerIndexField',
+   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerLimitField',
+   'io.opentelemetry.internal.shaded.jctools.util.UnsafeAccess',
+   'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess'
+  )
+
+  ignoreMissingClasses(
+    'android.net.http.X509TrustManagerExtensions',
+    'android.net.ssl.SSLSockets',
+    'android.os.Build$VERSION',
+    'android.security.NetworkSecurityPolicy',
+    'android.util.Log',
+    'com.google.common.io.ByteStreams',
+    'com.google.common.util.concurrent.FutureCallback',
+    'com.google.common.util.concurrent.Futures',
+    'com.google.common.util.concurrent.ListenableFuture',
+    'com.google.common.util.concurrent.MoreExecutors',
+    'io.grpc.CallOptions',
+    'io.grpc.Channel',
+    'io.grpc.ClientInterceptor',
+    'io.grpc.ClientInterceptors',
+    'io.grpc.Codec',
+    'io.grpc.Codec$Identity',
+    'io.grpc.Drainable',
+    'io.grpc.KnownLength',
+    'io.grpc.ManagedChannel',
+    'io.grpc.ManagedChannelBuilder',
+    'io.grpc.Metadata',
+    'io.grpc.Metadata$Key',
+    'io.grpc.MethodDescriptor',
+    'io.grpc.MethodDescriptor$Builder',
+    'io.grpc.MethodDescriptor$Marshaller',
+    'io.grpc.MethodDescriptor$MethodType',
+    'io.grpc.Status',
+    'io.grpc.Status$Code',
+    'io.grpc.netty.GrpcSslContexts',
+    'io.grpc.netty.NettyChannelBuilder',
+    'io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts',
+    'io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder',
+    'io.grpc.okhttp.OkHttpChannelBuilder',
+    'io.grpc.stub.AbstractFutureStub',
+    'io.grpc.stub.AbstractStub',
+    'io.grpc.stub.ClientCalls',
+    'io.grpc.stub.MetadataUtils',
+    'io.netty.handler.ssl.SslContextBuilder',
+    'io.opentelemetry.api.events.EventEmitter',
+    'io.opentelemetry.api.events.EventEmitterBuilder',
+    'io.opentelemetry.api.events.EventEmitterProvider',
+    'io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties',
+    'io.opentelemetry.sdk.autoconfigure.spi.metrics.ConfigurableMetricExporterProvider',
+    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
+    'org.bouncycastle.jsse.BCSSLParameters',
+    'org.bouncycastle.jsse.BCSSLSocket',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.Conscrypt$Version',
+    'org.conscrypt.ConscryptHostnameVerifier',
+    'org.openjsse.javax.net.ssl.SSLParameters',
+    'org.openjsse.javax.net.ssl.SSLSocket'
+  )
+}

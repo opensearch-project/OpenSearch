@@ -36,7 +36,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
 
     private TracerSettings tracerSettings;
 
-    private ArgumentCaptor<OSSpan> captor;
+    private ArgumentCaptor<DefaultSpan> captor;
 
     private SpanBuilder mockSpanBuilder;
 
@@ -77,7 +77,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         verify(tracer, times(4)).createOtelSpan(any(), captor.capture());
         verify(mockSpanBuilder, times(4)).startSpan();
         assertEquals("span4", tracer.getCurrentSpan().getSpanName());
-        OSSpan value = captor.getValue();
+        DefaultSpan value = captor.getValue();
         assertEquals("span3", value.getSpanName());
         tracer.endSpan();
         assertEquals("noop-span-2", tracer.getCurrentSpan().getSpanName());
@@ -118,7 +118,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         openTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
         when(openTelemetry.getTracer(any(String.class))).thenReturn(mockTracer);
-        captor = ArgumentCaptor.forClass(OSSpan.class);
+        captor = ArgumentCaptor.forClass(DefaultSpan.class);
         mockSpanBuilder = mock(SpanBuilder.class);
         mockOtelSpan = mock(io.opentelemetry.api.trace.Span.class);
         when(mockOtelSpan.getSpanContext()).thenReturn(mock(SpanContext.class));

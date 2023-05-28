@@ -6,12 +6,20 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.tracing.noop;
+
+import org.opensearch.tracing.Level;
+import org.opensearch.tracing.Span;
+import org.opensearch.tracing.Tracer;
 
 /**
  * No-op implementation of Tracer
  */
-class NoopTracer implements Tracer {
+public class NoopTracer implements Tracer {
+
+    public static final Tracer INSTANCE = new NoopTracer();
+
+    private NoopTracer() {}
 
     @Override
     public void startSpan(String spanName, Level level) {

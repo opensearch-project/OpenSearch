@@ -45,7 +45,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.tracing.SpanHolder;
-import org.opensearch.tracing.TracerUtils;
+import org.opensearch.tracing.TracerManager;
 import org.opensearch.tasks.Task;
 
 import java.io.IOException;
@@ -68,8 +68,8 @@ import java.util.stream.Stream;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
-import static org.opensearch.tracing.DefaultTracer.CURRENT_SPAN;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
+import static org.opensearch.tracing.Tracer.CURRENT_SPAN;
 
 /**
  * A ThreadContext is a map of string headers and a transient map of keyed objects that are associated with
@@ -725,7 +725,7 @@ public final class ThreadContext implements Writeable {
         }
 
         private void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
-            TracerUtils.addTracerContextToHeader(this.requestHeaders, this.transientHeaders);
+            TracerManager.getTracerHeaderInjector().injectHeader().accept(this.requestHeaders, this.transientHeaders);
 
             final Map<String, String> requestHeaders;
             if (defaultHeaders.isEmpty()) {

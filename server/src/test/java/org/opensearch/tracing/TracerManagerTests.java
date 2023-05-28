@@ -13,24 +13,24 @@ import org.junit.Before;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.tracing.noop.NoopTracer;
 
 import static org.mockito.Mockito.mock;
 
-public class TracerFactoryTests extends OpenSearchTestCase {
+public class TracerManagerTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        TracerFactory.clear();
+        TracerManager.clear();
     }
 
     @After
     public void close() {
-        TracerFactory.closeTracer();
+        TracerManager.closeTracer();
     }
 
     public void testGetTracerWithUninitializedTracerFactory() {
-        Tracer tracer = TracerFactory.getTracer();
+        Tracer tracer = TracerManager.getTracer();
         assertTrue(tracer instanceof NoopTracer);
     }
 
@@ -40,9 +40,9 @@ public class TracerFactoryTests extends OpenSearchTestCase {
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        TracerFactory.initTracerFactory(mock(ThreadPool.class), tracerSettings);
+        TracerManager.initTracerManager(tracerSettings, null, null);
 
-        Tracer tracer = TracerFactory.getTracer();
+        Tracer tracer = TracerManager.getTracer();
         assertTrue(tracer instanceof NoopTracer);
     }
 
@@ -52,10 +52,10 @@ public class TracerFactoryTests extends OpenSearchTestCase {
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        TracerFactory.initTracerFactory(mock(ThreadPool.class), tracerSettings);
+        TracerManager.initTracerManager(tracerSettings, () -> mock(Tracer.class), null);
 
-        Tracer tracer = TracerFactory.getTracer();
-        assertTrue(tracer instanceof DefaultTracer);
+        Tracer tracer = TracerManager.getTracer();
+        assertFalse(tracer instanceof NoopTracer);
 
     }
 }
