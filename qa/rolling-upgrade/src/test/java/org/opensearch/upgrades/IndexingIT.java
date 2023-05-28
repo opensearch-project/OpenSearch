@@ -245,6 +245,7 @@ public class IndexingIT extends AbstractRollingTestCase {
      *
      * @throws Exception
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7679")
     public void testIndexingWithSegRep() throws Exception {
         final String indexName = "test-index-segrep";
         final int shardCount = 3;

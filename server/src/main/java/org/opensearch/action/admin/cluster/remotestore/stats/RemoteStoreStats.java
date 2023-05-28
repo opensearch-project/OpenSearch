@@ -43,8 +43,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.startObject()
             .field(Fields.SHARD_ID, remoteSegmentUploadShardStats.shardId)
 
-            .field(Fields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentUploadShardStats.localRefreshTimeMs)
-            .field(Fields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentUploadShardStats.remoteRefreshTimeMs)
+            .field(Fields.REFRESH_TIME_LAG_IN_MILLIS, remoteSegmentUploadShardStats.refreshTimeLagMs)
             .field(Fields.REFRESH_LAG, remoteSegmentUploadShardStats.localRefreshNumber - remoteSegmentUploadShardStats.remoteRefreshNumber)
             .field(Fields.BYTES_LAG, remoteSegmentUploadShardStats.bytesLag)
 
@@ -91,16 +90,6 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         static final String SHARD_ID = "shard_id";
 
         /**
-         * Last successful local refresh timestamp in milliseconds
-         */
-        static final String LOCAL_REFRESH_TIMESTAMP = "local_refresh_timestamp_in_millis";
-
-        /**
-         * Last successful remote refresh timestamp in milliseconds
-         */
-        static final String REMOTE_REFRESH_TIMESTAMP = "remote_refresh_timestamp_in_millis";
-
-        /**
          * Lag in terms of bytes b/w local and remote store
          */
         static final String BYTES_LAG = "bytes_lag";
@@ -109,6 +98,11 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
          * No of refresh remote store is lagging behind local
          */
         static final String REFRESH_LAG = "refresh_lag";
+
+        /**
+         * Time in millis remote refresh is behind local refresh
+         */
+        static final String REFRESH_TIME_LAG_IN_MILLIS = "refresh_time_lag_in_millis";
 
         /**
          * Total write rejections due to remote store backpressure kick in
