@@ -26,17 +26,16 @@ import java.util.concurrent.TimeUnit;
  */
 class OTelResourceProvider {
 
-    private static final Resource resource;
     private static final ContextPropagators contextPropagators;
     private static volatile OpenTelemetry OPEN_TELEMETRY;
 
     static {
-        resource = Resource.getDefault().merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch")));
         contextPropagators = ContextPropagators.create(W3CTraceContextPropagator.getInstance());
     }
 
     static OpenTelemetry getOrCreateOpenTelemetryInstance(TracerSettings tracerSettings) {
         if (OPEN_TELEMETRY == null) {
+            Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
             SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
                 .addSpanProcessor(
                     BatchSpanProcessor.builder(OtlpGrpcSpanExporter.builder().setTimeout(10, TimeUnit.SECONDS).build())

@@ -6,24 +6,21 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.tracing.noop;
 
-import io.opentelemetry.api.trace.SpanContext;
+import org.opensearch.tracing.Level;
+import org.opensearch.tracing.Span;
 
 /**
- * Default implementation of {@link Span}. It keeps a reference of OpenTelemetry Span and handles span
- * lifecycle management by delegating calls to it.
+ * No-op implementation of Span
  */
-class OSSpan implements Span {
-
+public class NoopSpan implements Span {
     private final String spanName;
-    private final io.opentelemetry.api.trace.Span otelSpan;
     private final Span parentSpan;
     private final Level level;
 
-    public OSSpan(String spanName, io.opentelemetry.api.trace.Span span, Span parentSpan, Level level) {
+    public NoopSpan(String spanName, Span parentSpan, Level level) {
         this.spanName = spanName;
-        this.otelSpan = span;
         this.parentSpan = parentSpan;
         this.level = level;
     }
@@ -41,14 +38,6 @@ class OSSpan implements Span {
     @Override
     public String getSpanName() {
         return spanName;
-    }
-
-    io.opentelemetry.api.trace.Span getOtelSpan() {
-        return otelSpan;
-    }
-
-    SpanContext getSpanContext() {
-        return otelSpan.getSpanContext();
     }
 
 }

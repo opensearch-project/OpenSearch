@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.tracing.noop.NoopSpan;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -29,8 +30,6 @@ import java.util.Optional;
  *
  */
 public class DefaultTracer implements Tracer {
-
-    public static final String CURRENT_SPAN = "current_span";
 
     private static final Logger logger = LogManager.getLogger(DefaultTracer.class);
     private static final String TRACE_ID = "trace_id";
@@ -93,8 +92,8 @@ public class DefaultTracer implements Tracer {
     @Override
     public void addEvent(String event) {
         Span currentSpan = getCurrentSpan();
-        if (currentSpan instanceof OSSpan && ((OSSpan) currentSpan).getOtelSpan() != null) {
-            ((OSSpan) currentSpan).getOtelSpan().addEvent(event);
+        if (currentSpan instanceof DefaultSpan && ((DefaultSpan) currentSpan).getOtelSpan() != null) {
+            ((DefaultSpan) currentSpan).getOtelSpan().addEvent(event);
         }
     }
 
@@ -119,7 +118,7 @@ public class DefaultTracer implements Tracer {
         Context context = TracerUtils.extractTracerContextFromHeader(threadPool.getThreadContext().getHeaders());
         if (context != null) {
             io.opentelemetry.api.trace.Span span = io.opentelemetry.api.trace.Span.fromContext(context);
-            return new OSSpan(ROOT_SPAN, span, null, Level.ROOT);
+            return new DefaultSpan(ROOT_SPAN, span, null, Level.ROOT);
         }
         return null;
     }
@@ -132,14 +131,14 @@ public class DefaultTracer implements Tracer {
     }
 
     private Span createSpan(String spanName, Span parentSpan, Level level) {
-        return isLevelEnabled(level) ? createOSSpan(spanName, parentSpan, level) : createNoopSpan(spanName, parentSpan, level);
+        return isLevelEnabled(level) ? createDefaultSpan(spanName, parentSpan, level) : createNoopSpan(spanName, parentSpan, level);
     }
 
-    private Span createOSSpan(String spanName, Span parentSpan, Level level) {
-        OSSpan parentOSSpan = getLastValidSpanInChain(parentSpan);
-        io.opentelemetry.api.trace.Span otelSpan = createOtelSpan(spanName, parentOSSpan);
-        Span span = new OSSpan(spanName, otelSpan, parentSpan, level);
-        logger.debug(
+    private Span createDefaultSpan(String spanName, Span parentSpan, Level level) {
+        DefaultSpan parentDefaultSpan = getLastValidSpanInChain(parentSpan);
+        io.opentelemetry.api.trace.Span otelSpan = createOtelSpan(spanName, parentDefaultSpan);
+        Span span = new DefaultSpan(spanName, otelSpan, parentSpan, level);
+        logger.trace(
             "Starting OtelSpan spanId:{} name:{}: traceId:{}",
             otelSpan.getSpanContext().getSpanId(),
             span.getSpanName(),
@@ -149,22 +148,22 @@ public class DefaultTracer implements Tracer {
     }
 
     private NoopSpan createNoopSpan(String spanName, Span parentSpan, Level level) {
-        logger.debug("Starting Noop span name:{}", spanName);
+        logger.trace("Starting Noop span name:{}", spanName);
         return new NoopSpan(spanName, parentSpan, level);
     }
 
-    private OSSpan getLastValidSpanInChain(Span parentSpan) {
+    private DefaultSpan getLastValidSpanInChain(Span parentSpan) {
         while (parentSpan instanceof NoopSpan) {
             parentSpan = parentSpan.getParentSpan();
         }
-        return (OSSpan) parentSpan;
+        return (DefaultSpan) parentSpan;
     }
 
     // visible for testing
-    io.opentelemetry.api.trace.Span createOtelSpan(String spanName, OSSpan parentOSSpan) {
-        return parentOSSpan == null
+    io.opentelemetry.api.trace.Span createOtelSpan(String spanName, DefaultSpan parentDefaultSpan) {
+        return parentDefaultSpan == null
             ? otelTracer.spanBuilder(spanName).startSpan()
-            : otelTracer.spanBuilder(spanName).setParent(Context.current().with(parentOSSpan.getOtelSpan())).startSpan();
+            : otelTracer.spanBuilder(spanName).setParent(Context.current().with(parentDefaultSpan.getOtelSpan())).startSpan();
     }
 
     private boolean isLevelEnabled(Level level) {
@@ -186,42 +185,45 @@ public class DefaultTracer implements Tracer {
     }
 
     private void endSpan(Span span) {
-        if (span instanceof OSSpan && ((OSSpan) span).getOtelSpan() != null) {
-            OSSpan osSpan = (OSSpan) span;
-            logger.debug(
+        if (span instanceof DefaultSpan && ((DefaultSpan) span).getOtelSpan() != null) {
+            DefaultSpan defaultSpan = (DefaultSpan) span;
+            logger.trace(
                 "Ending span spanId:{} name:{}: traceId:{}",
-                osSpan.getSpanContext().getSpanId(),
+                defaultSpan.getSpanContext().getSpanId(),
                 span.getSpanName(),
-                osSpan.getSpanContext().getTraceId()
+                defaultSpan.getSpanContext().getTraceId()
             );
-            osSpan.getOtelSpan().end();
+            defaultSpan.getOtelSpan().end();
         } else {
-            logger.debug("Ending noop span name:{}", span.getSpanName());
+            logger.trace("Ending noop span name:{}", span.getSpanName());
         }
     }
 
     private void setSpanAttributes(Span span) {
-        if (span instanceof OSSpan) {
-            addDefaultAttributes((OSSpan) span);
+        if (span instanceof DefaultSpan) {
+            addDefaultAttributes((DefaultSpan) span);
         }
     }
 
     private <T> void addSingleAttribute(AttributeKey<T> key, T value) {
         Span currentSpan = getCurrentSpan();
-        if (currentSpan instanceof OSSpan && ((OSSpan) currentSpan).getOtelSpan() != null) {
-            ((OSSpan) currentSpan).getOtelSpan().setAttribute(key, value);
+        if (currentSpan instanceof DefaultSpan && ((DefaultSpan) currentSpan).getOtelSpan() != null) {
+            ((DefaultSpan) currentSpan).getOtelSpan().setAttribute(key, value);
         }
     }
 
-    private void addDefaultAttributes(OSSpan osSpan) {
-        if (osSpan != null) {
-            addSingleAttribute(AttributeKey.stringKey(SPAN_ID), osSpan.getSpanContext().getSpanId());
-            addSingleAttribute(AttributeKey.stringKey(TRACE_ID), osSpan.getSpanContext().getTraceId());
-            addSingleAttribute(AttributeKey.stringKey(SPAN_NAME), osSpan.getSpanName());
+    private void addDefaultAttributes(DefaultSpan defaultSpan) {
+        if (defaultSpan != null) {
+            addSingleAttribute(AttributeKey.stringKey(SPAN_ID), defaultSpan.getSpanContext().getSpanId());
+            addSingleAttribute(AttributeKey.stringKey(TRACE_ID), defaultSpan.getSpanContext().getTraceId());
+            addSingleAttribute(AttributeKey.stringKey(SPAN_NAME), defaultSpan.getSpanName());
             addSingleAttribute(AttributeKey.stringKey(THREAD_NAME), Thread.currentThread().getName());
-            if (osSpan.getParentSpan() != null && osSpan.getParentSpan() instanceof OSSpan) {
-                addSingleAttribute(AttributeKey.stringKey(PARENT_SPAN_ID), ((OSSpan) osSpan.getParentSpan()).getSpanContext().getSpanId());
-                addSingleAttribute(AttributeKey.stringKey(PARENT_SPAN_NAME), osSpan.getParentSpan().getSpanName());
+            if (defaultSpan.getParentSpan() != null && defaultSpan.getParentSpan() instanceof DefaultSpan) {
+                addSingleAttribute(
+                    AttributeKey.stringKey(PARENT_SPAN_ID),
+                    ((DefaultSpan) defaultSpan.getParentSpan()).getSpanContext().getSpanId()
+                );
+                addSingleAttribute(AttributeKey.stringKey(PARENT_SPAN_NAME), defaultSpan.getParentSpan().getSpanName());
             }
         }
     }

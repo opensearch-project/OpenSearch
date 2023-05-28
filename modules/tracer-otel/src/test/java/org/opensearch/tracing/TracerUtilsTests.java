@@ -14,13 +14,14 @@ import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
 import io.opentelemetry.context.Context;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tracing.noop.NoopSpan;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.tracing.DefaultTracer.CURRENT_SPAN;
+import static org.opensearch.tracing.Tracer.CURRENT_SPAN;
 
 public class TracerUtilsTests extends OpenSearchTestCase {
 
@@ -30,23 +31,23 @@ public class TracerUtilsTests extends OpenSearchTestCase {
     public void testAddTracerContextToHeader() {
         Span mockSpan = mock(Span.class);
         when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));
-        OSSpan span = new OSSpan("spanName", mockSpan, null, Level.INFO);
+        DefaultSpan span = new DefaultSpan("spanName", mockSpan, null, Level.INFO);
         SpanHolder spanHolder = new SpanHolder(span);
         Map<String, Object> transientHeaders = Map.of(CURRENT_SPAN, spanHolder);
         Map<String, String> requestHeaders = new HashMap<>();
-        TracerUtils.addTracerContextToHeader(requestHeaders, transientHeaders);
+        TracerUtils.addTracerContextToHeader().accept(requestHeaders, transientHeaders);
         assertEquals("00-" + TRACE_ID + "-" + SPAN_ID + "-00", requestHeaders.get("traceparent"));
     }
 
     public void testAddTracerContextToHeaderWithNoopSpan() {
         Span mockSpan = mock(Span.class);
         when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));
-        OSSpan span = new OSSpan("spanName", mockSpan, null, Level.INFO);
+        DefaultSpan span = new DefaultSpan("spanName", mockSpan, null, Level.INFO);
         NoopSpan noopSpan = new NoopSpan("noopSpanName", span, Level.INFO);
         SpanHolder spanHolder = new SpanHolder(noopSpan);
         Map<String, Object> transientHeaders = Map.of(CURRENT_SPAN, spanHolder);
         Map<String, String> requestHeaders = new HashMap<>();
-        TracerUtils.addTracerContextToHeader(requestHeaders, transientHeaders);
+        TracerUtils.addTracerContextToHeader().accept(requestHeaders, transientHeaders);
         assertEquals("00-" + TRACE_ID + "-" + SPAN_ID + "-00", requestHeaders.get("traceparent"));
     }
 
