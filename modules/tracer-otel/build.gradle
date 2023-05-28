@@ -1,0 +1,69 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.info.BuildParams
+
+opensearchplugin {
+  description 'Opentelemetry based Tracer implementation.'
+  classname 'org.opensearch.tracing.OTelTracerModulePlugin'
+  hasClientJar = true
+}
+
+dependencies {
+  api "io.opentelemetry:opentelemetry-api:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-context:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-sdk:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-sdk-common:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-sdk-trace:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-sdk-metrics:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
+  api "io.opentelemetry:opentelemetry-sdk-logs:${versions.opentelemetry}-alpha"
+  api "io.opentelemetry:opentelemetry-api-logs:${versions.opentelemetry}-alpha"
+}
+
+
+thirdPartyAudit {
+  ignoreViolations(
+   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueConsumerIndexField',
+   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerIndexField',
+   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerLimitField',
+   'io.opentelemetry.internal.shaded.jctools.util.UnsafeAccess',
+   'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess'
+  )
+
+  ignoreMissingClasses(
+    'io.opentelemetry.api.events.EventEmitter',
+    'io.opentelemetry.api.events.EventEmitterBuilder',
+    'io.opentelemetry.api.events.EventEmitterProvider'
+  )
+}

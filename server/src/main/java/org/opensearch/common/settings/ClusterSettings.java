@@ -51,7 +51,7 @@ import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
-import org.opensearch.tracing.TracerSettings;
+import org.opensearch.tracing.TracerModule;
 import org.opensearch.tracing.TracerSettings;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -657,7 +657,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TracerSettings.TRACER_LEVEL_SETTING,
                 TracerSettings.TRACER_EXPORTER_DELAY_SETTING,
                 TracerSettings.TRACER_EXPORTER_BATCH_SIZE_SETTING,
-                TracerSettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING
+                TracerSettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
+                TracerModule.TRACER_DEFAULT_TYPE_SETTING,
+                TracerModule.TRACER_TYPE_SETTING
             )
         )
     );

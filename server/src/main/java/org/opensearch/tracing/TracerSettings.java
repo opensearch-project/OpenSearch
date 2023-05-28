@@ -17,6 +17,7 @@ import org.opensearch.common.unit.TimeValue;
  * Wrapper class to encapsulate tracing related settings
  */
 public class TracerSettings {
+    // TODO move this
     public static final Setting<Integer> TRACER_EXPORTER_BATCH_SIZE_SETTING = Setting.intSetting(
         "tracer.exporter.batch_size",
         512,
