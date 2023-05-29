@@ -256,6 +256,7 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.SEARCH_PIPELINE;
+import static org.opensearch.common.util.FeatureFlags.TRACER;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
@@ -1012,11 +1013,13 @@ public class Node implements Closeable {
                 searchModule.getIndexSearcherExecutor(threadPool)
             );
 
-            final TracerSettings tracerSettings = new TracerSettings(settings, clusterService.getClusterSettings());
-            List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
-            TracerModule tracerModule = new TracerModule(settings, tracerPlugins, threadPool, tracerSettings);
-            TracerManager.initTracerManager(tracerSettings, tracerModule.getTracerSupplier(), tracerModule.getTracerHeaderInjector());
-            resourcesToClose.add(TracerManager::closeTracer);
+            if (FeatureFlags.isEnabled(TRACER)) {
+                final TracerSettings tracerSettings = new TracerSettings(settings, clusterService.getClusterSettings());
+                List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
+                TracerModule tracerModule = new TracerModule(settings, tracerPlugins, threadPool, tracerSettings);
+                TracerManager.initTracerManager(tracerSettings, tracerModule.getTracerSupplier(), tracerModule.getTracerHeaderInjector());
+                resourcesToClose.add(TracerManager::closeTracer);
+            }
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
@@ -1475,7 +1478,9 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("node_environment"));
         toClose.add(injector.getInstance(NodeEnvironment.class));
         toClose.add(stopWatch::stop);
-        toClose.add(TracerManager::closeTracer);
+        if (FeatureFlags.isEnabled(TRACER)) {
+            toClose.add(TracerManager::closeTracer);
+        }
 
         if (logger.isTraceEnabled()) {
             toClose.add(() -> logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint()));
