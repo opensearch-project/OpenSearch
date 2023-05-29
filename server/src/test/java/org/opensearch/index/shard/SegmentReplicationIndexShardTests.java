@@ -841,7 +841,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     long replicationId,
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
-                    Store store,
+                    IndexShard indexShard,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
@@ -911,7 +911,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     long replicationId,
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
-                    Store store,
+                    IndexShard indexShard,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     Assert.fail("Should not be reached");
@@ -951,7 +951,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     long replicationId,
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
-                    Store store,
+                    IndexShard indexShard,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     // randomly resolve the listener, indicating the source has resolved.
@@ -993,7 +993,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     long replicationId,
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
-                    Store store,
+                    IndexShard indexShard,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {}
             };
