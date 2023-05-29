@@ -37,10 +37,9 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
          * @opensearch.internal
          */
         public static <W extends Writer<? extends BaseStreamOutput, ?>> void registerWriter(final Class<?> clazz, final W writer) {
-            if (WRITER_REGISTRY.containsKey(clazz)) {
+            if (WRITER_REGISTRY.putIfAbsent(clazz, writer) != null) {
                 throw new IllegalArgumentException("Streamable writer already registered for type [" + clazz.getName() + "]");
             }
-            WRITER_REGISTRY.put(clazz, writer);
         }
 
         /**
@@ -49,17 +48,15 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
          * @opensearch.internal
          */
         public static <R extends Reader<? extends BaseStreamInput, ?>> void registerReader(final byte ordinal, final R reader) {
-            if (READER_REGISTRY.containsKey(ordinal)) {
+            if (READER_REGISTRY.putIfAbsent(ordinal, reader) != null) {
                 throw new IllegalArgumentException("Streamable reader already registered for ordinal [" + (int) ordinal + "]");
             }
-            READER_REGISTRY.put(ordinal, reader);
         }
 
         public static void registerWriterCustomClass(final Class<?> classInstance, final Class<?> classGeneric) {
-            if (WRITER_CUSTOM_CLASS_MAP.containsKey(classInstance)) {
+            if (WRITER_CUSTOM_CLASS_MAP.putIfAbsent(classInstance, classGeneric) != null) {
                 throw new IllegalArgumentException("Streamable custom class already registered [" + classInstance.getClass() + "]");
             }
-            WRITER_CUSTOM_CLASS_MAP.put(classInstance, classGeneric);
         }
 
         /**
