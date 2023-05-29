@@ -325,6 +325,7 @@ public class RemoteRefreshSegmentTracker {
 
     void incrementRejectionCount(String rejectionReason) {
         rejectionCountMap.computeIfAbsent(rejectionReason, k -> new AtomicLong()).incrementAndGet();
+        incrementRejectionCount();
     }
 
     long getRejectionCount(String rejectionReason) {
