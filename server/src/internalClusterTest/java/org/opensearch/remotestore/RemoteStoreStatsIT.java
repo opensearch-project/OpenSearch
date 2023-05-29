@@ -12,7 +12,6 @@ import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 
@@ -20,6 +19,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
@@ -54,7 +54,9 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         // Step 2 - We find all the nodes that are present in the cluster. We make the remote store stats api call from
         // each of the node in the cluster and check that the response is coming as expected.
         ClusterState state = getClusterState();
-        List<String> nodes = state.nodes().getNodes().values().stream().map(DiscoveryNode::getName).collect(Collectors.toList());
+        List<String> nodes = StreamSupport.stream(state.nodes().getNodes().values().spliterator(), false)
+            .map(x -> x.value.getName())
+            .collect(Collectors.toList());
         String shardId = "0";
         for (String node : nodes) {
             RemoteStoreStatsResponse response = client(node).admin().cluster().prepareRemoteStoreStats(INDEX_NAME, shardId).get();
