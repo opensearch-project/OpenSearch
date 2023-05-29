@@ -22,12 +22,17 @@ import org.apache.logging.log4j.Logger;
  * will be written to a file. Tracing log file would be available in the logs directory.
  */
 public class FileSpanExporter implements SpanExporter {
-    public static final String TRACING_LOG_PREFIX = "tracing_log";
+    static final String TRACING_LOG_PREFIX = "tracing_log";
     private static final Logger TRACING_LOGGER = LogManager.getLogger(TRACING_LOG_PREFIX);
     private final Logger DEFAULT_LOGGER = LogManager.getLogger(FileSpanExporter.class);
     private final String FIELD_SEPARATOR = "\t";
 
     private final AtomicBoolean isShutdown = new AtomicBoolean();
+
+    /**
+     * No-args constructor
+     */
+    public FileSpanExporter() {}
 
     @Override
     public CompletableResultCode export(Collection<SpanData> spans) {
