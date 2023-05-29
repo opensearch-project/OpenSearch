@@ -79,7 +79,7 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
             if (value == null) {
                 throw new IllegalArgumentException("Attempting to retrieve a class type from a null value");
             }
-            // rip through registered classes; return the class iff 'value' is an instant
+            // rip through registered classes; return the class iff 'value' is an instance
             // we do it this way to cover inheritance and interfaces (e.g., joda DateTime is an instanceof
             // a ReadableInstant interface)
             for (final Class<?> clazz : WRITER_CUSTOM_CLASS_MAP.values()) {
