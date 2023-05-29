@@ -8,12 +8,19 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
 
@@ -38,6 +45,18 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
             () -> indexData(randomIntBetween(10, 20), randomBoolean())
         );
         assertTrue(ex.getMessage().contains("rejected execution on primary shard"));
+        String shardId = "0";
+        RemoteStoreStatsResponse response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, shardId).get();
+        final String indexShardId = String.format(Locale.ROOT, "[%s][%s]", INDEX_NAME, shardId);
+        List<RemoteStoreStats> matches = Arrays.stream(response.getShards())
+            .filter(stat -> indexShardId.equals(stat.getStats().shardId.toString()))
+            .collect(Collectors.toList());
+        assertEquals(1, matches.size());
+        RemoteRefreshSegmentTracker.Stats stats = matches.get(0).getStats();
+        assertTrue(stats.bytesLag > 0);
+        assertTrue(stats.refreshTimeLagMs > 0);
+        assertTrue(stats.localRefreshNumber - stats.remoteRefreshNumber > 0);
+        assertTrue(stats.rejectionCount > 0);
         deleteRepo();
     }
 }
