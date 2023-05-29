@@ -8,9 +8,24 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.identity.tokens.AuthToken;
+
+import java.io.IOException;
 
 /**
  * Noop implementation of an Auth Token
  */
-public class NoopAuthToken implements AuthToken {}
+public class NoopAuthToken extends AuthToken {
+    public static final String NAME = "noop_auth_token";
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+
+    }
+}

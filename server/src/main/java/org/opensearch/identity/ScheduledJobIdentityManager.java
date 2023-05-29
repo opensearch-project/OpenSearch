@@ -10,7 +10,8 @@ package org.opensearch.identity;
 
 import org.opensearch.identity.schedule.ScheduledJobOperator;
 import org.opensearch.identity.tokens.AuthToken;
-import org.opensearch.index.mapper.ParsedDocument;
+
+import java.util.Optional;
 
 /**
  * An interface with methods used to provide security for scheduled jobs
@@ -38,6 +39,7 @@ public interface ScheduledJobIdentityManager {
      * Method implemented by an identity plugin to issue an access token for a scheduler job runner
      * @param jobId The id of the scheduled job
      * @param indexName The index where scheduled job details is stored
+     * @param extensionUniqueId The unique id of an extension
      */
-    AuthToken issueAccessTokenOnBehalfOfUser(String jobId, String indexName);
+    AuthToken issueAccessTokenOnBehalfOfUser(String jobId, String indexName, Optional<String> extensionUniqueId);
 }

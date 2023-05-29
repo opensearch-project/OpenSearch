@@ -11,7 +11,8 @@ package org.opensearch.identity.noop;
 import org.opensearch.identity.ScheduledJobIdentityManager;
 import org.opensearch.identity.schedule.ScheduledJobOperator;
 import org.opensearch.identity.tokens.AuthToken;
-import org.opensearch.index.mapper.ParsedDocument;
+
+import java.util.Optional;
 
 /**
  * Implementation of subject that is always authenticated
@@ -32,7 +33,7 @@ public class NoopScheduledJobIdentityManager implements ScheduledJobIdentityMana
     }
 
     @Override
-    public AuthToken issueAccessTokenOnBehalfOfUser(String jobId, String indexName) {
+    public AuthToken issueAccessTokenOnBehalfOfUser(String jobId, String indexName, Optional<String> extensionUniqueId) {
         return new NoopAuthToken();
     }
 }

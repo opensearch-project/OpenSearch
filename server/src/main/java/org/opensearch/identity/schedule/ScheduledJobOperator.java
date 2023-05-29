@@ -58,4 +58,3 @@ public class ScheduledJobOperator implements ToXContentObject {
     }
 
 }
-

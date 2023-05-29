@@ -8,14 +8,17 @@
 
 package org.opensearch.identity.tokens;
 
+import org.opensearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 /**
  * Basic (Base64 encoded) Authentication Token in a http request header
  */
-public final class BasicAuthToken implements AuthToken {
-
+public final class BasicAuthToken extends AuthToken {
+    public static final String NAME = "basic_auth_token";
     public final static String TOKEN_IDENIFIER = "Basic";
 
     private String user;
@@ -40,5 +43,27 @@ public final class BasicAuthToken implements AuthToken {
 
     public String getPassword() {
         return password;
+    }
+
+    @Override
+    public TokenType getTokenType() {
+        return TokenType.BASIC;
+    }
+
+    @Override
+    public String getTokenValue() {
+        String usernamepassword = user + ":" + password;
+        return Base64.getEncoder().encodeToString(usernamepassword.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(this.user);
+        out.writeString(this.password);
     }
 }

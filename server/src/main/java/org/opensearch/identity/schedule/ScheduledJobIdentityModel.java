@@ -73,4 +73,3 @@ public class ScheduledJobIdentityModel implements ToXContentObject {
     }
 
 }
-

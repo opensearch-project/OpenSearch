@@ -43,7 +43,7 @@ public class ScheduledJobUserModel implements ToXContentObject {
         Map<String, String> attributes = new HashMap<>();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
-        while(!XContentParser.Token.END_OBJECT.equals(parser.nextToken())) {
+        while (!XContentParser.Token.END_OBJECT.equals(parser.nextToken())) {
             String fieldName = parser.currentName();
             parser.nextToken();
             switch (fieldName) {
@@ -57,8 +57,12 @@ public class ScheduledJobUserModel implements ToXContentObject {
             }
         }
 
-        return new ScheduledJobUserModel((String) Objects.requireNonNull(username, "username cannot be null"), (Map<String, String>)Objects.requireNonNull(attributes, "attributes cannot be null"));
+        return new ScheduledJobUserModel(
+            (String) Objects.requireNonNull(username, "username cannot be null"),
+            (Map<String, String>) Objects.requireNonNull(attributes, "attributes cannot be null")
+        );
     }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().field("username", this.username).field("attributes", this.attributes).endObject();

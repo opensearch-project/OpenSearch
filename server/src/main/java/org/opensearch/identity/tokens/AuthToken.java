@@ -8,11 +8,21 @@
 
 package org.opensearch.identity.tokens;
 
+import org.opensearch.common.io.stream.NamedWriteable;
+
 /**
  * Interface for all token formats to support to authenticate user such as UserName/Password tokens, Access tokens, and more.
  *
  * @opensearch.experimental
  */
-public interface AuthToken {
+public abstract class AuthToken implements NamedWriteable {
+
+    public TokenType getTokenType() {
+        return TokenType.NONE;
+    }
+
+    public String getTokenValue() {
+        return "";
+    }
 
 }
