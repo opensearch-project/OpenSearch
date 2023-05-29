@@ -14,6 +14,7 @@ import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeActi
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.PlainShardsIterator;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -89,14 +90,17 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
         }
         return new PlainShardsIterator(
             newShardRoutings.stream()
-                .filter(shardRouting -> remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardRouting.shardId()) != null)
                 .filter(
                     shardRouting -> !request.local()
                         || (shardRouting.currentNodeId() == null
                             || shardRouting.currentNodeId().equals(clusterState.getNodes().getLocalNodeId()))
                 )
                 .filter(ShardRouting::primary)
-                .filter(shardRouting -> indicesService.indexService(shardRouting.index()).getIndexSettings().isRemoteStoreEnabled())
+                .filter(
+                    shardRouting -> Boolean.parseBoolean(
+                        clusterState.getMetadata().index(shardRouting.index()).getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED)
+                    )
+                )
                 .collect(Collectors.toList())
         );
     }
