@@ -53,7 +53,7 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
             }
         }
 
-        public static void registerWriterCustomClass(final Class<?> classInstance, final Class<?> classGeneric) {
+        public static void registerClassAlias(final Class<?> classInstance, final Class<?> classGeneric) {
             if (WRITER_CUSTOM_CLASS_MAP.putIfAbsent(classInstance, classGeneric) != null) {
                 throw new IllegalArgumentException("Streamable custom class already registered [" + classInstance.getClass() + "]");
             }
@@ -75,7 +75,7 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
             return (R) READER_REGISTRY.get(b);
         }
 
-        public static Class<?> getCustomClassFromValue(final Object value) {
+        public static Class<?> getCustomClassFromInstance(final Object value) {
             if (value == null) {
                 throw new IllegalArgumentException("Attempting to retrieve a class type from a null value");
             }

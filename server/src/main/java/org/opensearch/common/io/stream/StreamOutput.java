@@ -787,7 +787,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
     }
 
     private static Class<?> getGenericType(Object value) {
-        Class<?> registeredClass = Writeable.WriteableRegistry.getCustomClassFromValue(value);
+        Class<?> registeredClass = Writeable.WriteableRegistry.getCustomClassFromInstance(value);
         if (registeredClass != null) {
             return registeredClass;
         } else if (value instanceof List) {

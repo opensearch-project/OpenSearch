@@ -53,7 +53,7 @@ public final class Streamables {
             o.writeString(instant.getZone().getID());
             o.writeLong(instant.getMillis());
         });
-        WriteableRegistry.registerWriterCustomClass(ReadableInstant.class, ReadableInstant.class);
+        WriteableRegistry.registerClassAlias(ReadableInstant.class, ReadableInstant.class);
         /** {@link JodaCompatibleZonedDateTime} */
         WriteableRegistry.<BaseWriteable.Writer<StreamOutput, ?>>registerWriter(JodaCompatibleZonedDateTime.class, (o, v) -> {
             // write the joda compatibility datetime as joda datetime
