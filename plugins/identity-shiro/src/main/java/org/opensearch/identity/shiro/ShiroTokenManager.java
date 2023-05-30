@@ -134,7 +134,7 @@ class ShiroTokenManager implements TokenManager {
         return password;
     }
 
-Map<BasicAuthToken, String> getShiroTokenPasswordMap() {
+    Map<BasicAuthToken, String> getShiroTokenPasswordMap() {
         return shiroTokenPasswordMap;
     }
 
