@@ -5,8 +5,9 @@ on:
   push:
       branches:
         - main
-        - '[0-9]+.[0-9]+'
-        - '[0-9]+.x'
+        - 1.3
+        - 2.x
+        - 2.8
 
 jobs:
   build-and-publish-snapshots:
