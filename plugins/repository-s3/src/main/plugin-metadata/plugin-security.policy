@@ -55,7 +55,7 @@ grant {
   permission java.net.NetPermission "setDefaultAuthenticator";
 
   permission java.util.PropertyPermission "aws.sharedCredentialsFile", "read,write";
-  permission java.util.PropertyPermission "aws.configFile", "read";
+  permission java.util.PropertyPermission "aws.configFile", "read,write";
   permission java.util.PropertyPermission "opensearch.path.conf", "read";
   permission java.io.FilePermission "config", "read";
 };
