@@ -31,11 +31,11 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     }
 
     /**
-     * Get a new NoopTokenHandler
+     * Get a new NoopTokenManager
      * @return Must never return null
      */
     @Override
     public TokenManager getTokenManager() {
-        return new NoopTokenHandler();
+        return new NoopTokenManager();
     }
 }

@@ -27,7 +27,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     private Logger log = LogManager.getLogger(this.getClass());
 
     private final Settings settings;
-    private final ShiroTokenHandler authTokenHandler;
+    private final ShiroTokenManager authTokenHandler;
 
     /**
      * Create a new instance of the Shiro Identity Plugin
@@ -36,7 +36,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
      */
     public ShiroIdentityPlugin(final Settings settings) {
         this.settings = settings;
-        authTokenHandler = new ShiroTokenHandler();
+        authTokenHandler = new ShiroTokenManager();
 
         SecurityManager securityManager = new ShiroSecurityManager();
         SecurityUtils.setSecurityManager(securityManager);

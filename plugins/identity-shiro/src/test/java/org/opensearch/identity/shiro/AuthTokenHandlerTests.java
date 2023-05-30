@@ -8,33 +8,35 @@
 
 package org.opensearch.identity.shiro;
 
+import java.util.Optional;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
-import org.opensearch.OpenSearchException;
-import org.opensearch.identity.noop.NoopTokenHandler;
+import org.junit.Before;
+import org.opensearch.identity.noop.NoopTokenManager;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.BearerAuthToken;
-import org.opensearch.identity.tokens.NoopToken;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
-
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.instanceOf;
+import org.passay.CharacterCharacteristicsRule;
+import org.passay.CharacterRule;
+import org.passay.EnglishCharacterData;
+import org.passay.LengthRule;
+import org.passay.PasswordData;
+import org.passay.PasswordValidator;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-
-import java.util.Optional;
 
 public class AuthTokenHandlerTests extends OpenSearchTestCase {
 
-    private ShiroTokenHandler shiroAuthTokenHandler;
-    private NoopTokenHandler noopTokenHandler;
+    private ShiroTokenManager shiroAuthTokenHandler;
+    private NoopTokenManager noopTokenManager;
 
     @Before
     public void testSetup() {
-        shiroAuthTokenHandler = new ShiroTokenHandler();
-        noopTokenHandler = new NoopTokenHandler();
+        shiroAuthTokenHandler = new ShiroTokenManager();
+        noopTokenManager = new NoopTokenManager();
     }
 
     public void testShouldExtractBasicAuthTokenSuccessfully() {
@@ -82,51 +84,45 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
     }
 
     public void testShouldFailWhenRevokeToken() {
-        final NoopToken authToken = new NoopToken();
-        assert (authToken.getTokenIdentifier().equals("Noop"));
-        assertThrows(UnsupportedAuthenticationToken.class, () -> shiroAuthTokenHandler.revokeToken(authToken));
+        final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
+        assert (bearerAuthToken.getTokenIdentifier().equals("Bearer"));
+        assertThrows(UnsupportedAuthenticationToken.class, () -> shiroAuthTokenHandler.revokeToken(bearerAuthToken));
     }
 
     public void testShouldGetTokenInfoSuccessfully() {
         final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
         assert (authToken.toString().equals(shiroAuthTokenHandler.getTokenInfo(authToken)));
-        final NoopToken noopAuthToken = new NoopToken();
-        assert (noopTokenHandler.getTokenInfo(noopAuthToken).equals("Token is NoopToken"));
-        assert (noopTokenHandler.getTokenInfo(authToken).equals("Token is not a NoopToken"));
+        final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
+        assert (noopTokenManager.getTokenInfo(authToken).equals("Token is of type: " + authToken.getClass()));
+        assert (noopTokenManager.getTokenInfo(bearerAuthToken).equals("Token is of type: " + bearerAuthToken.getClass()));
     }
 
     public void testShouldFailGetTokenInfo() {
-        final NoopToken authToken = new NoopToken();
-        assert (authToken.getTokenIdentifier().equals("Noop"));
-        assertThrows(UnsupportedAuthenticationToken.class, () -> shiroAuthTokenHandler.getTokenInfo(authToken));
+        final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
+        assert (bearerAuthToken.getTokenIdentifier().equals("Bearer"));
+        assertThrows(UnsupportedAuthenticationToken.class, () -> shiroAuthTokenHandler.getTokenInfo(bearerAuthToken));
     }
 
     public void testShouldFailValidateToken() {
-        final AuthToken authToken = new NoopToken();
-        assertFalse(shiroAuthTokenHandler.validateToken(authToken));
-        final AuthToken authToken1 = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
-        assertFalse(noopTokenHandler.validateToken(authToken1));
+        final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
+        assertFalse(shiroAuthTokenHandler.validateToken(bearerAuthToken));
+    }
+
+    public void testShoudPassMapLookupWithToken() {
+        final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
+        shiroAuthTokenHandler.getShiroTokenPasswordMap().put(authToken, "te:st");
+        assertTrue(authToken.getPassword().equals(shiroAuthTokenHandler.getShiroTokenPasswordMap().get(authToken)));
     }
 
     public void testShouldPassThrougbResetToken(AuthToken token) {
-        NoopToken authToken = new NoopToken();
-        shiroAuthTokenHandler.resetToken(authToken);
-    }
-
-    public void testShouldGenerateDefaultPassword() {
-        assertTrue(shiroAuthTokenHandler.generatePassword().equals("superSecurePassword1!"));
+        final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
+        shiroAuthTokenHandler.resetToken(bearerAuthToken);
     }
 
     public void testShouldPassThrough() {
-        final NoopToken authToken = new NoopToken();
-        noopTokenHandler.resetToken(authToken);
-        noopTokenHandler.revokeToken(authToken);
-    }
-
-    public void testShouldFailPassThrough() {
-        BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
-        assertThrows(OpenSearchException.class, () -> noopTokenHandler.resetToken(authToken));
-        assertThrows(OpenSearchException.class, () -> noopTokenHandler.revokeToken(authToken));
+        final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
+        noopTokenManager.resetToken(bearerAuthToken);
+        noopTokenManager.revokeToken(bearerAuthToken);
     }
 
     public void testVerifyBearerTokenObject() {
@@ -139,6 +135,27 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         assertEquals(testGoodToken.getPayload(), "payload");
         assertEquals(testGoodToken.getSignature(), "signature");
         assertEquals(testGoodToken.toString(), "Bearer auth token with header=header, payload=payload, signature=signature");
+    }
+
+    public void testGeneratedPasswordContents() {
+        String password = shiroAuthTokenHandler.generatePassword();
+        PasswordData data = new PasswordData(password);
+
+        LengthRule lengthRule = new LengthRule(8, 16);
+
+        CharacterCharacteristicsRule characteristicsRule = new CharacterCharacteristicsRule();
+
+        // Define M (3 in this case)
+        characteristicsRule.setNumberOfCharacteristics(3);
+
+        // Define elements of N (upper, lower, digit, symbol)
+        characteristicsRule.getRules().add(new CharacterRule(EnglishCharacterData.UpperCase, 1));
+        characteristicsRule.getRules().add(new CharacterRule(EnglishCharacterData.LowerCase, 1));
+        characteristicsRule.getRules().add(new CharacterRule(EnglishCharacterData.Digit, 1));
+        characteristicsRule.getRules().add(new CharacterRule(EnglishCharacterData.Special, 1));
+
+        PasswordValidator validator = new PasswordValidator(lengthRule, characteristicsRule);
+        validator.validate(data);
     }
 
 }

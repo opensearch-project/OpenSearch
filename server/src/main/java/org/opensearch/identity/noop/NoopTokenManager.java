@@ -10,16 +10,14 @@ package org.opensearch.identity.noop;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.OpenSearchException;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.tokens.AuthToken;
-import org.opensearch.identity.tokens.NoopToken;
 import org.opensearch.identity.tokens.TokenManager;
 
 /**
  * This class represents a Noop Token Manager
  */
-public class NoopTokenHandler implements TokenManager {
+public class NoopTokenManager implements TokenManager {
 
     private static final Logger log = LogManager.getLogger(IdentityService.class);
 
@@ -29,33 +27,29 @@ public class NoopTokenHandler implements TokenManager {
      */
     @Override
     public AuthToken issueToken() {
-        return new NoopToken();
+        return new AuthToken() {
+        };
     }
 
     /**
      * Validate a token
      * @param token The token to be validated
-     * @return If the token is a Noop Token, then pass with True; otherwise fail with False.
+     * @return true
      */
     @Override
     public boolean validateToken(AuthToken token) {
-        if (token instanceof NoopToken) {
-            return true;
-        }
-        return false;
+        log.info("Validating a token with NoopTokenManager");
+        return true;
     }
 
     /**
-     * Get token info, there should not be any token info so just return whether the token is a NoopToken
+     * Get token class
      * @param token The auth token to be parsed
-     * @return A String stating the token is a NoopToken or is not a NopToken
+     * @return A description of the token's type
      */
     @Override
     public String getTokenInfo(AuthToken token) {
-        if (token instanceof NoopToken) {
-            return "Token is NoopToken";
-        }
-        return "Token is not a NoopToken";
+        return "Token is of type: " + token.getClass();
     }
 
     /**
@@ -64,11 +58,8 @@ public class NoopTokenHandler implements TokenManager {
      */
     @Override
     public void revokeToken(AuthToken token) {
-        if (token instanceof NoopToken) {
-            log.info("Revoke operation is not supported for NoopTokens");
-            return;
-        }
-        throw new OpenSearchException("Token is not a NoopToken");
+        log.info("Revoke operation is not supported for NoopTokens");
+        return;
     }
 
     /**
@@ -77,10 +68,7 @@ public class NoopTokenHandler implements TokenManager {
      */
     @Override
     public void resetToken(AuthToken token) {
-        if (token instanceof NoopToken) {
-            log.info("Reset operation is not supported for NoopTokens");
-            return;
-        }
-        throw new OpenSearchException("Token is not a NoopToken");
+        log.info("Reset operation is not supported for NoopTokens");
+        return;
     }
 }

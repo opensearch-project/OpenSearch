@@ -25,7 +25,7 @@ public class ShiroIdentityPluginTests extends OpenSearchTestCase {
         IdentityPlugin identityPlugin1 = new ShiroIdentityPlugin(Settings.EMPTY);
         List<IdentityPlugin> pluginList1 = List.of(identityPlugin1);
         IdentityService identityService1 = new IdentityService(Settings.EMPTY, pluginList1);
-        assertThat(identityService1.getTokenManager(), is(instanceOf(ShiroTokenHandler.class)));
+        assertThat(identityService1.getTokenManager(), is(instanceOf(ShiroTokenManager.class)));
     }
 
     public void testMultipleIdentityPluginsFail() {

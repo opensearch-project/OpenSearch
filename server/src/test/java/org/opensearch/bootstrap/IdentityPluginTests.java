@@ -13,7 +13,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
-import org.opensearch.identity.noop.NoopTokenHandler;
+import org.opensearch.identity.noop.NoopTokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import static org.hamcrest.Matchers.instanceOf;
@@ -26,7 +26,7 @@ public class IdentityPluginTests extends OpenSearchTestCase {
         List<IdentityPlugin> pluginList1 = List.of(identityPlugin1);
         IdentityService identityService1 = new IdentityService(Settings.EMPTY, pluginList1);
         assertTrue(identityService1.getSubject().getPrincipal().getName().equalsIgnoreCase("Unauthenticated"));
-        assertThat(identityService1.getTokenManager(), is(instanceOf(NoopTokenHandler.class)));
+        assertThat(identityService1.getTokenManager(), is(instanceOf(NoopTokenManager.class)));
     }
 
     public void testMultipleIdentityPluginsFail() {

@@ -8,16 +8,27 @@
 
 package org.opensearch.identity.shiro;
 
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-
+import java.util.Random;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
+import org.opensearch.common.Randomness;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.TokenManager;
+import org.passay.CharacterRule;
+import org.passay.EnglishCharacterData;
+import org.passay.PasswordGenerator;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
@@ -25,7 +36,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  *
  * @opensearch.experimental
  */
-class ShiroTokenHandler implements TokenManager {
+class ShiroTokenManager implements TokenManager {
+
+    private static final Logger log = LogManager.getLogger(IdentityService.class);
+
+    private static Map<BasicAuthToken, String> shiroTokenPasswordMap = new HashMap<>();
 
     /**
      * Translates into shiro auth token from the given header token
@@ -45,20 +60,22 @@ class ShiroTokenHandler implements TokenManager {
     public AuthToken issueToken() {
 
         Subject subject = new ShiroSubject(this, SecurityUtils.getSubject());
-        final byte[] rawEncoded = Base64.getEncoder().encode((subject.getPrincipal().getName() + ":" + generatePassword()).getBytes(UTF_8));
+        String password = generatePassword();
+        final byte[] rawEncoded = Base64.getEncoder().encode((subject.getPrincipal().getName() + ":" + password).getBytes(UTF_8));
         final String usernamePassword = new String(rawEncoded, UTF_8);
         final String header = "Basic " + usernamePassword;
+        BasicAuthToken token = new BasicAuthToken(header);
+        shiroTokenPasswordMap.put(token, password);
 
-        return new BasicAuthToken(header);
+        return token;
     }
 
     @Override
     public boolean validateToken(AuthToken token) {
         if (token instanceof BasicAuthToken) {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) token;
-            if (basicAuthToken.getUser().equals(SecurityUtils.getSubject()) && basicAuthToken.getPassword().equals(generatePassword())) {
-                return true;
-            }
+            return basicAuthToken.getUser().equals(SecurityUtils.getSubject().toString())
+                && basicAuthToken.getPassword().equals(shiroTokenPasswordMap.get(basicAuthToken));
         }
         return false;
     }
@@ -90,8 +107,35 @@ class ShiroTokenHandler implements TokenManager {
         }
     }
 
+    /**
+     * When the ShiroTokenManager is in use, a random password is generated for each token and is then output to the logs.
+     * The password is used for development only.
+     * @return A randomly generated password for development
+     */
     public String generatePassword() {
-        return "superSecurePassword1!";
+
+        CharacterRule lowercaseCharacterRule = new CharacterRule(EnglishCharacterData.LowerCase, 1);
+        CharacterRule uppercaseCharacterRule = new CharacterRule(EnglishCharacterData.UpperCase, 1);
+        CharacterRule numericCharacterRule = new CharacterRule(EnglishCharacterData.Digit, 1);
+        CharacterRule specialCharacterRule = new CharacterRule(EnglishCharacterData.Special, 1);
+
+        List<CharacterRule> rules = Arrays.asList(
+            lowercaseCharacterRule,
+            uppercaseCharacterRule,
+            numericCharacterRule,
+            specialCharacterRule
+        );
+        PasswordGenerator passwordGenerator = new PasswordGenerator();
+
+        Random random = Randomness.get();
+
+        String password = passwordGenerator.generatePassword(random.nextInt(8) + 8, rules); // Generate a 8 to 16 char password
+        log.info("Generated password: " + password);
+        return password;
+    }
+
+    public Map<BasicAuthToken, String> getShiroTokenPasswordMap() {
+        return shiroTokenPasswordMap;
     }
 
 }
