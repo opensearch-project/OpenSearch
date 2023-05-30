@@ -516,7 +516,7 @@ public abstract class BaseStreamTests extends OpenSearchTestCase {
     }
 
     public void testInetSocketAddress() throws IOException {
-        InetSocketAddress toWrite = new InetSocketAddress(InetAddress.getLocalHost(), 80);
+        InetSocketAddress toWrite = new InetSocketAddress(InetAddress.getLoopbackAddress(), 80);
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeGenericValue(toWrite);
         assertEquals(toWrite, getStreamInput(out.bytes()).readGenericValue());

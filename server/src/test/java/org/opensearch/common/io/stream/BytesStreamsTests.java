@@ -313,7 +313,7 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         float[] floatArray = { 1.1f, 2.2f, 3.3f };
         out.writeGenericValue(floatArray);
         double[] doubleArray = { 1.1, 2.2, 3.3 };
-        InetSocketAddress inetSocketAddress = new InetSocketAddress(InetAddress.getLocalHost(), 80);
+        InetSocketAddress inetSocketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 80);
         out.writeGenericValue(doubleArray);
         out.writeString("hello");
         out.writeString("goodbye");
