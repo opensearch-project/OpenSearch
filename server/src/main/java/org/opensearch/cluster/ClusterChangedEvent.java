@@ -208,6 +208,18 @@ public class ClusterChangedEvent {
     }
 
     /**
+     * Returns <code>true</code> if a version upgrade has taken place in the cluster
+     */
+    public boolean clusterUpgraded() {
+        // previous state was mixed version cluster and current state is not - which indicates upgrade is completed
+        if ((previousState.nodes().getMinNodeVersion() != previousState.nodes().getMaxNodeVersion())
+            && (state.nodes().getMinNodeVersion() == state.nodes().getMaxNodeVersion())) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Returns <code>true</code> iff the local node is the mater node of the cluster.
      */
     public boolean localNodeClusterManager() {

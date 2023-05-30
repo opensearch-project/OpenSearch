@@ -174,21 +174,19 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 }
             }
         }
-        if (event.nodesChanged()) {
+        if (event.clusterUpgraded()) {
             List<IndexShard> indexShardList = new ArrayList<>();
             DiscoveryNodes nodes = event.state().nodes();
-            if (nodes.getMinNodeVersion().equals(nodes.getMaxNodeVersion())) {
-                for (IndexService indexService : indicesService) {
-                    if (indexService.getIndexSettings().isSegRepEnabled() && (indexService.getIndexSettings().getNumberOfReplicas() > 0)) {
-                        for (IndexShard indexShard : indexService) {
-                            try {
-                                if (indexShard.routingEntry().primary()
-                                    && (indexShard.getEngine().config().getClusterMinVersion() != nodes.getMaxNodeVersion())) {
-                                    indexShardList.add(indexShard);
-                                }
-                            } catch (AlreadyClosedException e) {
-                                logger.warn("Index shard [{}] engine is already closed.", indexShard.shardId());
+            for (IndexService indexService : indicesService) {
+                if (indexService.getIndexSettings().isSegRepEnabled() && (indexService.getIndexSettings().getNumberOfReplicas() > 0)) {
+                    for (IndexShard indexShard : indexService) {
+                        try {
+                            if (indexShard.routingEntry().primary()
+                                && (indexShard.getEngine().config().getClusterMinVersion() != nodes.getMaxNodeVersion())) {
+                                indexShardList.add(indexShard);
                             }
+                        } catch (AlreadyClosedException e) {
+                            logger.warn("Index shard [{}] engine is already closed.", indexShard.shardId());
                         }
                     }
                 }

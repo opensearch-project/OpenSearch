@@ -228,7 +228,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 }
             }
             final Thread thread = Thread.currentThread();
-            Version localNodeVersion = indicesService.clusterService().state().nodes().getLocalNode().getVersion();
+            Version localNodeVersion = Version.CURRENT;
             // if replica's OS version is not on or after primary version, then can ignore checkpoint
             if (localNodeVersion.onOrAfter(receivedCheckpoint.getMinVersion()) == false) {
                 logger.trace(

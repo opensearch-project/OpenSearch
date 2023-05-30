@@ -41,6 +41,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.index.mapper.MapperService;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -60,7 +61,8 @@ public class CodecService {
     public static final String BEST_COMPRESSION_CODEC = "best_compression";
     /** the raw unfiltered lucene default. useful for testing */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
-    public static Map<Version, String> opensearchVersionToLuceneCodec = new HashMap<>();
+    static Map<Version, String> versionStringMap = new HashMap<>();
+    public static Map<Version, String> opensearchVersionToLuceneCodec;
 
     public CodecService(@Nullable MapperService mapperService, Logger logger) {
         loadMap();
@@ -80,10 +82,11 @@ public class CodecService {
     }
 
     public void loadMap() {
-        opensearchVersionToLuceneCodec.put(Version.fromString("3.0.0"), "Lucene95");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.8.0"), "Lucene95");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.7.1"), "Lucene95");
-        opensearchVersionToLuceneCodec.put(Version.fromString("2.7.0"), "Lucene95");
+        versionStringMap.put(Version.fromString("3.0.0"), "Lucene95");
+        versionStringMap.put(Version.fromString("2.8.0"), "Lucene95");
+        versionStringMap.put(Version.fromString("2.7.1"), "Lucene95");
+        versionStringMap.put(Version.fromString("2.7.0"), "Lucene95");
+        opensearchVersionToLuceneCodec = Collections.unmodifiableMap(new HashMap<>(versionStringMap));
     }
 
     public Codec codec(String name) {

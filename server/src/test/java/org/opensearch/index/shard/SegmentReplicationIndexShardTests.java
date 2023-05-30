@@ -335,13 +335,16 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         closeShards(primaryShard);
     }
 
+    /**
+     * Cluster version check in onNewCheckpoint method should pass when replica version is the same as the received checkpoint version.
+     */
     public void testClusterVersionCheckOnNewCheckpointSameVersion() throws Exception {
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory(clusterService))) {
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             IndexShard replica = shards.getReplicas().get(0);
             SegmentReplicationTargetService sut;
-            sut = prepareForReplication(primary, replica);
+            sut = prepareForReplication(primary, replica, mock(TransportService.class), mock(IndicesService.class));
             SegmentReplicationTargetService spy = spy(sut);
             IndexShard spyShard = spy(replica);
             ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(replica.shardId(), 0L, 0L, 0L, replica.getDefaultCodecName());
@@ -351,13 +354,16 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
+    /**
+     * Cluster version check in onNewCheckpoint method should pass when replica version is ahead of the received checkpoint version.
+     */
     public void testClusterVersionCheckOnNewCheckpointAheadVersion() throws Exception {
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory(clusterService))) {
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             IndexShard replica = shards.getReplicas().get(0);
             SegmentReplicationTargetService sut;
-            sut = prepareForReplication(primary, replica);
+            sut = prepareForReplication(primary, replica, mock(TransportService.class), mock(IndicesService.class));
             SegmentReplicationTargetService spy = spy(sut);
             IndexShard spyShard = spy(replica);
             ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
@@ -367,11 +373,38 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 0L,
                 0L,
                 replica.getDefaultCodecName(),
-                Version.V_2_7_0
+                Version.fromId(Version.CURRENT.id - 1)
             );
             spy.onNewCheckpoint(checkpoint, spyShard);
             // passed the cluster version check and moved on to shouldProcessCheckpoint
             verify(spyShard, times(1)).shouldProcessCheckpoint(checkpoint);
+        }
+    }
+
+    /**
+     * Cluster version check in onNewCheckpoint method should fail when replica version is behind the received checkpoint version.
+     */
+    public void testClusterVersionCheckFailOnNewCheckpointBehindVersion() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory(clusterService))) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            IndexShard replica = shards.getReplicas().get(0);
+            SegmentReplicationTargetService sut;
+            sut = prepareForReplication(primary, replica, mock(TransportService.class), mock(IndicesService.class));
+            SegmentReplicationTargetService spy = spy(sut);
+            IndexShard spyShard = spy(replica);
+            ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+                replica.shardId(),
+                0L,
+                0L,
+                0L,
+                0L,
+                replica.getDefaultCodecName(),
+                Version.fromId(Version.CURRENT.id + 1)
+            );
+            spy.onNewCheckpoint(checkpoint, spyShard);
+            // did not pass the version check and returned before shouldProcessCheckpoint method
+            verify(spyShard, times(0)).shouldProcessCheckpoint(checkpoint);
         }
     }
 
