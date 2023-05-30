@@ -401,7 +401,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
         } catch (Exception e) {
             originalListener.onFailure(e);
-            throw new RuntimeException(e);
+            return;
         }
 
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {

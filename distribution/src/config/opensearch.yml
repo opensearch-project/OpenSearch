@@ -102,10 +102,9 @@ ${path.logs}
 #
 # ---------------------------------- Experimental Features -----------------------------------
 #
-# Gates the visibility of the index setting that allows changing of replication type.
-# Once the feature is ready for production release, this feature flag can be removed.
+# Gates the visibility of the experimental segment replication features until they are production ready.
 #
-#opensearch.experimental.feature.replication_type.enabled: false
+#opensearch.experimental.feature.segment_replication_experimental.enabled: false
 #
 #
 # Gates the visibility of the index setting that allows persisting data to remote store along with local disk.

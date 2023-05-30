@@ -133,6 +133,11 @@ public class Setting<T> implements ToXContentObject {
         Deprecated,
 
         /**
+         * Extension scope
+         */
+        ExtensionScope,
+
+        /**
          * Node scope
          */
         NodeScope,
