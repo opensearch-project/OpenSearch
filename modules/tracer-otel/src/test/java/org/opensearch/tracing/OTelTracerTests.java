@@ -9,6 +9,9 @@
 package org.opensearch.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.AttributeType;
+import io.opentelemetry.api.internal.InternalAttributeKeyImpl;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.Tracer;
@@ -28,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.spy;
@@ -100,6 +104,27 @@ public class OTelTracerTests extends OpenSearchTestCase {
         verify(mockOtelSpan, times(4)).end();
     }
 
+    public void testAddAttribute() {
+        OTelTracer tracer = new OTelTracer(openTelemetry, threadPool, tracerSettings);
+
+        tracer.startSpan("foo", Level.INFO);
+        tracer.addSpanAttribute("stringKey", "value");
+        tracer.addSpanAttribute("longKey", 1L);
+        tracer.addSpanAttribute("doubleKey", 1.0);
+        tracer.addSpanAttribute("booleanKey", true);
+        tracer.endSpan();
+        ArgumentCaptor<AttributeKey<String>> stringKeyCaptorValues = ArgumentCaptor.forClass(AttributeKey.class);
+        ArgumentCaptor<String> stringValueCaptorValues = ArgumentCaptor.forClass(String.class);
+
+        // 6 other default string attributes are added
+        verify(mockOtelSpan, times(1 + 6)).setAttribute(stringKeyCaptorValues.capture(), stringValueCaptorValues.capture());
+        verify(mockOtelSpan).setAttribute(eq(InternalAttributeKeyImpl.create("longKey", AttributeType.LONG)), eq(1L));
+        verify(mockOtelSpan).setAttribute(eq(InternalAttributeKeyImpl.create("doubleKey", AttributeType.DOUBLE)), eq(1.0));
+        verify(mockOtelSpan).setAttribute(eq(InternalAttributeKeyImpl.create("booleanKey", AttributeType.BOOLEAN)), eq(true));
+
+        assertTrue(stringValueCaptorValues.getAllValues().contains("value"));
+    }
+
     public void testAddEvent() {
         ArgumentCaptor<String> stringCaptorValues = ArgumentCaptor.forClass(String.class);
 
@@ -129,7 +154,10 @@ public class OTelTracerTests extends OpenSearchTestCase {
         captor = ArgumentCaptor.forClass(OTelSpan.class);
         mockSpanBuilder = mock(SpanBuilder.class);
         mockOtelSpan = mock(io.opentelemetry.api.trace.Span.class);
-        when(mockOtelSpan.getSpanContext()).thenReturn(mock(SpanContext.class));
+        SpanContext mockSpanContext = mock(SpanContext.class);
+        when(mockSpanContext.getSpanId()).thenReturn("span_id");
+        when(mockSpanContext.getTraceId()).thenReturn("trace_id");
+        when(mockOtelSpan.getSpanContext()).thenReturn(mockSpanContext);
         when(mockSpanBuilder.startSpan()).thenReturn(mockOtelSpan);
         when(mockSpanBuilder.setParent(any())).thenReturn(mockSpanBuilder);
         when(mockTracer.spanBuilder(any(String.class))).thenReturn(mockSpanBuilder);

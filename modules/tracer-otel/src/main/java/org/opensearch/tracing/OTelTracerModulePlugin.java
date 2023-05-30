@@ -26,7 +26,7 @@ import static org.opensearch.common.util.FeatureFlags.TRACER;
  */
 public class OTelTracerModulePlugin extends Plugin implements TracerPlugin {
 
-    private static final String OTEL_TRACER_NAME = "otel";
+    static final String OTEL_TRACER_NAME = "otel";
 
     /**
      * No-args constructor

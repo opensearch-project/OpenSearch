@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.tracing.noop.NoopTracer;
+import org.opensearch.tracing.noop.NoopTracerHeaderInjector;
 
 import java.util.HashSet;
 import java.util.List;
@@ -57,6 +58,15 @@ public class TracerManagerTests extends OpenSearchTestCase {
         Tracer tracer = TracerManager.getTracer();
         assertFalse(tracer instanceof NoopTracer);
 
+    }
+
+    public void testGetTracerWithTracingDisabledReturnsNoopHeaderInjector() {
+        Settings settings = Settings.builder().put(TracerSettings.TRACER_LEVEL_SETTING.getKey(), Level.DISABLED).build();
+        TracerSettings tracerSettings = new TracerSettings(settings, new ClusterSettings(settings, getClusterSettings()));
+        TracerManager.initTracerManager(tracerSettings, null, null);
+
+        TracerHeaderInjector tracerHeaderInjector = TracerManager.getTracerHeaderInjector();
+        assertTrue(tracerHeaderInjector instanceof NoopTracerHeaderInjector);
     }
 
     private Set<Setting<?>> getClusterSettings() {
