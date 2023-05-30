@@ -9,7 +9,7 @@
 package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.RetryableAction;
@@ -127,10 +127,10 @@ public final class RetryableTransportClient {
         if (e instanceof ConnectTransportException) {
             return true;
         } else if (e instanceof SendRequestTransportException) {
-            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            final Throwable cause = BaseExceptionsHelper.unwrapCause(e);
             return cause instanceof ConnectTransportException;
         } else if (e instanceof RemoteTransportException) {
-            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            final Throwable cause = BaseExceptionsHelper.unwrapCause(e);
             return cause instanceof CircuitBreakingException || cause instanceof OpenSearchRejectedExecutionException;
         }
         return false;

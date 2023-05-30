@@ -133,6 +133,7 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.threadpool.Scheduler.Cancellable;
@@ -1525,7 +1526,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final boolean aliasFilterCanMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
                 FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
                 MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                final boolean canMatch;
+                boolean canMatch;
                 if (canRewriteToMatchNone(request.source())) {
                     QueryBuilder queryBuilder = request.source().query();
                     canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
@@ -1533,9 +1534,42 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // null query means match_all
                     canMatch = aliasFilterCanMatch;
                 }
+                final FieldDoc searchAfterFieldDoc = getSearchAfterFieldDoc(request, context);
+                canMatch = canMatch && canMatchSearchAfter(searchAfterFieldDoc, minMax, sortBuilder);
+
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
         }
+    }
+
+    public static boolean canMatchSearchAfter(FieldDoc searchAfter, MinAndMax<?> minMax, FieldSortBuilder primarySortField) {
+        if (searchAfter != null && minMax != null && primarySortField != null) {
+            final Object searchAfterPrimary = searchAfter.fields[0];
+            if (primarySortField.order() == SortOrder.DESC) {
+                if (minMax.compareMin(searchAfterPrimary) > 0) {
+                    // In Desc order, if segment/shard minimum is gt search_after, the segment/shard won't be competitive
+                    return false;
+                }
+            } else {
+                if (minMax.compareMax(searchAfterPrimary) < 0) {
+                    // In ASC order, if segment/shard maximum is lt search_after, the segment/shard won't be competitive
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static FieldDoc getSearchAfterFieldDoc(ShardSearchRequest request, QueryShardContext context) throws IOException {
+        if (context != null && request != null && request.source() != null && request.source().sorts() != null) {
+            final List<SortBuilder<?>> sorts = request.source().sorts();
+            final Object[] searchAfter = request.source().searchAfter();
+            final Optional<SortAndFormats> sortOpt = SortBuilder.buildSort(sorts, context);
+            if (sortOpt.isPresent() && !CollectionUtils.isEmpty(searchAfter)) {
+                return SearchAfterBuilder.buildFieldDoc(sortOpt.get(), searchAfter);
+            }
+        }
+        return null;
     }
 
     /**

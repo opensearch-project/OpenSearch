@@ -34,10 +34,10 @@ package org.opensearch.discovery.ec2;
 
 import com.sun.net.httpserver.HttpServer;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 

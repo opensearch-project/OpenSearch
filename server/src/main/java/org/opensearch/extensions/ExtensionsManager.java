@@ -11,15 +11,16 @@ package org.opensearch.extensions;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -33,11 +34,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -57,12 +59,6 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
-import org.opensearch.index.IndexModule;
-import org.opensearch.index.IndexService;
-import org.opensearch.index.IndicesModuleRequest;
-import org.opensearch.index.IndicesModuleResponse;
-import org.opensearch.index.shard.IndexEventListener;
-import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
@@ -79,8 +75,6 @@ import org.opensearch.env.EnvironmentSettingsResponse;
  */
 public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
-    public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
-    public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
     public static final String REQUEST_EXTENSION_ENVIRONMENT_SETTINGS = "internal:discovery/enviornmentsettings";
@@ -108,12 +102,14 @@ public class ExtensionsManager {
 
     private final Path extensionsPath;
     private ExtensionTransportActionsHandler extensionTransportActionsHandler;
+    private Map<String, Extension> extensionSettingsMap;
     private Map<String, DiscoveryExtensionNode> initializedExtensions;
     private Map<String, DiscoveryExtensionNode> extensionIdMap;
     private RestActionsRequestHandler restActionsRequestHandler;
     private CustomSettingsRequestHandler customSettingsRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
+    private final Set<Setting<?>> additionalSettings;
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
@@ -122,16 +118,23 @@ public class ExtensionsManager {
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
      *
      * @param extensionsPath  Path to a directory containing extensions.
+     * @param additionalSettings  Additional settings to read in from extensions.yml
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
-    public ExtensionsManager(Path extensionsPath) throws IOException {
+    public ExtensionsManager(Path extensionsPath, Set<Setting<?>> additionalSettings) throws IOException {
         logger.info("ExtensionsManager initialized");
         this.extensionsPath = extensionsPath;
         this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
+        this.extensionSettingsMap = new HashMap<String, Extension>();
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
+        // Settings added to extensions.yml by ExtensionAwarePlugins, such as security settings
+        this.additionalSettings = new HashSet<>();
+        if (additionalSettings != null) {
+            this.additionalSettings.addAll(additionalSettings);
+        }
         this.client = null;
         this.extensionTransportActionsHandler = null;
 
@@ -179,7 +182,7 @@ public class ExtensionsManager {
             actionModule,
             this
         );
-        registerRequestHandler();
+        registerRequestHandler(actionModule.getDynamicActionRegistry());
     }
 
     /**
@@ -190,6 +193,16 @@ public class ExtensionsManager {
      */
     public Optional<DiscoveryExtensionNode> lookupInitializedExtensionById(final String extensionId) {
         return Optional.ofNullable(this.initializedExtensions.get(extensionId));
+    }
+
+    /**
+     * Lookup the settings for an extension based on unique id for the settings placed in extensions.yml
+     *
+     * @param extensionId The unique extension identifier
+     * @return An optional of the Extension instance for the matching extension
+     */
+    public Optional<Extension> lookupExtensionSettingsById(final String extensionId) {
+        return Optional.ofNullable(this.extensionSettingsMap.get(extensionId));
     }
 
     /**
@@ -210,14 +223,16 @@ public class ExtensionsManager {
         return extensionTransportActionsHandler.sendTransportRequestToExtension(request);
     }
 
-    private void registerRequestHandler() {
+    private void registerRequestHandler(DynamicActionRegistry dynamicActionRegistry) {
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
             ThreadPool.Names.GENERIC,
             false,
             false,
             RegisterRestActionsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(restActionsRequestHandler.handleRegisterRestActionsRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(
+                restActionsRequestHandler.handleRegisterRestActionsRequest(request, dynamicActionRegistry)
+            ))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS,
@@ -336,7 +351,9 @@ public class ExtensionsManager {
                     Version.fromString(extension.getMinimumCompatibleVersion()),
                     extension.getDependencies()
                 );
+
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
+                extensionSettingsMap.put(extension.getUniqueId(), extension);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
             } catch (OpenSearchException e) {
                 logger.error("Could not load extension with uniqueId " + extension.getUniqueId() + " due to " + e);
@@ -449,125 +466,6 @@ public class ExtensionsManager {
         }
     }
 
-    public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
-        for (DiscoveryNode extensionNode : extensionIdMap.values()) {
-            onIndexModule(indexModule, extensionNode);
-        }
-    }
-
-    private void onIndexModule(IndexModule indexModule, DiscoveryNode extensionNode) throws UnknownHostException {
-        logger.info("onIndexModule index:" + indexModule.getIndex());
-        final CompletableFuture<IndicesModuleResponse> inProgressFuture = new CompletableFuture<>();
-        final CompletableFuture<AcknowledgedResponse> inProgressIndexNameFuture = new CompletableFuture<>();
-        final TransportResponseHandler<AcknowledgedResponse> acknowledgedResponseHandler = new TransportResponseHandler<
-            AcknowledgedResponse>() {
-            @Override
-            public void handleResponse(AcknowledgedResponse response) {
-                logger.info("ACK Response" + response);
-                inProgressIndexNameFuture.complete(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                inProgressIndexNameFuture.completeExceptionally(exp);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
-            @Override
-            public AcknowledgedResponse read(StreamInput in) throws IOException {
-                return new AcknowledgedResponse(in);
-            }
-
-        };
-
-        final TransportResponseHandler<IndicesModuleResponse> indicesModuleResponseHandler = new TransportResponseHandler<
-            IndicesModuleResponse>() {
-
-            @Override
-            public IndicesModuleResponse read(StreamInput in) throws IOException {
-                return new IndicesModuleResponse(in);
-            }
-
-            @Override
-            public void handleResponse(IndicesModuleResponse response) {
-                logger.info("received {}", response);
-                if (response.getIndexEventListener() == true) {
-                    indexModule.addIndexEventListener(new IndexEventListener() {
-                        @Override
-                        public void beforeIndexRemoved(
-                            IndexService indexService,
-                            IndicesClusterStateService.AllocatedIndices.IndexRemovalReason reason
-                        ) {
-                            logger.info("Index Event Listener is called");
-                            String indexName = indexService.index().getName();
-                            logger.info("Index Name" + indexName.toString());
-                            try {
-                                logger.info("Sending extension request type: " + INDICES_EXTENSION_NAME_ACTION_NAME);
-                                transportService.sendRequest(
-                                    extensionNode,
-                                    INDICES_EXTENSION_NAME_ACTION_NAME,
-                                    new IndicesModuleRequest(indexModule),
-                                    acknowledgedResponseHandler
-                                );
-                                inProgressIndexNameFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
-                            } catch (CompletionException e) {
-                                if (e.getCause() instanceof TimeoutException) {
-                                    logger.info("No response from extension to request.");
-                                }
-                                if (e.getCause() instanceof RuntimeException) {
-                                    throw (RuntimeException) e.getCause();
-                                } else if (e.getCause() instanceof Error) {
-                                    throw (Error) e.getCause();
-                                } else {
-                                    throw new RuntimeException(e.getCause());
-                                }
-                            }
-                        }
-                    });
-                }
-                inProgressFuture.complete(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                logger.error(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
-                inProgressFuture.completeExceptionally(exp);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-        };
-
-        try {
-            logger.info("Sending extension request type: " + INDICES_EXTENSION_POINT_ACTION_NAME);
-            transportService.sendRequest(
-                extensionNode,
-                INDICES_EXTENSION_POINT_ACTION_NAME,
-                new IndicesModuleRequest(indexModule),
-                indicesModuleResponseHandler
-            );
-            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
-            logger.info("Received response from Extension");
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof TimeoutException) {
-                logger.info("No response from extension to request.");
-            }
-            if (e.getCause() instanceof RuntimeException) {
-                throw (RuntimeException) e.getCause();
-            } else if (e.getCause() instanceof Error) {
-                throw (Error) e.getCause();
-            } else {
-                throw new RuntimeException(e.getCause());
-            }
-        }
-    }
-
     private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
         Yaml yaml = new Yaml();
         try (InputStream inputStream = Files.newInputStream(filePath)) {
@@ -578,6 +476,7 @@ public class ExtensionsManager {
             }
             List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
             List<Extension> readExtensions = new ArrayList<Extension>();
+            Set<String> additionalSettingsKeys = additionalSettings.stream().map(s -> s.getKey()).collect(Collectors.toSet());
             for (HashMap<String, ?> extensionMap : unreadExtensions) {
                 try {
                     // checking to see whether any required fields are missing from extension.yml file or not
@@ -612,6 +511,16 @@ public class ExtensionsManager {
                         }
                     }
 
+                    ExtensionScopedSettings extAdditionalSettings = new ExtensionScopedSettings(additionalSettings);
+                    Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
+                        .stream()
+                        .filter(kv -> additionalSettingsKeys.contains(kv.getKey()))
+                        .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
+
+                    Settings.Builder output = Settings.builder();
+                    output.loadFromMap(additionalSettingsMap);
+                    extAdditionalSettings.applySettings(output.build());
+
                     // Create extension read from yml config
                     readExtensions.add(
                         new Extension(
@@ -622,7 +531,8 @@ public class ExtensionsManager {
                             extensionMap.get("version").toString(),
                             extensionMap.get("opensearchVersion").toString(),
                             extensionMap.get("minimumCompatibleVersion").toString(),
-                            extensionDependencyList
+                            extensionDependencyList,
+                            extAdditionalSettings
                         )
                     );
                 } catch (IOException e) {
@@ -636,14 +546,6 @@ public class ExtensionsManager {
 
     static String getRequestExtensionActionName() {
         return REQUEST_EXTENSION_ACTION_NAME;
-    }
-
-    static String getIndicesExtensionPointActionName() {
-        return INDICES_EXTENSION_POINT_ACTION_NAME;
-    }
-
-    static String getIndicesExtensionNameActionName() {
-        return INDICES_EXTENSION_NAME_ACTION_NAME;
     }
 
     static String getRequestExtensionClusterState() {

@@ -33,10 +33,15 @@
 package org.opensearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
+import com.fasterxml.jackson.dataformat.yaml.JacksonYAMLParseException;
+
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
@@ -50,6 +55,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -57,6 +63,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
@@ -64,6 +71,90 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
 public class XContentParserTests extends OpenSearchTestCase {
+    private static final Map<XContentType, Supplier<String>> GENERATORS = Map.of(
+        XContentType.JSON,
+        () -> randomAlphaOfLengthBetween(1, JsonXContent.DEFAULT_MAX_STRING_LEN),
+        XContentType.CBOR,
+        () -> randomAlphaOfLengthBetween(1, CborXContent.DEFAULT_MAX_STRING_LEN),
+        XContentType.SMILE,
+        () -> randomAlphaOfLengthBetween(1, SmileXContent.DEFAULT_MAX_STRING_LEN),
+        /* YAML parser limitation */
+        XContentType.YAML,
+        () -> randomAlphaOfLengthBetween(1, 3140000)
+    );
+
+    private static final Map<XContentType, Supplier<String>> OFF_LIMIT_GENERATORS = Map.of(
+        XContentType.JSON,
+        () -> randomAlphaOfLength(JsonXContent.DEFAULT_MAX_STRING_LEN + 1),
+        XContentType.CBOR,
+        () -> randomAlphaOfLength(CborXContent.DEFAULT_MAX_STRING_LEN + 1),
+        XContentType.SMILE,
+        () -> randomAlphaOfLength(SmileXContent.DEFAULT_MAX_STRING_LEN + 1),
+        /* YAML parser limitation */
+        XContentType.YAML,
+        () -> randomRealisticUnicodeOfCodepointLength(3145730)
+    );
+
+    public void testStringOffLimit() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final String field = randomAlphaOfLengthBetween(1, 5);
+        final String value = OFF_LIMIT_GENERATORS.get(xContentType).get();
+
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            if (randomBoolean()) {
+                builder.field(field, value);
+            } else {
+                builder.field(field).value(value);
+            }
+            builder.endObject();
+
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals(field, parser.currentName());
+                assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+                if (xContentType != XContentType.YAML) {
+                    assertThrows(StreamConstraintsException.class, () -> parser.text());
+                } else {
+                    assertThrows(JacksonYAMLParseException.class, () -> parser.nextToken());
+                }
+            }
+        }
+    }
+
+    public void testString() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final String field = randomAlphaOfLengthBetween(1, 5);
+        final String value = GENERATORS.get(xContentType).get();
+
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            if (randomBoolean()) {
+                builder.field(field, value);
+            } else {
+                builder.field(field).value(value);
+            }
+            builder.endObject();
+
+            final String text;
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals(field, parser.currentName());
+                assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+
+                text = parser.text();
+
+                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                assertNull(parser.nextToken());
+            }
+
+            assertThat(text, hasLength(value.length()));
+        }
+    }
 
     public void testFloat() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());

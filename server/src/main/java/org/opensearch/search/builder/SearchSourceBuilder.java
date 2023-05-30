@@ -37,20 +37,20 @@ import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.Rewriteable;
@@ -270,7 +270,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             fetchFields = in.readList(FieldAndFormat::new);
         }
         pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
+        if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
             if (in.readBoolean()) {
                 searchPipelineSource = in.readMap();
             }
@@ -334,7 +334,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeList(fetchFields);
         }
         out.writeOptionalWriteable(pointInTimeBuilder);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
+        if (out.getVersion().onOrAfter(Version.V_2_8_0)) {
             out.writeBoolean(searchPipelineSource != null);
             if (searchPipelineSource != null) {
                 out.writeMap(searchPipelineSource);

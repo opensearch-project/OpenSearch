@@ -11,6 +11,8 @@ package org.opensearch.search.pipeline.common;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.SearchRequestProcessor;
+import org.opensearch.search.pipeline.SearchResponseProcessor;
 
 import java.util.Map;
 
@@ -24,8 +26,24 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
      */
     public SearchPipelineCommonModulePlugin() {}
 
+    /**
+     * Returns a map of processor factories.
+     *
+     * @param parameters The parameters required for creating the processor factories.
+     * @return A map of processor factories, where the keys are the processor types and the values are the corresponding factory instances.
+     */
     @Override
-    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(FilterQueryRequestProcessor.TYPE, new FilterQueryRequestProcessor.Factory(parameters.namedXContentRegistry));
+    public Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessors(Processor.Parameters parameters) {
+        return Map.of(
+            FilterQueryRequestProcessor.TYPE,
+            new FilterQueryRequestProcessor.Factory(parameters.namedXContentRegistry),
+            ScriptRequestProcessor.TYPE,
+            new ScriptRequestProcessor.Factory(parameters.scriptService)
+        );
+    }
+
+    @Override
+    public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Processor.Parameters parameters) {
+        return Map.of(RenameFieldResponseProcessor.TYPE, new RenameFieldResponseProcessor.Factory());
     }
 }

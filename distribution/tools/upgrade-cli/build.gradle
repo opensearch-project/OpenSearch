@@ -19,7 +19,7 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   testImplementation project(":test:framework")
   testImplementation 'com.google.jimfs:jimfs:1.2'
-  testRuntimeOnly 'com.google.guava:guava:31.1-jre'
+  testRuntimeOnly 'com.google.guava:guava:32.0.0-jre'
 }
 
 tasks.named("dependencyLicenses").configure {

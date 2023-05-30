@@ -33,9 +33,9 @@
 package org.opensearch.discovery.gce;
 
 import org.opensearch.cloud.gce.network.GceNameResolver;
-import org.opensearch.common.Strings;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 /**
  * LRU implementation of {@link RefCountedCache}. As long as {@link Node#refCount} greater than 0 then node is not eligible for eviction.
@@ -256,13 +257,16 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
-    public long prune() {
+    public long prune(Predicate<K> keyPredicate) {
         long sum = 0L;
         lock.lock();
         try {
             final Iterator<Node<K, V>> iterator = lru.values().iterator();
             while (iterator.hasNext()) {
                 final Node<K, V> node = iterator.next();
+                if (keyPredicate != null && !keyPredicate.test(node.key)) {
+                    continue;
+                }
                 iterator.remove();
                 data.remove(node.key, node);
                 sum += node.weight;

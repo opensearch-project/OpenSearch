@@ -32,6 +32,8 @@
 package org.opensearch.backwards;
 
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
@@ -45,6 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.seqno.SeqNoStats;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
@@ -96,6 +99,103 @@ public class IndexingIT extends OpenSearchRestTestCase {
             indexThread.join();
         }
         return nUpdates + 1;
+    }
+
+    private void printClusterRouting() throws IOException, ParseException {
+        Request clusterStateRequest = new Request("GET", "_cluster/state/routing_nodes?pretty");
+        String clusterState = EntityUtils.toString(client().performRequest(clusterStateRequest).getEntity()).trim();
+        logger.info("cluster nodes: {}", clusterState);
+    }
+
+    /**
+     * This test verifies that segment replication does not break when primary shards are on lower OS version. It does this
+     * by verifying replica shards contains same number of documents as primary's.
+     *
+     * @throws Exception
+     */
+    public void testIndexingWithPrimaryOnBwcNodes() throws Exception {
+        Nodes nodes = buildNodeAndVersions();
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
+        logger.info("cluster discovered:\n {}", nodes.toString());
+        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
+        final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
+        // Exclude bwc nodes from allocation so that primaries gets allocated on current version
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put("index.routing.allocation.include._name", bwcNames);
+        final String index = "test-index";
+        createIndex(index, settings.build());
+        ensureNoInitializingShards(); // wait for all other shard activity to finish
+
+        int docCount = 200;
+        try (RestClient nodeClient = buildClient(restClientSettings(),
+            nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+
+            logger.info("allowing replica shards assignment on bwc nodes");
+            updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
+            // Add replicas so that it can be assigned on higher OS version nodes.
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 2));
+
+            printClusterRouting();
+            ensureGreen(index);
+
+            // Index docs
+            indexDocs(index, 0, docCount);
+
+            // perform a refresh
+            assertOK(client().performRequest(new Request("POST", index + "/_flush")));
+
+            // verify replica catch up with primary
+            assertSeqNoOnShards(index, nodes, docCount, nodeClient);
+        }
+    }
+
+
+    /**
+     * This test creates a cluster with primary on older version but due to {@link org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider};
+     * replica shard allocation on lower OpenSearch version is prevented. Thus, this test though cover the use case where
+     * primary shard containing nodes are running on higher OS version while replicas are unassigned.
+     *
+     * @throws Exception
+     */
+    public void testIndexingWithReplicaOnBwcNodes() throws Exception {
+        Nodes nodes = buildNodeAndVersions();
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
+        logger.info("cluster discovered:\n {}", nodes.toString());
+        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
+        final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
+        // Exclude bwc nodes from allocation so that primaries gets allocated on current/higher version
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put("index.routing.allocation.exclude._name", bwcNames);
+        final String index = "test-index";
+        createIndex(index, settings.build());
+        ensureNoInitializingShards(); // wait for all other shard activity to finish
+        printClusterRouting();
+
+        int docCount = 200;
+        try (RestClient nodeClient = buildClient(restClientSettings(),
+            nodes.values().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+
+            logger.info("allowing replica shards assignment on bwc nodes");
+            updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.exclude._name"));
+            // Add replicas so that it can be assigned on lower OS version nodes, but it doesn't work as called out in test overview
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 2));
+            printClusterRouting();
+
+            // Index docs
+            indexDocs(index, 0, docCount);
+
+            // perform a refresh
+            assertOK(client().performRequest(new Request("POST", index + "/_flush")));
+
+            // verify replica catch up with primary
+            assertSeqNoOnShards(index, nodes, docCount, nodeClient);
+        }
     }
 
     public void testIndexVersionPropagation() throws Exception {

@@ -76,7 +76,7 @@ public class DieWithDignityIT extends OpenSearchRestTestCase {
         try {
             while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
                 final String line = it.next();
-                if (line.matches(".*ERROR.*o\\.o\\.ExceptionsHelper.*javaRestTest-0.*fatal error.*")) {
+                if (line.matches(".*ERROR.*o\\.o\\.(Base)?ExceptionsHelper.*javaRestTest-0.*fatal error.*")) {
                     fatalError = true;
                 } else if (line.matches(
                     ".*ERROR.*o\\.o\\.b\\.OpenSearchUncaughtExceptionHandler.*javaRestTest-0.*"

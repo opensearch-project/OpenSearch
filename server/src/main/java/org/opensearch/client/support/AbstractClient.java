@@ -73,6 +73,10 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsAction;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequest;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequestBuilder;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
@@ -885,6 +889,23 @@ public abstract class AbstractClient implements Client {
         @Override
         public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
             return new NodesStatsRequestBuilder(this, NodesStatsAction.INSTANCE).setNodesIds(nodesIds);
+        }
+
+        @Override
+        public void remoteStoreStats(final RemoteStoreStatsRequest request, final ActionListener<RemoteStoreStatsResponse> listener) {
+            execute(RemoteStoreStatsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public RemoteStoreStatsRequestBuilder prepareRemoteStoreStats(String index, String shardId) {
+            RemoteStoreStatsRequestBuilder remoteStoreStatsRequestBuilder = new RemoteStoreStatsRequestBuilder(
+                this,
+                RemoteStoreStatsAction.INSTANCE
+            ).setIndices(index);
+            if (shardId != null) {
+                remoteStoreStatsRequestBuilder.setShards(shardId);
+            }
+            return remoteStoreStatsRequestBuilder;
         }
 
         @Override

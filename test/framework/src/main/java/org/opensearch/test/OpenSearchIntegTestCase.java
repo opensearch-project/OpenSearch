@@ -41,8 +41,8 @@ import org.apache.hc.core5.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -95,7 +95,6 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -110,16 +109,17 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
@@ -1090,6 +1090,23 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * Waits until at least a give number of document is indexed by indexer
+     *
+     * @param numDocs number of documents to wait for
+     * @param indexer a {@link BackgroundIndexer}. It will be first checked for documents indexed.
+     *                This saves on unneeded searches.
+     */
+    public void waitForIndexed(final long numDocs, final BackgroundIndexer indexer) throws Exception {
+        // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
+        final long maxWaitTimeMs = Math.max(90 * 1000, 200 * numDocs);
+
+        assertBusy(() -> {
+            long lastKnownCount = indexer.totalIndexedDocs();
+            assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
+        }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    /**
      * Prints the current cluster state as debug logging.
      */
     public void logClusterState() {
@@ -1594,7 +1611,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         final List<Exception> actualErrors = new ArrayList<>();
         for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
-            Throwable t = ExceptionsHelper.unwrapCause(tuple.v2());
+            Throwable t = BaseExceptionsHelper.unwrapCause(tuple.v2());
             if (t instanceof OpenSearchRejectedExecutionException) {
                 logger.debug("Error indexing doc: " + t.getMessage() + ", reindexing.");
                 tuple.v1().execute().actionGet(); // re-index if rejected
@@ -2455,6 +2472,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         String nodeId = clusterState.getRoutingTable().index(indexName).shard(0).replicaShards().get(0).currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node().getName();
+    }
+
+    protected ClusterState getClusterState() {
+        return client(internalCluster().getClusterManagerName()).admin().cluster().prepareState().get().getState();
     }
 
 }

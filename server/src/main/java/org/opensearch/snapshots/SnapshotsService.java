@@ -467,7 +467,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "No indices in the source snapshot ["
                             + sourceSnapshotId
                             + "] matched requested pattern ["
-                            + Strings.arrayToCommaDelimitedString(request.indices())
+                            + org.opensearch.core.common.Strings.arrayToCommaDelimitedString(request.indices())
                             + "]"
                     );
                 }
@@ -756,7 +756,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private static void validate(final String repositoryName, final String snapshotName) {
-        if (Strings.hasLength(snapshotName) == false) {
+        if (org.opensearch.core.common.Strings.hasLength(snapshotName) == false) {
             throw new InvalidSnapshotNameException(repositoryName, snapshotName, "cannot be empty");
         }
         if (snapshotName.contains(" ")) {
@@ -1738,7 +1738,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         logger.info(
             () -> new ParameterizedMessage(
                 "deleting snapshots [{}] from repository [{}]",
-                Strings.arrayToCommaDelimitedString(snapshotNames),
+                org.opensearch.core.common.Strings.arrayToCommaDelimitedString(snapshotNames),
                 repoName
             )
         );

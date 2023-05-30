@@ -35,7 +35,7 @@ import java.util.Set;
  */
 public class RemoteDirectory extends Directory {
 
-    private final BlobContainer blobContainer;
+    protected final BlobContainer blobContainer;
 
     public RemoteDirectory(BlobContainer blobContainer) {
         this.blobContainer = blobContainer;

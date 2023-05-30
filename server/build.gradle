@@ -148,6 +148,7 @@ dependencies {
 
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  implementation "org.jboss.spec.javax.annotation:jboss-annotations-api_1.2_spec:${versions.jboss_annotation}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -176,6 +177,7 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.dic'
     exclude '**/*.binary'
     exclude '**/*.st'
+    exclude '**/*.meta'
 }
 
 tasks.named("testingConventions").configure {
@@ -220,6 +222,16 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 protobuf {
   protoc {
     artifact = "com.google.protobuf:protoc:${versions.protobuf}"
+  }
+
+  generateProtoTasks {
+    all().each { task ->
+      task.builtins {
+        java {
+          option "annotate_code"
+        }
+      }
+    }
   }
 }
 
@@ -342,27 +354,6 @@ tasks.named("dependencyLicenses").configure {
                 (it.name == 'jna' ||
                         it.name == 'securesm')
     }
-}
-
-tasks.named("missingJavadoc").configure {
-  /*
-   * Generated code doesn't follow javadocs formats.
-   * Unfortunately the missingJavadoc task doesnt take *.
-   * TODO: Add support to missingJavadoc task to ignore all generated source code
-   *  https://github.com/opensearch-project/OpenSearch/issues/7264
-   */
-  dependsOn("generateProto")
-  javadocMissingIgnore = [
-    "org.opensearch.extensions.proto.ExtensionIdentityProto",
-    "org.opensearch.extensions.proto.ExtensionIdentityProto.ExtensionIdentityOrBuilder",
-    "org.opensearch.extensions.proto.RegisterRestActionsProto",
-    "org.opensearch.extensions.proto.RegisterRestActionsProto.RegisterRestActionsOrBuilder",
-    "org.opensearch.extensions.proto.ExtensionRequestProto",
-    "org.opensearch.extensions.proto.ExtensionRequestProto.ExtensionRequestOrBuilder",
-    "org.opensearch.extensions.proto.RegisterTransportActionsProto",
-    "org.opensearch.extensions.proto.RegisterTransportActionsProto.RegisterTransportActionsOrBuilder",
-    "org.opensearch.extensions.proto"
-  ]
 }
 
 tasks.named("filepermissions").configure {

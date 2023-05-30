@@ -46,7 +46,7 @@ opensearchplugin {
 dependencies {
   api 'com.azure:azure-core:1.39.0'
   api 'com.azure:azure-json:1.0.1'
-  api 'com.azure:azure-storage-common:12.20.0'
+  api 'com.azure:azure-storage-common:12.21.1'
   api 'com.azure:azure-core-http-netty:1.12.8'
   api "io.netty:netty-codec-dns:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
@@ -58,9 +58,9 @@ dependencies {
   api 'com.azure:azure-storage-blob:12.21.1'
   api 'org.reactivestreams:reactive-streams:1.0.4'
   api 'io.projectreactor:reactor-core:3.5.1'
-  api 'io.projectreactor.netty:reactor-netty:1.1.4'
-  api 'io.projectreactor.netty:reactor-netty-core:1.1.5'
-  api 'io.projectreactor.netty:reactor-netty-http:1.1.4'
+  api 'io.projectreactor.netty:reactor-netty:1.1.7'
+  api 'io.projectreactor.netty:reactor-netty-core:1.1.7'
+  api 'io.projectreactor.netty:reactor-netty-http:1.1.7'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"

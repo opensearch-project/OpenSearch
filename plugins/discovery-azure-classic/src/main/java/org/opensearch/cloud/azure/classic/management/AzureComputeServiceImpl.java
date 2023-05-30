@@ -51,10 +51,10 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.SpecialPermission;
 import org.opensearch.cloud.azure.classic.AzureServiceRemoteException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent implements AzureComputeService {
     private static final Logger logger = LogManager.getLogger(AzureComputeServiceImpl.class);
