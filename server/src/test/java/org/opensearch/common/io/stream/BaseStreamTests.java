@@ -46,6 +46,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -511,6 +513,14 @@ public abstract class BaseStreamTests extends OpenSearchTestCase {
         goodMap.put("c", "d");
         StreamOutput.checkWriteable(goodMap);
         assertNotWriteable(Collections.singletonMap("a", new Unwriteable()), Unwriteable.class);
+    }
+
+    public void testInetSocketAddress() throws IOException {
+        InetSocketAddress toWrite = new InetSocketAddress(InetAddress.getLocalHost(), 80);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeGenericValue(toWrite);
+        assertEquals(toWrite, getStreamInput(out.bytes()).readGenericValue());
+        out.close();
     }
 
     public void testObjectArrayIsWriteable() throws IOException {

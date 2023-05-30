@@ -63,6 +63,8 @@ import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -344,6 +346,14 @@ public abstract class StreamInput extends BaseStreamInput {
 
     public BigInteger readBigInteger() throws IOException {
         return new BigInteger(readString());
+    }
+
+    public InetSocketAddress readInetSocketAddress() throws IOException {
+        String host = this.readString();
+        byte[] addressBytes = this.readByteArray();
+        InetAddress addr = InetAddress.getByAddress(host, addressBytes);
+        int port = this.readInt();
+        return new InetSocketAddress(addr, port);
     }
 
     @Nullable
@@ -742,6 +752,8 @@ public abstract class StreamInput extends BaseStreamInput {
                 return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
             case 26:
                 return readBigInteger();
+            case 27:
+                return readInetSocketAddress();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }

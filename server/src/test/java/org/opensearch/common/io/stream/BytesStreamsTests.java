@@ -48,6 +48,8 @@ import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -311,6 +313,7 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         float[] floatArray = { 1.1f, 2.2f, 3.3f };
         out.writeGenericValue(floatArray);
         double[] doubleArray = { 1.1, 2.2, 3.3 };
+        InetSocketAddress inetSocketAddress = new InetSocketAddress(InetAddress.getLocalHost(), 80);
         out.writeGenericValue(doubleArray);
         out.writeString("hello");
         out.writeString("goodbye");
@@ -324,6 +327,7 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         out.writeOptionalTimeZone(DateTimeZone.getDefault());
         out.writeOptionalTimeZone(null);
         out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
+        out.writeGenericValue(inetSocketAddress);
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         assertEquals(in.available(), bytes.length);
@@ -361,6 +365,7 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         JodaCompatibleZonedDateTime jdt = (JodaCompatibleZonedDateTime) dt;
         assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
         assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
+        assertEquals(inetSocketAddress, in.readGenericValue());
         assertEquals(0, in.available());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.writeGenericValue(new Object() {
             @Override

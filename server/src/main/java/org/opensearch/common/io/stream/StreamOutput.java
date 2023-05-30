@@ -63,6 +63,7 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.InetSocketAddress;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -790,6 +791,13 @@ public abstract class StreamOutput extends BaseStreamOutput {
         writers.put(BigInteger.class, (o, v) -> {
             o.writeByte((byte) 26);
             o.writeString(v.toString());
+        });
+        writers.put(InetSocketAddress.class, (o, v) -> {
+            final InetSocketAddress inetSocketAddress = (InetSocketAddress) v;
+            o.writeByte((byte) 27);
+            o.writeString(inetSocketAddress.getHostName());
+            o.writeByteArray(inetSocketAddress.getAddress().getAddress());
+            o.writeInt(inetSocketAddress.getPort());
         });
         WRITERS = Collections.unmodifiableMap(writers);
     }
