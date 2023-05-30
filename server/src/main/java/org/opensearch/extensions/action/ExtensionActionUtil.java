@@ -8,13 +8,13 @@
 
 package org.opensearch.extensions.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -24,7 +24,6 @@ import java.util.Arrays;
  * ExtensionActionUtil - a class for creating and processing remote requests using byte arrays.
  */
 public class ExtensionActionUtil {
-    private static final Logger logger = LogManager.getLogger(ExtensionActionUtil.class);
 
     /**
      * The Unicode UNIT SEPARATOR used to separate the Request class name and parameter bytes
@@ -37,8 +36,9 @@ public class ExtensionActionUtil {
      * which will be sent to the remote server.
      * @return An Extension ActionRequest object that represents the deserialized data.
      * If an error occurred during the deserialization process, the method will return {@code null}.
+     * @throws  RuntimeException If a RuntimeException occurs while creating the proxy request bytes.
      */
-    public static byte[] createProxyRequestBytes(ActionRequest request) {
+    public static byte[] createProxyRequestBytes(ActionRequest request) throws RuntimeException {
         byte[] requestClassBytes = request.getClass().getName().getBytes(StandardCharsets.UTF_8);
         byte[] requestBytes;
 
@@ -51,28 +51,8 @@ public class ExtensionActionUtil {
                 .put(requestBytes)
                 .array();
         } catch (RuntimeException e) {
-            logger.error("RuntimeException occurred while creating proxyRequestBytes");
+            throw new RuntimeException("RuntimeException occurred while creating proxyRequestBytes");
         }
-        return null;
-    }
-
-    /**
-     * @param bytes the byte array containing the serialized data for the ExtensionActionRequest object.
-     * @return An Extension ActionRequest object that represents the deserialized data. If an error occurred during the deserialization process, the method will return {@code null}.
-     */
-    public static ExtensionActionRequest createExtensionActionRequestFromBytes(byte[] bytes) {
-        int delimPos = delimPos(bytes);
-        try {
-            StreamInput requestByteStream = StreamInput.wrap(Arrays.copyOfRange(bytes, delimPos + 1, bytes.length));
-            Class<?> clazz = ExtensionActionRequest.class;
-            Constructor<?> constructor = clazz.getConstructor(StreamInput.class);
-            return (ExtensionActionRequest) constructor.newInstance(requestByteStream);
-        } catch (ReflectiveOperationException e) {
-            logger.error("ReflectiveOperationException occurred while creating extensionAction request from bytes: " + e.getMessage());
-        } catch (RuntimeException e) {
-            logger.error("RuntimeException occurred while creating extensionAction request from bytes: " + e.getMessage());
-        }
-        return null;
     }
 
     /**
@@ -80,8 +60,11 @@ public class ExtensionActionUtil {
      * method to create an "ActionRequest" object, which represents the request model to be processed on the server.
      * @return an "Action Request" object representing the request model for processing on the server,
      * or {@code null} if the request data is invalid or null.
+     * @throws ReflectiveOperationException if an exception occurs during the reflective operation, such as when
+     *  resolving the request class, accessing the constructor, or creating an instance  using reflection
+     * @throws NullPointerException if a null pointer exception occurs during the creation of the ActionRequest object
      */
-    public static ActionRequest createActionRequest(byte[] requestBytes) {
+    public static ActionRequest createActionRequest(byte[] requestBytes) throws ReflectiveOperationException {
         int delimPos = delimPos(requestBytes);
         String requestClassName = new String(Arrays.copyOfRange(requestBytes, 0, delimPos + 1), StandardCharsets.UTF_8).stripTrailing();
         try {
@@ -90,11 +73,15 @@ public class ExtensionActionUtil {
             StreamInput requestByteStream = StreamInput.wrap(Arrays.copyOfRange(requestBytes, delimPos + 1, requestBytes.length));
             return (ActionRequest) constructor.newInstance(requestByteStream);
         } catch (ReflectiveOperationException e) {
-            logger.error("ReflectiveOperationException occurred while creating extensionAction request from bytes: " + e.getMessage());
-        } catch (RuntimeException e) {
-            logger.error("RuntimeException occurred while creating extensionAction request from bytes: " + e.getMessage());
+            throw new ReflectiveOperationException(
+                "ReflectiveOperationException occurred while creating extensionAction request from bytes",
+                e
+            );
+        } catch (NullPointerException e) {
+            throw new NullPointerException(
+                "NullPointerException occurred while creating extensionAction request from bytes" + e.getMessage()
+            );
         }
-        return null;
     }
 
     /**
@@ -102,19 +89,15 @@ public class ExtensionActionUtil {
      * @param <T> the type of the object to be converted to bytes, which must implement the {@link Writeable} interface.
      * @param writeableObject the object of type T to be converted to bytes.
      * @return a byte array containing the serialized bytes of the given object, or {@code null} if the input is invalid or null.
+     * @throws IllegalStateException if a failure occurs while writing the data
      */
-    public static <T extends Writeable> byte[] convertParamsToBytes(T writeableObject) {
+    public static <T extends Writeable> byte[] convertParamsToBytes(T writeableObject) throws IllegalStateException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             writeableObject.writeTo(out);
             return BytesReference.toBytes(out.bytes());
-        } catch (IllegalStateException e) {
-            logger.error("IllegalStateException occurred while convert params to bytes: " + e.getMessage());
-        } catch (RuntimeException e) {
-            logger.error("RuntimeException occurred while convert params to bytes: " + e.getMessage());
-        } catch (Exception e) {
-            logger.error("Error occurred while convert params to bytes: " + e.getMessage());
+        } catch (IOException ieo) {
+            throw new IllegalStateException("Failure writing bytes", ieo);
         }
-        return null;
     }
 
     /**

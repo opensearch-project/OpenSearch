@@ -10,12 +10,15 @@ package org.opensearch.extensions.action;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -24,7 +27,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.opensearch.extensions.action.ExtensionActionUtil.UNIT_SEPARATOR;
 import static org.opensearch.extensions.action.ExtensionActionUtil.createProxyRequestBytes;
@@ -50,73 +53,59 @@ public class ExtensionActionUtilTest {
     }
 
     @Test
-    public void testCreateProxyRequestBytesTest() throws IOException {
+    public void testCreateProxyRequestBytes() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         MyExampleRequest exampleRequest = new MyExampleRequest(actionName, actionNameBytes);
         exampleRequest.writeTo(out);
 
         byte[] result = createProxyRequestBytes(exampleRequest);
         assertArrayEquals(this.myBytes, result);
+        assertThrows(RuntimeException.class, () -> ExtensionActionUtil.createProxyRequestBytes(new MyExampleRequest(null, null)));
     }
 
     @Test
-    public void testCreateExtensionActionRequestFromBytesTest() {
-        ExtensionActionRequest extensionActionRequest = ExtensionActionUtil.createExtensionActionRequestFromBytes(myBytes);
-        assert extensionActionRequest != null;
-        String action = extensionActionRequest.getAction();
-        byte[] bytes = extensionActionRequest.getRequestBytes().toByteArray();
-
-        assertEquals(this.actionName, action);
-        assertArrayEquals(actionNameBytes, bytes);
-    }
-
-    @Test
-    public void testCreateActionRequestTest() {
+    public void testCreateActionRequest() throws ReflectiveOperationException {
         ActionRequest actionRequest = ExtensionActionUtil.createActionRequest(myBytes);
+        assertThrows(NullPointerException.class, () -> ExtensionActionUtil.createActionRequest(null));
+        assertThrows(ReflectiveOperationException.class, () -> ExtensionActionUtil.createActionRequest(actionNameBytes));
         assertNotNull(actionRequest);
         assertFalse(actionRequest.getShouldStoreResult());
     }
 
     @Test
-    public void testConvertParamsToBytesTest() {
-        MyExampleRequest exampleRequest = new MyExampleRequest(actionName, actionNameBytes);
-        byte[] bytes = ExtensionActionUtil.convertParamsToBytes(exampleRequest);
-
-        ExtensionActionRequest request = ExtensionActionUtil.createExtensionActionRequestFromBytes(bytes);
-        assert request != null;
-        assertEquals(actionName, request.getAction());
-        assertArrayEquals(actionNameBytes, request.getRequestBytes().toByteArray());
-        assertNull(ExtensionActionUtil.convertParamsToBytes(null));
-        assert bytes != null;
-        assertTrue(bytes.length > 0);
+    public void testConvertParamsToBytes() throws IOException {
+        Writeable mockWriteableObject = Mockito.mock(Writeable.class);
+        Mockito.doThrow(new IOException("Test IOException")).when(mockWriteableObject).writeTo(Mockito.any());
+        assertThrows(IllegalStateException.class, () -> ExtensionActionUtil.convertParamsToBytes(mockWriteableObject));
     }
 
     @Test
-    public void testDelimPosTest() {
+    public void testDelimPos() {
         assertTrue(ExtensionActionUtil.delimPos(myBytes) > 0);
         assertTrue(ExtensionActionUtil.delimPos(actionNameBytes) < 0);
+        assertEquals(-1, ExtensionActionUtil.delimPos(actionNameBytes));
     }
 
     private static class MyExampleRequest extends ActionRequest {
-        private final String action;
-        private final byte[] requestBytes;
+        private final String param1;
+        private final byte[] param2;
 
-        public MyExampleRequest(String action, byte[] requestBytes) {
-            this.action = action;
-            this.requestBytes = requestBytes;
+        public MyExampleRequest(String param1, byte[] param2) {
+            this.param1 = param1;
+            this.param2 = param2;
         }
 
         public MyExampleRequest(StreamInput in) throws IOException {
             super(in);
-            action = in.readString();
-            requestBytes = in.readByteArray();
+            param1 = in.readString();
+            param2 = in.readByteArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(action);
-            out.writeByteArray(requestBytes);
+            out.writeString(param1);
+            out.writeByteArray(param2);
         }
 
         @Override
