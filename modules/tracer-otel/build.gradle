@@ -46,6 +46,5 @@ thirdPartyAudit {
     'io.opentelemetry.extension.incubator.metrics.ExtendedDoubleHistogramBuilder',
     'io.opentelemetry.extension.incubator.metrics.ExtendedLongHistogramBuilder',
     'io.opentelemetry.extension.incubator.metrics.HistogramAdviceConfigurer'
-
   )
 }

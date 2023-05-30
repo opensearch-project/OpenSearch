@@ -16,10 +16,16 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -61,7 +67,7 @@ public class OTelTracerTests extends OpenSearchTestCase {
         tracer.startSpan("foo", Level.INFO);
         assertEquals("foo", tracer.getCurrentSpan().getSpanName());
         tracer.endSpan();
-        assertEquals("RootSpan", tracer.getCurrentSpan().getSpanName());
+        assertEquals("root_span", tracer.getCurrentSpan().getSpanName());
     }
 
     public void testStartSpanAndEndWithNoopSpans() {
@@ -90,7 +96,7 @@ public class OTelTracerTests extends OpenSearchTestCase {
         tracer.endSpan();
         assertEquals("span1", tracer.getCurrentSpan().getSpanName());
         tracer.endSpan();
-        assertEquals("RootSpan", tracer.getCurrentSpan().getSpanName());
+        assertEquals("root_span", tracer.getCurrentSpan().getSpanName());
         verify(mockOtelSpan, times(4)).end();
     }
 
@@ -112,8 +118,10 @@ public class OTelTracerTests extends OpenSearchTestCase {
     }
 
     private void setupMock() {
+        Set<Setting<?>> allTracerSettings = new HashSet<>();
+        ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TRACER)).stream().forEach((allTracerSettings::add));
         Settings settings = Settings.builder().put(TracerSettings.TRACER_LEVEL_SETTING.getKey(), Level.INFO).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = new ClusterSettings(settings, allTracerSettings);
         tracerSettings = new TracerSettings(settings, clusterSettings);
         openTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
