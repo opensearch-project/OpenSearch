@@ -41,8 +41,6 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskListener;
-import org.opensearch.common.cache.Cache;
-import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
@@ -86,6 +84,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -132,7 +131,7 @@ public class JoinHelper {
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
     private final Consumer<Boolean> nodeCommissioned;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final Cache<Long, BytesReference> serializedStates;
+    private final ConcurrentHashMap<Long, BytesReference> serializedStates = new ConcurrentHashMap<>();
 
     JoinHelper(
         Settings settings,
@@ -155,8 +154,6 @@ public class JoinHelper {
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
         this.nodeCommissioned = nodeCommissioned;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        CacheBuilder<Long, BytesReference> cacheBuilder = CacheBuilder.builder();
-        this.serializedStates = cacheBuilder.build();
 
         this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
 
@@ -462,7 +459,7 @@ public class JoinHelper {
     }
 
     public void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
-        if (node.getVersion().before(Version.V_2_8_0)) {
+        if (node.getVersion().before(Version.V_3_0_0)) {
             transportService.sendRequest(
                 node,
                 VALIDATE_JOIN_ACTION_NAME,
@@ -471,14 +468,18 @@ public class JoinHelper {
             );
         } else {
             try {
-                BytesReference bytes;
-                if (serializedStates.get(state.getVersion()) == null) {
-                    serializedStates.invalidateAll();
+                if (!serializedStates.containsKey(state.version())){
+                    serializedStates.clear();
                 }
-                bytes = serializedStates.computeIfAbsent(
-                    state.version(),
-                    key -> ClusterStateUtils.serializeClusterState(state, node, true)
-                );
+                BytesReference bytes = serializedStates.computeIfAbsent(state.version(),
+                    version -> {
+                        try {
+                            return ClusterStateUtils.serializeClusterState(state, node, true);
+                        } catch (IOException e) {
+                            // mandatory as ConcurrentHashMap doesn't rethrow IOException.
+                            throw new RuntimeException(e);
+                        }
+                    });
                 final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
                 transportService.sendRequest(
                     node,
@@ -487,7 +488,7 @@ public class JoinHelper {
                     new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC)
                 );
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", node), e);
+                logger.warn("error sending cluster state to {}", node);
                 listener.onFailure(e);
             }
         }

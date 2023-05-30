@@ -30,6 +30,8 @@ import java.io.IOException;
 
 /**
  * A helper class to utilize the compressed stream.
+ *
+ * @opensearch.internal
  */
 public final class ClusterStateUtils {
     private static final Logger logger = LogManager.getLogger(ClusterStateUtils.class);

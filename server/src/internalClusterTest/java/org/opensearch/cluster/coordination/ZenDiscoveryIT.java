@@ -117,6 +117,7 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
 
         final CompletableFuture<Throwable> future = new CompletableFuture<>();
         DiscoveryNode node = state.nodes().getLocalNode();
+
         coordinator.sendValidateJoinRequest(
             stateWithCustomMetadata,
             new JoinRequest(node, 0L, Optional.empty()),
