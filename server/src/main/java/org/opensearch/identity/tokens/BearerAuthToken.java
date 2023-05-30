@@ -26,7 +26,7 @@ public class BearerAuthToken implements AuthToken {
 
         String[] tokenComponents = token.split(DELIMITER);
         if (tokenComponents.length != 3) {
-            throw new IllegalStateException("Illegally formed bearer authorization token " + token);
+            throw new IllegalArgumentException("Illegally formed bearer authorization token " + token);
         }
         completeToken = token;
         header = tokenComponents[0];
