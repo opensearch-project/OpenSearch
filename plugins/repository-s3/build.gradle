@@ -535,7 +535,11 @@ if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
   thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
 }
 
-["test", "internalClusterTest", "s3ThirdPartyTest", "testRepositoryCreds", "yamlRestTest", "yamlRestTestECS", "yamlRestTestMinio", "yamlRestTestEKS"].forEach { action ->
+def testTargets = ["test", "internalClusterTest", "s3ThirdPartyTest", "testRepositoryCreds", "yamlRestTest"]
+if (useFixture) {
+  testTargets.addAll(["yamlRestTestMinio", "yamlRestTestECS", "yamlRestTestEKS"])
+}
+testTargets.forEach { action ->
   tasks.named(action).configure {
     dependsOn "writeTestJavaPolicy"
     systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
