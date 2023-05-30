@@ -116,12 +116,14 @@ public class Build {
         // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
         type = Type.fromDisplayName(System.getProperty("opensearch.distribution.type", "unknown"), true);
 
-        final String opensearchPrefix = distribution + "-" + Version.CURRENT;
+        final String opensearchPrefix = distribution;
         final URL url = getOpenSearchCodeSourceLocation();
         final String urlStr = url == null ? "" : url.toString();
         if (urlStr.startsWith("file:/")
-            && (urlStr.endsWith(opensearchPrefix + ".jar")
-                || urlStr.matches("(.*)" + opensearchPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar"))) {
+            && (urlStr.endsWith(opensearchPrefix + "-" + Version.CURRENT + ".jar")
+                || urlStr.matches(
+                    "(.*)" + opensearchPrefix + "(-)?(.*?)" + Version.CURRENT + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar"
+                ))) {
             try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
                 hash = manifest.getMainAttributes().getValue("Change");
