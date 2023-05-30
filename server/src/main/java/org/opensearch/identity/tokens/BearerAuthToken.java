@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.tokens;
 
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -22,6 +23,13 @@ public class BearerAuthToken extends AuthToken {
 
     public BearerAuthToken(final String encodedJwt) {
         this.encodedJwt = encodedJwt;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public BearerAuthToken(StreamInput in) throws IOException {
+        this.encodedJwt = in.readString();
     }
 
     @Override

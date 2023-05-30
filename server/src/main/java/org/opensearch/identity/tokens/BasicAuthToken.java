@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.tokens;
 
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -35,6 +36,14 @@ public final class BasicAuthToken extends AuthToken {
         }
         user = tokenParts[0];
         password = tokenParts[1];
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public BasicAuthToken(StreamInput in) throws IOException {
+        this.user = in.readString();
+        this.password = in.readString();
     }
 
     public String getUser() {
