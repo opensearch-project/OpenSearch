@@ -279,6 +279,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
             Settings.builder()
                 // we want to override cluster replication setting by passing a index replication setting
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
         ).get();
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         final String replicaNode = internalCluster().startNode(settings);
