@@ -28,7 +28,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 
-public class DefaultTracerTests extends OpenSearchTestCase {
+public class OTelTracerTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
 
@@ -36,7 +36,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
 
     private TracerSettings tracerSettings;
 
-    private ArgumentCaptor<DefaultSpan> captor;
+    private ArgumentCaptor<OTelSpan> captor;
 
     private SpanBuilder mockSpanBuilder;
 
@@ -56,7 +56,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testStartAndEndSpans() {
-        DefaultTracer tracer = new DefaultTracer(mock(OpenTelemetry.class), threadPool, mock(TracerSettings.class));
+        OTelTracer tracer = new OTelTracer(mock(OpenTelemetry.class), threadPool, mock(TracerSettings.class));
 
         tracer.startSpan("foo", Level.INFO);
         assertEquals("foo", tracer.getCurrentSpan().getSpanName());
@@ -65,7 +65,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testStartSpanAndEndWithNoopSpans() {
-        DefaultTracer tracer = spy(new DefaultTracer(openTelemetry, threadPool, tracerSettings));
+        OTelTracer tracer = spy(new OTelTracer(openTelemetry, threadPool, tracerSettings));
 
         tracer.startSpan("span1", Level.ROOT);
         tracer.startSpan("span2", Level.TERSE);
@@ -77,7 +77,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         verify(tracer, times(4)).createOtelSpan(any(), captor.capture());
         verify(mockSpanBuilder, times(4)).startSpan();
         assertEquals("span4", tracer.getCurrentSpan().getSpanName());
-        DefaultSpan value = captor.getValue();
+        OTelSpan value = captor.getValue();
         assertEquals("span3", value.getSpanName());
         tracer.endSpan();
         assertEquals("noop-span-2", tracer.getCurrentSpan().getSpanName());
@@ -97,14 +97,14 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     public void testAddEvent() {
         ArgumentCaptor<String> stringCaptorValues = ArgumentCaptor.forClass(String.class);
 
-        DefaultTracer tracer = new DefaultTracer(openTelemetry, threadPool, tracerSettings);
+        OTelTracer tracer = new OTelTracer(openTelemetry, threadPool, tracerSettings);
 
         tracer.startSpan("foo", Level.INFO);
-        tracer.addEvent("fooEvent");
+        tracer.addSpanEvent("fooEvent");
         tracer.endSpan();
 
         tracer.startSpan("bar", Level.DEBUG);
-        tracer.addEvent("fooEvent");
+        tracer.addSpanEvent("fooEvent");
         tracer.endSpan();
 
         verify(mockOtelSpan, times(1)).addEvent(stringCaptorValues.capture());
@@ -118,7 +118,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         openTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
         when(openTelemetry.getTracer(any(String.class))).thenReturn(mockTracer);
-        captor = ArgumentCaptor.forClass(DefaultSpan.class);
+        captor = ArgumentCaptor.forClass(OTelSpan.class);
         mockSpanBuilder = mock(SpanBuilder.class);
         mockOtelSpan = mock(io.opentelemetry.api.trace.Span.class);
         when(mockOtelSpan.getSpanContext()).thenReturn(mock(SpanContext.class));

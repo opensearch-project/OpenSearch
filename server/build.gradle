@@ -333,10 +333,7 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2Projections',
             'com.google.common.geometry.S2Point',
             'com.google.common.geometry.S2$Metric',
-            'com.google.common.geometry.S2LatLng',
-
-
-
+            'com.google.common.geometry.S2LatLng'
     )
     ignoreViolations(
             'com.google.protobuf.MessageSchema',
@@ -345,8 +342,7 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-            'com.google.protobuf.UnsafeUtil$MemoryAccessor',
-
+            'com.google.protobuf.UnsafeUtil$MemoryAccessor'
     )
 }
 

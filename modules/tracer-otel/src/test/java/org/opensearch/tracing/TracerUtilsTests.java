@@ -31,7 +31,7 @@ public class TracerUtilsTests extends OpenSearchTestCase {
     public void testAddTracerContextToHeader() {
         Span mockSpan = mock(Span.class);
         when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));
-        DefaultSpan span = new DefaultSpan("spanName", mockSpan, null, Level.INFO);
+        OTelSpan span = new OTelSpan("spanName", mockSpan, null, Level.INFO);
         SpanHolder spanHolder = new SpanHolder(span);
         Map<String, Object> transientHeaders = Map.of(CURRENT_SPAN, spanHolder);
         Map<String, String> requestHeaders = new HashMap<>();
@@ -42,7 +42,7 @@ public class TracerUtilsTests extends OpenSearchTestCase {
     public void testAddTracerContextToHeaderWithNoopSpan() {
         Span mockSpan = mock(Span.class);
         when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));
-        DefaultSpan span = new DefaultSpan("spanName", mockSpan, null, Level.INFO);
+        OTelSpan span = new OTelSpan("spanName", mockSpan, null, Level.INFO);
         NoopSpan noopSpan = new NoopSpan("noopSpanName", span, Level.INFO);
         SpanHolder spanHolder = new SpanHolder(noopSpan);
         Map<String, Object> transientHeaders = Map.of(CURRENT_SPAN, spanHolder);

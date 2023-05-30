@@ -57,22 +57,12 @@ public class TracerModule {
 
     public Supplier<Tracer> getTracerSupplier() {
         final String tracerType = getTracerType();
-
-        final Supplier<Tracer> factory = tracerFactories.get(tracerType);
-        /*if (factory == null) {
-            throw new IllegalStateException("Unsupported tracer.type [" + tracerType + "]");
-        }*/
-        return factory;
+        return tracerFactories.get(tracerType);
     }
 
     public TracerHeaderInjector getTracerHeaderInjector() {
         final String tracerType = getTracerType();
-
-        final TracerHeaderInjector tracerHeaderInjector = tracerHeaderInjectors.get(tracerType);
-        /*if (tracerHeaderInjector == null) {
-            throw new IllegalStateException("Unsupported tracer.type [" + tracerType + "]");
-        }*/
-        return tracerHeaderInjector;
+        return tracerHeaderInjectors.get(tracerType);
     }
 
     private String getTracerType() {

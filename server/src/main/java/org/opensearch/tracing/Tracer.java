@@ -47,7 +47,7 @@ public interface Tracer extends Closeable {
      * @param key   attribute key
      * @param value attribute value
      */
-    void addAttribute(String key, String value);
+    void addSpanAttribute(String key, String value);
 
     /**
      * Adds long attribute to the current active {@link Span}.
@@ -55,7 +55,7 @@ public interface Tracer extends Closeable {
      * @param key   attribute key
      * @param value attribute value
      */
-    void addAttribute(String key, long value);
+    void addSpanAttribute(String key, long value);
 
     /**
      * Adds double attribute to the current active {@link Span}.
@@ -63,7 +63,7 @@ public interface Tracer extends Closeable {
      * @param key   attribute key
      * @param value attribute value
      */
-    void addAttribute(String key, double value);
+    void addSpanAttribute(String key, double value);
 
     /**
      * Adds boolean attribute to the current active {@link Span}.
@@ -71,12 +71,12 @@ public interface Tracer extends Closeable {
      * @param key   attribute key
      * @param value attribute value
      */
-    void addAttribute(String key, boolean value);
+    void addSpanAttribute(String key, boolean value);
 
     /**
      * Adds an event to the current active {@link Span}.
      *
      * @param event event name
      */
-    void addEvent(String event);
+    void addSpanEvent(String event);
 }

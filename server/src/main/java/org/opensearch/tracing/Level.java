@@ -89,11 +89,11 @@ public enum Level {
     }
 
     /**
-     * Checks if the current level's value is higher than the given level
+     * Checks if the current level's value is equal or higher than the given level
      * @param level to compare
-     * @return <code>true</code> if the current level's value is higher than given level's value, <code>false</code> otherwise
+     * @return <code>true</code> if the current level's value is equal or higher than given level's value, <code>false</code> otherwise
      */
-    public boolean isHigher(Level level) {
+    public boolean isHigherOrEqual(Level level) {
         if (level != null) {
             return this.value >= level.value;
         }

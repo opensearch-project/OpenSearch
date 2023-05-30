@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * This class encapsulates all OpenTelemetry related resources
  */
-class OTelResourceProvider {
+final class OTelResourceProvider {
 
     private static final ContextPropagators contextPropagators;
     private static volatile OpenTelemetry OPEN_TELEMETRY;

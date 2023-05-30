@@ -51,11 +51,11 @@ public class OTelTracerModulePlugin extends Plugin implements TracerPlugin {
 
     @Override
     public Map<String, TracerHeaderInjector> getHeaderInjectors() {
-        return Collections.singletonMap(OTEL_TRACER_NAME, new OtelTracerHeaderInjector());
+        return Collections.singletonMap(OTEL_TRACER_NAME, new OTelTracerHeaderInjector());
     }
 
     private Tracer createDefaultTracer(ThreadPool threadPool, TracerSettings tracerSettings) {
         OpenTelemetry openTelemetry = OTelResourceProvider.getOrCreateOpenTelemetryInstance(tracerSettings);
-        return new DefaultTracer(openTelemetry, threadPool, tracerSettings);
+        return new OTelTracer(openTelemetry, threadPool, tracerSettings);
     }
 }

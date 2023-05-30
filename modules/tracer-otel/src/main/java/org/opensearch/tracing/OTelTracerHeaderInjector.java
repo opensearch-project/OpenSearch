@@ -14,11 +14,11 @@ import java.util.function.BiConsumer;
 /**
  * Otel based header injector. This adds Otel headers to facilitate context propagation.
  */
-public class OtelTracerHeaderInjector implements TracerHeaderInjector {
+public class OTelTracerHeaderInjector implements TracerHeaderInjector {
     /**
      * No-args constructor
      */
-    public OtelTracerHeaderInjector() {}
+    public OTelTracerHeaderInjector() {}
 
     @Override
     public BiConsumer<Map<String, String>, Map<String, Object>> injectHeader() {

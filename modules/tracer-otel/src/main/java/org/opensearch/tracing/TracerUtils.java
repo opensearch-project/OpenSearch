@@ -56,10 +56,10 @@ public class TracerUtils {
             if (transientHeaders != null && transientHeaders.containsKey(CURRENT_SPAN)) {
                 SpanHolder spanHolder = (SpanHolder) transientHeaders.get(CURRENT_SPAN);
                 Span currentSpan = spanHolder.getSpan();
-                DefaultSpan defaultSpan = getLastValidSpanInChain(currentSpan);
+                OTelSpan oTelSpan = getLastValidSpanInChain(currentSpan);
                 OTelResourceProvider.getContextPropagators()
                     .getTextMapPropagator()
-                    .inject(context(defaultSpan), requestHeaders, TEXT_MAP_SETTER);
+                    .inject(context(oTelSpan), requestHeaders, TEXT_MAP_SETTER);
             }
         };
     }
@@ -72,14 +72,14 @@ public class TracerUtils {
         return OTelResourceProvider.getContextPropagators().getTextMapPropagator().extract(Context.current(), headers, TEXT_MAP_GETTER);
     }
 
-    private static Context context(DefaultSpan defaultSpan) {
-        return Context.current().with(io.opentelemetry.api.trace.Span.wrap(defaultSpan.getSpanContext()));
+    private static Context context(OTelSpan oTelSpan) {
+        return Context.current().with(io.opentelemetry.api.trace.Span.wrap(oTelSpan.getSpanContext()));
     }
 
-    private static DefaultSpan getLastValidSpanInChain(Span span) {
+    private static OTelSpan getLastValidSpanInChain(Span span) {
         while (span instanceof NoopSpan) {
             span = span.getParentSpan();
         }
-        return (DefaultSpan) span;
+        return (OTelSpan) span;
     }
 }

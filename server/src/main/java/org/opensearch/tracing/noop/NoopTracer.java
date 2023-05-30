@@ -34,7 +34,7 @@ public class NoopTracer implements Tracer {
      * @param value attribute value
      */
     @Override
-    public void addAttribute(String key, String value) {
+    public void addSpanAttribute(String key, String value) {
 
     }
 
@@ -43,7 +43,7 @@ public class NoopTracer implements Tracer {
      * @param value attribute value
      */
     @Override
-    public void addAttribute(String key, long value) {
+    public void addSpanAttribute(String key, long value) {
 
     }
 
@@ -52,7 +52,7 @@ public class NoopTracer implements Tracer {
      * @param value attribute value
      */
     @Override
-    public void addAttribute(String key, double value) {
+    public void addSpanAttribute(String key, double value) {
 
     }
 
@@ -61,12 +61,12 @@ public class NoopTracer implements Tracer {
      * @param value attribute value
      */
     @Override
-    public void addAttribute(String key, boolean value) {
+    public void addSpanAttribute(String key, boolean value) {
 
     }
 
     @Override
-    public void addEvent(String event) {
+    public void addSpanEvent(String event) {
 
     }
 

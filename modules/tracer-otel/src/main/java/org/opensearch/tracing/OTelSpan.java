@@ -14,14 +14,14 @@ import io.opentelemetry.api.trace.SpanContext;
  * Default implementation of {@link Span} using Otel span. It keeps a reference of OpenTelemetry Span and handles span
  * lifecycle management by delegating calls to it.
  */
-class DefaultSpan implements Span {
+class OTelSpan implements Span {
 
     private final String spanName;
     private final io.opentelemetry.api.trace.Span otelSpan;
     private final Span parentSpan;
     private final Level level;
 
-    public DefaultSpan(String spanName, io.opentelemetry.api.trace.Span span, Span parentSpan, Level level) {
+    public OTelSpan(String spanName, io.opentelemetry.api.trace.Span span, Span parentSpan, Level level) {
         this.spanName = spanName;
         this.otelSpan = span;
         this.parentSpan = parentSpan;
