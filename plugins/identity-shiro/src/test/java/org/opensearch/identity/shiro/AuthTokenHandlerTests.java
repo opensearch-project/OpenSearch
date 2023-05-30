@@ -127,7 +127,7 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
 
     public void testVerifyBearerTokenObject() {
         BearerAuthToken testGoodToken = new BearerAuthToken("header.payload.signature");
-        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> new BearerAuthToken("asddfhadfasdfad"));
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> new BearerAuthToken("asddfhadfasdfad"));
         assert (exception.getMessage().contains("Illegally formed bearer authorization token "));
         assertEquals(testGoodToken.getCompleteToken(), "header.payload.signature");
         assertEquals(testGoodToken.getTokenIdentifier(), "Bearer");
