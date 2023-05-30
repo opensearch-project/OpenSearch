@@ -795,7 +795,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
         writers.put(InetSocketAddress.class, (o, v) -> {
             final InetSocketAddress inetSocketAddress = (InetSocketAddress) v;
             o.writeByte((byte) 27);
-            o.writeString(inetSocketAddress.getHostName());
+            o.writeString(inetSocketAddress.getHostString());
             o.writeByteArray(inetSocketAddress.getAddress().getAddress());
             o.writeInt(inetSocketAddress.getPort());
         });
