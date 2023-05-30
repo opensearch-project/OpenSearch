@@ -61,8 +61,7 @@ public class ClusterStateUtilsTests extends OpenSearchTestCase {
         // Decompression fails with AssertionError on non-compressed request
         BytesTransportRequest mockedRequest = mock(BytesTransportRequest.class, RETURNS_DEEP_STUBS);
         when(mockedRequest.bytes().streamInput()).thenThrow(IOException.class);
-        assertThrows(AssertionError.class, () -> ClusterStateUtils.decompressClusterState(mockedRequest,
-            DEFAULT_NAMED_WRITABLE_REGISTRY));
+        assertThrows(AssertionError.class, () -> ClusterStateUtils.decompressClusterState(mockedRequest, DEFAULT_NAMED_WRITABLE_REGISTRY));
     }
 
     public void testDeserializeFullClusterState() throws IOException {
@@ -84,8 +83,7 @@ public class ClusterStateUtilsTests extends OpenSearchTestCase {
         // failure when mocked stream or null
         assertThrows(NullPointerException.class, () -> ClusterStateUtils.deserializeFullClusterState(null, localNode));
         StreamInput mockedStreamInput = mock(StreamInput.class, RETURNS_DEEP_STUBS);
-        assertThrows(NullPointerException.class, () -> ClusterStateUtils.deserializeFullClusterState(mockedStreamInput,
-            localNode));
+        assertThrows(NullPointerException.class, () -> ClusterStateUtils.deserializeFullClusterState(mockedStreamInput, localNode));
     }
 
     public void testDeserializeDiffClusterState() throws IOException {
@@ -95,15 +93,13 @@ public class ClusterStateUtilsTests extends OpenSearchTestCase {
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
         // fail with NPE if mocked stream is passed
         StreamInput mockedStreamInput = mock(StreamInput.class, RETURNS_DEEP_STUBS);
-        assertThrows(NullPointerException.class, () -> ClusterStateUtils.deserializeClusterStateDiff(mockedStreamInput,
-            localNode));
+        assertThrows(NullPointerException.class, () -> ClusterStateUtils.deserializeClusterStateDiff(mockedStreamInput, localNode));
 
         // fail with EOF is full cluster state is passed
         BytesReference bytes = ClusterStateUtils.serializeClusterState(localClusterState, localNode, true);
         BytesTransportRequest request = new BytesTransportRequest(bytes, localNode.getVersion());
         try (StreamInput in = ClusterStateUtils.decompressClusterState(request, DEFAULT_NAMED_WRITABLE_REGISTRY)) {
-            assertThrows(EOFException.class, () -> ClusterStateUtils.deserializeClusterStateDiff(in,
-                localNode));
+            assertThrows(EOFException.class, () -> ClusterStateUtils.deserializeClusterStateDiff(in, localNode));
         }
     }
 }

@@ -468,18 +468,17 @@ public class JoinHelper {
             );
         } else {
             try {
-                if (!serializedStates.containsKey(state.version())){
+                if (!serializedStates.containsKey(state.version())) {
                     serializedStates.clear();
                 }
-                BytesReference bytes = serializedStates.computeIfAbsent(state.version(),
-                    version -> {
-                        try {
-                            return ClusterStateUtils.serializeClusterState(state, node, true);
-                        } catch (IOException e) {
-                            // mandatory as ConcurrentHashMap doesn't rethrow IOException.
-                            throw new RuntimeException(e);
-                        }
-                    });
+                BytesReference bytes = serializedStates.computeIfAbsent(state.version(), version -> {
+                    try {
+                        return ClusterStateUtils.serializeClusterState(state, node, true);
+                    } catch (IOException e) {
+                        // mandatory as ConcurrentHashMap doesn't rethrow IOException.
+                        throw new RuntimeException(e);
+                    }
+                });
                 final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
                 transportService.sendRequest(
                     node,
