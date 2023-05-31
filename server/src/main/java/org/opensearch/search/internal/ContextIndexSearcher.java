@@ -76,6 +76,8 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.tracing.Level;
+import org.opensearch.tracing.TracerManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -244,6 +246,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         DocValueFormat[] formats,
         TotalHits totalHits
     ) throws IOException {
+        TracerManager.getTracer().startSpan("IndexSearcher", Level.TERSE);
         final List<Collector> collectors = new ArrayList<>(leaves.size());
         for (LeafReaderContext ctx : leaves) {
             final Collector collector = manager.newCollector();
@@ -260,6 +263,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
         }
         result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
+        TracerManager.getTracer().endSpan();
     }
 
     public void search(
@@ -283,6 +287,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        TracerManager.getTracer().startSpan("IndexSearcher", Level.TERSE);
         if (shouldReverseLeafReaderContexts()) {
             // reverse the segment search order if this flag is true.
             // Certain queries can benefit if we reverse the segment read order,
@@ -295,6 +300,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 searchLeaf(leaves.get(i), weight, collector);
             }
         }
+        TracerManager.getTracer().endSpan();
     }
 
     /**
@@ -304,7 +310,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-
+        TracerManager.getTracer().startSpan("IndexSearcher-Leaf", Level.DEBUG);
         // Check if at all we need to call this leaf for collecting results.
         if (canMatch(ctx) == false) {
             return;
@@ -351,6 +357,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             }
         }
+        TracerManager.getTracer().endSpan();
     }
 
     private Weight wrapWeight(Weight weight) {
