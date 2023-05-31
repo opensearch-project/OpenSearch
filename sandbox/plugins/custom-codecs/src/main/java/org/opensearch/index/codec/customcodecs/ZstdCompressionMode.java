@@ -77,7 +77,7 @@ public class ZstdCompressionMode extends CompressionMode {
                 return;
             }
             final int maxCompressedLength = (int) Zstd.compressBound(length);
-            compressedBuffer = ArrayUtil.grow(compressedBuffer, maxCompressedLength);
+            compressedBuffer = ArrayUtil.growNoCopy(compressedBuffer, maxCompressedLength);
 
             int compressedSize = cctx.compressByteArray(compressedBuffer, 0, compressedBuffer.length, bytes, offset, length);
 
@@ -139,7 +139,7 @@ public class ZstdCompressionMode extends CompressionMode {
                 return;
             }
 
-            compressedBuffer = ArrayUtil.grow(compressedBuffer, compressedLength);
+            compressedBuffer = ArrayUtil.growNoCopy(compressedBuffer, compressedLength);
             in.readBytes(compressedBuffer, 0, compressedLength);
 
             bytes.bytes = ArrayUtil.grow(bytes.bytes, bytes.length + decompressedLen);
@@ -161,7 +161,7 @@ public class ZstdCompressionMode extends CompressionMode {
             }
             final int dictLength = in.readVInt();
             final int blockLength = in.readVInt();
-            bytes.bytes = ArrayUtil.grow(bytes.bytes, dictLength);
+            bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, dictLength);
             bytes.offset = bytes.length = 0;
 
             try (ZstdDecompressCtx dctx = new ZstdDecompressCtx()) {
