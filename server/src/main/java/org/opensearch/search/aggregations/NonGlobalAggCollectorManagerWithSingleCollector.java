@@ -17,19 +17,23 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * {@link CollectorManager} to take care of non-global aggregation operators in case of non-concurrent segment search. This
  * CollectorManager returns the same collector instance (i.e. created in constructor of super class) on each newCollector call
  */
 public class NonGlobalAggCollectorManagerWithSingleCollector extends AggregationCollectorManager {
+
+    private final Collector collector;
+
     public NonGlobalAggCollectorManagerWithSingleCollector(SearchContext context) throws IOException {
         super(context, context.aggregations().factories()::createTopLevelNonGlobalAggregators, CollectorResult.REASON_AGGREGATION);
+        collector = Objects.requireNonNull(super.newCollector(), "collector instance is null");
     }
 
     @Override
     public Collector newCollector() throws IOException {
-        assert collector != null : "Collector instance is null";
         return collector;
     }
 

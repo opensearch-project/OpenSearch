@@ -117,7 +117,6 @@ import org.opensearch.plugins.SearchPlugin.SortSpec;
 import org.opensearch.plugins.SearchPlugin.SuggesterSpec;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.BaseAggregationBuilder;
-import org.opensearch.search.aggregations.ConcurrentAggregationProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
@@ -1295,9 +1294,6 @@ public class SearchModule {
         if (queryPhaseSearcher == null) {
             // use the defaults
             queryPhase = new QueryPhase();
-        } else if (queryPhaseSearcher instanceof ConcurrentQueryPhaseSearcher) {
-            // use ConcurrentAggregationProcessor only with ConcurrentQueryPhaseSearcher
-            queryPhase = new QueryPhase(queryPhaseSearcher, new ConcurrentAggregationProcessor());
         } else {
             queryPhase = new QueryPhase(queryPhaseSearcher);
         }

@@ -440,7 +440,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
     public void testPluginQueryPhaseSearcher() {
         Settings settings = Settings.builder().put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
         FeatureFlags.initializeFeatureFlags(settings);
-        QueryPhaseSearcher queryPhaseSearcher = mock(QueryPhaseSearcher.class);
+        QueryPhaseSearcher queryPhaseSearcher = (searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout) -> false;
         SearchPlugin plugin1 = new SearchPlugin() {
             @Override
             public Optional<QueryPhaseSearcher> getQueryPhaseSearcher() {

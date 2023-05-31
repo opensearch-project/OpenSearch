@@ -28,29 +28,27 @@ import java.util.List;
  * Common {@link CollectorManager} used by both concurrent and non-concurrent aggregation path and also for global and non-global
  * aggregation operators
  */
-public class AggregationCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
+class AggregationCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
     private final SearchContext context;
     private final CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider;
     private final String collectorReason;
 
-    protected Collector collector;
-
-    public AggregationCollectorManager(
+    AggregationCollectorManager(
         SearchContext context,
         CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider,
         String collectorReason
-    ) throws IOException {
+    ) {
         this.context = context;
         this.aggProvider = aggProvider;
         this.collectorReason = collectorReason;
-        collector = createCollector(context, aggProvider.apply(context), collectorReason);
-        // For Aggregations we should not have a NO_OP_Collector
-        assert collector != BucketCollector.NO_OP_COLLECTOR;
     }
 
     @Override
     public Collector newCollector() throws IOException {
-        return createCollector(context, aggProvider.apply(context), collectorReason);
+        final Collector collector = createCollector(context, aggProvider.apply(context), collectorReason);
+        // For Aggregations we should not have a NO_OP_Collector
+        assert collector != BucketCollector.NO_OP_COLLECTOR;
+        return collector;
     }
 
     @Override
