@@ -38,7 +38,6 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.core.Protocol;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
@@ -47,13 +46,7 @@ import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AwsEc2ServiceImplTests extends OpenSearchTestCase implements ConfigPathSupport {
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        setUpAwsProfile();
-    }
-
+public class AwsEc2ServiceImplTests extends AbstractEc2DiscoveryTestCase {
     public void testAwsCredentialsWithSystemProviders() {
         final AwsCredentialsProvider credentialsProvider = AwsEc2ServiceImpl.buildCredentials(
             logger,

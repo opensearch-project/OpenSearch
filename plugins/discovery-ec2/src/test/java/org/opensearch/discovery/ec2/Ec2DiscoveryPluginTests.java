@@ -43,7 +43,6 @@ import software.amazon.awssdk.services.ec2.Ec2Client;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -53,14 +52,7 @@ import java.util.Arrays;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements ConfigPathSupport {
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        setUpAwsProfile();
-    }
-
+public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
     private Settings getNodeAttributes(Settings settings, String url) {
         final Settings realSettings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true).put(settings).build();
         return Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(realSettings, url);

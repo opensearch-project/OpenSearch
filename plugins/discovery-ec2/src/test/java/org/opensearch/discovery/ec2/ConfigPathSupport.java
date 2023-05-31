@@ -13,6 +13,8 @@ import org.opensearch.common.io.PathUtils;
 
 import java.nio.file.Path;
 
+import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
+
 /**
  * The trait that adds the config path and AWS profile setup to the test cases.
  */
@@ -28,5 +30,15 @@ interface ConfigPathSupport {
         SocketAccess.doPrivileged(() -> System.setProperty("aws.accessKeyId", "aws-access-key-id"));
         SocketAccess.doPrivileged(() -> System.setProperty("aws.secretAccessKey", "aws-secret-access-key"));
         SocketAccess.doPrivilegedVoid(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
+    }
+
+    @SuppressForbidden(reason = "reset aws settings")
+    default public void resetAwsProfile() throws Exception {
+        SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        SocketAccess.doPrivileged(() -> System.clearProperty("aws.region"));
+        SocketAccess.doPrivileged(() -> System.clearProperty("aws.accessKeyId"));
+        SocketAccess.doPrivileged(() -> System.clearProperty("aws.secretAccessKey"));
+        SocketAccess.doPrivileged(() -> System.clearProperty(ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.property()));
+        SocketAccess.doPrivileged(() -> System.clearProperty(ProfileFileSystemSetting.AWS_CONFIG_FILE.property()));
     }
 }

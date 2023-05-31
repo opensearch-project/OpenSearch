@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "use a http server")
-public class Ec2DiscoveryTests extends AbstractEc2MockAPITestCase implements ConfigPathSupport {
+public class Ec2DiscoveryTests extends AbstractEc2MockAPITestCase {
 
     private static final String SUFFIX_PRIVATE_DNS = ".ec2.internal";
     private static final String PREFIX_PRIVATE_DNS = "mock-ip-";
@@ -86,6 +86,12 @@ public class Ec2DiscoveryTests extends AbstractEc2MockAPITestCase implements Con
     public void setUp() throws Exception {
         super.setUp();
         setUpAwsProfile();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        resetAwsProfile();
+        super.tearDown();
     }
 
     protected MockTransportService createTransportService() {
