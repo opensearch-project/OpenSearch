@@ -85,10 +85,11 @@ import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTI
 public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase implements ConfigPathSupport {
 
     private S3Service service;
+    private String previousOpenSearchPathConf;
 
     @Before
     public void setUp() throws Exception {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         service = new S3Service(configPath());
         super.setUp();
     }
@@ -96,6 +97,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @After
     public void tearDown() throws Exception {
         IOUtils.close(service);
+        if (previousOpenSearchPathConf != null) {
+            SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
+        } else {
+            SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        }
         super.tearDown();
     }
 

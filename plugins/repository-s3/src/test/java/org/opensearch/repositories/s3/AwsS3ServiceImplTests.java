@@ -37,7 +37,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.s3.utils.Protocol;
-import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
@@ -56,7 +55,7 @@ import static org.hamcrest.Matchers.is;
 import static org.opensearch.repositories.s3.S3ClientSettings.PROTOCOL_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.PROXY_TYPE_SETTING;
 
-public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigPathSupport {
+public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
 
     private static final String HOST = "127.0.0.10";
     private static final int PORT = 8080;
@@ -71,10 +70,6 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
             .put("s3.client.default.proxy.type", "http")
             .put("s3.client.default.proxy.host", HOST)
             .put("s3.client.default.proxy.port", PORT);
-
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
-        SocketAccess.doPrivilegedVoid(S3Service::setDefaultAwsProfilePath);
-
         super.setUp();
     }
 

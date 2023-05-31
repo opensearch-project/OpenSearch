@@ -32,14 +32,11 @@
 
 package org.opensearch.repositories.s3;
 
-import org.junit.Before;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.repositories.s3.utils.Protocol;
-import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.signer.Signer;
@@ -59,16 +56,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigPathSupport {
-    @Override
-    @Before
-    @SuppressForbidden(reason = "Need to set system property here for AWS SDK v2")
-    public void setUp() throws Exception {
-        super.setUp();
-
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
-    }
-
+public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
     public void testThereIsADefaultClientByDefault() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.EMPTY, configPath());
         assertThat(settings.keySet(), contains("default"));

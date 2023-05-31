@@ -74,6 +74,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
     private String region;
     private String signerOverride;
+    private String previousOpenSearchPathConf;
 
     @Override
     public void setUp() throws Exception {
@@ -81,13 +82,17 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             region = "test-region";
         }
         signerOverride = AwsRequestSigner.VERSION_FOUR_SIGNER.getName();
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
+        previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
     }
 
     @Override
     public void tearDown() throws Exception {
-        SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        if (previousOpenSearchPathConf != null) {
+            SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
+        } else {
+            SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        }
         super.tearDown();
     }
 
