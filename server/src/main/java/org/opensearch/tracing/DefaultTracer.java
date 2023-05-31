@@ -111,8 +111,8 @@ public class DefaultTracer implements Tracer {
         }
     }
 
-    @Override
-    public Span getCurrentSpan() {
+    // Visible for testing
+    Span getCurrentSpan() {
         Optional<Span> optionalSpanFromContext = spanFromThreadContext();
         return optionalSpanFromContext.orElse(spanFromHeader());
     }

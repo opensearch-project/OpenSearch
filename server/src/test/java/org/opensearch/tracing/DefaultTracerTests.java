@@ -52,7 +52,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testCreateSpan() {
-        Tracer defaultTracer = new DefaultTracer(mockTelemetry, testThreadPool, tracerSettings);
+        DefaultTracer defaultTracer = new DefaultTracer(mockTelemetry, testThreadPool, tracerSettings);
 
         defaultTracer.startSpan("span_name", Level.INFO);
 
@@ -63,7 +63,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testEndSpan() {
-        Tracer defaultTracer = new DefaultTracer(mockTelemetry, testThreadPool, tracerSettings);
+        DefaultTracer defaultTracer = new DefaultTracer(mockTelemetry, testThreadPool, tracerSettings);
         defaultTracer.startSpan("span_name", Level.INFO);
 
         defaultTracer.endSpan();

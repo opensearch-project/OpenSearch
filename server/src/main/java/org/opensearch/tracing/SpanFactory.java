@@ -13,7 +13,7 @@ import org.opensearch.tracing.noop.NoopSpan;
 /**
  * Factory to create spans based on the configured level
  */
-public class SpanFactory {
+public final class SpanFactory {
 
     private final TracerSettings tracerSettings;
 

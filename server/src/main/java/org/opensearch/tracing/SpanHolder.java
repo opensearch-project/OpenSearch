@@ -17,12 +17,6 @@ public class SpanHolder {
 
     private final AtomicReference<Span> span = new AtomicReference<>();
 
-    public SpanHolder(SpanHolder spanHolder) {
-        if (spanHolder != null) {
-            this.span.set(spanHolder.span.get());
-        }
-    }
-
     public SpanHolder(Span span) {
         this.span.set(span);
     }

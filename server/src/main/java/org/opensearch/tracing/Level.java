@@ -31,36 +31,36 @@ public enum Level {
     /**
      * DISABLED is a special level that can be used to turn off tracing. This level is initialized to Integer.MAX_VALUE.
      */
-    DISABLED(Integer.MAX_VALUE),
+    DISABLED(Byte.MAX_VALUE),
 
     /**
      * ROOT is a tracing level indicating top level/root spans.
      */
-    ROOT(500),
+    ROOT((byte) 100),
 
     /**
      * TERSE is a tracing level for critical spans
      */
-    TERSE(400),
+    TERSE((byte) 80),
 
     /**
      * INFO is a tracing level used of generic spans
      */
-    INFO(300),
+    INFO((byte) 60),
 
     /**
      * DEBUG is a tracing level used for low level spans
      */
-    DEBUG(200),
+    DEBUG((byte) 40),
 
     /**
      * TRACE is the lowest level span
      */
-    TRACE(100);
+    TRACE((byte) 20);
 
-    private final int value;
+    private final byte value;
 
-    Level(int value) {
+    Level(byte value) {
         this.value = value;
     }
 

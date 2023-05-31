@@ -33,13 +33,6 @@ public interface Tracer extends Closeable {
     void endSpan();
 
     /**
-     * Returns the current active {@link Span}
-     *
-     * @return current active span
-     */
-    Span getCurrentSpan();
-
-    /**
      * Adds string attribute to the current active {@link Span}.
      *
      * @param key   attribute key

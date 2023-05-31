@@ -157,7 +157,7 @@ public final class ThreadContext implements Writeable {
         if (context.transientHeaders.containsKey(CURRENT_SPAN)) {
             threadContextStruct = threadContextStruct.putTransient(
                 CURRENT_SPAN,
-                new SpanHolder((SpanHolder) context.transientHeaders.get(CURRENT_SPAN))
+                new SpanHolder(((SpanHolder) context.transientHeaders.get(CURRENT_SPAN)).getSpan())
             );
         }
 
@@ -258,7 +258,10 @@ public final class ThreadContext implements Writeable {
         final ThreadContextStruct newContext = threadLocal.get();
 
         if (newContext.transientHeaders.containsKey(CURRENT_SPAN)) {
-            newContext.transientHeaders.put(CURRENT_SPAN, new SpanHolder((SpanHolder) newContext.transientHeaders.get(CURRENT_SPAN)));
+            newContext.transientHeaders.put(
+                CURRENT_SPAN,
+                new SpanHolder(((SpanHolder) newContext.transientHeaders.get(CURRENT_SPAN)).getSpan())
+            );
         }
 
         return () -> {

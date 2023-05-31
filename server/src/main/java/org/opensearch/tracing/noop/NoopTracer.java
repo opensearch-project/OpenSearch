@@ -9,7 +9,6 @@
 package org.opensearch.tracing.noop;
 
 import org.opensearch.tracing.Level;
-import org.opensearch.tracing.Span;
 import org.opensearch.tracing.Tracer;
 
 /**
@@ -68,11 +67,6 @@ public class NoopTracer implements Tracer {
     @Override
     public void addSpanEvent(String event) {
 
-    }
-
-    @Override
-    public Span getCurrentSpan() {
-        return null;
     }
 
     @Override
