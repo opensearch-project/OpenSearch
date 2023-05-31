@@ -82,18 +82,6 @@ public class Ec2DiscoveryTests extends AbstractEc2MockAPITestCase {
 
     private Map<String, TransportAddress> poorMansDNS = new ConcurrentHashMap<>();
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        setUpAwsProfile();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        resetAwsProfile();
-        super.tearDown();
-    }
-
     protected MockTransportService createTransportService() {
         final Transport transport = new MockNioTransport(
             Settings.EMPTY,
