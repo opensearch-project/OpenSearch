@@ -84,7 +84,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -131,7 +130,7 @@ public class JoinHelper {
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
     private final Consumer<Boolean> nodeCommissioned;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final ConcurrentHashMap<Long, BytesReference> serializedStates = new ConcurrentHashMap<>();
+    private final AtomicReference<Tuple<Long, BytesReference>> serializedState = new AtomicReference<>();
 
     JoinHelper(
         Settings settings,
@@ -468,17 +467,18 @@ public class JoinHelper {
             );
         } else {
             try {
-                if (!serializedStates.containsKey(state.version())) {
-                    serializedStates.clear();
-                }
-                BytesReference bytes = serializedStates.computeIfAbsent(state.version(), version -> {
-                    try {
-                        return ClusterStateUtils.serializeClusterState(state, node, true);
-                    } catch (IOException e) {
-                        // mandatory as ConcurrentHashMap doesn't rethrow IOException.
-                        throw new RuntimeException(e);
+                final BytesReference bytes = serializedState.updateAndGet(cachedState -> {
+                    if (cachedState == null || cachedState.v1() != state.version()) {
+                        try {
+                            return new Tuple<>(state.version(), ClusterStateUtils.serializeClusterState(state, node, true));
+                        } catch (IOException e) {
+                            // mandatory as AtomicReference doesn't rethrow IOException.
+                            throw new RuntimeException(e);
+                        }
+                    } else {
+                        return cachedState;
                     }
-                });
+                }).v2();
                 final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
                 transportService.sendRequest(
                     node,
