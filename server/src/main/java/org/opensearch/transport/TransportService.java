@@ -164,11 +164,7 @@ public class TransportService extends AbstractLifecycleComponent
 
     static {
         /**
-<<<<<<< HEAD
-         * Registers server specific types as a streamables for serialization
-=======
          * Registers server specific types as a streamable for serialization
->>>>>>> [Refactor] StreamInput, StreamOutput, Writeable to core library
          * over the {@link StreamOutput} and {@link StreamInput} wire
          */
         Streamables.registerStreamables();
@@ -181,7 +177,7 @@ public class TransportService extends AbstractLifecycleComponent
      * Build the service.
      *
      * @param clusterSettings if non null, the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *   *    updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
+     *        updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
     public TransportService(
         Settings settings,
