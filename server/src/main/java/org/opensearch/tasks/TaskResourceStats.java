@@ -50,7 +50,8 @@ public class TaskResourceStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             threadUsage = TaskThreadUsage.readFromStream(in);
         } else {
-            threadUsage = null;
+            // Initialize TaskThreadUsage in case it is not found in mixed cluster case
+            threadUsage = new TaskThreadUsage(0, 0);
         }
     }
 
