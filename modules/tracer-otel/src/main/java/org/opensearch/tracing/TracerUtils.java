@@ -16,7 +16,7 @@ import org.opensearch.tracing.noop.NoopSpan;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-import static org.opensearch.tracing.Tracer.CURRENT_SPAN;
+import static org.opensearch.tracing.DefaultTracer.CURRENT_SPAN;
 
 /**
  * Contains utils methods for tracing
@@ -73,7 +73,7 @@ public class TracerUtils {
     }
 
     private static Context context(OTelSpan oTelSpan) {
-        return Context.current().with(io.opentelemetry.api.trace.Span.wrap(oTelSpan.getSpanContext()));
+        return Context.current().with(io.opentelemetry.api.trace.Span.wrap(oTelSpan.getOtelSpan().getSpanContext()));
     }
 
     private static OTelSpan getLastValidSpanInChain(Span span) {

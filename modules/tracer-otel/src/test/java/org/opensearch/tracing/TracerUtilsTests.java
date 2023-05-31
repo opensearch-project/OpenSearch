@@ -21,7 +21,7 @@ import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.tracing.Tracer.CURRENT_SPAN;
+import static org.opensearch.tracing.DefaultTracer.CURRENT_SPAN;
 
 public class TracerUtilsTests extends OpenSearchTestCase {
 

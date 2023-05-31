@@ -1016,8 +1016,8 @@ public class Node implements Closeable {
             if (FeatureFlags.isEnabled(TRACER)) {
                 final TracerSettings tracerSettings = new TracerSettings(settings, clusterService.getClusterSettings());
                 List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
-                TracerModule tracerModule = new TracerModule(settings, tracerPlugins, threadPool, tracerSettings);
-                TracerManager.initTracerManager(tracerSettings, tracerModule.getTracerSupplier(), tracerModule.getTracerHeaderInjector());
+                TracerModule tracerModule = new TracerModule(settings, tracerPlugins, tracerSettings);
+                TracerManager.initTracerManager(tracerSettings, tracerModule.getTelemetrySupplier(), threadPool);
                 resourcesToClose.add(TracerManager::closeTracer);
             }
 

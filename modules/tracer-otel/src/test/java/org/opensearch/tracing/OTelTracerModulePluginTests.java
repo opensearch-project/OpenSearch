@@ -14,7 +14,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -23,7 +22,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.mockito.Mockito.mock;
 import static org.opensearch.tracing.OTelTracerModulePlugin.OTEL_TRACER_NAME;
 
 public class OTelTracerModulePluginTests extends OpenSearchTestCase {
@@ -50,20 +48,13 @@ public class OTelTracerModulePluginTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(TracerSettings.TRACER_LEVEL_SETTING.getKey(), Level.INFO).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, allTracerSettings);
         TracerSettings tracerSettings = new TracerSettings(settings, clusterSettings);
-        Map<String, Supplier<Tracer>> tracers = new OTelTracerModulePlugin().getTracers(mock(ThreadPool.class), tracerSettings);
+        Map<String, Supplier<Telemetry>> tracers = new OTelTracerModulePlugin().getTelemetries(tracerSettings);
 
         assertEquals(Set.of(OTEL_TRACER_NAME), tracers.keySet());
-        Tracer tracer = tracers.get(OTEL_TRACER_NAME).get();
-        assertTrue(tracer instanceof OTelTracer);
-        tracer.close();
+        Telemetry telemetry = tracers.get(OTEL_TRACER_NAME).get();
+        assertTrue(telemetry instanceof OtelTelemetry);
+        telemetry.close();
 
-    }
-
-    public void testGetHeaderInjectors() {
-        Map<String, TracerHeaderInjector> injectors = new OTelTracerModulePlugin().getHeaderInjectors();
-
-        assertEquals(Set.of(OTEL_TRACER_NAME), injectors.keySet());
-        assertTrue(injectors.get(OTEL_TRACER_NAME) instanceof OTelTracerHeaderInjector);
     }
 
 }
