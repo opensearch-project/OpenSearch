@@ -9,6 +9,7 @@
 package org.opensearch.repositories.s3.utils;
 
 import org.opensearch.common.collect.Tuple;
+import software.amazon.awssdk.core.exception.SdkException;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,7 +21,7 @@ public class HttpRangeUtils {
     public static Tuple<Long, Long> fromHttpRangeHeader(String headerValue) {
         Matcher matcher = RANGE_PATTERN.matcher(headerValue);
         if (!matcher.find()) {
-            throw new RuntimeException("Regex match for Content-Range header {" + headerValue + "} failed");
+            throw SdkException.create("Regex match for Content-Range header {" + headerValue + "} failed", new RuntimeException());
         }
         return new Tuple<>(Long.parseLong(matcher.group(1)), Long.parseLong(matcher.group(2)));
     }

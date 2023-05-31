@@ -55,6 +55,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkSystemSetting;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.http.SystemPropertyTlsKeyManagersProvider;
@@ -300,7 +301,7 @@ class S3Service implements Closeable {
                 )
             );
         } catch (URISyntaxException e) {
-            throw new RuntimeException("Invalid proxy URL", e);
+            throw SdkException.create("Invalid proxy URL", e);
         }
 
         proxyConfiguration = proxyConfiguration.username(clientSettings.proxySettings.getUsername());
@@ -338,8 +339,7 @@ class S3Service implements Closeable {
                 }
             };
         } catch (NoSuchAlgorithmException | KeyManagementException e) {
-            logger.error("Exception during SSL context creation for SOCKS proxy", e);
-            throw new RuntimeException(e);
+            throw SdkException.create("Exception during SSL context creation for SOCKS proxy", e);
         }
     }
 

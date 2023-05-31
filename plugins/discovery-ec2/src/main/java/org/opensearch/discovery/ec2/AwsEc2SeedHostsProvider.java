@@ -32,6 +32,7 @@
 
 package org.opensearch.discovery.ec2;
 
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.ec2.model.DescribeInstancesRequest;
 import software.amazon.awssdk.services.ec2.model.DescribeInstancesResponse;
 import software.amazon.awssdk.services.ec2.model.Instance;
@@ -143,7 +144,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
             // 2. We want to use two different strategies: (all security groups vs. any security groups)
             DescribeInstancesRequest instancesRequest = buildDescribeInstancesRequest();
             descInstances = SocketAccess.doPrivileged(() -> clientReference.get().describeInstances(instancesRequest));
-        } catch (final RuntimeException e) {
+        } catch (final SdkException e) {
             logger.warn("error retrieving instance list from IMDS", e);
             return dynamicHosts;
         }

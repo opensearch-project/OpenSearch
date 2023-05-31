@@ -48,6 +48,7 @@ import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
@@ -303,7 +304,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 .flatMap(listing -> listing.contents().stream())
                 .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
                 .collect(Collectors.toMap(PlainBlobMetadata::name, Function.identity()));
-        } catch (final RuntimeException e) {
+        } catch (final SdkException e) {
             throw new IOException("Exception when listing blobs by prefix [" + prefix + "]", e);
         }
     }
@@ -332,7 +333,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 // Stripping the trailing slash off of the common prefix
                 .map(name -> name.substring(0, name.length() - 1))
                 .collect(Collectors.toMap(Function.identity(), name -> blobStore.blobContainer(path().add(name))));
-        } catch (final RuntimeException e) {
+        } catch (final SdkException e) {
             throw new IOException("Exception when listing children of [" + path().buildAsString() + ']', e);
         }
     }
@@ -389,7 +390,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             SocketAccess.doPrivilegedVoid(
                 () -> clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(input, blobSize))
             );
-        } catch (final RuntimeException e) {
+        } catch (final SdkException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
         }
     }
@@ -475,7 +476,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             SocketAccess.doPrivilegedVoid(() -> clientReference.get().completeMultipartUpload(completeMultipartUploadRequest));
             success = true;
 
-        } catch (final RuntimeException e) {
+        } catch (final SdkException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using multipart upload", e);
         } finally {
             if ((success == false) && Strings.hasLength(uploadId.get())) {

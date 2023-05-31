@@ -44,6 +44,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.services.ec2.Ec2Client;
@@ -124,7 +125,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
                     .password(clientSettings.proxyPassword)
                     .build();
             } catch (URISyntaxException e) {
-                throw new RuntimeException("Invalid proxy URL", e);
+                throw SdkException.create("Invalid proxy URL", e);
             }
         } else {
             return ProxyConfiguration.builder().build();
