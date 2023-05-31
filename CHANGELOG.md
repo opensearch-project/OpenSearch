@@ -47,7 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump Apache Lucene to 9.6.0 ([#7505](https://github.com/opensearch-project/OpenSearch/pull/7505))
 - Bump `com.google.cloud:google-cloud-core-http` from 1.93.3 to 2.17.0 (#7488)
 - Bump `com.google.guava:guava` from 30.1.1-jre to 31.1-jre (#7565)
-- Bump `com.azure:azure-storage-common` from 12.20.0 to 12.21.0 (#7566)
+- Bump `com.azure:azure-storage-common` from 12.20.0 to 12.21.1 (#7566, #7814)
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0 (#7563)
 - Bump `jackson` from 2.15.0 to 2.15.1 ([#7603](https://github.com/opensearch-project/OpenSearch/pull/7603))
 - Bump `net.minidev:json-smart` from 2.4.10 to 2.4.11 (#7660)
