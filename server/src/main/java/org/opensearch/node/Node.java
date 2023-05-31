@@ -974,7 +974,6 @@ public class Node implements Closeable {
             final TaskCancellationMonitoringService taskCancellationMonitoringService = new TaskCancellationMonitoringService(
                 threadPool,
                 transportService.getTaskManager(),
-                taskResourceTrackingService,
                 taskCancellationMonitoringSettings
             );
             this.nodeService = new NodeService(

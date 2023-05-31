@@ -565,12 +565,9 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         setupTestNodes(Settings.EMPTY);
         final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
         AtomicBoolean onTaskCancelled = new AtomicBoolean();
-        taskManager.addTaskCancellationListeners(new TaskManager.TaskCancellationListener() {
-            @Override
-            public void onTaskCancelled(CancellableTask task) {
-                onTaskCancelled.set(true);
-            }
-        });
+        AtomicBoolean onTaskCompleted = new AtomicBoolean();
+        taskManager.addTaskCancellationListeners(task -> onTaskCancelled.set(true));
+        taskManager.addTaskCompletionListener(task -> onTaskCompleted.set(true));
         int numTasks = randomIntBetween(1, 10);
         List<CancellableTask> tasks = new ArrayList<>(numTasks);
         for (int i = 0; i < numTasks; i++) {
@@ -591,6 +588,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
         phaser.arriveAndAwaitAdvance();
         taskManager.unregister(cancellingTask);
+        assertTrue(onTaskCompleted.get());
         for (int i = 0; i < threads.length; i++) {
             threads[i].join();
             assertThat(notified.get(i), equalTo(1));

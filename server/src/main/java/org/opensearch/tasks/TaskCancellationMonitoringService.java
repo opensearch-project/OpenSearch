@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -33,7 +32,7 @@ import java.util.stream.Collectors;
 public class TaskCancellationMonitoringService extends AbstractLifecycleComponent
     implements
         TaskManager.TaskCancellationListener,
-        TaskResourceTrackingService.TaskCompletionListener {
+        TaskManager.TaskCompletionListener {
 
     private static final Logger logger = LogManager.getLogger(TaskCancellationMonitoringService.class);
     private final static List<Class<? extends CancellableTask>> TASKS_TO_TRACK = Arrays.asList(SearchShardTask.class);
@@ -57,16 +56,10 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
      */
     private final Map<Class<? extends CancellableTask>, TaskCancellationStatsHolder> cancellationStatsHolder;
     private final TaskCancellationMonitoringSettings taskCancellationMonitoringSettings;
-    /**
-     * Determines whether we need to run this service as per defined interval. Until unless we have any
-     * cancelled tasks, we will keep it shut.
-     */
-    private final AtomicBoolean shouldRun = new AtomicBoolean();
 
     public TaskCancellationMonitoringService(
         ThreadPool threadPool,
         TaskManager taskManager,
-        TaskResourceTrackingService taskResourceTrackingService,
         TaskCancellationMonitoringSettings taskCancellationMonitoringSettings
     ) {
         this.threadPool = threadPool;
@@ -76,11 +69,11 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         cancellationStatsHolder = TASKS_TO_TRACK.stream()
             .collect(Collectors.toConcurrentMap(task -> task, task -> new TaskCancellationStatsHolder()));
         taskManager.addTaskCancellationListeners(this);
-        taskResourceTrackingService.addTaskCompletionListener(this);
+        taskManager.addTaskCompletionListener(this);
     }
 
     void doRun() {
-        if (!taskCancellationMonitoringSettings.isEnabled() || !shouldRun.get()) {
+        if (!taskCancellationMonitoringSettings.isEnabled() || this.cancelledTaskTracker.isEmpty()) {
             return;
         }
         Map<Class<? extends CancellableTask>, List<CancellableTask>> taskCancellationListByType = getCurrentRunningTasksPostCancellation();
@@ -126,11 +119,6 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         return this.cancelledTaskTracker;
     }
 
-    // For testing
-    protected boolean shouldRun() {
-        return shouldRun.get();
-    }
-
     /**
      * Invoked when a task is completed. This helps us to disable monitoring service when there are no cancelled tasks
      * running to avoid wasteful work.
@@ -145,9 +133,6 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
             return;
         }
         this.cancelledTaskTracker.remove(task.getId());
-        if (this.cancelledTaskTracker.isEmpty()) {
-            shouldRun.set(false);
-        }
     }
 
     /**
@@ -162,9 +147,6 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         }
         // Add task to tracker and mark it as not seen(false) yet by the stats logic.
         this.cancelledTaskTracker.putIfAbsent(task.getId(), false);
-        if (!shouldRun.get()) {
-            shouldRun.set(true);
-        }
     }
 
     public TaskCancellationStats stats() {
@@ -181,11 +163,10 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
     private Map<Class<? extends CancellableTask>, List<CancellableTask>> getCurrentRunningTasksPostCancellation() {
         long currentTimeInNanos = System.nanoTime();
 
-        return taskManager.getTasks()
+        return taskManager.getCancellableTasks()
             .values()
             .stream()
             .filter(task -> TASKS_TO_TRACK.contains(task.getClass()))
-            .map(task -> (CancellableTask) task)
             .filter(CancellableTask::isCancelled)
             .filter(task -> {
                 long runningTimeSinceCancellationSeconds = TimeUnit.NANOSECONDS.toSeconds(

@@ -42,7 +42,6 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
     MockTransportService transportService;
     TaskManager taskManager;
     ThreadPool threadPool;
-    TaskResourceTrackingService taskResourceTrackingService;
 
     @Before
     public void setup() {
@@ -51,9 +50,7 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         taskManager = transportService.getTaskManager();
-        taskResourceTrackingService = mock(TaskResourceTrackingService.class);
         taskManager.setTaskCancellationService(new TaskCancellationService(transportService));
-        taskManager.setTaskResourceTrackingService(taskResourceTrackingService);
     }
 
     @After
@@ -71,7 +68,6 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         TaskCancellationMonitoringService taskCancellationMonitoringService = new TaskCancellationMonitoringService(
             threadPool,
             mockTaskManager,
-            taskResourceTrackingService,
             settings
         );
 
@@ -92,10 +88,9 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         TaskCancellationMonitoringService taskCancellationMonitoringService = new TaskCancellationMonitoringService(
             threadPool,
             taskManager,
-            taskResourceTrackingService,
             taskCancellationMonitoringSettings
         );
-        int numTasks = randomIntBetween(2, 10);
+        int numTasks = randomIntBetween(5, 50);
         List<SearchShardTask> tasks = createTasks(numTasks);
 
         int cancelFromIdx = randomIntBetween(0, numTasks - 1);
@@ -105,7 +100,8 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         CountDownLatch countDownLatch = cancelTasksConcurrently(tasks, cancelFromIdx, cancelTillIdx);
 
         countDownLatch.await(); // Wait for all threads execution.
-        taskCancellationMonitoringService.doRun(); // 1st run to verify we are able to track running cancelled tasks.
+        taskCancellationMonitoringService.doRun(); // 1st run to verify whether we are able to track running cancelled
+        // tasks.
         TaskCancellationStats stats = taskCancellationMonitoringService.stats();
         assertEquals(numberOfTasksCancelled, stats.getSearchShardTaskCancellationStats().getCurrentLongRunningCancelledTaskCount());
         assertEquals(numberOfTasksCancelled, stats.getSearchShardTaskCancellationStats().getTotalLongRunningCancelledTaskCount());
@@ -133,14 +129,13 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         TaskCancellationMonitoringService taskCancellationMonitoringService = new TaskCancellationMonitoringService(
             threadPool,
             taskManager,
-            taskResourceTrackingService,
             taskCancellationMonitoringSettings
         );
-        assertFalse(taskCancellationMonitoringService.shouldRun());
+        assertTrue(taskCancellationMonitoringService.getCancelledTaskTracker().isEmpty());
         assertEquals(0, taskCancellationMonitoringService.getCancelledTaskTracker().size());
 
         // Start few tasks.
-        int numTasks = randomIntBetween(2, 10);
+        int numTasks = randomIntBetween(5, 50);
         List<SearchShardTask> tasks = createTasks(numTasks);
 
         taskCancellationMonitoringService.doRun();
@@ -151,13 +146,13 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         cancelTasksConcurrently(tasks, 0, tasks.size() - 1).await();
         taskCancellationMonitoringService.doRun();
         stats = taskCancellationMonitoringService.stats();
-        assertTrue(taskCancellationMonitoringService.shouldRun());
+        assertFalse(taskCancellationMonitoringService.getCancelledTaskTracker().isEmpty());
         assertEquals(numTasks, stats.getSearchShardTaskCancellationStats().getCurrentLongRunningCancelledTaskCount());
         assertEquals(numTasks, stats.getSearchShardTaskCancellationStats().getTotalLongRunningCancelledTaskCount());
 
         completeTasksConcurrently(tasks, taskCancellationMonitoringService).await();
         stats = taskCancellationMonitoringService.stats();
-        assertFalse(taskCancellationMonitoringService.shouldRun());
+        assertTrue(taskCancellationMonitoringService.getCancelledTaskTracker().isEmpty());
         assertEquals(0, stats.getSearchShardTaskCancellationStats().getCurrentLongRunningCancelledTaskCount());
         assertEquals(numTasks, stats.getSearchShardTaskCancellationStats().getTotalLongRunningCancelledTaskCount());
     }
@@ -175,11 +170,10 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         TaskCancellationMonitoringService taskCancellationMonitoringService = new TaskCancellationMonitoringService(
             threadPool,
             taskManager,
-            taskResourceTrackingService,
             taskCancellationMonitoringSettings
         );
 
-        int numTasks = randomIntBetween(3, 10);
+        int numTasks = randomIntBetween(5, 50);
         List<SearchShardTask> tasks = createTasks(numTasks);
 
         int numTasksToBeCancelledInFirstIteration = randomIntBetween(1, numTasks - 1);
@@ -232,7 +226,6 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         TaskCancellationMonitoringService taskCancellationMonitoringService = new TaskCancellationMonitoringService(
             mockThreadPool,
             taskManager,
-            taskResourceTrackingService,
             settings
         );
 
@@ -285,7 +278,6 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
             threads[i] = new Thread(() -> {
                 phaser.arriveAndAwaitAdvance();
                 taskManager.unregister(tasks.get(idx));
-                taskCancellationMonitoringService.onTaskCompleted(tasks.get(idx));
                 countDownLatch.countDown();
             });
             threads[i].start();

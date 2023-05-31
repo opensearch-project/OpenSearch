@@ -133,6 +133,7 @@ public class TaskManager implements ClusterStateApplier {
     private volatile boolean taskResourceConsumersEnabled;
     private final Set<Consumer<Task>> taskResourceConsumer;
     private final List<TaskCancellationListener> taskCancellationListeners = new ArrayList<>();
+    private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
 
     public static TaskManager createTaskManagerWithClusterSettings(
         Settings settings,
@@ -153,12 +154,26 @@ public class TaskManager implements ClusterStateApplier {
         taskResourceConsumer = new HashSet<>();
     }
 
+    /**
+     * Listener that gets invoked when a task gets cancelled.
+     */
     public interface TaskCancellationListener {
         void onTaskCancelled(CancellableTask task);
     }
 
     public void addTaskCancellationListeners(TaskCancellationListener taskCancellationListener) {
         this.taskCancellationListeners.add(taskCancellationListener);
+    }
+
+    /**
+     * Listener that gets invoked when a task completes.
+     */
+    public interface TaskCompletionListener {
+        void onTaskCompleted(Task task);
+    }
+
+    public void addTaskCompletionListener(TaskCompletionListener listener) {
+        this.taskCompletionListeners.add(listener);
     }
 
     public void registerTaskResourceConsumer(Consumer<Task> consumer) {
@@ -294,6 +309,15 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
+        List<Exception> exceptions = new ArrayList<>();
+        for (TaskCompletionListener taskCompletionListener : taskCompletionListeners) {
+            try {
+                taskCompletionListener.onTaskCompleted(task);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
 
         // Decrement the task's self-thread as part of unregistration.
         task.decrementResourceTrackingThreads();
