@@ -40,10 +40,7 @@ public class CheckpointRefreshListener implements ReferenceManager.RefreshListen
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
-        if (didRefresh
-            && shard.state() == IndexShardState.STARTED
-            && shard.getReplicationTracker().isPrimaryMode()
-            && !shard.indexSettings.isSegRepWithRemoteEnabled()) {
+        if (didRefresh && shard.state() == IndexShardState.STARTED && shard.getReplicationTracker().isPrimaryMode()) {
             publisher.publish(shard, shard.getLatestReplicationCheckpoint());
         }
     }

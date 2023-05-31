@@ -3552,16 +3552,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
         if (isRemoteStoreEnabled()) {
             internalRefreshListener.add(
-                new RemoteStoreRefreshListener(
-                    this,
-                    // Add the checkpoint publisher if the Segment Replciation via remote store is enabled.
-                    indexSettings.isSegRepWithRemoteEnabled() ? this.checkpointPublisher : SegmentReplicationCheckpointPublisher.EMPTY,
-                    remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId())
-                )
+                new RemoteStoreRefreshListener(this, remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId()))
             );
         }
-
-        if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
+        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
         /**
