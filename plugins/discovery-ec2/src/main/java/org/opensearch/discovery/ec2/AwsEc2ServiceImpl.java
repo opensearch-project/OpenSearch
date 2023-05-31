@@ -188,7 +188,6 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     public void close() {
         final LazyInitializable<AmazonEc2ClientReference, OpenSearchException> clientReference = this.lazyClientReference.getAndSet(null);
         if (clientReference != null) {
-            clientReference.getOrCompute().get().close();
             clientReference.reset();
         }
     }
