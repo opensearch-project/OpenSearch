@@ -30,12 +30,12 @@ public class DefaultTracer implements Tracer {
     public static final String CURRENT_SPAN = "current_span";
 
     private static final Logger logger = LogManager.getLogger(DefaultTracer.class);
-    private static final String TRACE_ID = "trace_id";
-    private static final String SPAN_ID = "span_id";
-    private static final String SPAN_NAME = "span_name";
-    private static final String PARENT_SPAN_ID = "p_span_id";
-    private static final String THREAD_NAME = "th_name";
-    private static final String PARENT_SPAN_NAME = "p_span_name";
+    static final String TRACE_ID = "trace_id";
+    static final String SPAN_ID = "span_id";
+    static final String SPAN_NAME = "span_name";
+    static final String PARENT_SPAN_ID = "p_span_id";
+    static final String THREAD_NAME = "th_name";
+    static final String PARENT_SPAN_NAME = "p_span_name";
 
     private final ThreadPool threadPool;
     private final TracerSettings tracerSettings;
