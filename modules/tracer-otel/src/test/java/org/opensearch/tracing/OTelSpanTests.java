@@ -14,7 +14,9 @@ import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class OTelSpanTests extends OpenSearchTestCase {
 

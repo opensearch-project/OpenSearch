@@ -35,21 +35,25 @@ final class OTelResourceProvider {
 
     static OpenTelemetry getOrCreateOpenTelemetryInstance(TracerSettings tracerSettings) {
         if (OPEN_TELEMETRY == null) {
-            Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
-            SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
-                .addSpanProcessor(
-                    BatchSpanProcessor.builder(new FileSpanExporter())
-                        .setScheduleDelay(tracerSettings.getExporterDelay().getSeconds(), TimeUnit.SECONDS)
-                        .setMaxExportBatchSize(tracerSettings.getExporterBatchSize())
-                        .setMaxQueueSize(tracerSettings.getExporterMaxQueueSize())
-                        .build()
-                )
-                .setResource(resource)
-                .build();
-            OPEN_TELEMETRY = OpenTelemetrySdk.builder()
-                .setTracerProvider(sdkTracerProvider)
-                .setPropagators(contextPropagators)
-                .buildAndRegisterGlobal();
+            synchronized (OTelResourceProvider.class) {
+                if (OPEN_TELEMETRY == null) {
+                    Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
+                    SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
+                        .addSpanProcessor(
+                            BatchSpanProcessor.builder(new FileSpanExporter())
+                                .setScheduleDelay(tracerSettings.getExporterDelay().getSeconds(), TimeUnit.SECONDS)
+                                .setMaxExportBatchSize(tracerSettings.getExporterBatchSize())
+                                .setMaxQueueSize(tracerSettings.getExporterMaxQueueSize())
+                                .build()
+                        )
+                        .setResource(resource)
+                        .build();
+                    OPEN_TELEMETRY = OpenTelemetrySdk.builder()
+                        .setTracerProvider(sdkTracerProvider)
+                        .setPropagators(contextPropagators)
+                        .buildAndRegisterGlobal();
+                }
+            }
         }
         return OPEN_TELEMETRY;
     }
