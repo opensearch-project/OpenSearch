@@ -85,6 +85,8 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
 
     private final TransportAddressesCache dynamicHosts;
 
+    private final Set<String> instanceStates;
+
     AwsEc2SeedHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
         this.transportService = transportService;
         this.awsEc2Service = awsEc2Service;
@@ -100,6 +102,10 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
 
         this.availabilityZones = new HashSet<>();
         availabilityZones.addAll(AwsEc2Service.AVAILABILITY_ZONES_SETTING.get(settings));
+
+        this.instanceStates = new HashSet<>();
+        instanceStates.add("running");
+        instanceStates.add("pending");
 
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -119,6 +125,13 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
     }
 
     protected List<TransportAddress> fetchDynamicNodes() {
+        logger.info(
+            "fetching nodes from IMDS (instance-states={}, availability-zones={}, tags={}) ...",
+            instanceStates,
+            availabilityZones,
+            tags
+        );
+
         final List<TransportAddress> dynamicHosts = new ArrayList<>();
 
         final DescribeInstancesResponse descInstances;
@@ -135,7 +148,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
             return dynamicHosts;
         }
 
-        logger.trace("finding seed nodes...");
+        logger.trace("finding seed nodes ...");
         for (final Reservation reservation : descInstances.reservations()) {
             for (final Instance instance : reservation.instances()) {
                 // lets see if we can filter based on groups
@@ -201,7 +214,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                     try {
                         final TransportAddress[] addresses = transportService.addressesFromString(address);
                         for (int i = 0; i < addresses.length; i++) {
-                            logger.trace("adding {}, address {}, transport_address {}", instance.instanceId(), address, addresses[i]);
+                            logger.debug("adding {}, address {}, transport_address {}", instance.instanceId(), address, addresses[i]);
                             dynamicHosts.add(addresses[i]);
                         }
                     } catch (final Exception e) {
@@ -216,19 +229,19 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                         );
                     }
                 } else {
-                    logger.trace("not adding {}, address is null, host_type {}", instance.instanceId(), hostType);
+                    logger.warn("not adding {}, address is null, host_type {}", instance.instanceId(), hostType);
                 }
             }
         }
 
-        logger.debug("using dynamic transport addresses {}", dynamicHosts);
+        logger.info("using dynamic transport addresses {}", dynamicHosts);
 
         return dynamicHosts;
     }
 
     private DescribeInstancesRequest buildDescribeInstancesRequest() {
         ArrayList<Filter> filters = new ArrayList<Filter>();
-        filters.add(Filter.builder().name("instance-state-name").values("running", "pending").build());
+        filters.add(Filter.builder().name("instance-state-name").values(instanceStates).build());
 
         for (final Map.Entry<String, List<String>> tagFilter : tags.entrySet()) {
             // for a given tag key, OR relationship for multiple different values
