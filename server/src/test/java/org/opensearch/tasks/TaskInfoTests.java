@@ -274,7 +274,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    new TaskResourceStats(resourceUsageMap)
+                    new TaskResourceStats(resourceUsageMap, new TaskThreadUsage(randomInt(10), randomInt(10)))
                 );
             case 11:
                 return new TaskInfo(
@@ -355,12 +355,12 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
     }
 
     public static TaskResourceStats randomResourceStats(boolean detailed) {
-        return detailed ? new TaskResourceStats(new HashMap<String, TaskResourceUsage>() {
+        return detailed ? new TaskResourceStats(new HashMap<>() {
             {
                 for (int i = 0; i < randomInt(5); i++) {
                     put(randomAlphaOfLength(5), new TaskResourceUsage(randomNonNegativeLong(), randomNonNegativeLong()));
                 }
             }
-        }) : null;
+        }, new TaskThreadUsage(randomInt(10), randomInt(10))) : null;
     }
 }
