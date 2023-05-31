@@ -52,22 +52,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         return remoteStoreIndexSettings(0);
     }
 
-    private Settings remoteStoreIndexSettings(int numberOfReplicas) {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-            .build();
-    }
-
-    private Settings remoteTranslogIndexSettings(int numberOfReplicas) {
-        return Settings.builder()
-            .put(remoteStoreIndexSettings(numberOfReplicas))
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
-            .build();
-    }
-
     private IndexResponse indexSingleDoc() {
         return client().prepareIndex(INDEX_NAME)
             .setId(UUIDs.randomBase64UUID())

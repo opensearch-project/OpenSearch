@@ -40,8 +40,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
 import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -734,12 +732,6 @@ public abstract class StreamOutput extends BaseStreamOutput {
             o.writeByte((byte) 12);
             o.writeLong(((Date) v).getTime());
         });
-        writers.put(ReadableInstant.class, (o, v) -> {
-            o.writeByte((byte) 13);
-            final ReadableInstant instant = (ReadableInstant) v;
-            o.writeString(instant.getZone().getID());
-            o.writeLong(instant.getMillis());
-        });
         writers.put(BytesReference.class, (o, v) -> {
             o.writeByte((byte) 14);
             o.writeBytesReference((BytesReference) v);
@@ -795,7 +787,10 @@ public abstract class StreamOutput extends BaseStreamOutput {
     }
 
     private static Class<?> getGenericType(Object value) {
-        if (value instanceof List) {
+        Class<?> registeredClass = Writeable.WriteableRegistry.getCustomClassFromInstance(value);
+        if (registeredClass != null) {
+            return registeredClass;
+        } else if (value instanceof List) {
             return List.class;
         } else if (value instanceof Object[]) {
             return Object[].class;
@@ -803,8 +798,6 @@ public abstract class StreamOutput extends BaseStreamOutput {
             return Map.class;
         } else if (value instanceof Set) {
             return Set.class;
-        } else if (value instanceof ReadableInstant) {
-            return ReadableInstant.class;
         } else if (value instanceof BytesReference) {
             return BytesReference.class;
         } else {
@@ -1137,29 +1130,10 @@ public abstract class StreamOutput extends BaseStreamOutput {
     }
 
     /**
-     * Write a {@linkplain DateTimeZone} to the stream.
-     */
-    public void writeTimeZone(DateTimeZone timeZone) throws IOException {
-        writeString(timeZone.getID());
-    }
-
-    /**
      * Write a {@linkplain ZoneId} to the stream.
      */
     public void writeZoneId(ZoneId timeZone) throws IOException {
         writeString(timeZone.getId());
-    }
-
-    /**
-     * Write an optional {@linkplain DateTimeZone} to the stream.
-     */
-    public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
-        if (timeZone == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeTimeZone(timeZone);
-        }
     }
 
     /**
