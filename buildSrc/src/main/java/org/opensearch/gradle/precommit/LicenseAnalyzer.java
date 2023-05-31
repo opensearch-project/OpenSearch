@@ -154,7 +154,31 @@ public class LicenseAnalyzer {
         new LicenseMatcher("XZ", false, false, Pattern.compile("Licensing of XZ for Java", Pattern.DOTALL)),
         new LicenseMatcher("EPL-2.0", true, false, Pattern.compile("Eclipse Public License - v 2.0", Pattern.DOTALL)),
         new LicenseMatcher("LGPL-2.1", true, true, Pattern.compile("GNU LESSER GENERAL PUBLIC LICENSE.*Version 2.1", Pattern.DOTALL)),
-        new LicenseMatcher("LGPL-3.0", true, true, Pattern.compile("GNU LESSER GENERAL PUBLIC LICENSE.*Version 3", Pattern.DOTALL)) };
+        new LicenseMatcher("LGPL-3.0", true, true, Pattern.compile("GNU LESSER GENERAL PUBLIC LICENSE.*Version 3", Pattern.DOTALL)),
+        new LicenseMatcher(
+            "GPL-2.0-with-classpath-exception",
+            true,
+            true,
+            Pattern.compile(
+                ("\n"
+                    + "The GNU General Public License \\(GPL\\)\n"
+                    + "\n"
+                    + "Version 2, June 1991\n"
+                    + "\n"
+                    + ".*"
+                    + "As a special exception, the copyright holders of this library give you\n"
+                    + "permission to link this library with independent modules to produce an\n"
+                    + "executable, regardless of the license terms of these independent modules,\n"
+                    + "and to copy and distribute the resulting executable under terms of your\n"
+                    + "choice, provided that you also meet, for each linked independent module,\n"
+                    + "the terms and conditions of the license of that module.  An independent\n"
+                    + "module is a module which is not derived from or based on this library.  If\n"
+                    + "you modify this library, you may extend this exception to your version of\n"
+                    + "the library, but you are not obligated to do so.  If you do not wish to do\n"
+                    + "so, delete this exception statement from your version\\.").replaceAll("\\s+", "\\\\s*"),
+                Pattern.DOTALL
+            )
+        ), };
 
     public static LicenseInfo licenseType(File licenseFile) {
         for (LicenseMatcher matcher : matchers) {

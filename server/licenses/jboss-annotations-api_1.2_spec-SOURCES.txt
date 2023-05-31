@@ -1,0 +1,1 @@
+https://github.com/jboss/jboss-annotations-api_spec/tree/jboss-annotations-api_1.2_spec-1.0.2.Final
