@@ -55,6 +55,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
@@ -1122,6 +1123,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final Map<String, IndexTemplateMetadata> templates;
         private final Map<String, Custom> customs;
 
+        private boolean rebuildIndicesLookups = true;
+
+        public SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
+        private String[] allIndices = new String[0];
+        private String[] visibleIndices = new String[0];
+        private String[] allOpenIndices = new String[0];
+        private String[] visibleOpenIndices = new String[0];
+        private String[] allClosedIndices = new String[0];
+        private String[] visibleClosedIndices = new String[0];
+
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             indices = new HashMap<>();
@@ -1141,6 +1152,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.indices = new HashMap<>(metadata.indices);
             this.templates = new HashMap<>(metadata.templates);
             this.customs = new HashMap<>(metadata.customs);
+            this.indicesLookup = new TreeMap<>(metadata.indicesLookup);
+            this.allIndices = Arrays.copyOf(metadata.allIndices, metadata.allIndices.length);
+            this.visibleIndices = Arrays.copyOf(metadata.visibleIndices, metadata.visibleIndices.length);
+            this.allOpenIndices = Arrays.copyOf(metadata.allOpenIndices, metadata.allOpenIndices.length);
+            this.visibleOpenIndices = Arrays.copyOf(metadata.visibleOpenIndices, metadata.visibleOpenIndices.length);
+            this.allClosedIndices = Arrays.copyOf(metadata.allClosedIndices, metadata.allClosedIndices.length);
+            this.visibleClosedIndices = Arrays.copyOf(metadata.visibleClosedIndices, metadata.visibleClosedIndices.length);
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
@@ -1425,6 +1443,37 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Metadata build() {
+            TimeValue buildStartTime = TimeValue.timeValueMillis(System.currentTimeMillis());
+            if (rebuildIndicesLookups == true) {
+                buildMetadataIndicesLookups();
+            }
+
+            Metadata metadata = new Metadata(
+                clusterUUID,
+                clusterUUIDCommitted,
+                version,
+                coordinationMetadata,
+                transientSettings,
+                persistentSettings,
+                hashesOfConsistentSettings,
+                indices,
+                templates,
+                customs,
+                allIndices,
+                visibleIndices,
+                allOpenIndices,
+                visibleOpenIndices,
+                allClosedIndices,
+                visibleClosedIndices,
+                indicesLookup
+            );
+            TimeValue endBuildTime = TimeValue.timeValueMillis(System.currentTimeMillis());
+            // Logging for testing only - will remove in future iterations
+            logger.info("built metadata in {} ms", endBuildTime.millis() - buildStartTime.millis());
+            return metadata;
+        }
+
+        private void buildMetadataIndicesLookups() {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             // while these datastructures aren't even used.
@@ -1511,7 +1560,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 );
             }
 
-            SortedMap<String, IndexAbstraction> indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup());
+            TimeValue startTime = TimeValue.timeValueMillis(System.currentTimeMillis());
+            indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup());
+            TimeValue endTime = TimeValue.timeValueMillis(System.currentTimeMillis());
+            // Logging for testing only - will remove in future iterations
+            logger.info("rebuilt indicesLookupMap in {} ms, {} entries", endTime.millis() - startTime.millis(), indicesLookup != null ? indicesLookup.size() : 0);
 
             validateDataStreams(indicesLookup, (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE));
 
@@ -1519,32 +1572,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = allIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleIndicesArray = visibleIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] allOpenIndicesArray = allOpenIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleOpenIndicesArray = visibleOpenIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] allClosedIndicesArray = allClosedIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
-
-            return new Metadata(
-                clusterUUID,
-                clusterUUIDCommitted,
-                version,
-                coordinationMetadata,
-                transientSettings,
-                persistentSettings,
-                hashesOfConsistentSettings,
-                indices,
-                templates,
-                customs,
-                allIndicesArray,
-                visibleIndicesArray,
-                allOpenIndicesArray,
-                visibleOpenIndicesArray,
-                allClosedIndicesArray,
-                visibleClosedIndicesArray,
-                indicesLookup
-            );
+            this.allIndices = allIndices.toArray(new String[allIndices.size()]);
+            this.allOpenIndices = allOpenIndices.toArray(new String[allOpenIndices.size()]);
+            this.allClosedIndices = allClosedIndices.toArray(new String[allClosedIndices.size()]);
+            this.visibleIndices = visibleIndices.toArray(new String[visibleIndices.size()]);
+            this.visibleOpenIndices = visibleOpenIndices.toArray(new String[visibleOpenIndices.size()]);
+            this.visibleClosedIndices = visibleClosedIndices.toArray(new String[visibleClosedIndices.size()]);
         }
 
         private SortedMap<String, IndexAbstraction> buildIndicesLookup() {
@@ -1762,6 +1795,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
             }
             return builder.build();
+        }
+
+        /**
+         * This flag is used to omit re-evaluating the indices lookup when building Metadata to save time taken for Metadata build()
+         * Its utility is at places where there is no change in indices related objects of Metadata contents.
+         * Its default value is true - Toggle it to false only when you are sure about that you do not need to re-evaluate Metadata
+         */
+        public Builder rebuildIndicesLookups(boolean rebuildIndicesLookups) {
+            this.rebuildIndicesLookups = rebuildIndicesLookups;
+            return this;
         }
     }
 
