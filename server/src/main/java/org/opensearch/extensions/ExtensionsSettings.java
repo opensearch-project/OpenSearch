@@ -12,8 +12,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.opensearch.identity.Scope;
-
 /**
  * List of extension configurations from extension.yml
  *

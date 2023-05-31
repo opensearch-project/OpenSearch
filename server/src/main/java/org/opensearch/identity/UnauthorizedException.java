@@ -5,10 +5,6 @@
 
 package org.opensearch.identity;
 
-import org.opensearch.identity.tokens.AuthToken;
-
-import java.security.Principal;
-
 /**
  * An exception thrown when the subject is not authorized for the given permission
  *

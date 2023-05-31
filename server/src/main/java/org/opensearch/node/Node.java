@@ -798,8 +798,7 @@ public class Node implements Closeable {
                 )
                 .collect(Collectors.toList());
 
-            final List<ActionPlugin> scopeProtectedActionPlugin = pluginsService
-                .filterPlugins(ActionPlugin.class)
+            final List<ActionPlugin> scopeProtectedActionPlugin = pluginsService.filterPlugins(ActionPlugin.class)
                 .stream()
                 .map(plugin -> new ScopeProtectedActionPlugin(plugin, identityService))
                 .collect(Collectors.toList());

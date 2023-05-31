@@ -11,7 +11,7 @@ import org.opensearch.identity.Scope;
 
 /**
  * Scopes associated with actions in OpenSearch
- * 
+ *
  * @opensearch.experimental
  */
 public enum ActionScopes implements Scope {

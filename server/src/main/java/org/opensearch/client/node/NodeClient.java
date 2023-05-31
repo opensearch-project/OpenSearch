@@ -53,8 +53,6 @@ import org.opensearch.transport.RemoteClusterService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import javax.management.InvalidApplicationException;
-
 /**
  * Client that executes actions on the local node.
  *

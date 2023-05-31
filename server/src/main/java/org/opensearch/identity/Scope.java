@@ -15,10 +15,12 @@ package org.opensearch.identity;
  */
 public interface Scope {
     String getNamespace();
+
     String getArea();
+
     String getAction();
+
     default String asPermissionString() {
         return getNamespace() + "." + getArea() + "." + getAction();
     }
 }
-

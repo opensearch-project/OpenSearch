@@ -27,6 +27,7 @@ import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.common.Strings;
@@ -49,7 +50,6 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
-import org.opensearch.identity.Scope;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
@@ -70,6 +70,8 @@ import org.opensearch.env.EnvironmentSettingsResponse;
  * @opensearch.internal
  */
 public class ExtensionsManager {
+    public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
+    public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
@@ -345,8 +347,7 @@ public class ExtensionsManager {
      * Check if the matching extension id is allowed to perform the action
      */
     public boolean isExtensionAllowed(final String id, final String action) {
-        final Optional<Extension> extensionScopes = Optional.of(this.extensionSettingsMap)
-            .map(extensionMap -> extensionMap.get(id));
+        final Optional<Extension> extensionScopes = Optional.of(this.extensionSettingsMap).map(extensionMap -> extensionMap.get(id));
 
         if (!extensionScopes.isPresent()) {
             return false; // No extension was found, so it is not permitted

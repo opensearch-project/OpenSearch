@@ -13,10 +13,10 @@ import org.opensearch.identity.Scope;
 
 /**
  * scopes associated with extension points, used by plugins/extensions
- * 
+ *
  * @opensearch.experimental
  */
-public enum ExtensionPointScopes implements Scope  {
+public enum ExtensionPointScopes implements Scope {
     Action,
     // TODO: implement checks for all other scopes
     Analysis,
@@ -30,7 +30,7 @@ public enum ExtensionPointScopes implements Scope  {
     Ingest,
     Mapper,
     Network,
-    PersistantTask,
+    PersistentTask,
     Reloadable,
     Repository,
     Script,

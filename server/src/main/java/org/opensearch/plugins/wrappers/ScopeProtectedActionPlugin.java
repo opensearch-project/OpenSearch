@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
- package org.opensearch.plugins;
+package org.opensearch.plugins;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequest;
@@ -39,34 +39,26 @@ import org.opensearch.action.RequestValidators;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.ActionFilter;
-import org.opensearch.action.support.TransportAction;
-import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.plugins.ActionPlugin;
-import org.opensearch.plugins.ExtensionPointScopes;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.RestController;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
- 
+
 /**
  * Only allowed plugins are able able to response
- * 
+ *
  * @opensearch.experimental
  */
 public class ScopeProtectedActionPlugin implements ActionPlugin {
@@ -109,7 +101,15 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
         throwIfNotAllowed();
-        return plugin.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter, indexNameExpressionResolver, nodesInCluster);
+        return plugin.getRestHandlers(
+            settings,
+            restController,
+            clusterSettings,
+            indexScopedSettings,
+            settingsFilter,
+            indexNameExpressionResolver,
+            nodesInCluster
+        );
     }
 
     public Collection<RestHeaderDefinition> getRestHeaders() {
