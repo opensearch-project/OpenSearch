@@ -156,6 +156,10 @@ public class TransportNodesCollectGatewayStartedShard extends TransportNodesActi
     protected ListOfNodeGatewayStartedShards nodeOperation(NodeRequest request) {
         logger.info("TEST->Transport call- +TC");
         Map<ShardId, NodeGatewayStartedShards> shardsOnNode = new HashMap<>();
+
+        /* This is node Operation is same as nodeOperation on TransportNodesListGatewayStartedShards, but it  does over a loop
+         for all Unassigned shards
+         */
         for (Map.Entry<ShardId, String> unsassignedShardsMap : request.shardIdsWithCustomDataPath.entrySet()) {
             try {
                 final ShardId shardId = unsassignedShardsMap.getKey();
@@ -318,24 +322,10 @@ public class TransportNodesCollectGatewayStartedShard extends TransportNodesActi
             out.writeMap(shardIdsWithCustomDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         }
 
-
-        /**
-         * Returns the custom data path that is used to look up information for this shard.
-         * Returns an empty string if no custom data path is used for this index.
-         * Returns null if custom data path information is not available (due to BWC).
-         */
-//        @Nullable
-//        public String getCustomDataPath() {
-//            return customDataPath;
-//        }
-        public Map<ShardId, String> getShardIdsWithCustomDataPath() {
-            return shardIdsWithCustomDataPath;
-        }
-
     }
 
     /**
-     * The response.
+     * The response as stored by TransportNodesListGatewayStartedShards(to maintain backward compatibility).
      *
      * @opensearch.internal
      */

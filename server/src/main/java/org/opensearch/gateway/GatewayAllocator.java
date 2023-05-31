@@ -347,6 +347,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
     }
 
+    /**
+     * Analogous to InternalAsyncFetch.
+     * @param <T>
+     */
     class TestAsyncShardFetch<T extends BaseNodeResponse> extends AsyncShardsFetchPerNode<T>
     {
         TestAsyncShardFetch(

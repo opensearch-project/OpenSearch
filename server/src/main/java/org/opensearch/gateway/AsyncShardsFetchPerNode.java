@@ -34,7 +34,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-
+/**
+ * This class is responsible for fetching shard data from nodes. It is analogous to AsyncShardFetch class since it fetches
+ * the data in asynchronous manner too.
+ * @param <T>
+ */
 public abstract class AsyncShardsFetchPerNode<T extends BaseNodeResponse> implements Releasable {
 
     /**
@@ -81,7 +85,7 @@ public abstract class AsyncShardsFetchPerNode<T extends BaseNodeResponse> implem
         cache.remove(nodeId);
     }
 
-    /**
+    /** This function is copy-pasted from AsyncShardFetch.java
      * Fills the shard fetched data with new (data) nodes and a fresh NodeEntry, and removes from
      * it nodes that are no longer part of the state.
      */
@@ -98,6 +102,7 @@ public abstract class AsyncShardsFetchPerNode<T extends BaseNodeResponse> implem
     }
 
     /**
+     * This function is copy-pasted from AsyncShardFetch.java
      * Finds all the nodes that need to be fetched. Those are nodes that have no
      * data, and are not in fetch mode.
      */
@@ -112,6 +117,7 @@ public abstract class AsyncShardsFetchPerNode<T extends BaseNodeResponse> implem
     }
 
     /**
+     * This function is copy-pasted from AsyncShardFetch.java
      * Are there any nodes that are fetching data?
      */
     private boolean hasAnyNodeFetching(Map<String, AsyncShardsFetchPerNode.NodeEntry<T>> shardCache) {
@@ -123,7 +129,12 @@ public abstract class AsyncShardsFetchPerNode<T extends BaseNodeResponse> implem
         return false;
     }
 
-
+    /**
+     * This function is copy-pasted from AsyncShardFetch.java, fetchData(). Here we have modified the
+     * logging part for better debuggability and testing purpose
+     * @param nodes
+     * @return
+     */
     public synchronized AsyncShardsFetchPerNode.TestFetchResult<T> testFetchData(DiscoveryNodes nodes){
         if (closed) {
             throw new IllegalStateException("TEST: can't fetch data from nodes on closed async fetch");
@@ -180,11 +191,11 @@ public abstract class AsyncShardsFetchPerNode<T extends BaseNodeResponse> implem
 
             return new AsyncShardsFetchPerNode.TestFetchResult<>(fetchData);
         }
-
-
-
     }
 
+    /** This function is copy-pasted from AsyncShardFetch.java (asyncFetch()), with more verbose logging
+     * Async fetches data for the provided shard with the set of nodes that need to be fetched from.
+     */
     void asyncFetchShardPerNode(final DiscoveryNode[] nodes, long fetchingRound) {
         logger.info("Fetching Unassigned Shards per node");
         action.list(nodes, shardsToCustomDataPathMap, new ActionListener<BaseNodesResponse<T>>() {
@@ -203,8 +214,16 @@ public abstract class AsyncShardsFetchPerNode<T extends BaseNodeResponse> implem
                 processTestAsyncFetch(null, failures, fetchingRound);
             }
         });
-
     }
+
+
+    /** This function is copy-pasted from AsyncShardFetch.java (processAsyncFetch()), with more verbose logging.
+     *
+     * Called by the response handler of the async action to fetch data. Verifies that its still working
+     * on the same cache generation, otherwise the results are discarded. It then goes and fills the relevant data for
+     * the shard (response + failures), issuing a reroute at the end of it to make sure there will be another round
+     * of allocations taking this new data into account.
+     */
     protected synchronized void processTestAsyncFetch(List<T> responses, List<FailedNodeException> failures, long fetchingRound){
         if (closed) {
             // we are closed, no need to process this async fetch at all
@@ -295,6 +314,10 @@ public abstract class AsyncShardsFetchPerNode<T extends BaseNodeResponse> implem
         }
     }
 
+    /**
+     * Analogous to FetchResult in AsyncShardFetch.java, but currently we dont accommodate ignoreNodes
+     * @param <T>
+     */
     public static class TestFetchResult<T extends BaseNodeResponse> {
 
         private final Map<DiscoveryNode, T> nodesToShards;
@@ -315,10 +338,14 @@ public abstract class AsyncShardsFetchPerNode<T extends BaseNodeResponse> implem
 
 
     /**
-     * A node entry, holding the state of the fetched data for a specific shard
+     * A node entry, holding the state of the fetched data for a batch of shards
      * for a giving node.
+     *
+     * It is analogous to NodeEntry in AsyncShardFetch.java
      */
     static class NodeEntry<T> {
+
+        /* Copied and derived from AsyncShardFetch.java. Starts*/
         private final String nodeId;
         private boolean fetching;
         @Nullable
@@ -391,6 +418,8 @@ public abstract class AsyncShardsFetchPerNode<T extends BaseNodeResponse> implem
         long getFetchingRound() {
             return fetchingRound;
         }
+        /* Copied and derived from AsyncShardFetch.java. Ends*/
+
         void invalidateCurrentData() {
             this.value=null;
             valueSet=false;
