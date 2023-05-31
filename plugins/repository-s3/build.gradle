@@ -534,28 +534,3 @@ if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
 } else {
   thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
 }
-
-["test", "internalClusterTest", "s3ThirdPartyTest", "testRepositoryCreds"].forEach { action ->
-  tasks.named(action).configure {
-    dependsOn "writeTestJavaPolicy"
-    systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
-  }
-}
-
-tasks.register("writeTestJavaPolicy") {
-  doLast {
-    final File tmp = file("${buildDir}/tmp")
-    if (tmp.exists() == false && tmp.mkdirs() == false) {
-      throw new GradleException("failed to create temporary directory [${tmp}]")
-    }
-    final File javaPolicy = file("${tmp}/java.policy")
-    javaPolicy.write(
-      [
-        "grant {",
-        "  permission java.io.FilePermission \"config\", \"read\";",
-        "  permission java.util.PropertyPermission \"opensearch.allow_insecure_settings\", \"write\";",
-        "  permission java.util.PropertyPermission \"opensearch.path.conf\", \"write\";",
-        "};"
-      ].join("\n"))
-    }
-}

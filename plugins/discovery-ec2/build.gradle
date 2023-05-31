@@ -109,10 +109,6 @@ tasks.register("writeTestJavaPolicy") {
           "  permission java.io.FilePermission \"\${javax.net.ssl.trustStore}\", \"read\";",
           "  permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
           "  permission java.io.FilePermission \"config\", \"read\";",
-          "  permission java.util.PropertyPermission \"aws.region\", \"write\";",
-          "  permission java.util.PropertyPermission \"aws.accessKeyId\", \"write\";",
-          "  permission java.util.PropertyPermission \"aws.secretAccessKey\", \"write\";",
-          "  permission java.util.PropertyPermission \"opensearch.path.conf\", \"write\";",
           "};"
         ].join("\n")
       )
@@ -122,10 +118,6 @@ tasks.register("writeTestJavaPolicy") {
           "grant {",
           "  permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
           "  permission java.io.FilePermission \"config\", \"read\";",
-          "  permission java.util.PropertyPermission \"aws.region\", \"write\";",
-          "  permission java.util.PropertyPermission \"aws.accessKeyId\", \"write\";",
-          "  permission java.util.PropertyPermission \"aws.secretAccessKey\", \"write\";",
-          "  permission java.util.PropertyPermission \"opensearch.path.conf\", \"write\";",
           "};"
         ].join("\n"))
     }

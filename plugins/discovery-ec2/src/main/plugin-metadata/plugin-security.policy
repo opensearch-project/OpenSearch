@@ -45,10 +45,10 @@ grant {
 
   permission java.util.PropertyPermission "aws.sharedCredentialsFile", "read,write";
   permission java.util.PropertyPermission "aws.configFile", "read,write";
-  permission java.util.PropertyPermission "aws.region", "read";
-  permission java.util.PropertyPermission "aws.accessKeyId", "read";
-  permission java.util.PropertyPermission "aws.secretAccessKey", "read";
-  permission java.util.PropertyPermission "opensearch.path.conf", "read";
+  permission java.util.PropertyPermission "aws.region", "read,write";
+  permission java.util.PropertyPermission "aws.accessKeyId", "read,write";
+  permission java.util.PropertyPermission "aws.secretAccessKey", "read,write";
+  permission java.util.PropertyPermission "opensearch.path.conf", "read,write";
 
   permission java.io.FilePermission "config", "read";
 };
