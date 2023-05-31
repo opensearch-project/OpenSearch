@@ -18,8 +18,6 @@ import java.io.Closeable;
  */
 public interface Tracer extends Closeable {
 
-    String CURRENT_SPAN = "current_span";
-
     /**
      * Starts the {@link Span} with given name and level
      *

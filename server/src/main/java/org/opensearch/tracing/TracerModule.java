@@ -11,7 +11,6 @@ package org.opensearch.tracing;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.TracerPlugin;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.List;
@@ -35,34 +34,22 @@ public class TracerModule {
     public static final Setting<String> TRACER_TYPE_SETTING = Setting.simpleString(TRACER_TYPE_KEY, Setting.Property.NodeScope);
 
     private final Settings settings;
-    private final Map<String, Supplier<Tracer>> tracerFactories = new HashMap<>();
-    private final Map<String, TracerHeaderInjector> tracerHeaderInjectors = new HashMap<>();
+    private final Map<String, Supplier<Telemetry>> tracerFactories = new HashMap<>();
 
-    public TracerModule(Settings settings, List<TracerPlugin> tracerPlugins, ThreadPool threadPool, TracerSettings tracerSettings) {
+    public TracerModule(Settings settings, List<TracerPlugin> tracerPlugins, TracerSettings tracerSettings) {
         this.settings = settings;
 
         for (TracerPlugin tracerPlugin : tracerPlugins) {
-            Map<String, Supplier<Tracer>> tracerFactory = tracerPlugin.getTracers(threadPool, tracerSettings);
-            for (Map.Entry<String, Supplier<Tracer>> entry : tracerFactory.entrySet()) {
-                registerTracer(entry.getKey(), entry.getValue());
+            Map<String, Supplier<Telemetry>> tracerFactory = tracerPlugin.getTelemetries(tracerSettings);
+            for (Map.Entry<String, Supplier<Telemetry>> entry : tracerFactory.entrySet()) {
+                registerTelemetry(entry.getKey(), entry.getValue());
             }
-
-            Map<String, TracerHeaderInjector> headerInjectors = tracerPlugin.getHeaderInjectors();
-            for (Map.Entry<String, TracerHeaderInjector> entry : headerInjectors.entrySet()) {
-                registerTracerHeaderInjector(entry.getKey(), entry.getValue());
-            }
-
         }
     }
 
-    public Supplier<Tracer> getTracerSupplier() {
+    public Supplier<Telemetry> getTelemetrySupplier() {
         final String tracerType = getTracerType();
         return tracerFactories.get(tracerType);
-    }
-
-    public TracerHeaderInjector getTracerHeaderInjector() {
-        final String tracerType = getTracerType();
-        return tracerHeaderInjectors.get(tracerType);
     }
 
     private String getTracerType() {
@@ -72,15 +59,9 @@ public class TracerModule {
         return tracerType;
     }
 
-    private void registerTracer(String key, Supplier<Tracer> factory) {
+    private void registerTelemetry(String key, Supplier<Telemetry> factory) {
         if (tracerFactories.putIfAbsent(key, factory) != null) {
             throw new IllegalArgumentException("tracer for name: " + key + " is already registered");
-        }
-    }
-
-    private void registerTracerHeaderInjector(String key, TracerHeaderInjector tracerHeaderInjector) {
-        if (tracerHeaderInjectors.putIfAbsent(key, tracerHeaderInjector) != null) {
-            throw new IllegalArgumentException("tracer injector for name: " + key + " is already registered");
         }
     }
 

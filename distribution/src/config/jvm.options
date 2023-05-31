@@ -50,6 +50,8 @@
 ## JVM temporary directory
 -Djava.io.tmpdir=${OPENSEARCH_TMPDIR}
 
+-Dopensearch.experimental.feature.tracer.enabled=true
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails

@@ -15,6 +15,8 @@ package org.opensearch.tracing;
  */
 public interface Span {
 
+    void endSpan();
+
     /**
      * Returns span's parent span
      */
@@ -29,5 +31,19 @@ public interface Span {
      * Returns {@link Level} of the {@link Span}
      */
     Level getLevel();
+
+    void addAttribute(String key, String value);
+
+    void addAttribute(String key, Long value);
+
+    void addAttribute(String key, Double value);
+
+    void addAttribute(String key, Boolean value);
+
+    void addEvent(String event);
+
+    String getTraceId();
+
+    String getSpanId();
 
 }

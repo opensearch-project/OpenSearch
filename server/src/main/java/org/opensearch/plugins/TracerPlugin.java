@@ -8,9 +8,7 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.tracing.Tracer;
-import org.opensearch.tracing.TracerHeaderInjector;
+import org.opensearch.tracing.Telemetry;
 import org.opensearch.tracing.TracerSettings;
 
 import java.util.Map;
@@ -21,7 +19,6 @@ import java.util.function.Supplier;
  */
 public interface TracerPlugin {
 
-    Map<String, Supplier<Tracer>> getTracers(ThreadPool threadPool, TracerSettings tracerSettings);
+    Map<String, Supplier<Telemetry>> getTelemetries(TracerSettings tracerSettings);
 
-    Map<String, TracerHeaderInjector> getHeaderInjectors();
 }

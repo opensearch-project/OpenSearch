@@ -8,56 +8,42 @@
 
 package org.opensearch.tracing;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.tracing.noop.NoopTracer;
+import org.opensearch.tracing.noop.NoopSpan;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class TracerManagerTests extends OpenSearchTestCase {
+public class SpanFactoryTests extends OpenSearchTestCase {
 
-    @Before
-    public void setup() {
-        TracerManager.clear();
-    }
-
-    @After
-    public void close() {
-        TracerManager.closeTracer();
-    }
-
-    public void testGetTracerWithUninitializedTracerFactory() {
-        Tracer tracer = TracerManager.getTracer();
-        assertTrue(tracer instanceof NoopTracer);
-    }
-
-    public void testGetTracerWithTracingDisabledReturnsNoopTracer() {
-        Settings settings = Settings.builder().put(TracerSettings.TRACER_LEVEL_SETTING.getKey(), Level.DISABLED).build();
+    public void testCreateSpanLevelDisabledReturnsNoopSpan() {
+        Settings settings = Settings.builder().put(TracerSettings.TRACER_LEVEL_SETTING.getKey(), Level.ROOT).build();
         TracerSettings tracerSettings = new TracerSettings(settings, new ClusterSettings(settings, getClusterSettings()));
-        TracerManager.initTracerManager(tracerSettings, null, mock(ThreadPool.class));
 
-        Tracer tracer = TracerManager.getTracer();
-        assertTrue(tracer instanceof NoopTracer);
+        SpanFactory spanFactory = new SpanFactory(tracerSettings, null);
+
+        assertTrue(spanFactory.createSpan("spanName", null, Level.INFO) instanceof NoopSpan);
     }
 
-    public void testGetTracerWithTracingEnabledReturnsDefaultTracer() {
+    public void testCreateSpanLevelEnabledReturnsDefaultSpan() {
         Settings settings = Settings.builder().put(TracerSettings.TRACER_LEVEL_SETTING.getKey(), Level.INFO).build();
         TracerSettings tracerSettings = new TracerSettings(settings, new ClusterSettings(settings, getClusterSettings()));
-        TracerManager.initTracerManager(tracerSettings, () -> mock(Telemetry.class), mock(ThreadPool.class));
 
-        Tracer tracer = TracerManager.getTracer();
-        assertTrue(tracer instanceof DefaultTracer);
+        Telemetry mockTelemetry = mock(Telemetry.class);
+        when(mockTelemetry.spanSupplier(eq("spanName"), any(), eq(Level.INFO))).thenReturn(()->mock(Span.class));
+        SpanFactory spanFactory = new SpanFactory(tracerSettings, mockTelemetry);
 
+        assertFalse(spanFactory.createSpan("spanName", null, Level.INFO) instanceof NoopSpan);
     }
 
     private Set<Setting<?>> getClusterSettings() {

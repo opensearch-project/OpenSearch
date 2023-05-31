@@ -17,6 +17,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.opensearch.common.util.FeatureFlags.TRACER;
@@ -45,17 +46,12 @@ public class OTelTracerModulePlugin extends Plugin implements TracerPlugin {
     }
 
     @Override
-    public Map<String, Supplier<Tracer>> getTracers(ThreadPool threadPool, TracerSettings tracerSettings) {
-        return Collections.singletonMap(OTEL_TRACER_NAME, () -> createDefaultTracer(threadPool, tracerSettings));
+    public Map<String, Supplier<Telemetry>> getTelemetries(TracerSettings tracerSettings) {
+        return Collections.singletonMap(OTEL_TRACER_NAME, () -> getTelemetry(tracerSettings));
     }
 
-    @Override
-    public Map<String, TracerHeaderInjector> getHeaderInjectors() {
-        return Collections.singletonMap(OTEL_TRACER_NAME, new OTelTracerHeaderInjector());
-    }
-
-    private Tracer createDefaultTracer(ThreadPool threadPool, TracerSettings tracerSettings) {
+    private Telemetry getTelemetry(TracerSettings tracerSettings) {
         OpenTelemetry openTelemetry = OTelResourceProvider.getOrCreateOpenTelemetryInstance(tracerSettings);
-        return new OTelTracer(openTelemetry, threadPool, tracerSettings);
+        return new OtelTelemetry(openTelemetry);
     }
 }
