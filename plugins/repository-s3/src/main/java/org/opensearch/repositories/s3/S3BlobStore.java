@@ -137,21 +137,21 @@ class S3BlobStore implements BlobStore {
         return statsMetricPublisher;
     }
 
-    public static StorageClass initStorageClass(String storageClass) {
-        if ((storageClass == null) || storageClass.equals("")) {
+    public static StorageClass initStorageClass(String storageClassStringValue) {
+        if ((storageClassStringValue == null) || storageClassStringValue.equals("")) {
             return StorageClass.STANDARD;
         }
 
-        final StorageClass _storageClass = StorageClass.fromValue(storageClass.toUpperCase(Locale.ENGLISH));
-        if (_storageClass.equals(StorageClass.GLACIER)) {
+        final StorageClass storageClass = StorageClass.fromValue(storageClassStringValue.toUpperCase(Locale.ENGLISH));
+        if (storageClass.equals(StorageClass.GLACIER)) {
             throw new BlobStoreException("Glacier storage class is not supported");
         }
 
-        if (_storageClass == StorageClass.UNKNOWN_TO_SDK_VERSION) {
-            throw new BlobStoreException("`" + storageClass + "` is not a valid S3 Storage Class.");
+        if (storageClass == StorageClass.UNKNOWN_TO_SDK_VERSION) {
+            throw new BlobStoreException("`" + storageClassStringValue + "` is not a valid S3 Storage Class.");
         }
 
-        return _storageClass;
+        return storageClass;
     }
 
     /**

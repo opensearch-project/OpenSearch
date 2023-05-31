@@ -164,17 +164,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         ) {
             @Override
             public InputStream readBlob(String blobName) throws IOException {
-                return new AssertingInputStream(SocketAccess.doPrivilegedIOException(() -> super.readBlob(blobName)), blobName);
+                return new AssertingInputStream(super.readBlob(blobName), blobName);
             }
 
             @Override
             public InputStream readBlob(String blobName, long position, long length) throws IOException {
-                return new AssertingInputStream(
-                    SocketAccess.doPrivilegedIOException(() -> super.readBlob(blobName, position, length)),
-                    blobName,
-                    position,
-                    length
-                );
+                return new AssertingInputStream(super.readBlob(blobName, position, length), blobName, position, length);
             }
         };
     }
