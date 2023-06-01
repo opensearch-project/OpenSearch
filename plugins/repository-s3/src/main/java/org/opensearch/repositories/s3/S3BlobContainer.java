@@ -209,7 +209,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 doDeleteBlobs(blobsToDelete, false);
             }
-        } catch (RuntimeException e) {
+        } catch (SdkException e) {
             throw new IOException("Exception when deleting blob container [" + keyPath + "]", e);
         }
 
@@ -268,7 +268,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                                 )
                             );
                         }
-                    } catch (RuntimeException e) {
+                    } catch (SdkException e) {
                         // The AWS client threw any unexpected exception and did not execute the request at all so we do not
                         // remove any keys from the outstanding deletes set.
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
