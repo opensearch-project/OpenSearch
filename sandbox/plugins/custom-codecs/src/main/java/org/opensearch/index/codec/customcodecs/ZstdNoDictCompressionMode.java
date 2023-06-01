@@ -83,7 +83,7 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
                 }
 
                 final int maxCompressedLength = (int) Zstd.compressBound(l);
-                compressedBuffer = ArrayUtil.grow(compressedBuffer, maxCompressedLength);
+                compressedBuffer = ArrayUtil.growNoCopy(compressedBuffer, maxCompressedLength);
 
                 int compressedSize = (int) Zstd.compressByteArray(
                     compressedBuffer,
@@ -151,7 +151,7 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
                 if (compressedLength == 0) {
                     return;
                 }
-                compressed = ArrayUtil.grow(compressed, compressedLength);
+                compressed = ArrayUtil.growNoCopy(compressed, compressedLength);
                 in.readBytes(compressed, 0, compressedLength);
 
                 int l = Math.min(blockLength, originalLength - offsetInBlock);
