@@ -37,17 +37,40 @@ public final class ClusterStateUtils {
     private static final Logger logger = LogManager.getLogger(ClusterStateUtils.class);
 
     /**
+     * Serialize the given cluster state. It'll always use compression before writing on a newly created output stream.
+     *
+     * @param clusterState full cluster state of the cluster
+     * @param node version of cluster node where we are sending the state
+     * @return reference to serialized bytes
+     * @throws IOException if writing on the compressed stream is failed.
+     */
+    public static BytesReference serializeClusterState(ClusterState clusterState, DiscoveryNode node) throws IOException {
+        return serializeClusterStateOrDiff(clusterState, node, true);
+    }
+
+    /**
+     * Serialize the given cluster state diff. It'll always use compression before writing on a newly created output
+     * stream.
+     *
+     * @param clusterStateDiff diff of two cluster states
+     * @param node node where we are sending the state
+     * @return reference to serialized bytes
+     * @throws IOException if writing on the compressed stream is failed.
+     */
+    public static BytesReference serializeClusterState(Diff<ClusterState> clusterStateDiff, DiscoveryNode node) throws IOException {
+        return serializeClusterStateOrDiff(clusterStateDiff, node, false);
+    }
+
+    /**
      * Serialize the given cluster state or diff. It'll always use compression before writing on a newly created output
      * stream.
      *
      * @param writer             Object which is going to write the content
-     * @param node               version of cluster node
-     * @param isFullClusterState flag used at receiver end to make intelligent decisions. For example, ClusterState
-     *                           assumes full state of diff of the states based on this flag.
+     * @param node               cluster node where we are sending cluster state or diff
      * @return reference to serialized bytes
      * @throws IOException if writing on the compressed stream is failed.
      */
-    public static BytesReference serializeClusterState(Writeable writer, DiscoveryNode node, boolean isFullClusterState)
+    private static BytesReference serializeClusterStateOrDiff(Writeable writer, DiscoveryNode node, boolean isFullClusterState)
         throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
         try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream))) {

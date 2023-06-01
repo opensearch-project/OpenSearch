@@ -38,6 +38,7 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -230,7 +231,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
         TransportRequest request;
         final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
         if (actionName.equals(VALIDATE_COMPRESSED_JOIN_ACTION_NAME)) {
-            BytesReference bytes = ClusterStateUtils.serializeClusterState(otherClusterState, testCluster.localNode, true);
+            BytesReference bytes = ClusterStateUtils.serializeClusterState(otherClusterState, testCluster.localNode);
             request = new BytesTransportRequest(bytes, testCluster.localNode.getVersion());
             testCluster.transportService.sendRequest(
                 testCluster.localNode,
@@ -379,9 +380,10 @@ public class JoinHelperTests extends OpenSearchTestCase {
 
     public void testJoinValidationFailsOnSendingCompressedDiffClusterState() throws IOException {
         TestClusterSetup testCluster = getTestClusterSetup(Version.CURRENT, false);
+        Diff<ClusterState> clusterStateDiff = testCluster.localClusterState.diff(ClusterState.EMPTY_STATE);
         TransportRequest request;
         final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
-        BytesReference bytes = ClusterStateUtils.serializeClusterState(testCluster.localClusterState, testCluster.localNode, false);
+        BytesReference bytes = ClusterStateUtils.serializeClusterState(clusterStateDiff, testCluster.localNode);
         request = new BytesTransportRequest(bytes, testCluster.localNode.getVersion());
         testCluster.transportService.sendRequest(
             testCluster.localNode,

@@ -470,7 +470,7 @@ public class JoinHelper {
                 final BytesReference bytes = serializedState.updateAndGet(cachedState -> {
                     if (cachedState == null || cachedState.v1() != state.version()) {
                         try {
-                            return new Tuple<>(state.version(), ClusterStateUtils.serializeClusterState(state, node, true));
+                            return new Tuple<>(state.version(), ClusterStateUtils.serializeClusterState(state, node));
                         } catch (IOException e) {
                             // mandatory as AtomicReference doesn't rethrow IOException.
                             throw new RuntimeException(e);

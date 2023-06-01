@@ -255,7 +255,7 @@ public class PublicationTransportHandler {
                 try {
                     if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
                         if (serializedStates.containsKey(node.getVersion()) == false) {
-                            serializedStates.put(node.getVersion(), ClusterStateUtils.serializeClusterState(newState, node, true));
+                            serializedStates.put(node.getVersion(), ClusterStateUtils.serializeClusterState(newState, node));
                         }
                     } else {
                         // will send a diff
@@ -263,7 +263,7 @@ public class PublicationTransportHandler {
                             diff = newState.diff(previousState);
                         }
                         if (serializedDiffs.containsKey(node.getVersion()) == false) {
-                            final BytesReference serializedDiff = ClusterStateUtils.serializeClusterState(diff, node, false);
+                            final BytesReference serializedDiff = ClusterStateUtils.serializeClusterState(diff, node);
                             serializedDiffs.put(node.getVersion(), serializedDiff);
                             logger.trace(
                                 "serialized cluster state diff for version [{}] in for node version [{}] with size [{}]",
@@ -359,7 +359,7 @@ public class PublicationTransportHandler {
             BytesReference bytes = serializedStates.get(destination.getVersion());
             if (bytes == null) {
                 try {
-                    bytes = ClusterStateUtils.serializeClusterState(newState, destination, true);
+                    bytes = ClusterStateUtils.serializeClusterState(newState, destination);
                     serializedStates.put(destination.getVersion(), bytes);
                 } catch (Exception e) {
                     logger.warn(

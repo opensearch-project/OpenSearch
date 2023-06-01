@@ -38,13 +38,13 @@ public class ClusterStateUtilsTests extends OpenSearchTestCase {
             .metadata(Metadata.builder().generateClusterUuidIfNeeded().clusterUUIDCommitted(true))
             .build();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
-        BytesReference bytes = ClusterStateUtils.serializeClusterState(localClusterState, localNode, false);
+        BytesReference bytes = ClusterStateUtils.serializeClusterState(localClusterState, localNode);
         assertNotNull(bytes);
 
         // Fail on write failure on mocked cluster state's writeTo exception
         ClusterState mockedState = mock(ClusterState.class);
         doThrow(IOException.class).when(mockedState).writeTo(any());
-        assertThrows(IOException.class, () -> ClusterStateUtils.serializeClusterState(mockedState, localNode, false));
+        assertThrows(IOException.class, () -> ClusterStateUtils.serializeClusterState(mockedState, localNode));
     }
 
     public void testDecompressClusterState() throws IOException {
@@ -53,7 +53,7 @@ public class ClusterStateUtilsTests extends OpenSearchTestCase {
             .metadata(Metadata.builder().generateClusterUuidIfNeeded().clusterUUIDCommitted(true))
             .build();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
-        BytesReference bytes = ClusterStateUtils.serializeClusterState(localClusterState, localNode, false);
+        BytesReference bytes = ClusterStateUtils.serializeClusterState(localClusterState, localNode);
         BytesTransportRequest request = new BytesTransportRequest(bytes, localNode.getVersion());
         StreamInput in = ClusterStateUtils.decompressClusterState(request, DEFAULT_NAMED_WRITABLE_REGISTRY);
         assertEquals(request.version(), in.getVersion());
@@ -69,7 +69,7 @@ public class ClusterStateUtilsTests extends OpenSearchTestCase {
             .metadata(Metadata.builder().generateClusterUuidIfNeeded().clusterUUIDCommitted(true))
             .build();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
-        BytesReference bytes = ClusterStateUtils.serializeClusterState(localClusterState, localNode, true);
+        BytesReference bytes = ClusterStateUtils.serializeClusterState(localClusterState, localNode);
         BytesTransportRequest request = new BytesTransportRequest(bytes, localNode.getVersion());
         StreamInput in = ClusterStateUtils.decompressClusterState(request, DEFAULT_NAMED_WRITABLE_REGISTRY);
         ClusterState decompressedState = null;
@@ -96,7 +96,7 @@ public class ClusterStateUtilsTests extends OpenSearchTestCase {
         assertThrows(NullPointerException.class, () -> ClusterStateUtils.deserializeClusterStateDiff(mockedStreamInput, localNode));
 
         // fail with EOF is full cluster state is passed
-        BytesReference bytes = ClusterStateUtils.serializeClusterState(localClusterState, localNode, true);
+        BytesReference bytes = ClusterStateUtils.serializeClusterState(localClusterState, localNode);
         BytesTransportRequest request = new BytesTransportRequest(bytes, localNode.getVersion());
         try (StreamInput in = ClusterStateUtils.decompressClusterState(request, DEFAULT_NAMED_WRITABLE_REGISTRY)) {
             assertThrows(EOFException.class, () -> ClusterStateUtils.deserializeClusterStateDiff(in, localNode));
