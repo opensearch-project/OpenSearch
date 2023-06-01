@@ -17,8 +17,13 @@
   - do:
       tasks.list:
         group_by: parents
+        detailed: true
+  - set:
+      tasks._arbitrary_key_: task_id
 
   - is_true: tasks
+  - is_true: tasks.$task_id.resource_stats
+  - is_true: tasks.$task_id.resource_stats.total
 
 ---
 "tasks_list headers":
@@ -32,3 +37,21 @@
 
   - is_true: tasks
   - match: { tasks.0.headers.X-Opaque-Id: "That is me" }
+
+---
+"tasks_list detailed":
+  - skip:
+      version: " - 2.99.99"
+      reason: thread_info was introduced in 3.0.0
+
+  - do:
+      tasks.list:
+        group_by: parents
+        detailed: true
+  - set:
+      tasks._arbitrary_key_: task_id
+
+  - is_true: tasks
+  - is_true: tasks.$task_id.resource_stats
+  - is_true: tasks.$task_id.resource_stats.thread_info
+  - is_true: tasks.$task_id.resource_stats.total
