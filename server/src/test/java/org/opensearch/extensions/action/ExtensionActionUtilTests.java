@@ -26,7 +26,7 @@ import java.nio.charset.StandardCharsets;
 import static org.opensearch.extensions.action.ExtensionActionUtil.UNIT_SEPARATOR;
 import static org.opensearch.extensions.action.ExtensionActionUtil.createProxyRequestBytes;
 
-public class ExtensionActionUtilTest extends OpenSearchTestCase {
+public class ExtensionActionUtilTests extends OpenSearchTestCase {
     private byte[] myBytes;
     private final String actionName = "org.opensearch.action.MyExampleRequest";
     private final byte[] actionNameBytes = MyExampleRequest.class.getName().getBytes(StandardCharsets.UTF_8);
