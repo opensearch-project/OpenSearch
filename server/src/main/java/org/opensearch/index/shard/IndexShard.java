@@ -40,6 +40,7 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
@@ -198,6 +199,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -4519,6 +4521,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     skippedSegments.add(file);
                 }
             }
+            Optional<String> localMaxSegmentInfos = localSegmentFiles.stream()
+                .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
+                .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
+
             if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
@@ -4531,6 +4537,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         remoteSegmentMetadata.getGeneration()
                     );
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                    // Following code block makes sure to commit SegmentInfosSnapshot with the highest generation.
+                    // If local filesystem already has segments_N+1 and infosSnapshot has generation N, after commit,
+                    // there would be 2 files that would be created segments_N and segments_N+1. With the policy of preserving
+                    // only the latest commit, we will delete segments_N which in fact is the part of the latest commit.
+                    if (localMaxSegmentInfos.isPresent()) {
+                        infosSnapshot.setNextWriteGeneration(
+                            Math.max(
+                                infosSnapshot.getGeneration(),
+                                SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get()) + 1
+                            )
+                        );
+                    }
                     store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                 }
             }
