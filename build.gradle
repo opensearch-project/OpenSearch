@@ -46,6 +46,7 @@ import org.gradle.plugins.ide.eclipse.model.EclipseJdt
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.api.Project;
 import org.gradle.process.ExecResult;
+import groovy.json.JsonSlurper
 
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
 
@@ -646,29 +647,43 @@ tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
 }
 
 task checkCompatibility {
-  def repositoryUrls = project.hasProperty('repositoryUrls') ? project.property('repositoryUrls').split(',') : [];
-  String refToCheckout = project.hasProperty('refToCheckout') ?: 'main'
+  ext.getPluginRepoURL = { jsonUrl->
+    def url = new URL(jsonUrl)
+    def jsonSlurper = new JsonSlurper()
+    def json = jsonSlurper.parseText(url.text)
+    def labels = json.projects.values()
+    return labels
+  }
+  ArrayList repositoryUrls = new ArrayList<String>()
+  if (project.hasProperty('repositoryUrls')) {
+    repositoryUrls = project.property('repositoryUrls').split(',')
+  } else {
+    println('repositoryUrls property was not provided, using components list from https://raw.githubusercontent.com/opensearch-project/opensearch-plugins/main/plugins/.meta ')
+    repositoryUrls = getPluginRepoURL('https://raw.githubusercontent.com/opensearch-project/opensearch-plugins/main/plugins/.meta')
+  };
+  String refToCheckout = project.hasProperty('refToCheckout') ? project.property('refToCheckout'): 'main'
   def failedComponents = []
   doLast {
-    if (repositoryUrls.size() == 0) {
-      throw new IllegalArgumentException("repositoryUrls must be provided as arguments.")
-    }
-    def tempDir = File.createTempDir()
-    repositoryUrls.each { repositoryUrl ->
+    println("Repository URLs: $repositoryUrls")
+    println("Reference that is being checked out: $refToCheckout")
+    repositoryUrls.parallelStream().forEach { repositoryUrl ->
+      def tempDir = File.createTempDir()
+      exec {
+        logger.info('Cloning repo:', repositoryUrl)
+        commandLine 'git', 'clone', repositoryUrl, tempDir
+      }
       try {
         exec {
-          commandLine 'git', 'clone', repositoryUrl, tempDir
-        }
-        exec {
-          def stdout = new ByteArrayOutputStream()
           workingDir = tempDir
+          def stdout = new ByteArrayOutputStream()
+          logger.info('Checking out:', refToCheckout)
           commandLine 'git', 'checkout', refToCheckout
           commandLine './gradlew', 'assemble'
           standardOutput stdout
         }
       } catch (ignored) {
         failedComponents.add(repositoryUrl)
-        logger.info("Failed for component: ", repositoryUrl)
+        logger.info("Gradle assemble failed for component: ", repositoryUrl)
       } finally {
         tempDir.deleteDir()
       }
@@ -676,7 +691,7 @@ task checkCompatibility {
     if (!failedComponents.isEmpty()) {
       println("Components incompatible with this change: $failedComponents")
     } else {
-      println('Everything looks good!')
+      println('All components are compatible with this change')
     }
   }
 }
@@ -688,4 +703,3 @@ allprojects {project ->
     }
   }
 }
-

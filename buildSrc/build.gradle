@@ -35,7 +35,6 @@ plugins {
   id 'java-gradle-plugin'
   id 'groovy'
   id 'java-test-fixtures'
-  id 'org.ajoberstar.grgit' version '5.2.0'
 }
 
 group = 'org.opensearch.gradle'
@@ -324,5 +323,3 @@ class VersionPropertiesLoader {
     loadedProps.put("opensearch", opensearch)
   }
 }
-
-
