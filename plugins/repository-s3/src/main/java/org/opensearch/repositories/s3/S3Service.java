@@ -345,7 +345,7 @@ class S3Service implements Closeable {
 
     // pkg private for tests
     static AwsCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
-        final S3BasicCredentials basicCredentials = clientSettings.credentials;
+        final AwsCredentials basicCredentials = clientSettings.credentials;
         final IrsaCredentials irsaCredentials = buildFromEnviroment(clientSettings.irsaCredentials);
 
         // If IAM Roles for Service Accounts (IRSA) credentials are configured, start with them first

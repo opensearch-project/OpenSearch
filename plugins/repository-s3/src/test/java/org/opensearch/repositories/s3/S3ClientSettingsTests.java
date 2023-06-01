@@ -37,6 +37,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.repositories.s3.utils.Protocol;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.signer.Signer;
@@ -204,7 +206,7 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
             configPath()
         );
         final S3ClientSettings defaultSettings = settings.get("default");
-        S3BasicCredentials credentials = defaultSettings.credentials;
+        AwsCredentials credentials = defaultSettings.credentials;
         assertThat(credentials.accessKeyId(), is("access_key"));
         assertThat(credentials.secretAccessKey(), is("secret_key"));
     }
@@ -219,10 +221,10 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
             configPath()
         );
         final S3ClientSettings defaultSettings = settings.get("default");
-        S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) defaultSettings.credentials;
+        AwsSessionCredentials credentials = (AwsSessionCredentials) defaultSettings.credentials;
         assertThat(credentials.accessKeyId(), is("access_key"));
         assertThat(credentials.secretAccessKey(), is("secret_key"));
-        assertThat(credentials.getSessionToken(), is("session_token"));
+        assertThat(credentials.sessionToken(), is("session_token"));
     }
 
     public void testRefineWithRepoSettings() {
@@ -244,19 +246,19 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
             final String endpoint = "some.host";
             final S3ClientSettings refinedSettings = baseSettings.refine(Settings.builder().put("endpoint", endpoint).build());
             assertThat(refinedSettings.endpoint, is(endpoint));
-            S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;
+            AwsSessionCredentials credentials = (AwsSessionCredentials) refinedSettings.credentials;
             assertThat(credentials.accessKeyId(), is("access_key"));
             assertThat(credentials.secretAccessKey(), is("secret_key"));
-            assertThat(credentials.getSessionToken(), is("session_token"));
+            assertThat(credentials.sessionToken(), is("session_token"));
         }
 
         {
             final S3ClientSettings refinedSettings = baseSettings.refine(Settings.builder().put("path_style_access", true).build());
             assertThat(refinedSettings.pathStyleAccess, is(true));
-            S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;
+            AwsSessionCredentials credentials = (AwsSessionCredentials) refinedSettings.credentials;
             assertThat(credentials.accessKeyId(), is("access_key"));
             assertThat(credentials.secretAccessKey(), is("secret_key"));
-            assertThat(credentials.getSessionToken(), is("session_token"));
+            assertThat(credentials.sessionToken(), is("session_token"));
         }
     }
 

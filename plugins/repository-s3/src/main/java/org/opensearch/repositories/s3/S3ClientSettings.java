@@ -44,6 +44,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.repositories.s3.utils.Protocol;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -212,7 +215,7 @@ final class S3ClientSettings {
     );
 
     /** Credentials to authenticate with s3. */
-    final S3BasicCredentials credentials;
+    final AwsCredentials credentials;
 
     /** Credentials to authenticate with s3 using IAM Roles for Service Accounts (IRSA). */
     final IrsaCredentials irsaCredentials;
@@ -248,7 +251,7 @@ final class S3ClientSettings {
     final String signerOverride;
 
     private S3ClientSettings(
-        S3BasicCredentials credentials,
+        AwsCredentials credentials,
         IrsaCredentials irsaCredentials,
         String endpoint,
         Protocol protocol,
@@ -305,7 +308,7 @@ final class S3ClientSettings {
             normalizedSettings,
             disableChunkedEncoding
         );
-        final S3BasicCredentials newCredentials;
+        final AwsCredentials newCredentials;
         if (checkDeprecatedCredentials(repositorySettings)) {
             newCredentials = loadDeprecatedCredentials(repositorySettings);
         } else {
@@ -389,17 +392,17 @@ final class S3ClientSettings {
     }
 
     // backcompat for reading keys out of repository settings (clusterState)
-    private static S3BasicCredentials loadDeprecatedCredentials(Settings repositorySettings) {
+    private static AwsCredentials loadDeprecatedCredentials(Settings repositorySettings) {
         assert checkDeprecatedCredentials(repositorySettings);
         try (
             SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
             SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)
         ) {
-            return new S3BasicCredentials(key.toString(), secret.toString());
+            return AwsBasicCredentials.create(key.toString(), secret.toString());
         }
     }
 
-    private static S3BasicCredentials loadCredentials(Settings settings, String clientName) {
+    private static AwsCredentials loadCredentials(Settings settings, String clientName) {
         try (
             SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING);
             SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);
@@ -408,9 +411,9 @@ final class S3ClientSettings {
             if (accessKey.length() != 0) {
                 if (secretKey.length() != 0) {
                     if (sessionToken.length() != 0) {
-                        return new S3BasicSessionCredentials(accessKey.toString(), secretKey.toString(), sessionToken.toString());
+                        return AwsSessionCredentials.create(accessKey.toString(), secretKey.toString(), sessionToken.toString());
                     } else {
-                        return new S3BasicCredentials(accessKey.toString(), secretKey.toString());
+                        return AwsBasicCredentials.create(accessKey.toString(), secretKey.toString());
                     }
                 } else {
                     throw new IllegalArgumentException("Missing secret key for s3 client [" + clientName + "]");
