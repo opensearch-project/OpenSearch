@@ -88,6 +88,9 @@ grant codeBase "${codebase.zstd-jni}" {
 //// Everything else:
 
 grant {
+
+  permission java.lang.RuntimePermission "loadLibrary.*";
+
   // needed by vendored Guice
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.vm.annotation";
 
