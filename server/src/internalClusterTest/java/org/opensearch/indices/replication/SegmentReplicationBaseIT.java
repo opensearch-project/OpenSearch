@@ -95,10 +95,6 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         }
     }
 
-    protected ClusterState getClusterState() {
-        return client(internalCluster().getClusterManagerName()).admin().cluster().prepareState().get().getState();
-    }
-
     protected DiscoveryNode getNodeContainingPrimaryShard() {
         final ClusterState state = getClusterState();
         final ShardRouting primaryShard = state.routingTable().index(INDEX_NAME).shard(0).primaryShard();
