@@ -631,7 +631,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             }
 
             if (fieldType().hasDocValues()) {
-                if (context.doc().getField(fieldType().name()) == null || !context.doc().getField(fieldType().name()).equals(field)) {
+                if (!Objects.equals(context.doc().getField(fieldType().name()), field)) {
                     if (valueType.equals(VALUE_SUFFIX)) {
                         if (valueFieldMapper != null) {
                             context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_SUFFIX, binaryValue));
