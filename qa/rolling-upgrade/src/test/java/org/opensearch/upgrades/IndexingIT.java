@@ -43,7 +43,9 @@ import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.rest.action.document.RestBulkAction;
@@ -95,7 +97,8 @@ public class IndexingIT extends AbstractRollingTestCase {
     private void waitForSearchableDocs(String index, int shardCount) throws Exception {
         Map<Integer,String> primaryShardToNodeIDMap = new HashMap<>();
         Map<Integer,String> replicaShardToNodeIDMap = new HashMap<>();
-        logger.info("--> _cat/shards \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
+        waitForClusterHealthWithNoShardMigration(index, "green");
+        logger.info("--> _cat/shards before search \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
 
         Request request = new Request("GET", index + "/_stats");
         request.addParameter("level", "shards");
