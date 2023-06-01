@@ -83,7 +83,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        super(metadata, metadata.settings().getAsBoolean("compress", false), namedXContentRegistry, clusterService, recoverySettings);
+        super(metadata, COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry, clusterService, recoverySettings);
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
