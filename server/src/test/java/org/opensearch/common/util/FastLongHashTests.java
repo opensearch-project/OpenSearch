@@ -10,24 +10,24 @@ package org.opensearch.common.util;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.TreeMap;
 
-public class LongRHHashTests extends OpenSearchTestCase {
+public class FastLongHashTests extends OpenSearchTestCase {
 
     public void testFuzzy() {
-        Map<Long, Long> reference = new TreeMap<>();
+        Map<Long, Long> reference = new HashMap<>();
+
         try (
-            LongRHHash h = new LongRHHash(
-                randomIntBetween(1, 100),               // random capacity
-                0.6f + randomFloat() * 0.39f,           // random load factor to verify collision resolution
-                randomIntBetween(1, 256),               // random hints' size
+            FastLongHash h = new FastLongHash(
+                randomIntBetween(1, 100),      // random capacity
+                0.6f + randomFloat() * 0.39f,  // random load factor to verify collision resolution
                 BigArrays.NON_RECYCLING_INSTANCE
             )
         ) {
             // Verify the behaviour of "add" and "find".
             for (int i = 0; i < (1 << 20); i++) {
-                long key = randomLong() % (1 << 12);    // roughly ~4% unique keys
+                long key = randomLong() % (1 << 12);  // roughly ~4% unique keys
                 if (reference.containsKey(key)) {
                     long expectedOrdinal = reference.get(key);
                     assertEquals(-1 - expectedOrdinal, h.add(key));
@@ -43,6 +43,9 @@ public class LongRHHashTests extends OpenSearchTestCase {
             for (Map.Entry<Long, Long> entry : reference.entrySet()) {
                 assertEquals((long) entry.getKey(), h.get(entry.getValue()));
             }
+
+            // Verify the behaviour of "size".
+            assertEquals(reference.size(), h.size());
         }
     }
 }
