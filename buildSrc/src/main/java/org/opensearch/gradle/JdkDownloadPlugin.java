@@ -129,13 +129,9 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 // To distinguish between those, the GA releases have only major version component (fe 17+32),
                 // the updates always have minor/patch components (fe 17.0.1+12), checking for the presence of
                 // version separator '.' should be enough.
-                artifactPattern = "jdk-"
-                    + jdk.getBaseVersion()
-                    + "+"
-                    + jdk.getBuild()
-                    + "/OpenJDK"
-                    + jdk.getMajor()
-                    + (jdk.getBaseVersion().contains(".") ? "U" : "")
+                artifactPattern = "jdk-" + jdk.getBaseVersion() + "+" + jdk.getBuild() + "/OpenJDK" + jdk.getMajor()
+                // JDK-20 does use 'U' suffix all the time, no matter it is update or GA release
+                    + (jdk.getBaseVersion().contains(".") || jdk.getBaseVersion().matches("^2\\d+$") ? "U" : "")
                     + "-jdk_[classifier]_[module]_hotspot_"
                     + jdk.getBaseVersion()
                     + "_"
