@@ -404,14 +404,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     try {
                         repository.snapshotRemoteStoreIndexShard(
                             indexShard.store(),
-                            indexShard.mapperService(),
                             snapshot.getSnapshotId(),
                             indexId,
                             wrappedSnapshot.get(),
                             getShardStateId(indexShard, snapshotIndexCommit),
                             snapshotStatus,
-                            version,
-                            userMetadata,
                             primaryTerm,
                             startTime,
                             ActionListener.runBefore(listener, wrappedSnapshot::close)

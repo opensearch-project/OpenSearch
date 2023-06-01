@@ -259,7 +259,6 @@ public interface Repository extends LifecycleComponent {
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
      * @param store                    store to be snapshotted
-     * @param mapperService            the shards mapper service
      * @param snapshotId               snapshot id
      * @param indexId                  id for the index being snapshotted
      * @param snapshotIndexCommit      commit point
@@ -267,22 +266,17 @@ public interface Repository extends LifecycleComponent {
      *                                 to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
      *                                 snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
      * @param snapshotStatus           snapshot status
-     * @param repositoryMetaVersion    version of the updated repository metadata to write
-     * @param userMetadata             user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
      * @param primaryTerm              current Primary Term
      * @param startTime                start time of the snapshot commit, this will be used as the start time for snapshot.
      * @param listener                 listener invoked on completion
      */
     default void snapshotRemoteStoreIndexShard(
         Store store,
-        MapperService mapperService,
         SnapshotId snapshotId,
         IndexId indexId,
         IndexCommit snapshotIndexCommit,
         @Nullable String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
-        Version repositoryMetaVersion,
-        Map<String, Object> userMetadata,
         long primaryTerm,
         long startTime,
         ActionListener<String> listener

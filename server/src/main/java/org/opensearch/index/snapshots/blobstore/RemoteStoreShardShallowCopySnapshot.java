@@ -17,6 +17,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Remote Store based Shard snapshot metadata
@@ -26,6 +27,7 @@ import java.util.List;
 public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
 
     private final String snapshot;
+    private final String version;
     private final long indexVersion;
     private final long startTime;
     private final long time;
@@ -38,7 +40,9 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
     private final String indexUUID;
     private final List<String> fileNames;
 
+    private static final String DEFAULT_VERSION = "1";
     static final String NAME = "name";
+    static final String VERSION = "version";
     static final String INDEX_VERSION = "index_version";
     static final String START_TIME = "start_time";
     static final String TIME = "time";
@@ -57,7 +61,7 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
     static final String TOTAL_SIZE = "total_size";
 
     private static final ParseField PARSE_NAME = new ParseField(NAME);
-
+    private static final ParseField PARSE_VERSION = new ParseField(VERSION);
     private static final ParseField PARSE_PRIMARY_TERM = new ParseField(PRIMARY_TERM);
     private static final ParseField PARSE_COMMIT_GENERATION = new ParseField(COMMIT_GENERATION);
     private static final ParseField PARSE_INDEX_VERSION = new ParseField(INDEX_VERSION, "index-version");
@@ -78,6 +82,7 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(VERSION, version);
         builder.field(NAME, snapshot);
         builder.field(INDEX_VERSION, indexVersion);
         builder.field(START_TIME, startTime);
@@ -111,11 +116,10 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         String repositoryBasePath,
         List<String> fileNames
     ) {
-        assert snapshot != null;
-        assert indexVersion >= 0;
-        assert commitGeneration >= 0 && primaryTerm >= 0;
-        assert indexUUID != null && remoteStoreRepository != null && repositoryBasePath != null;
-        this.snapshot = snapshot;
+        this.snapshot = Objects.requireNonNull(snapshot, "Invalid/Missing Snapshot Name");
+        assert indexVersion > 0 : "Invalid Index Version";
+        assert primaryTerm > 0 : "Invalid Primary Term";
+        assert commitGeneration > 0 : "Invalid Commit Generation";
         this.indexVersion = indexVersion;
         this.primaryTerm = primaryTerm;
         this.commitGeneration = commitGeneration;
@@ -123,10 +127,11 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         this.time = time;
         this.totalFileCount = totalFileCount;
         this.totalSize = totalSize;
-        this.indexUUID = indexUUID;
-        this.remoteStoreRepository = remoteStoreRepository;
-        this.repositoryBasePath = repositoryBasePath;
+        this.indexUUID = Objects.requireNonNull(indexUUID, "Invalid/Missing Index UUID");
+        this.remoteStoreRepository = Objects.requireNonNull(remoteStoreRepository, "Invalid/Missing Remote Store Repository");
+        this.repositoryBasePath = Objects.requireNonNull(repositoryBasePath, "Invalid/Missing Repository Base Path");
         this.fileNames = fileNames;
+        this.version = DEFAULT_VERSION;
     }
 
     /**
@@ -137,6 +142,7 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
      */
     public static RemoteStoreShardShallowCopySnapshot fromXContent(XContentParser parser) throws IOException {
         String snapshot = null;
+        String version = DEFAULT_VERSION;
         long indexVersion = -1;
         long startTime = 0;
         long time = 0;
@@ -160,6 +166,8 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
             } else if (token.isValue()) {
                 if (PARSE_NAME.match(currentFieldName, parser.getDeprecationHandler())) {
                     snapshot = parser.text();
+                } else if (PARSE_VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
+                    version = parser.text();
                 } else if (PARSE_INDEX_VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
                     indexVersion = parser.longValue();
                 } else if (PARSE_PRIMARY_TERM.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -194,29 +202,6 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
             } else {
                 parser.skipChildren();
             }
-        }
-
-        // Verify that file information is complete
-        if (snapshot == null) {
-            throw new OpenSearchParseException("missing Snapshot Name");
-        }
-        if (indexVersion < 0) {
-            throw new OpenSearchParseException("missing or invalid Index Version");
-        }
-        if (commitGeneration < 0) {
-            throw new OpenSearchParseException("missing or invalid Commit Generation");
-        }
-        if (primaryTerm < 0) {
-            throw new OpenSearchParseException("missing or invalid Primary Term");
-        }
-        if (indexUUID == null) {
-            throw new OpenSearchParseException("missing Index UUID");
-        }
-        if (remoteStoreRepository == null) {
-            throw new OpenSearchParseException("missing Remote Store Repository");
-        }
-        if (repositoryBasePath == null) {
-            throw new OpenSearchParseException("missing Repository Base Path");
         }
 
         return new RemoteStoreShardShallowCopySnapshot(

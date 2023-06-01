@@ -337,10 +337,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
 
-                boolean remoteStoreIndexShallowCopy = false;
-                if (version.onOrAfter(Version.V_2_8_0)) {
-                    // we will pull the remote store shallow copy flag value from repository settings.
-                    remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
+                boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
+                if (remoteStoreIndexShallowCopy && !currentState.nodes().getMinNodeVersion().onOrAfter(Version.V_2_9_0)) {
+                    remoteStoreIndexShallowCopy = false;
+                    logger.warn("setting is ignored and will be used when all nodes are moved to version > 2.9");
                 }
                 newEntry = SnapshotsInProgress.startedEntry(
                     new Snapshot(repositoryName, snapshotId),

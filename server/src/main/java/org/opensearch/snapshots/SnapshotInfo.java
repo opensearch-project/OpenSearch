@@ -422,6 +422,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         dataStreams = in.readStringList();
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             remoteStoreIndexShallowCopy = in.readOptionalBoolean();
+        } else {
+            remoteStoreIndexShallowCopy = false;
         }
     }
 
@@ -745,7 +747,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         int totalShards = 0;
         int successfulShards = 0;
         Boolean includeGlobalState = null;
-        Boolean remoteStoreIndexShallowCopy = null;
+        Boolean remoteStoreIndexShallowCopy = false;
         Map<String, Object> userMetadata = null;
         List<SnapshotShardFailure> shardFailures = Collections.emptyList();
         if (parser.currentToken() == null) { // fresh parser? move to the first token

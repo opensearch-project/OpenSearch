@@ -8,7 +8,6 @@
 
 package org.opensearch.index.snapshots.blobstore;
 
-import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -64,7 +63,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             builder.endObject();
             actual = Strings.toString(builder);
         }
-        String expectedXContent = "{\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
+        String expectedXContent = "{\"version\":\"1\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
             + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"
             + "\"test-rs-repository\",\"commit_generation\":5,\"primary_term\":3,\"remote_store_repository_base_path\":"
             + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"]}";
@@ -99,7 +98,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             repositoryBasePath,
             fileNames
         );
-        String xContent = "{\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
+        String xContent = "{\"version\":\"1\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
             + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"
             + "\"test-rs-repository\",\"commit_generation\":5,\"primary_term\":3,\"remote_store_repository_base_path\":"
             + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"]}";
@@ -141,31 +140,31 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             switch (randomIntBetween(0, 7)) {
                 case 0:
                     snapshot = null;
-                    failure = "missing Snapshot Name";
+                    failure = "Invalid/Missing Snapshot Name";
                     break;
                 case 1:
                     indexVersion = -Math.abs(randomLong());
-                    failure = "missing or invalid Index Version";
+                    failure = "Invalid Index Version";
                     break;
                 case 2:
                     commitGeneration = -Math.abs(randomLong());
-                    failure = "missing or invalid Commit Generation";
+                    failure = "Invalid Commit Generation";
                     break;
                 case 3:
                     primaryTerm = -Math.abs(randomLong());
-                    failure = "missing or invalid Primary Term";
+                    failure = "Invalid Primary Term";
                     break;
                 case 4:
                     indexUUID = null;
-                    failure = "missing Index UUID";
+                    failure = "Invalid/Missing Index UUID";
                     break;
                 case 5:
                     remoteStoreRepository = null;
-                    failure = "missing Remote Store Repository";
+                    failure = "Invalid/Missing Remote Store Repository";
                     break;
                 case 6:
                     repositoryBasePath = null;
-                    failure = "missing Repository Base Path";
+                    failure = "Invalid/Missing Repository Base Path";
                     break;
                 case 7:
                     break;
@@ -214,7 +213,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                     parser.nextToken();
                     RemoteStoreShardShallowCopySnapshot.fromXContent(parser);
                     fail("Should have failed with [" + failure + "]");
-                } catch (OpenSearchParseException ex) {
+                } catch (NullPointerException | AssertionError ex) {
                     assertThat(ex.getMessage(), containsString(failure));
                 }
             }
