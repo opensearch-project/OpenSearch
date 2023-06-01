@@ -21,7 +21,7 @@ opensearchplugin {
 }
 
 dependencies {
-  api "com.github.luben:zstd-jni:1.5.5-1"
+  api "com.github.luben:zstd-jni:${versions.zstd}"
 }
 
 yamlRestTest.enabled = false;
