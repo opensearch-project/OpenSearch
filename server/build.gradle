@@ -148,7 +148,10 @@ dependencies {
 
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  implementation "org.jboss.spec.javax.annotation:jboss-annotations-api_1.2_spec:${versions.jboss_annotation}"
+  api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
+
+  //zstd
+  api "com.github.luben:zstd-jni:${versions.zstd}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server

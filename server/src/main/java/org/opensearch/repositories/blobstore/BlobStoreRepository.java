@@ -79,7 +79,9 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.compress.Compressor;
 import org.opensearch.common.compress.CompressorFactory;
+import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.compress.NotXContentException;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lease.Releasable;
@@ -140,6 +142,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -248,17 +251,31 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Setting.Property.NodeScope);
+
+    public static final Setting<CompressorType> COMPRESSION_TYPE_SETTING = new Setting<>(
+        "compression_type",
+        CompressorType.DEFLATE.name().toLowerCase(Locale.ROOT),
+        s -> CompressorType.valueOf(s.toUpperCase(Locale.ROOT)),
+        Setting.Property.NodeScope
+    );
+
     /**
      * Setting to disable writing the {@code index.latest} blob which enables the contents of this repository to be used with a
      * url-repository.
      */
     public static final Setting<Boolean> SUPPORT_URL_REPO = Setting.boolSetting("support_url_repo", true, Setting.Property.NodeScope);
 
+    /***
+     * Setting to set repository as readonly
+     */
+    public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting("readonly", false, Setting.Property.NodeScope);
+
     protected final boolean supportURLRepo;
 
     private final int maxShardBlobDeleteBatch;
 
-    private final boolean compress;
+    private final Compressor compressor;
 
     private final boolean cacheRepositoryData;
 
@@ -358,7 +375,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        this.compress = compress;
         this.metadata = metadata;
         this.namedXContentRegistry = namedXContentRegistry;
         this.threadPool = clusterService.getClusterApplierService().threadPool();
@@ -367,10 +383,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
-        readOnly = metadata.settings().getAsBoolean("readonly", false);
+        readOnly = READONLY_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         maxShardBlobDeleteBatch = MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.get(metadata.settings());
+        this.compressor = compress ? COMPRESSION_TYPE_SETTING.get(metadata.settings()).compressor() : CompressorFactory.NONE_COMPRESSOR;
     }
 
     @Override
@@ -539,13 +556,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 sourceMeta.asClone(target.getName(), startTime, threadPool.absoluteTimeInMillis() - startTime),
                 shardContainer,
                 target.getUUID(),
-                compress
+                compressor
             );
             INDEX_SHARD_SNAPSHOTS_FORMAT.write(
                 existingSnapshots.withClone(source.getName(), target.getName()),
                 shardContainer,
                 newGen,
-                compress
+                compressor
             );
             return newGen;
         }));
@@ -685,7 +702,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return true if compression is needed
      */
     protected final boolean isCompress() {
-        return compress;
+        return compressor != CompressorFactory.NONE_COMPRESSOR;
     }
 
     /**
@@ -1391,7 +1408,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             executor.execute(
                 ActionRunnable.run(
                     allMetaListener,
-                    () -> GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compress)
+                    () -> GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compressor)
                 )
             );
 
@@ -1404,7 +1421,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (metaUUID == null) {
                         // We don't yet have this version of the metadata so we write it
                         metaUUID = UUIDs.base64UUID();
-                        INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
+                        INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compressor);
                         indexMetaIdentifiers.put(identifiers, metaUUID);
                     }
                     indexMetas.put(index, identifiers);
@@ -1413,7 +1430,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             executor.execute(
                 ActionRunnable.run(
                     allMetaListener,
-                    () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress)
+                    () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compressor)
                 )
             );
         }, onUpdateFailure);
@@ -2423,7 +2440,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // reference a generation that has not had all its files fully upload.
             indexGeneration = UUIDs.randomBase64UUID();
             try {
-                INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedBlobStoreIndexShardSnapshots, shardContainer, indexGeneration, compress);
+                INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedBlobStoreIndexShardSnapshots, shardContainer, indexGeneration, compressor);
             } catch (IOException e) {
                 throw new IndexShardSnapshotFailedException(
                     shardId,
@@ -2454,7 +2471,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         ),
                         shardContainer,
                         snapshotId.getUUID(),
-                        compress
+                        compressor
                     );
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
@@ -2789,7 +2806,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
                 if (indexGeneration < 0L) {
                     writtenGeneration = UUIDs.randomBase64UUID();
-                    INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedSnapshots, shardContainer, writtenGeneration, compress);
+                    INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedSnapshots, shardContainer, writtenGeneration, compressor);
                 } else {
                     writtenGeneration = String.valueOf(indexGeneration);
                     writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots);
@@ -2829,7 +2846,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             () -> new ParameterizedMessage("[{}] Writing shard index [{}] to [{}]", metadata.name(), indexGeneration, shardContainer.path())
         );
         final String blobName = INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(String.valueOf(indexGeneration));
-        writeAtomic(shardContainer, blobName, INDEX_SHARD_SNAPSHOTS_FORMAT.serialize(updatedSnapshots, blobName, compress), true);
+        writeAtomic(shardContainer, blobName, INDEX_SHARD_SNAPSHOTS_FORMAT.serialize(updatedSnapshots, blobName, compressor), true);
     }
 
     // Unused blobs are all previous index-, data- and meta-blobs and that are not referenced by the new index- as well as all
