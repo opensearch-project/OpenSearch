@@ -9,7 +9,6 @@
 package org.opensearch.extensions.action;
 
 import org.junit.Before;
-import org.junit.Test;
 import org.mockito.Mockito;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -18,27 +17,22 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
 import static org.opensearch.extensions.action.ExtensionActionUtil.UNIT_SEPARATOR;
 import static org.opensearch.extensions.action.ExtensionActionUtil.createProxyRequestBytes;
 
-public class ExtensionActionUtilTest {
+public class ExtensionActionUtilTest extends OpenSearchTestCase {
     private byte[] myBytes;
     private final String actionName = "org.opensearch.action.MyExampleRequest";
     private final byte[] actionNameBytes = MyExampleRequest.class.getName().getBytes(StandardCharsets.UTF_8);
 
     @Before
-    public void setUp() throws IOException {
+    public void setup() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         MyExampleRequest exampleRequest = new MyExampleRequest(actionName, actionNameBytes);
         exampleRequest.writeTo(out);
@@ -52,7 +46,6 @@ public class ExtensionActionUtilTest {
             .array();
     }
 
-    @Test
     public void testCreateProxyRequestBytes() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         MyExampleRequest exampleRequest = new MyExampleRequest(actionName, actionNameBytes);
@@ -63,7 +56,6 @@ public class ExtensionActionUtilTest {
         assertThrows(RuntimeException.class, () -> ExtensionActionUtil.createProxyRequestBytes(new MyExampleRequest(null, null)));
     }
 
-    @Test
     public void testCreateActionRequest() throws ReflectiveOperationException {
         ActionRequest actionRequest = ExtensionActionUtil.createActionRequest(myBytes);
         assertThrows(NullPointerException.class, () -> ExtensionActionUtil.createActionRequest(null));
@@ -72,14 +64,12 @@ public class ExtensionActionUtilTest {
         assertFalse(actionRequest.getShouldStoreResult());
     }
 
-    @Test
     public void testConvertParamsToBytes() throws IOException {
         Writeable mockWriteableObject = Mockito.mock(Writeable.class);
         Mockito.doThrow(new IOException("Test IOException")).when(mockWriteableObject).writeTo(Mockito.any());
         assertThrows(IllegalStateException.class, () -> ExtensionActionUtil.convertParamsToBytes(mockWriteableObject));
     }
 
-    @Test
     public void testDelimPos() {
         assertTrue(ExtensionActionUtil.delimPos(myBytes) > 0);
         assertTrue(ExtensionActionUtil.delimPos(actionNameBytes) < 0);
