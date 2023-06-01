@@ -31,21 +31,19 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-
 import java.util.Objects;
 
 final class S3BasicSessionCredentials extends S3BasicCredentials {
 
-    private final AwsSessionCredentials sessionCredentials;
+    private final String sessionToken;
 
     S3BasicSessionCredentials(String accessKey, String secretKey, String sessionToken) {
         super(accessKey, secretKey);
-        sessionCredentials = AwsSessionCredentials.create(accessKey, secretKey, sessionToken);
+        this.sessionToken = sessionToken;
     }
 
     public String getSessionToken() {
-        return sessionCredentials.sessionToken();
+        return sessionToken;
     }
 
     @Override
@@ -57,13 +55,13 @@ final class S3BasicSessionCredentials extends S3BasicCredentials {
             return false;
         }
         final S3BasicSessionCredentials that = (S3BasicSessionCredentials) o;
-        return getSessionToken().equals(that.getSessionToken())
+        return sessionToken.equals(that.sessionToken)
             && accessKeyId().equals(that.accessKeyId())
             && secretAccessKey().equals(that.secretAccessKey());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getSessionToken(), accessKeyId(), secretAccessKey());
+        return Objects.hash(sessionToken, accessKeyId(), secretAccessKey());
     }
 }
