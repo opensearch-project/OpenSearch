@@ -67,6 +67,14 @@ public class Task {
 
     private static final String TOTAL = "total";
 
+    private static final String AVERAGE = "average";
+
+    private static final String MIN = "min";
+
+    private static final String MAX = "max";
+
+    public static final String THREAD_INFO = "thread_info";
+
     private final long id;
 
     private final String type;
@@ -175,8 +183,11 @@ public class Task {
             resourceStats = new TaskResourceStats(new HashMap<>() {
                 {
                     put(TOTAL, getTotalResourceStats());
+                    put(AVERAGE, getAverageResourceStats());
+                    put(MIN, getMinResourceStats());
+                    put(MAX, getMaxResourceStats());
                 }
-            });
+            }, getThreadUsage());
         }
         return taskInfo(localNodeId, description, status, resourceStats);
     }
@@ -290,6 +301,27 @@ public class Task {
     }
 
     /**
+     * Returns current average per-execution resource usage of the task.
+     */
+    public TaskResourceUsage getAverageResourceStats() {
+        return new TaskResourceUsage(getAverageResourceUtilization(ResourceStats.CPU), getAverageResourceUtilization(ResourceStats.MEMORY));
+    }
+
+    /**
+     * Returns current min per-execution resource usage of the task.
+     */
+    public TaskResourceUsage getMinResourceStats() {
+        return new TaskResourceUsage(getMinResourceUtilization(ResourceStats.CPU), getMinResourceUtilization(ResourceStats.MEMORY));
+    }
+
+    /**
+     * Returns current max per-execution resource usage of the task.
+     */
+    public TaskResourceUsage getMaxResourceStats() {
+        return new TaskResourceUsage(getMaxResourceUtilization(ResourceStats.CPU), getMaxResourceUtilization(ResourceStats.MEMORY));
+    }
+
+    /**
      * Returns total resource consumption for a specific task stat.
      */
     public long getTotalResourceUtilization(ResourceStats stats) {
@@ -303,6 +335,76 @@ public class Task {
             }
         }
         return totalResourceConsumption;
+    }
+
+    /**
+     * Returns average per-execution resource consumption for a specific task stat.
+     */
+    private long getAverageResourceUtilization(ResourceStats stats) {
+        long totalResourceConsumption = 0L;
+        int threadResourceInfoCount = 0;
+        for (List<ThreadResourceInfo> threadResourceInfosList : resourceStats.values()) {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfosList) {
+                final ResourceUsageInfo.ResourceStatsInfo statsInfo = threadResourceInfo.getResourceUsageInfo().getStatsInfo().get(stats);
+                if (threadResourceInfo.getStatsType().isOnlyForAnalysis() == false && statsInfo != null) {
+                    totalResourceConsumption += statsInfo.getTotalValue();
+                    threadResourceInfoCount++;
+                }
+            }
+        }
+        return (threadResourceInfoCount > 0) ? totalResourceConsumption / threadResourceInfoCount : 0;
+    }
+
+    /**
+     * Returns minimum per-execution resource consumption for a specific task stat.
+     */
+    private long getMinResourceUtilization(ResourceStats stats) {
+        if (resourceStats.size() == 0) {
+            return 0L;
+        }
+        long minResourceConsumption = Long.MAX_VALUE;
+        for (List<ThreadResourceInfo> threadResourceInfosList : resourceStats.values()) {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfosList) {
+                final ResourceUsageInfo.ResourceStatsInfo statsInfo = threadResourceInfo.getResourceUsageInfo().getStatsInfo().get(stats);
+                if (threadResourceInfo.getStatsType().isOnlyForAnalysis() == false && statsInfo != null) {
+                    minResourceConsumption = Math.min(minResourceConsumption, statsInfo.getTotalValue());
+                }
+            }
+        }
+        return minResourceConsumption;
+    }
+
+    /**
+     * Returns maximum per-execution resource consumption for a specific task stat.
+     */
+    private long getMaxResourceUtilization(ResourceStats stats) {
+        long maxResourceConsumption = 0L;
+        for (List<ThreadResourceInfo> threadResourceInfosList : resourceStats.values()) {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfosList) {
+                final ResourceUsageInfo.ResourceStatsInfo statsInfo = threadResourceInfo.getResourceUsageInfo().getStatsInfo().get(stats);
+                if (threadResourceInfo.getStatsType().isOnlyForAnalysis() == false && statsInfo != null) {
+                    maxResourceConsumption = Math.max(maxResourceConsumption, statsInfo.getTotalValue());
+                }
+            }
+        }
+        return maxResourceConsumption;
+    }
+
+    /**
+     * Returns the total and active number of thread executions for the task.
+     */
+    public TaskThreadUsage getThreadUsage() {
+        int numThreadExecutions = 0;
+        int activeThreads = 0;
+        for (List<ThreadResourceInfo> threadResourceInfosList : resourceStats.values()) {
+            numThreadExecutions += threadResourceInfosList.size();
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfosList) {
+                if (threadResourceInfo.isActive()) {
+                    activeThreads++;
+                }
+            }
+        }
+        return new TaskThreadUsage(numThreadExecutions, activeThreads);
     }
 
     /**
