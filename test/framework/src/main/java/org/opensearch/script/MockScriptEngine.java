@@ -177,6 +177,14 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(SearchScript.class)) {
+            SearchScript.Factory factory = parameters -> new SearchScript(parameters) {
+                @Override
+                public void execute(Map<String, Object> ctx) {
+                    script.apply(ctx);
+                }
+            };
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(AggregationScript.class)) {
             return context.factoryClazz.cast(new MockAggregationScript(script));
         } else if (context.instanceClazz.equals(IngestConditionalScript.class)) {

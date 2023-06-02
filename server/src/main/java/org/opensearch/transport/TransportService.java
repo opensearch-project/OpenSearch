@@ -42,10 +42,10 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Streamables;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
@@ -56,9 +56,10 @@ import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.ReportingService;
 import org.opensearch.tasks.Task;
@@ -160,6 +161,17 @@ public class TransportService extends AbstractLifecycleComponent
         @Override
         public void close() {}
     };
+
+    static {
+        /**
+         * Registers server specific types as a streamables for serialization
+         * over the {@link StreamOutput} and {@link StreamInput} wire
+         */
+        Streamables.registerStreamables();
+    }
+
+    /** does nothing. easy way to ensure class is loaded so the above static block is called to register the streamables */
+    public static void ensureClassloaded() {}
 
     /**
      * Build the service.

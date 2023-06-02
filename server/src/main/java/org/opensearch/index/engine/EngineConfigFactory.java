@@ -10,7 +10,6 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -37,7 +36,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
@@ -153,8 +151,7 @@ public class EngineConfigFactory {
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
         boolean isReadOnlyReplica,
         BooleanSupplier primaryModeSupplier,
-        TranslogFactory translogFactory,
-        Comparator<LeafReader> leafSorter
+        TranslogFactory translogFactory
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -187,7 +184,6 @@ public class EngineConfigFactory {
             .readOnlyReplica(isReadOnlyReplica)
             .primaryModeSupplier(primaryModeSupplier)
             .translogFactory(translogFactory)
-            .leafSorter(leafSorter)
             .build();
     }
 

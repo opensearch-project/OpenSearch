@@ -37,9 +37,9 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -152,7 +152,8 @@ public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<Cl
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards, {@code _primary} to execute only on primary shards,
+     * or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public ClusterSearchShardsRequest preference(String preference) {

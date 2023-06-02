@@ -39,7 +39,7 @@ dependencies {
   api "org.bouncycastle:bc-fips:1.0.2.3"
   testImplementation project(":test:framework")
   testImplementation 'com.google.jimfs:jimfs:1.2'
-  testRuntimeOnly 'com.google.guava:guava:31.1-jre'
+  testRuntimeOnly 'com.google.guava:guava:32.0.0-jre'
 
   implementation 'org.apache.commons:commons-compress:1.23.0'
 }
@@ -82,9 +82,6 @@ thirdPartyAudit.ignoreViolations(
 )
 
 thirdPartyAudit.ignoreMissingClasses(
-  'com.github.luben.zstd.BufferPool',
-  'com.github.luben.zstd.ZstdInputStream',
-  'com.github.luben.zstd.ZstdOutputStream',
   'org.brotli.dec.BrotliInputStream',
   'org.objectweb.asm.AnnotationVisitor',
   'org.objectweb.asm.Attribute',

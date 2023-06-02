@@ -36,11 +36,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
@@ -50,7 +50,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.opensearch.common.settings.Setting.Property;
-import static org.opensearch.common.settings.Setting.boolSetting;
 import static org.opensearch.common.settings.Setting.byteSizeSetting;
 import static org.opensearch.common.settings.Setting.simpleString;
 
@@ -70,7 +69,6 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
 
     static final Setting<String> BUCKET = simpleString("bucket", Property.NodeScope, Property.Dynamic);
     static final Setting<String> BASE_PATH = simpleString("base_path", Property.NodeScope, Property.Dynamic);
-    static final Setting<Boolean> COMPRESS = boolSetting("compress", false, Property.NodeScope, Property.Dynamic);
     static final Setting<ByteSizeValue> CHUNK_SIZE = byteSizeSetting(
         "chunk_size",
         MAX_CHUNK_SIZE,
@@ -94,7 +92,14 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        super(metadata, getSetting(COMPRESS, metadata), namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
+        super(
+            metadata,
+            getSetting(COMPRESS_SETTING, metadata),
+            namedXContentRegistry,
+            clusterService,
+            recoverySettings,
+            buildLocation(metadata)
+        );
         this.storageService = storageService;
 
         String basePath = BASE_PATH.get(metadata.settings());

@@ -65,6 +65,14 @@ public class GeoShapeCellIdSource extends ValuesSource.Numeric {
     }
 
     /**
+     * Whether the underlying data is big integer or not.
+     */
+    @Override
+    public boolean isBigInteger() {
+        return false;
+    }
+
+    /**
      * Get the current {@link SortedNumericDocValues}.
      *
      * @param context {@link LeafReaderContext}

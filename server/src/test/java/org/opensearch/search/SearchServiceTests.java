@@ -35,6 +35,7 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.action.ActionListener;
@@ -54,13 +55,13 @@ import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
@@ -104,6 +105,9 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -1561,5 +1565,83 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         IndexShard indexShard = indexService.getShard(shardId);
         assertEquals(expectedPitCurrent, indexShard.searchStats().getTotal().getPitCurrent());
         assertEquals(expectedPitCount, indexShard.searchStats().getTotal().getPitCount());
+    }
+
+    /**
+     * Test for ASC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 10L
+     * Expected result is canMatch = false
+     */
+    public void testCanMatchSearchAfterAscGreaterThanMax() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.ASC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
+    }
+
+    /**
+     * Test for ASC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 7L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterAscLessThanMax() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 7L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.ASC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+    }
+
+    /**
+     * Test for ASC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 9L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterAscEqualMax() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 9L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.ASC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+    }
+
+    /**
+     * Test for DESC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 10L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterDescGreaterThanMin() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.DESC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+    }
+
+    /**
+     * Test for DESC order search_after query.
+     * Min = 0L, Max = 9L, search_after = -1L
+     * Expected result is canMatch = false
+     */
+    public void testCanMatchSearchAfterDescLessThanMin() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.DESC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
+    }
+
+    /**
+     * Test for DESC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 0L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterDescEqualMin() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 0L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.DESC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
     }
 }

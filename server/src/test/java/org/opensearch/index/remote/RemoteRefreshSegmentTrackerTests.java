@@ -9,6 +9,8 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.ShardId;
@@ -16,6 +18,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -240,9 +243,9 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
             pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
             pressureSettings.getUploadTimeMovingAverageWindowSize()
         );
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(1, pressureTracker.getTotalUploadsSucceeded());
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(2, pressureTracker.getTotalUploadsSucceeded());
     }
 
@@ -257,7 +260,7 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         assertEquals(1, pressureTracker.getInflightUploads());
         pressureTracker.incrementTotalUploadsStarted();
         assertEquals(2, pressureTracker.getInflightUploads());
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(1, pressureTracker.getInflightUploads());
         pressureTracker.incrementTotalUploadsFailed();
         assertEquals(0, pressureTracker.getInflightUploads());
@@ -287,7 +290,7 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         assertEquals(1, pressureTracker.getConsecutiveFailureCount());
         pressureTracker.incrementTotalUploadsFailed();
         assertEquals(2, pressureTracker.getConsecutiveFailureCount());
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(0, pressureTracker.getConsecutiveFailureCount());
     }
 
@@ -306,17 +309,17 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         pressureTracker.setLatestLocalFileNameLengthMap(fileSizeMap);
         assertEquals(205L, pressureTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadFiles("a");
+        pressureTracker.addToLatestUploadedFiles("a");
         assertEquals(105L, pressureTracker.getBytesLag());
 
         fileSizeMap.put("c", 115L);
         pressureTracker.setLatestLocalFileNameLengthMap(fileSizeMap);
         assertEquals(220L, pressureTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadFiles("b");
+        pressureTracker.addToLatestUploadedFiles("b");
         assertEquals(115L, pressureTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadFiles("c");
+        pressureTracker.addToLatestUploadedFiles("c");
         assertEquals(0L, pressureTracker.getBytesLag());
     }
 
@@ -401,4 +404,77 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         assertEquals((double) sum / 20, pressureTracker.getUploadTimeMsAverage(), 0.0d);
     }
 
+    /**
+     * Tests whether RemoteRefreshSegmentTracker.Stats object generated correctly from RemoteRefreshSegmentTracker.
+     * */
+    public void testStatsObjectCreation() {
+        pressureTracker = constructTracker();
+        RemoteRefreshSegmentTracker.Stats pressureTrackerStats = pressureTracker.stats();
+        assertEquals(pressureTracker.getShardId(), pressureTrackerStats.shardId);
+        assertEquals(pressureTracker.getTimeMsLag(), (int) pressureTrackerStats.refreshTimeLagMs);
+        assertEquals(pressureTracker.getLocalRefreshSeqNo(), (int) pressureTrackerStats.localRefreshNumber);
+        assertEquals(pressureTracker.getRemoteRefreshSeqNo(), (int) pressureTrackerStats.remoteRefreshNumber);
+        assertEquals(pressureTracker.getBytesLag(), (int) pressureTrackerStats.bytesLag);
+        assertEquals(pressureTracker.getRejectionCount(), (int) pressureTrackerStats.rejectionCount);
+        assertEquals(pressureTracker.getConsecutiveFailureCount(), (int) pressureTrackerStats.consecutiveFailuresCount);
+        assertEquals(pressureTracker.getUploadBytesStarted(), (int) pressureTrackerStats.uploadBytesStarted);
+        assertEquals(pressureTracker.getUploadBytesSucceeded(), (int) pressureTrackerStats.uploadBytesSucceeded);
+        assertEquals(pressureTracker.getUploadBytesFailed(), (int) pressureTrackerStats.uploadBytesFailed);
+        assertEquals(pressureTracker.getUploadBytesAverage(), pressureTrackerStats.uploadBytesMovingAverage, 0);
+        assertEquals(pressureTracker.getUploadBytesPerSecAverage(), pressureTrackerStats.uploadBytesPerSecMovingAverage, 0);
+        assertEquals(pressureTracker.getUploadTimeMsAverage(), pressureTrackerStats.uploadTimeMovingAverage, 0);
+        assertEquals(pressureTracker.getTotalUploadsStarted(), (int) pressureTrackerStats.totalUploadsStarted);
+        assertEquals(pressureTracker.getTotalUploadsSucceeded(), (int) pressureTrackerStats.totalUploadsSucceeded);
+        assertEquals(pressureTracker.getTotalUploadsFailed(), (int) pressureTrackerStats.totalUploadsFailed);
+    }
+
+    /**
+     * Tests whether RemoteRefreshSegmentTracker.Stats object serialize and deserialize is working fine.
+     * This comes into play during internode data transfer.
+     * */
+    public void testStatsObjectCreationViaStream() throws IOException {
+        pressureTracker = constructTracker();
+        RemoteRefreshSegmentTracker.Stats pressureTrackerStats = pressureTracker.stats();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            pressureTrackerStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                RemoteRefreshSegmentTracker.Stats deserializedStats = new RemoteRefreshSegmentTracker.Stats(in);
+                assertEquals(deserializedStats.shardId, pressureTrackerStats.shardId);
+                assertEquals((int) deserializedStats.refreshTimeLagMs, (int) pressureTrackerStats.refreshTimeLagMs);
+                assertEquals((int) deserializedStats.localRefreshNumber, (int) pressureTrackerStats.localRefreshNumber);
+                assertEquals((int) deserializedStats.remoteRefreshNumber, (int) pressureTrackerStats.remoteRefreshNumber);
+                assertEquals((int) deserializedStats.bytesLag, (int) pressureTrackerStats.bytesLag);
+                assertEquals((int) deserializedStats.rejectionCount, (int) pressureTrackerStats.rejectionCount);
+                assertEquals((int) deserializedStats.consecutiveFailuresCount, (int) pressureTrackerStats.consecutiveFailuresCount);
+                assertEquals((int) deserializedStats.uploadBytesStarted, (int) pressureTrackerStats.uploadBytesStarted);
+                assertEquals((int) deserializedStats.uploadBytesSucceeded, (int) pressureTrackerStats.uploadBytesSucceeded);
+                assertEquals((int) deserializedStats.uploadBytesFailed, (int) pressureTrackerStats.uploadBytesFailed);
+                assertEquals((int) deserializedStats.uploadBytesMovingAverage, pressureTrackerStats.uploadBytesMovingAverage, 0);
+                assertEquals(
+                    (int) deserializedStats.uploadBytesPerSecMovingAverage,
+                    pressureTrackerStats.uploadBytesPerSecMovingAverage,
+                    0
+                );
+                assertEquals((int) deserializedStats.uploadTimeMovingAverage, pressureTrackerStats.uploadTimeMovingAverage, 0);
+                assertEquals((int) deserializedStats.totalUploadsStarted, (int) pressureTrackerStats.totalUploadsStarted);
+                assertEquals((int) deserializedStats.totalUploadsSucceeded, (int) pressureTrackerStats.totalUploadsSucceeded);
+                assertEquals((int) deserializedStats.totalUploadsFailed, (int) pressureTrackerStats.totalUploadsFailed);
+            }
+        }
+    }
+
+    private RemoteRefreshSegmentTracker constructTracker() {
+        RemoteRefreshSegmentTracker segmentPressureTracker = new RemoteRefreshSegmentTracker(
+            shardId,
+            pressureSettings.getUploadBytesMovingAverageWindowSize(),
+            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
+            pressureSettings.getUploadTimeMovingAverageWindowSize()
+        );
+        segmentPressureTracker.incrementTotalUploadsFailed();
+        segmentPressureTracker.addUploadTimeMs(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
+        segmentPressureTracker.addUploadBytes(99);
+        segmentPressureTracker.updateRemoteRefreshTimeMs(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
+        segmentPressureTracker.incrementRejectionCount();
+        return segmentPressureTracker;
+    }
 }

@@ -13,6 +13,8 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -28,6 +30,7 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+    private static final String SEGMENTS = "segments";
 
     private final Supplier<RepositoriesService> repositoriesService;
 
@@ -38,17 +41,23 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     @Override
     public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
         String repositoryName = indexSettings.getRemoteStoreRepository();
+        String indexUUID = indexSettings.getIndex().getUUID();
+        String shardId = String.valueOf(path.getShardId().getId());
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
-            commonBlobPath = commonBlobPath.add(indexSettings.getIndex().getUUID())
-                .add(String.valueOf(path.getShardId().getId()))
-                .add("segments");
+            commonBlobPath = commonBlobPath.add(indexUUID).add(shardId).add(SEGMENTS);
 
             RemoteDirectory dataDirectory = createRemoteDirectory(repository, commonBlobPath, "data");
             RemoteDirectory metadataDirectory = createRemoteDirectory(repository, commonBlobPath, "metadata");
+            RemoteStoreMetadataLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
+                repositoriesService.get(),
+                repositoryName,
+                indexUUID,
+                shardId
+            );
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory);
+            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager);
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }

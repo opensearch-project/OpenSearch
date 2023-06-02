@@ -228,6 +228,25 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         );
     }
 
+    public void testSelectCloneShard() {
+        int numberOfReplicas = randomIntBetween(0, 10);
+        IndexMetadata metadata = IndexMetadata.builder("foo")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1)
+                    .put("index.number_of_shards", 10)
+                    .put("index.number_of_replicas", numberOfReplicas)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .build();
+
+        assertEquals(
+            "the number of target shards (11) must be the same as the number of source shards (10)",
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.selectCloneShard(0, metadata, 11)).getMessage()
+        );
+    }
+
     public void testSelectResizeShards() {
         int numTargetShards = randomFrom(4, 6, 8, 12);
 

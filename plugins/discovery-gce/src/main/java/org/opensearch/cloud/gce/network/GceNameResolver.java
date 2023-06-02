@@ -34,8 +34,8 @@ package org.opensearch.cloud.gce.network;
 
 import org.opensearch.cloud.gce.GceMetadataService;
 import org.opensearch.cloud.gce.util.Access;
-import org.opensearch.common.Strings;
 import org.opensearch.common.network.NetworkService.CustomNameResolver;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.net.InetAddress;
