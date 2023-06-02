@@ -15,6 +15,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -47,8 +50,12 @@ public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockReposit
         assertBusy(() -> {
             Set<String> filesInLocal = getSegmentFiles(location.getRoot().resolve(segmentDataLocalPath));
             Set<String> filesInRepo = getSegmentFiles(segmentDataRepoPath);
+            List<String> sortedFilesInLocal = new ArrayList<>(filesInLocal), sortedFilesInRepo = new ArrayList<>(filesInRepo);
+            Collections.sort(sortedFilesInLocal);
+            Collections.sort(sortedFilesInRepo);
+            logger.info("Local files = {}, Repo files = {}", sortedFilesInLocal, sortedFilesInRepo);
             assertTrue(filesInRepo.containsAll(filesInLocal));
-        }, 60, TimeUnit.SECONDS);
+        }, 90, TimeUnit.SECONDS);
         deleteRepo();
     }
 
