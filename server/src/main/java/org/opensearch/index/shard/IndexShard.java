@@ -4527,6 +4527,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         indexInput,
                         remoteSegmentMetadata.getGeneration()
                     );
+                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                     // Following code block makes sure to commit SegmentInfosSnapshot with the highest generation.
                     // If local filesystem already has segments_N+2 and infosSnapshot has generation N, after commit,
                     // there would be 2 files that would be created segments_N+1 and segments_N+2. With the policy of preserving
@@ -4541,7 +4542,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             infosSnapshot = localSegmentInfos.clone();
                         }
                     }
-                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                     store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                 }
             }
