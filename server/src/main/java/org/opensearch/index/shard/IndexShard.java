@@ -4521,9 +4521,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     skippedSegments.add(file);
                 }
             }
-            Optional<String> localMaxSegmentInfos = localSegmentFiles.stream()
-                .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
-                .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
 
             if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
                 try (
@@ -4536,19 +4533,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         indexInput,
                         remoteSegmentMetadata.getGeneration()
                     );
-                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                     // Following code block makes sure to commit SegmentInfosSnapshot with the highest generation.
-                    // If local filesystem already has segments_N+1 and infosSnapshot has generation N, after commit,
-                    // there would be 2 files that would be created segments_N and segments_N+1. With the policy of preserving
-                    // only the latest commit, we will delete segments_N which in fact is the part of the latest commit.
-                    if (localMaxSegmentInfos.isPresent()) {
-                        infosSnapshot.setNextWriteGeneration(
-                            Math.max(
-                                infosSnapshot.getGeneration(),
-                                SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get()) + 1
-                            )
-                        );
+                    // If local filesystem already has segments_N+2 and infosSnapshot has generation N, after commit,
+                    // there would be 2 files that would be created segments_N+1 and segments_N+2. With the policy of preserving
+                    // only the latest commit, we will delete segments_N+1 which in fact is the part of the latest commit.
+                    Optional<String> localMaxSegmentInfos = localSegmentFiles.stream()
+                        .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
+                        .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
+                    if (localMaxSegmentInfos.isPresent()
+                        && infosSnapshot.getGeneration() < SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get()) - 1) {
+                        SegmentInfos localSegmentInfos = store.readLastCommittedSegmentsInfo();
+                        if (localSegmentInfos.files(false).equals(infosSnapshot.files(false))) {
+                            infosSnapshot = localSegmentInfos.clone();
+                        }
                     }
+                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                     store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                 }
             }
