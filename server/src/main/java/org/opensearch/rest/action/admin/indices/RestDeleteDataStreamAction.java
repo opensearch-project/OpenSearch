@@ -68,6 +68,7 @@ public class RestDeleteDataStreamAction extends BaseRestHandler {
         );
         return channel -> client.admin().indices().deleteDataStream(deleteDataStreamRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

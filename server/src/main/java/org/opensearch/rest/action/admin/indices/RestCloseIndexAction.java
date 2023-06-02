@@ -85,6 +85,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
         }
         return channel -> client.admin().indices().close(closeIndexRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

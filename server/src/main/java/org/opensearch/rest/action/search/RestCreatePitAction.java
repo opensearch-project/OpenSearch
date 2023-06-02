@@ -55,6 +55,7 @@ public class RestCreatePitAction extends BaseRestHandler {
     public List<Route> routes() {
         return unmodifiableList(asList(new Route(POST, "/{index}/_search/point_in_time")));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);

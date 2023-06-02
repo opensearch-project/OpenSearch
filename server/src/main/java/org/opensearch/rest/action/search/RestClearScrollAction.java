@@ -83,6 +83,7 @@ public class RestClearScrollAction extends BaseRestHandler {
 
         return channel -> client.clearScroll(clearRequest, new RestStatusToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);

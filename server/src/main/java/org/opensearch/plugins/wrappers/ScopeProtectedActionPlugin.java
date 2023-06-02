@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.plugins;
+package org.opensearch.plugins.wrappers;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequest;
@@ -47,6 +47,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.ExtensionPointScopes;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.RestController;
@@ -57,7 +59,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
- * Only allowed plugins are able able to response
+ * Only allowed plugins are able to respond
  *
  * @opensearch.experimental
  */
@@ -71,7 +73,7 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
     }
 
     private void throwIfNotAllowed() {
-        if (!identity.getSubject().isAllowed(List.of(ExtensionPointScopes.Action))) {
+        if (identity.getSubject().isAllowed(List.of(ExtensionPointScopes.Action))) {
             throw new ExtensionPointScopes.ExtensionPointScopeException(ExtensionPointScopes.Action);
         }
     }

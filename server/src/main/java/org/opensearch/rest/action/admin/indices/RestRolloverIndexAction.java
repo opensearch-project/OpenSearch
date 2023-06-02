@@ -87,6 +87,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

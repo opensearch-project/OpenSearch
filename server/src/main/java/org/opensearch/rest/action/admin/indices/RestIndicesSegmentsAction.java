@@ -75,6 +75,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
         return channel -> client.admin().indices().segments(indicesSegmentsRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

@@ -135,6 +135,7 @@ public class RestGetSourceAction extends BaseRestHandler {
             }
         }
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

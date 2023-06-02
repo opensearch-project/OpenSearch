@@ -73,6 +73,7 @@ public class RestDeletePipelineAction extends BaseRestHandler {
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().deletePipeline(request, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

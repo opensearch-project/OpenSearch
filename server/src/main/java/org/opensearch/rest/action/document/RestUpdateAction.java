@@ -124,6 +124,7 @@ public class RestUpdateAction extends BaseRestHandler {
             new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing()))
         );
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

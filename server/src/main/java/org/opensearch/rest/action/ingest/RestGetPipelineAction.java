@@ -75,6 +75,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
         parseDeprecatedMasterTimeoutParameter(request, restRequest, deprecationLogger, getName());
         return channel -> client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

@@ -60,7 +60,6 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import javax.swing.Action;
 
 /**
  * Transport action for creating a datastream

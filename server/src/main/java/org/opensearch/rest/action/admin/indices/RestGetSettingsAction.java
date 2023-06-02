@@ -95,6 +95,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
         parseDeprecatedMasterTimeoutParameter(getSettingsRequest, request, deprecationLogger, getName());
         return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

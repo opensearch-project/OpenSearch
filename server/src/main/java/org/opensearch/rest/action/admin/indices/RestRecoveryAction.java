@@ -80,6 +80,7 @@ public class RestRecoveryAction extends BaseRestHandler {
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
         return channel -> client.admin().indices().recoveries(recoveryRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

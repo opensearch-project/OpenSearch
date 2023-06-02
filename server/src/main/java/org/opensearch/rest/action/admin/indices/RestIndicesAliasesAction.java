@@ -83,6 +83,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         }
         return channel -> client.admin().indices().aliases(indicesAliasesRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

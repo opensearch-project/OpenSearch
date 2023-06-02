@@ -136,6 +136,7 @@ public class RestCountAction extends BaseRestHandler {
             }
         });
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);

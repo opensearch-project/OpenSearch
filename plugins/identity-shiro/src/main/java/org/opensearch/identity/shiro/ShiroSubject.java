@@ -9,8 +9,12 @@
 package org.opensearch.identity.shiro;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.identity.Scope;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 
@@ -22,6 +26,7 @@ import org.opensearch.identity.tokens.AuthToken;
 public class ShiroSubject implements Subject {
     private final ShiroTokenManager authTokenHandler;
     private final org.apache.shiro.subject.Subject shiroSubject;
+    private List<Scope> scopes;
 
     /**
      * Creates a new shiro subject for use with the IdentityPlugin
@@ -32,6 +37,7 @@ public class ShiroSubject implements Subject {
     public ShiroSubject(final ShiroTokenManager authTokenHandler, final org.apache.shiro.subject.Subject subject) {
         this.authTokenHandler = Objects.requireNonNull(authTokenHandler);
         this.shiroSubject = Objects.requireNonNull(subject);
+        this.scopes = List.of();
     }
 
     /**
@@ -87,5 +93,30 @@ public class ShiroSubject implements Subject {
         final org.apache.shiro.authc.AuthenticationToken authToken = authTokenHandler.translateAuthToken(authenticationToken)
             .orElseThrow(() -> new UnsupportedAuthenticationToken());
         shiroSubject.login(authToken);
+    }
+
+    /**
+     * Sets the scopes of the Subject to the provided list
+     * @param scopes The scopes the subject should have
+     */
+    public void setScopes(List<Scope> scopes) {
+        this.scopes = (scopes);
+    }
+
+    /**
+     * @return The scopes associated with the subject
+     */
+    public List<Scope> getScopes() {
+        return this.scopes;
+    }
+
+    /**
+     * @param scope The scope to check against the subject's associated scopes
+     * @return Whether any of the scopes match
+     */
+    @Override
+    public boolean isAllowed(List<Scope> scope) {
+        Set<Scope> intersection = Sets.intersection(Set.copyOf(this.scopes), Set.copyOf(scope));
+        return intersection.size() > 0;
     }
 }

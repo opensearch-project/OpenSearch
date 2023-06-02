@@ -407,6 +407,7 @@ public class RestSearchAction extends BaseRestHandler {
     public boolean allowsUnsafeBuffers() {
         return true;
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);

@@ -105,6 +105,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     protected Set<String> responseParams() {
         return Settings.FORMAT_PARAMS;
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

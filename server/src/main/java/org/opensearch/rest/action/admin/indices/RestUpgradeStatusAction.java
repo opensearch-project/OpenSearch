@@ -72,6 +72,7 @@ public class RestUpgradeStatusAction extends BaseRestHandler {
     public String getName() {
         return "upgrade_status_action";
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

@@ -82,6 +82,7 @@ public class RestFlushAction extends BaseRestHandler {
         flushRequest.waitIfOngoing(request.paramAsBoolean("wait_if_ongoing", flushRequest.waitIfOngoing()));
         return channel -> client.admin().indices().flush(flushRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

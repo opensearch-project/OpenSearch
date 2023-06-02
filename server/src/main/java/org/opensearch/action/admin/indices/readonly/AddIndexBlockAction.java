@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.readonly;
 
 import java.util.List;
-import javax.swing.Action;
 import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
 import org.opensearch.identity.Scope;

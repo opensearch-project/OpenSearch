@@ -72,6 +72,7 @@ public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
         }
         return channel -> client.execute(ClearVotingConfigExclusionsAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Cluster_ALL);

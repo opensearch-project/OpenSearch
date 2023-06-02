@@ -133,6 +133,7 @@ public class RestHealthAction extends AbstractCatAction {
         t.endRow();
         return t;
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

@@ -80,6 +80,7 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
 
         return channel -> client.execute(PutComponentTemplateAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

@@ -56,4 +56,3 @@ public class FlushAction extends ActionType<FlushResponse> {
         return List.of(ActionScopes.Index_ALL);
     }
 }
-

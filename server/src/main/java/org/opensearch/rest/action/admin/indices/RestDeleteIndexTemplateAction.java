@@ -74,6 +74,7 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
         parseDeprecatedMasterTimeoutParameter(deleteIndexTemplateRequest, request, deprecationLogger, getName());
         return channel -> client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

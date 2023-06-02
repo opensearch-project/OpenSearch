@@ -44,6 +44,7 @@ public class RestGetSearchPipelineAction extends BaseRestHandler {
         request.clusterManagerNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.clusterManagerNodeTimeout()));
         return channel -> client.admin().cluster().getSearchPipeline(request, new RestStatusToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);

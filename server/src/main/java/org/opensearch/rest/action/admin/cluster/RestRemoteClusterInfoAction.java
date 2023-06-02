@@ -72,6 +72,7 @@ public final class RestRemoteClusterInfoAction extends BaseRestHandler {
     public boolean canTripCircuitBreaker() {
         return false;
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Cluster_Read, ActionScopes.Cluster_ALL);

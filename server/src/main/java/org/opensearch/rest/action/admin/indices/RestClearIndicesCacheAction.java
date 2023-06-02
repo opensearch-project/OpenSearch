@@ -89,6 +89,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
         return clearIndicesCacheRequest;
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

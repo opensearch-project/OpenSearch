@@ -48,5 +48,4 @@ public class GetIndexAction extends ActionType<GetIndexResponse> {
         super(NAME, GetIndexResponse::new);
     }
 
-
 }

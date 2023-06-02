@@ -176,6 +176,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     protected Set<String> responseParams() {
         return RESPONSE_PARAMS;
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

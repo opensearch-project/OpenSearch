@@ -73,6 +73,7 @@ public class RestUpgradeAction extends BaseRestHandler {
         upgradeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
         return channel -> client.admin().indices().upgrade(upgradeReq, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

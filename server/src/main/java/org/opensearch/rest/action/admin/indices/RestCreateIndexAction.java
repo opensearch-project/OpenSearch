@@ -108,9 +108,9 @@ public class RestCreateIndexAction extends BaseRestHandler {
         newSource.put("mappings", singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
         return newSource;
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);
     }
 }
-

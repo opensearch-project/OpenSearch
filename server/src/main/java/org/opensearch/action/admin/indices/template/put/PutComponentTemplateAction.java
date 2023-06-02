@@ -167,6 +167,7 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
             return sb.toString();
         }
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

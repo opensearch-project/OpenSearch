@@ -170,6 +170,7 @@ public class RestPitSegmentsAction extends AbstractCatAction {
         }
         return table;
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

@@ -130,6 +130,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         builder.endObject();
         return new BytesRestResponse(OK, builder);
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

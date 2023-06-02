@@ -83,6 +83,7 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
         request.setVerbose(restRequest.paramAsBoolean("verbose", false));
         return channel -> client.admin().cluster().simulatePipeline(request, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

@@ -36,11 +36,5 @@ public interface Subject {
      * @param scope The scopes to check against the subject
      * @return true if allowed, false if none of the scopes are allowed.
      */
-    /// Draft Pull Request Remarks
-    // Permissions haven't been implemented yet, and there are good reasons to have permissions and scopes overlap,
-    // as well as have disconnected. For the moment lets look past that debate and get feedback around how
-    // scope might be added inside of OpenSearch and connected into various systems create security barriers between
-    // systems.
-    // This will need to be addressed before this change can come out of draft
     boolean isAllowed(final List<Scope> scope);
 }

@@ -96,6 +96,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
         return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

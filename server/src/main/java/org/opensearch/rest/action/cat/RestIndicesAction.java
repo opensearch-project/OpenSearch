@@ -958,6 +958,7 @@ public class RestIndicesAction extends AbstractCatAction {
     private static <A extends ActionResponse> A extractResponse(final Collection<? extends ActionResponse> responses, Class<A> c) {
         return (A) responses.stream().filter(c::isInstance).findFirst().get();
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

@@ -203,6 +203,7 @@ public class RestTasksAction extends AbstractCatAction {
         buildGroups(table, fullId, detailed, listTasksResponse.getTaskGroups());
         return table;
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

@@ -78,6 +78,7 @@ public class RestDataStreamsStatsAction extends BaseRestHandler {
         dataStreamsStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
         return channel -> client.execute(DataStreamsStatsAction.INSTANCE, dataStreamsStatsRequest, new RestToXContentListener<>(channel));
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

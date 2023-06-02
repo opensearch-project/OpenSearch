@@ -201,6 +201,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
 
         return t;
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);

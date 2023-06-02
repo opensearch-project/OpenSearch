@@ -92,6 +92,7 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
             new RestToXContentListener<>(channel)
         );
     }
+
     @Override
     public List<Scope> allowedScopes() {
         return List.of(ActionScopes.Index_ALL);
