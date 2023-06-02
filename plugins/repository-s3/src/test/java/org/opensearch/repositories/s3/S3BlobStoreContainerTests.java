@@ -35,6 +35,7 @@ package org.opensearch.repositories.s3;
 import org.mockito.ArgumentCaptor;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.test.OpenSearchTestCase;
@@ -48,20 +49,36 @@ import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Error;
+import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -100,6 +117,270 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             () -> blobContainer.executeSingleUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), ByteSizeUnit.MB.toBytes(2))
         );
         assertEquals("Upload request size [2097152] can't be larger than buffer size", e.getMessage());
+    }
+
+    public void testBlobExists() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+
+        final S3Client client = mock(S3Client.class);
+        when(client.headObject(any(HeadObjectRequest.class))).thenReturn(HeadObjectResponse.builder().build());
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertTrue(blobContainer.blobExists(blobName));
+        verify(client, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    public void testBlobExistsNoSuchKeyException() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+
+        final S3Client client = mock(S3Client.class);
+        when(client.headObject(any(HeadObjectRequest.class))).thenThrow(NoSuchKeyException.builder().build());
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertFalse(blobContainer.blobExists(blobName));
+        verify(client, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    public void testBlobExistsRequestFailure() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        when(client.headObject(any(HeadObjectRequest.class))).thenThrow(new RuntimeException());
+
+        assertThrows(BlobStoreException.class, () -> blobContainer.blobExists(blobName));
+        verify(client, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    private static class MockListObjectsV2ResponseIterator implements Iterator<ListObjectsV2Response> {
+
+        private final int totalPageCount;
+        private final int s3ObjectsPerPage;
+        private final long s3ObjectSize;
+
+        private final AtomicInteger currInvocationCount = new AtomicInteger();
+        private final List<String> keysListed = new ArrayList<>();
+        private final boolean throwExceptionOnNextInvocation;
+
+        public MockListObjectsV2ResponseIterator(int totalPageCount, int s3ObjectsPerPage, long s3ObjectSize) {
+            this.totalPageCount = totalPageCount;
+            this.s3ObjectsPerPage = s3ObjectsPerPage;
+            this.s3ObjectSize = s3ObjectSize;
+            this.throwExceptionOnNextInvocation = false;
+        }
+
+        public MockListObjectsV2ResponseIterator(
+            int totalPageCount,
+            int s3ObjectsPerPage,
+            long s3ObjectSize,
+            boolean throwExceptionOnNextInvocation
+        ) {
+            this.totalPageCount = totalPageCount;
+            this.s3ObjectsPerPage = s3ObjectsPerPage;
+            this.s3ObjectSize = s3ObjectSize;
+            this.throwExceptionOnNextInvocation = throwExceptionOnNextInvocation;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return currInvocationCount.get() < totalPageCount;
+        }
+
+        @Override
+        public ListObjectsV2Response next() {
+            if (throwExceptionOnNextInvocation) {
+                throw SdkException.builder().build();
+            }
+            if (currInvocationCount.getAndIncrement() < totalPageCount) {
+                String s3ObjectKey = UUID.randomUUID().toString();
+                keysListed.add(s3ObjectKey);
+                return ListObjectsV2Response.builder()
+                    .contents(Collections.nCopies(s3ObjectsPerPage, S3Object.builder().key(s3ObjectKey).size(s3ObjectSize).build()))
+                    .build();
+            }
+            throw new NoSuchElementException();
+        }
+
+        public List<String> getKeysListed() {
+            return keysListed;
+        }
+    }
+
+    public void testDelete() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        final List<String> keysDeleted = new ArrayList<>();
+        doAnswer(invocation -> {
+            DeleteObjectsRequest deleteObjectsRequest = invocation.getArgument(0);
+            keysDeleted.addAll(deleteObjectsRequest.delete().objects().stream().map(ObjectIdentifier::key).collect(Collectors.toList()));
+            return DeleteObjectsResponse.builder().build();
+        }).when(client).deleteObjects(any(DeleteObjectsRequest.class));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        DeleteResult deleteResult = blobContainer.delete();
+        assertEquals(s3ObjectSize * s3ObjectsPerPage * totalPageCount, deleteResult.bytesDeleted());
+        assertEquals(s3ObjectsPerPage * totalPageCount, deleteResult.blobsDeleted());
+        // keysDeleted will have blobPath also
+        assertEquals(listObjectsV2ResponseIterator.getKeysListed().size(), keysDeleted.size() - 1);
+        assertTrue(keysDeleted.contains(blobPath.buildAsString()));
+        assertArrayEquals(
+            listObjectsV2ResponseIterator.getKeysListed().toArray(String[]::new),
+            keysDeleted.stream().filter(key -> !blobPath.buildAsString().equals(key)).toArray(String[]::new)
+        );
+    }
+
+    public void testDeleteItemLevelErrorsDuringDelete() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        final List<String> keysFailedDeletion = new ArrayList<>();
+        doAnswer(invocation -> {
+            DeleteObjectsRequest deleteObjectsRequest = invocation.getArgument(0);
+            int i = 0;
+            for (ObjectIdentifier objectIdentifier : deleteObjectsRequest.delete().objects()) {
+                if (i % 2 == 0) {
+                    keysFailedDeletion.add(objectIdentifier.key());
+                }
+                i++;
+            }
+            return DeleteObjectsResponse.builder()
+                .errors(keysFailedDeletion.stream().map(key -> S3Error.builder().key(key).build()).collect(Collectors.toList()))
+                .build();
+        }).when(client).deleteObjects(any(DeleteObjectsRequest.class));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertThrows(AssertionError.class, blobContainer::delete);
+    }
+
+    public void testDeleteSdkExceptionDuringListOperation() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertThrows(IOException.class, blobContainer::delete);
+    }
+
+    public void testDeleteSdkExceptionDuringDeleteOperation() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        when(client.deleteObjects(any(DeleteObjectsRequest.class))).thenThrow(SdkException.builder().build());
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertThrows(IOException.class, blobContainer::delete);
     }
 
     public void testExecuteSingleUpload() throws IOException {

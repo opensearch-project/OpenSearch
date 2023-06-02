@@ -246,7 +246,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
             }
             SocketAccess.doPrivilegedVoid(() -> {
-                RuntimeException aex = null;
+                SdkException aex = null;
                 for (DeleteObjectsRequest deleteRequest : deleteRequests) {
                     List<String> keysInRequest = deleteRequest.delete()
                         .objects()
