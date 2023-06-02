@@ -1120,13 +1120,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private DiffableStringMap hashesOfConsistentSettings = new DiffableStringMap(Collections.emptyMap());
 
         private final Map<String, IndexMetadata> indices;
-
         private final Map<String, IndexMetadata> indicesPreviousState;
         private final Map<String, IndexTemplateMetadata> templates;
         private final Map<String, Custom> customs;
         private final Map<String, Custom> customsPreviousState;
-
-
         public SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         private String[] allIndices = new String[0];
         private String[] visibleIndices = new String[0];
@@ -1450,9 +1447,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Metadata build() {
             TimeValue buildStartTime = TimeValue.timeValueMillis(System.nanoTime());
-            boolean recomputeRequired = indices.equals(indicesPreviousState) == false || customs.equals(customsPreviousState) == false;;
+            boolean recomputeRequired = indices.equals(indicesPreviousState) == false || customs.equals(customsPreviousState) == false;
             TimeValue recomputeEndTime = TimeValue.timeValueMillis(System.nanoTime());
-            logger.info("Recompute required: {}, time taken for comparing indices: {} ms", recomputeRequired, (recomputeEndTime.getNanos()-buildStartTime.getNanos())/1000000L);
+            logger.info(
+                "Recompute required: {}, time taken for comparing indices: {} ms",
+                recomputeRequired,
+                (recomputeEndTime.getNanos() - buildStartTime.getNanos()) / 1000000L
+            );
             // Will simplify this later to omit this recomputeRequired variable entirely - it's only used for testing for now
             if (recomputeRequired) {
                 buildMetadataIndicesLookups();
@@ -1479,7 +1480,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             );
             TimeValue endBuildTime = TimeValue.timeValueMillis(System.nanoTime());
             // Logging for testing only - will remove in future iterations
-            logger.info("built metadata in {} ms", (endBuildTime.millis() - buildStartTime.millis())/1000000L);
+            logger.info("built metadata in {} ms", (endBuildTime.millis() - buildStartTime.millis()) / 1000000L);
             return metadata;
         }
 
@@ -1574,7 +1575,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup());
             TimeValue endTime = TimeValue.timeValueNanos(System.nanoTime());
             // Logging for testing only - will remove in future iterations
-            logger.info("rebuilt indicesLookupMap in {} ms, {} entries", (endTime.nanos() - startTime.nanos())/1000000L, indicesLookup != null ? indicesLookup.size() : 0);
+            logger.info(
+                "rebuilt indicesLookupMap in {} ms, {} entries",
+                (endTime.nanos() - startTime.nanos()) / 1000000L,
+                indicesLookup != null ? indicesLookup.size() : 0
+            );
 
             validateDataStreams(indicesLookup, (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE));
 
