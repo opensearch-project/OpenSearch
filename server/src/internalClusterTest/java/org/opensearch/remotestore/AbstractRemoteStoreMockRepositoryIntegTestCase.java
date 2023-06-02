@@ -70,7 +70,7 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
     }
 
-    protected void setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList) {
+    protected void setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) {
         logger.info("--> Creating repository={} at the path={}", REPOSITORY_NAME, repoLocation);
         // The random_control_io_exception_rate setting ensures that 10-25% of all operations to remote store results in
         /// IOException. skip_exception_on_verification_file & skip_exception_on_list_blobs settings ensures that the
@@ -85,7 +85,7 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
                 .put("skip_exception_on_list_blobs", true)
                 // Skipping is required for metadata as it is part of recovery
                 .put("skip_exception_on_blobs", skipExceptionBlobList)
-                .put("max_failure_number", Long.MAX_VALUE)
+                .put("max_failure_number", maxFailure)
         );
 
         internalCluster().startDataOnlyNodes(1);
