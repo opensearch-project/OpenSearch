@@ -132,6 +132,10 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         }
         assertTrue(task.getTotalResourceStats().getCpuTimeInNanos() > 0);
         assertTrue(task.getTotalResourceStats().getMemoryInBytes() > 0);
+        // Basic sanity testing that min < average < max < total
+        assertTrue(task.getMinResourceStats().getMemoryInBytes() < task.getAverageResourceStats().getMemoryInBytes());
+        assertTrue(task.getAverageResourceStats().getMemoryInBytes() < task.getMaxResourceStats().getMemoryInBytes());
+        assertTrue(task.getMaxResourceStats().getMemoryInBytes() < task.getTotalResourceStats().getMemoryInBytes());
         // Each execution of a runnable should record an entry in resourceStats even if it's the same thread
         assertEquals(numTasks, numExecutions);
     }
