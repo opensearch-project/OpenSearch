@@ -33,7 +33,7 @@
 package org.opensearch.common.lease;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

@@ -329,18 +329,32 @@ public class SettingTests extends OpenSearchTestCase {
         String expectedRegex = "\\d+";
         Pattern expectedPattern = Pattern.compile(expectedRegex);
         RegexValidator regexValidator = new RegexValidator(expectedRegex);
+        RegexValidator regexValidatorMatcherFalse = new RegexValidator(expectedRegex, false);
 
         // Test that the pattern is correctly initialized
         assertNotNull(expectedPattern);
         assertNotNull(regexValidator.getPattern());
         assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
 
-        // Test that validate() throws an exception for invalid input
+        // Test that checks the pattern and isMatching with the set value false parameters are working correctly during initialization
+        assertNotNull(regexValidatorMatcherFalse);
+        assertNotNull(regexValidatorMatcherFalse.getPattern());
+        assertEquals(expectedPattern.pattern(), regexValidatorMatcherFalse.getPattern().pattern());
+
+        // Test throw an exception when the value does not match
         final RegexValidator finalValidator = new RegexValidator(expectedRegex);
         assertThrows(IllegalArgumentException.class, () -> finalValidator.validate("foo"));
-
         try {
             regexValidator.validate("123");
+        } catch (IllegalArgumentException e) {
+            fail("Expected validate() to not throw an exception, but it threw " + e);
+        }
+
+        // Test throws an exception when the value matches
+        final RegexValidator finalValidatorFalse = new RegexValidator(expectedRegex);
+        assertThrows(IllegalArgumentException.class, () -> finalValidatorFalse.validate(expectedRegex));
+        try {
+            regexValidatorMatcherFalse.validate(expectedRegex);
         } catch (IllegalArgumentException e) {
             fail("Expected validate() to not throw an exception, but it threw " + e);
         }
@@ -367,13 +381,9 @@ public class SettingTests extends OpenSearchTestCase {
     }
 
     public void testValidatorForFilteredStringSetting() {
-        final Setting<String> filteredStringSetting = new Setting<>(
-            "foo.bar",
-            "foobar",
-            Function.identity(),
-            value -> { throw new SettingsException("validate always fails"); },
-            Property.Filtered
-        );
+        final Setting<String> filteredStringSetting = new Setting<>("foo.bar", "foobar", Function.identity(), value -> {
+            throw new SettingsException("validate always fails");
+        }, Property.Filtered);
 
         final Settings settings = Settings.builder().put(filteredStringSetting.getKey(), filteredStringSetting.getKey() + " value").build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> filteredStringSetting.get(settings));
@@ -1628,16 +1638,14 @@ public class SettingTests extends OpenSearchTestCase {
             validator
         );
 
-        IllegalArgumentException illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { updater.getValue(Settings.builder().put("prefix.foo.suffix", 5).put("abc", 2).build(), Settings.EMPTY); }
-        );
+        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
+            updater.getValue(Settings.builder().put("prefix.foo.suffix", 5).put("abc", 2).build(), Settings.EMPTY);
+        });
         assertEquals("foo and 2 can't go together", illegal.getMessage());
 
-        illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { updater.getValue(Settings.builder().put("prefix.bar.suffix", 6).put("abc", 3).build(), Settings.EMPTY); }
-        );
+        illegal = expectThrows(IllegalArgumentException.class, () -> {
+            updater.getValue(Settings.builder().put("prefix.bar.suffix", 6).put("abc", 3).build(), Settings.EMPTY);
+        });
         assertEquals("no bar", illegal.getMessage());
 
         Settings s = updater.getValue(

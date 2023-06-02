@@ -63,7 +63,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -80,9 +80,8 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -90,7 +89,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -121,6 +120,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -145,9 +145,9 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
-import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -231,11 +231,63 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * Used to specify SEGMENT replication type as the default replication strategy for all indices in a cluster. By default, this is false.
+     */
+    public static final String CLUSTER_SETTING_REPLICATION_TYPE = "cluster.indices.replication.strategy";
+
+    public static final Setting<ReplicationType> CLUSTER_REPLICATION_TYPE_SETTING = new Setting<>(
+        CLUSTER_SETTING_REPLICATION_TYPE,
+        ReplicationType.DOCUMENT.toString(),
+        ReplicationType::parseString,
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
+     * Used to specify if all indexes are to create with remote store enabled by default
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.remote_store.enabled",
+        false,
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
+     * Used to specify default repo to use for segment upload for remote store backed indices
+     */
+    public static final Setting<String> CLUSTER_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
+        "cluster.remote_store.repository",
+        "",
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
+     * Used to specify if all indexes are to create with translog remote store enabled by default
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.remote_store.translog.enabled",
+        false,
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
+     * Used to specify default repo to use for translog upload for remote store backed indices
+     */
+    public static final Setting<String> CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING = Setting.simpleString(
+        "cluster.remote_store.translog.repository",
+        "",
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
      * The node's settings.
      */
     private final Settings settings;
     private final PluginsService pluginsService;
-    private final ExtensionsManager extensionsManager;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
     private final TimeValue shardsClosedTimeout;
@@ -274,8 +326,10 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory;
+    private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+
+    private final FileCacheCleaner fileCacheCleaner;
 
     @Override
     protected void doStart() {
@@ -304,13 +358,13 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        FileCacheCleaner fileCacheCleaner
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
-        this.extensionsManager = null;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
         this.valuesSourceRegistry = valuesSourceRegistry;
@@ -352,121 +406,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
-        // doClose() is called when shutting down a node, yet there might still be ongoing requests
-        // that we need to wait for before closing some resources such as the caches. In order to
-        // avoid closing these resources while ongoing requests are still being processed, we use a
-        // ref count which will only close them when both this service and all index services are
-        // actually closed
-        indicesRefCount = new AbstractRefCounted("indices") {
-            @Override
-            protected void closeInternal() {
-                try {
-                    IOUtils.close(
-                        analysisRegistry,
-                        indexingMemoryController,
-                        indicesFieldDataCache,
-                        cacheCleaner,
-                        indicesRequestCache,
-                        indicesQueryCache
-                    );
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                } finally {
-                    closeLatch.countDown();
-                }
-            }
-        };
-
-        final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
-        nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
-        danglingIndicesThreadPoolExecutor = nodeWriteDanglingIndicesInfo
-            ? OpenSearchExecutors.newScaling(
-                nodeName + "/" + DANGLING_INDICES_UPDATE_THREAD_NAME,
-                1,
-                1,
-                0,
-                TimeUnit.MILLISECONDS,
-                daemonThreadFactory(nodeName, DANGLING_INDICES_UPDATE_THREAD_NAME),
-                threadPool.getThreadContext()
-            )
-            : null;
-
-        this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
-        this.remoteDirectoryFactory = remoteDirectoryFactory;
-        this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool);
-    }
-
-    public IndicesService(
-        Settings settings,
-        PluginsService pluginsService,
-        ExtensionsManager extensionsManager,
-        NodeEnvironment nodeEnv,
-        NamedXContentRegistry xContentRegistry,
-        AnalysisRegistry analysisRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        MapperRegistry mapperRegistry,
-        NamedWriteableRegistry namedWriteableRegistry,
-        ThreadPool threadPool,
-        IndexScopedSettings indexScopedSettings,
-        CircuitBreakerService circuitBreakerService,
-        BigArrays bigArrays,
-        ScriptService scriptService,
-        ClusterService clusterService,
-        Client client,
-        MetaStateService metaStateService,
-        Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
-        Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
-        ValuesSourceRegistry valuesSourceRegistry,
-        Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
-    ) {
-        this.settings = settings;
-        this.threadPool = threadPool;
-        this.pluginsService = pluginsService;
-        this.extensionsManager = extensionsManager;
-        this.nodeEnv = nodeEnv;
-        this.xContentRegistry = xContentRegistry;
-        this.valuesSourceRegistry = valuesSourceRegistry;
-        this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
-        this.analysisRegistry = analysisRegistry;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.indicesRequestCache = new IndicesRequestCache(settings);
-        this.indicesQueryCache = new IndicesQueryCache(settings);
-        this.mapperRegistry = mapperRegistry;
-        this.namedWriteableRegistry = namedWriteableRegistry;
-        indexingMemoryController = new IndexingMemoryController(
-            settings,
-            threadPool,
-            // ensure we pull an iter with new shards - flatten makes a copy
-            () -> Iterables.flatten(this).iterator()
-        );
-        this.indexScopedSettings = indexScopedSettings;
-        this.circuitBreakerService = circuitBreakerService;
-        this.bigArrays = bigArrays;
-        this.scriptService = scriptService;
-        this.clusterService = clusterService;
-        this.client = client;
-        this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ID_FIELD_DATA_ENABLED_SETTING, this::setIdFieldDataEnabled);
-        this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            @Override
-            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-                assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or "
-                    + "equal to 0 and not ["
-                    + sizeInBytes
-                    + "]";
-                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
-            }
-        });
-        this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
-        this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache, logger, threadPool, this.cleanInterval);
-        this.metaStateService = metaStateService;
-        this.engineFactoryProviders = engineFactoryProviders;
-
-        this.directoryFactories = directoryFactories;
-        this.recoveryStateFactories = recoveryStateFactories;
+        this.fileCacheCleaner = fileCacheCleaner;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -754,7 +694,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
-        final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv);
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
         finalListeners.add(fileCacheCleaner);
@@ -867,9 +806,6 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexOperationListener(operationListener);
         }
         pluginsService.onIndexModule(indexModule);
-        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            extensionsManager.onIndexModule(indexModule);
-        }
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
@@ -911,11 +847,11 @@ public class IndicesService extends AbstractLifecycleComponent
             .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
             .collect(Collectors.toList());
         if (engineFactories.isEmpty()) {
-            if (idxSettings.isSegRepEnabled()) {
-                return new NRTReplicationEngineFactory();
-            }
             if (idxSettings.isRemoteSnapshot()) {
                 return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
+            }
+            if (idxSettings.isSegRepEnabled()) {
+                return new NRTReplicationEngineFactory();
             }
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {
@@ -1001,14 +937,21 @@ public class IndicesService extends AbstractLifecycleComponent
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
-        final DiscoveryNode sourceNode
+        final DiscoveryNode sourceNode,
+        final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            checkpointPublisher,
+            remoteRefreshSegmentPressureService
+        );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS

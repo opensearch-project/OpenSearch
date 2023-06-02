@@ -43,11 +43,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -359,7 +359,7 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
         }
 
         synchronized Map<String, Long> getOperationsCount() {
-            return org.opensearch.common.collect.Map.copyOf(operationCount);
+            return Map.copyOf(operationCount);
         }
 
         protected synchronized void trackRequest(final String requestType) {

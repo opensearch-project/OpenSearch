@@ -65,6 +65,7 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
@@ -72,6 +73,9 @@ import org.opensearch.search.profile.query.ProfileWeight;
 import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.search.profile.query.QueryTimingType;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -97,6 +101,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
+    private SearchContext searchContext;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -106,7 +111,37 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         boolean wrapWithExitableDirectoryReader,
         Executor executor
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, executor);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            wrapWithExitableDirectoryReader,
+            executor,
+            null
+        );
+    }
+
+    public ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        boolean wrapWithExitableDirectoryReader,
+        Executor executor,
+        SearchContext searchContext
+    ) throws IOException {
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            wrapWithExitableDirectoryReader,
+            executor,
+            searchContext
+        );
     }
 
     private ContextIndexSearcher(
@@ -116,13 +151,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         MutableQueryTimeout cancellable,
         boolean wrapWithExitableDirectoryReader,
-        Executor executor
+        Executor executor,
+        SearchContext searchContext
     ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
+        this.searchContext = searchContext;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -246,8 +283,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        for (LeafReaderContext ctx : leaves) { // search each subreader
-            searchLeaf(ctx, weight, collector);
+        if (shouldReverseLeafReaderContexts()) {
+            // reverse the segment search order if this flag is true.
+            // Certain queries can benefit if we reverse the segment read order,
+            // for example time series based queries if searched for desc sort order.
+            for (int i = leaves.size() - 1; i >= 0; i--) {
+                searchLeaf(leaves.get(i), weight, collector);
+            }
+        } else {
+            for (int i = 0; i < leaves.size(); i++) {
+                searchLeaf(leaves.get(i), weight, collector);
+            }
         }
     }
 
@@ -258,6 +304,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+
+        // Check if at all we need to call this leaf for collecting results.
+        if (canMatch(ctx) == false) {
+            return;
+        }
+
         cancellable.checkCancelled();
         weight = wrapWeight(weight);
         // See please https://github.com/apache/lucene/pull/964
@@ -432,5 +484,44 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         public void clear() {
             runnables.clear();
         }
+    }
+
+    private boolean canMatch(LeafReaderContext ctx) throws IOException {
+        // skip segments for search after if min/max of them doesn't qualify competitive
+        return canMatchSearchAfter(ctx);
+    }
+
+    private boolean canMatchSearchAfter(LeafReaderContext ctx) throws IOException {
+        if (searchContext != null && searchContext.request() != null && searchContext.request().source() != null) {
+            // Only applied on primary sort field and primary search_after.
+            FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
+            if (primarySortField != null) {
+                MinAndMax<?> minMax = FieldSortBuilder.getMinMaxOrNullForSegment(
+                    this.searchContext.getQueryShardContext(),
+                    ctx,
+                    primarySortField
+                );
+                return SearchService.canMatchSearchAfter(searchContext.searchAfter(), minMax, primarySortField);
+            }
+        }
+        return true;
+    }
+
+    private boolean shouldReverseLeafReaderContexts() {
+        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
+        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
+        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
+        // reader order here.
+        if (searchContext != null && searchContext.indexShard().isTimeSeriesIndex()) {
+            // Only reverse order for asc order sort queries
+            if (searchContext.request() != null
+                && searchContext.request().source() != null
+                && searchContext.request().source().sorts() != null
+                && searchContext.request().source().sorts().size() > 0
+                && searchContext.request().source().sorts().get(0).order() == SortOrder.ASC) {
+                return true;
+            }
+        }
+        return false;
     }
 }

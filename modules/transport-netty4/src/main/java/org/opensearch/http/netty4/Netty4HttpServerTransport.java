@@ -83,8 +83,8 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.core.internal.net.NetUtils;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.util.net.NetUtils;
 import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpHandlingSettings;
@@ -397,7 +397,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 handlingSettings.getMaxChunkSize()
             );
 
-            final HttpServerUpgradeHandler upgradeHandler = new HttpServerUpgradeHandler(sourceCodec, upgradeCodecFactory);
+            final HttpServerUpgradeHandler upgradeHandler = new HttpServerUpgradeHandler(
+                sourceCodec,
+                upgradeCodecFactory,
+                handlingSettings.getMaxContentLength()
+            );
             final CleartextHttp2ServerUpgradeHandler cleartextUpgradeHandler = new CleartextHttp2ServerUpgradeHandler(
                 sourceCodec,
                 upgradeHandler,

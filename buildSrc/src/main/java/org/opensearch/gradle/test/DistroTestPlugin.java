@@ -75,9 +75,9 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "11.0.18+10";
+    private static final String SYSTEM_JDK_VERSION = "11.0.19+7";
     private static final String SYSTEM_JDK_VENDOR = "adoptium";
-    private static final String GRADLE_JDK_VERSION = "17.0.6+10";
+    private static final String GRADLE_JDK_VERSION = "17.0.7+7";
     private static final String GRADLE_JDK_VENDOR = "adoptium";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
@@ -119,8 +119,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             depsTask.configure(t -> t.dependsOn(distribution, examplePlugin));
             depsTasks.put(taskname, depsTask);
-            // TODO - suppressing failure temporarily where duplicate tasks are created for docker.
-            try {
+            // Avoid duplicate tasks such as docker registered in lifecycleTasks
+            if (project.getTasksByName(taskname, false).isEmpty()) {
                 TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                     t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
                     addSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
@@ -134,8 +134,6 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
                 destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
                 lifecycleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
-            } catch (Exception ex) {
-                System.out.println(ex.getMessage());
             }
 
             if ((distribution.getType() == OpenSearchDistribution.Type.DEB || distribution.getType() == OpenSearchDistribution.Type.RPM)
@@ -197,13 +195,9 @@ public class DistroTestPlugin implements Plugin<Project> {
 
             // windows boxes get windows distributions, and linux boxes get linux distributions
             if (isWindows(vmProject)) {
-                configureVMWrapperTasks(
-                    vmProject,
-                    windowsTestTasks,
-                    depsTasks,
-                    wrapperTask -> { vmLifecyleTasks.get(OpenSearchDistribution.Type.ARCHIVE).configure(t -> t.dependsOn(wrapperTask)); },
-                    vmDependencies
-                );
+                configureVMWrapperTasks(vmProject, windowsTestTasks, depsTasks, wrapperTask -> {
+                    vmLifecyleTasks.get(OpenSearchDistribution.Type.ARCHIVE).configure(t -> t.dependsOn(wrapperTask));
+                }, vmDependencies);
             } else {
                 for (Entry<OpenSearchDistribution.Type, List<TaskProvider<Test>>> entry : linuxTestTasks.entrySet()) {
                     OpenSearchDistribution.Type type = entry.getKey();

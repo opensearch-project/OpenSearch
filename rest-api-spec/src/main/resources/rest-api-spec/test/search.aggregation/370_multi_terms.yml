@@ -194,6 +194,100 @@ setup:
   - match: { aggregations.m_terms.buckets.3.doc_count: 1 }
 
 ---
+"Long test":
+  - skip:
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "number": 4611686018427387903}'
+          - '{"index": {}}'
+          - '{"str": "a", "number": -4611686018427387904}'
+          - '{"index": {}}'
+          - '{"str": "b", "number": 4611686018427387903}'
+          - '{"index": {}}'
+          - '{"str": "a", "number": 4611686018427387903}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: number
+
+  - length: { aggregations.m_terms.buckets: 3 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", 4611686018427387903] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|4611686018427387903" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key: ["a", -4611686018427387904] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "a|-4611686018427387904" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.2.key: ["b", 4611686018427387903] }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "b|4611686018427387903" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+
+---
+"Unsigned Long test":
+  - skip:
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
+
+  - do:
+      indices.put_mapping:
+        index: test_1
+        body:
+          properties:
+            unsigned:
+              type: unsigned_long
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "unsigned": 18446744073709551615}'
+          - '{"index": {}}'
+          - '{"str": "a", "unsigned": 10223372036854775807}'
+          - '{"index": {}}'
+          - '{"str": "b", "unsigned": 18446744073709551615}'
+          - '{"index": {}}'
+          - '{"str": "a", "unsigned": 18446744073709551615}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: unsigned
+
+  - length: { aggregations.m_terms.buckets: 3 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", 18446744073709551615] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|18446744073709551615" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key: ["a", 10223372036854775807] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "a|10223372036854775807" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.2.key: ["b", 18446744073709551615] }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "b|18446744073709551615" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+
+---
 "Double test":
   - skip:
       version: "- 2.0.99"

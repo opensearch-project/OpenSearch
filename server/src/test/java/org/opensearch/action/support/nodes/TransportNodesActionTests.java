@@ -100,7 +100,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             nodeSelectors.add(randomFrom(NodeSelector.values()).selector);
         }
         int numNodeIds = randomIntBetween(0, 3);
-        String[] nodeIds = clusterService.state().nodes().getNodes().keys().toArray(String.class);
+        String[] nodeIds = clusterService.state().nodes().getNodes().keySet().toArray(new String[0]);
         for (int i = 0; i < numNodeIds; i++) {
             String nodeId = randomFrom(nodeIds);
             nodeSelectors.add(nodeId);
@@ -340,7 +340,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
 
         @Override
         protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
-            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode.class));
+            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(new DiscoveryNode[0]));
         }
     }
 

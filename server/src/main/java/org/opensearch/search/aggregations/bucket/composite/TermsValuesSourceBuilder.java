@@ -52,6 +52,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
 
@@ -118,7 +119,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     static void register(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 final DocValueFormat docValueFormat;
                 if (format == null && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.DATE) {
@@ -156,6 +157,17 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                                 compositeValuesSourceConfig.reverseMul()
                             );
 
+                        } else if (vs.isBigInteger()) {
+                            return new UnsignedLongValuesSource(
+                                bigArrays,
+                                compositeValuesSourceConfig.fieldType(),
+                                vs::longValues,
+                                compositeValuesSourceConfig.format(),
+                                compositeValuesSourceConfig.missingBucket(),
+                                compositeValuesSourceConfig.missingOrder(),
+                                size,
+                                compositeValuesSourceConfig.reverseMul()
+                            );
                         } else {
                             final LongUnaryOperator rounding;
                             rounding = LongUnaryOperator.identity();
@@ -180,7 +192,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
         builder.register(
             REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> new CompositeValuesSourceConfig(
                 name,
                 valuesSourceConfig.fieldType(),

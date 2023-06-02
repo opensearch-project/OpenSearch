@@ -54,6 +54,7 @@ import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.search.aggregations.support.AggregationInfo;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
+import org.opensearch.search.pipeline.SearchPipelineInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
@@ -242,6 +243,17 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
             // pick a random long that sometimes exceeds an int:
             indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L << 40) - 1));
         }
+
+        SearchPipelineInfo searchPipelineInfo = null;
+        if (randomBoolean()) {
+            int numProcessors = randomIntBetween(0, 5);
+            List<org.opensearch.search.pipeline.ProcessorInfo> processors = new ArrayList<>(numProcessors);
+            for (int i = 0; i < numProcessors; i++) {
+                processors.add(new org.opensearch.search.pipeline.ProcessorInfo(randomAlphaOfLengthBetween(3, 10)));
+            }
+            searchPipelineInfo = new SearchPipelineInfo(Map.of(randomAlphaOfLengthBetween(3, 10), processors));
+        }
+
         return new NodeInfo(
             VersionUtils.randomVersion(random()),
             build,
@@ -256,7 +268,8 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
             pluginsAndModules,
             ingestInfo,
             aggregationInfo,
-            indexingBuffer
+            indexingBuffer,
+            searchPipelineInfo
         );
     }
 }

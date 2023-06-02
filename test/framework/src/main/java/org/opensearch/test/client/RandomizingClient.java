@@ -42,6 +42,7 @@ import org.opensearch.cluster.routing.Preference;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -61,7 +62,7 @@ public class RandomizingClient extends FilterClient {
         // given that they return `size*num_shards` hits instead of `size`
         defaultSearchType = RandomPicks.randomFrom(random, Arrays.asList(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
         if (random.nextInt(10) == 0) {
-            defaultPreference = Preference.LOCAL.type();
+            defaultPreference = RandomPicks.randomFrom(random, EnumSet.of(Preference.PRIMARY_FIRST, Preference.LOCAL)).type();
         } else if (random.nextInt(10) == 0) {
             String s = TestUtil.randomRealisticUnicodeString(random, 1, 10);
             defaultPreference = s.startsWith("_") ? null : s; // '_' is a reserved character

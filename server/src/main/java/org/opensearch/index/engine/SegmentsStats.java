@@ -32,9 +32,7 @@
 
 package org.opensearch.index.engine;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Version;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -43,6 +41,9 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Tracker for segment stats
@@ -56,7 +57,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long versionMapMemoryInBytes;
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
-    private ImmutableOpenMap<String, Long> fileSizes = ImmutableOpenMap.of();
+    private final Map<String, Long> fileSizes;
 
     private static final ByteSizeValue ZERO_BYTE_SIZE_VALUE = new ByteSizeValue(0L);
 
@@ -66,29 +67,31 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
      * Ideally this should be in sync to what the current version of Lucene is using, but it's harmless to leave extensions out,
      * they'll just miss a proper description in the stats
      */
-    private static final ImmutableOpenMap<String, String> FILE_DESCRIPTIONS = ImmutableOpenMap.<String, String>builder()
-        .fPut("si", "Segment Info")
-        .fPut("fnm", "Fields")
-        .fPut("fdx", "Field Index")
-        .fPut("fdt", "Field Data")
-        .fPut("tim", "Term Dictionary")
-        .fPut("tip", "Term Index")
-        .fPut("doc", "Frequencies")
-        .fPut("pos", "Positions")
-        .fPut("pay", "Payloads")
-        .fPut("nvd", "Norms")
-        .fPut("nvm", "Norms")
-        .fPut("dii", "Points")
-        .fPut("dim", "Points")
-        .fPut("dvd", "DocValues")
-        .fPut("dvm", "DocValues")
-        .fPut("tvx", "Term Vector Index")
-        .fPut("tvd", "Term Vector Documents")
-        .fPut("tvf", "Term Vector Fields")
-        .fPut("liv", "Live Documents")
-        .build();
+    private static final Map<String, String> FILE_DESCRIPTIONS = Map.ofEntries(
+        Map.entry("si", "Segment Info"),
+        Map.entry("fnm", "Fields"),
+        Map.entry("fdx", "Field Index"),
+        Map.entry("fdt", "Field Data"),
+        Map.entry("tim", "Term Dictionary"),
+        Map.entry("tip", "Term Index"),
+        Map.entry("doc", "Frequencies"),
+        Map.entry("pos", "Positions"),
+        Map.entry("pay", "Payloads"),
+        Map.entry("nvd", "Norms"),
+        Map.entry("nvm", "Norms"),
+        Map.entry("dii", "Points"),
+        Map.entry("dim", "Points"),
+        Map.entry("dvd", "DocValues"),
+        Map.entry("dvm", "DocValues"),
+        Map.entry("tvx", "Term Vector Index"),
+        Map.entry("tvd", "Term Vector Documents"),
+        Map.entry("tvf", "Term Vector Fields"),
+        Map.entry("liv", "Live Documents")
+    );
 
-    public SegmentsStats() {}
+    public SegmentsStats() {
+        fileSizes = new HashMap<>();
+    }
 
     public SegmentsStats(StreamInput in) throws IOException {
         count = in.readVLong();
@@ -107,15 +110,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         versionMapMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
         maxUnsafeAutoIdTimestamp = in.readLong();
-
-        int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(size);
-        for (int i = 0; i < size; i++) {
-            String key = in.readString();
-            Long value = in.readLong();
-            map.put(key, value);
-        }
-        fileSizes = map.build();
+        fileSizes = in.readMap(StreamInput::readString, StreamInput::readLong);
     }
 
     public void add(long count) {
@@ -138,19 +133,12 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         this.bitsetMemoryInBytes += bitsetMemoryInBytes;
     }
 
-    public void addFileSizes(ImmutableOpenMap<String, Long> fileSizes) {
-        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(this.fileSizes);
-
-        for (ObjectObjectCursor<String, Long> entry : fileSizes) {
-            if (map.containsKey(entry.key)) {
-                Long oldValue = map.get(entry.key);
-                map.put(entry.key, oldValue + entry.value);
-            } else {
-                map.put(entry.key, entry.value);
-            }
-        }
-
-        this.fileSizes = map.build();
+    public void addFileSizes(final Map<String, Long> newFileSizes) {
+        newFileSizes.forEach((k, v) -> this.fileSizes.merge(k, v, (a, b) -> {
+            assert a != null;
+            assert b != null;
+            return Math.addExact(a, b);
+        }));
     }
 
     public void add(SegmentsStats mergeStats) {
@@ -205,8 +193,9 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         return new ByteSizeValue(bitsetMemoryInBytes);
     }
 
-    public ImmutableOpenMap<String, Long> getFileSizes() {
-        return fileSizes;
+    /** Returns mapping of file names to their size (only used in tests) */
+    public Map<String, Long> getFileSizes() {
+        return Collections.unmodifiableMap(this.fileSizes);
     }
 
     /**
@@ -233,10 +222,10 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, getBitsetMemory());
         builder.field(Fields.MAX_UNSAFE_AUTO_ID_TIMESTAMP, maxUnsafeAutoIdTimestamp);
         builder.startObject(Fields.FILE_SIZES);
-        for (ObjectObjectCursor<String, Long> entry : fileSizes) {
-            builder.startObject(entry.key);
-            builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(entry.value));
-            builder.field(Fields.DESCRIPTION, FILE_DESCRIPTIONS.getOrDefault(entry.key, "Others"));
+        for (Map.Entry<String, Long> entry : fileSizes.entrySet()) {
+            builder.startObject(entry.getKey());
+            builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(entry.getValue()));
+            builder.field(Fields.DESCRIPTION, FILE_DESCRIPTIONS.getOrDefault(entry.getKey(), "Others"));
             builder.endObject();
         }
         builder.endObject();
@@ -297,16 +286,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeLong(versionMapMemoryInBytes);
         out.writeLong(bitsetMemoryInBytes);
         out.writeLong(maxUnsafeAutoIdTimestamp);
-
-        out.writeVInt(fileSizes.size());
-        for (ObjectObjectCursor<String, Long> entry : fileSizes) {
-            out.writeString(entry.key);
-            out.writeLong(entry.value);
-        }
+        out.writeMap(this.fileSizes, StreamOutput::writeString, StreamOutput::writeLong);
     }
 
     public void clearFileSizes() {
-        fileSizes = ImmutableOpenMap.of();
+        fileSizes.clear();
     }
 
     /**

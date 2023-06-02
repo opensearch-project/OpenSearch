@@ -65,8 +65,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
-import org.opensearch.Assertions;
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.core.Assertions;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
@@ -86,7 +86,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
@@ -313,7 +313,7 @@ public class InternalEngine extends Engine {
             } catch (AssertionError e) {
                 // IndexWriter throws AssertionError on init, if asserts are enabled, if any files don't exist, but tests that
                 // randomly throw FNFE/NSFE can also hit this:
-                if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+                if (BaseExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
                     throw new EngineCreationFailureException(shardId, "failed to create engine", e);
                 } else {
                     throw e;
@@ -2145,7 +2145,13 @@ public class InternalEngine extends Engine {
         } catch (IOException e) {
             throw new EngineException(shardId, e.getMessage(), e);
         }
-        return new GatedCloseable<>(segmentInfos, () -> indexWriter.decRefDeleter(segmentInfos));
+        return new GatedCloseable<>(segmentInfos, () -> {
+            try {
+                indexWriter.decRefDeleter(segmentInfos);
+            } catch (AlreadyClosedException e) {
+                logger.warn("Engine is already closed.", e);
+            }
+        });
     }
 
     @Override
@@ -2315,6 +2321,9 @@ public class InternalEngine extends Engine {
         iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
+        }
+        if (config().getLeafSorter() != null) {
+            iwc.setLeafSorter(config().getLeafSorter()); // The default segment search order
         }
         return iwc;
     }
@@ -2513,7 +2522,7 @@ public class InternalEngine extends Engine {
              * If assertions are enabled, IndexWriter throws AssertionError on commit if any files don't exist, but tests that randomly
              * throw FileNotFoundException or NoSuchFileException can also hit this.
              */
-            if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+            if (BaseExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
                 final EngineException engineException = new EngineException(shardId, "failed to commit engine", e);
                 try {
                     failEngine("lucene commit failed", engineException);

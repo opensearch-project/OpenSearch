@@ -135,7 +135,7 @@ public class EnableAllocationShortCircuitTests extends OpenSearchAllocationTestC
 
     public void testRebalancingSkippedIfDisabledIncludingOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata.class));
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(new IndexMetadata[0]));
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())
@@ -162,7 +162,7 @@ public class EnableAllocationShortCircuitTests extends OpenSearchAllocationTestC
 
     public void testRebalancingAttemptedIfDisabledButOverridenOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata.class));
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(new IndexMetadata[0]));
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())

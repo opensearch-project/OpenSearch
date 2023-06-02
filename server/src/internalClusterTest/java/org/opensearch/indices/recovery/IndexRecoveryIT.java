@@ -80,7 +80,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.gateway.ReplicaShardAllocatorIT;
 import org.opensearch.index.Index;
@@ -139,6 +139,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Spliterators;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
@@ -1536,8 +1537,8 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         List<String> nodes = randomSubsetOf(
             2,
-            StreamSupport.stream(clusterService().state().nodes().getDataNodes().spliterator(), false)
-                .map(node -> node.value.getName())
+            StreamSupport.stream(Spliterators.spliterator(clusterService().state().nodes().getDataNodes().values(), 0), false)
+                .map(node -> node.getName())
                 .collect(Collectors.toSet())
         );
         String indexName = "test-index";

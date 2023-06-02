@@ -40,9 +40,9 @@ import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
@@ -317,7 +317,9 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
         AtomicReference<TestSearchResponse> response = new AtomicReference<>();
         ActionListener<SearchResponse> responseListener = ActionListener.wrap(
             searchResponse -> response.set((TestSearchResponse) searchResponse),
-            (e) -> { throw new AssertionError("unexpected", e); }
+            (e) -> {
+                throw new AssertionError("unexpected", e);
+            }
         );
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);

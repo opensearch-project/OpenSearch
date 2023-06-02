@@ -36,20 +36,22 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
+import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Collections;
 import java.util.List;
@@ -61,6 +63,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
+import static org.opensearch.common.util.FeatureFlags.SEARCH_PIPELINE;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
@@ -577,6 +580,14 @@ public final class IndexSettings {
         Property.InternalIndex
     );
 
+    public static final Setting<String> DEFAULT_SEARCH_PIPELINE = new Setting<>(
+        "index.search.default_pipeline",
+        SearchPipelineService.NOOP_PIPELINE_ID,
+        Function.identity(),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -618,6 +629,8 @@ public final class IndexSettings {
 
     private volatile long retentionLeaseMillis;
 
+    private volatile String defaultSearchPipeline;
+
     /**
      * The maximum age of a retention lease before it is considered expired.
      *
@@ -652,6 +665,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
+    private volatile boolean searchSegmentOrderReversed;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -750,7 +764,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
+        replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
@@ -815,6 +829,7 @@ public final class IndexSettings {
         maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
+        defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -888,6 +903,11 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME, this::setMaxFullFlushMergeWaitTime);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_POLICY, this::setMergeOnFlushPolicy);
+        scopedSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_PIPELINE, this::setDefaultSearchPipeline);
+    }
+
+    private void setSearchSegmentOrderReversed(boolean reversed) {
+        this.searchSegmentOrderReversed = reversed;
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -958,7 +978,7 @@ public final class IndexSettings {
      * Returns <code>true</code> if the index has a custom data path
      */
     public boolean hasCustomDataPath() {
-        return !Strings.isEmpty(customDataPath());
+        return Strings.isEmpty(customDataPath()) == false;
     }
 
     /**
@@ -970,7 +990,7 @@ public final class IndexSettings {
 
     /**
      * Returns the version the index was created on.
-     * @see Version#indexCreated(Settings)
+     * @see IndexMetadata#indexCreated(Settings)
      */
     public Version getIndexVersionCreated() {
         return version;
@@ -1009,6 +1029,14 @@ public final class IndexSettings {
      */
     public boolean isSegRepEnabled() {
         return ReplicationType.SEGMENT.equals(replicationType);
+    }
+
+    public boolean isSegRepLocalEnabled() {
+        return isSegRepEnabled() && !isSegRepWithRemoteEnabled();
+    }
+
+    public boolean isSegRepWithRemoteEnabled() {
+        return isSegRepEnabled() && isRemoteStoreEnabled() && FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
     }
 
     /**
@@ -1062,6 +1090,13 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns true if index level setting for leaf reverse order search optimization is enabled
+     */
+    public boolean getSearchSegmentOrderReversed() {
+        return this.searchSegmentOrderReversed;
+    }
+
+    /**
      * Updates the settings and index metadata and notifies all registered settings consumers with the new settings iff at least one
      * setting has changed.
      *
@@ -1069,9 +1104,9 @@ public final class IndexSettings {
      */
     public synchronized boolean updateIndexMetadata(IndexMetadata indexMetadata) {
         final Settings newSettings = indexMetadata.getSettings();
-        if (version.equals(Version.indexCreated(newSettings)) == false) {
+        if (version.equals(IndexMetadata.indexCreated(newSettings)) == false) {
             throw new IllegalArgumentException(
-                "version mismatch on settings update expected: " + version + " but was: " + Version.indexCreated(newSettings)
+                "version mismatch on settings update expected: " + version + " but was: " + IndexMetadata.indexCreated(newSettings)
             );
         }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
@@ -1557,5 +1592,17 @@ public final class IndexSettings {
 
     public Optional<UnaryOperator<MergePolicy>> getMergeOnFlushPolicy() {
         return Optional.ofNullable(mergeOnFlushPolicy);
+    }
+
+    public String getDefaultSearchPipeline() {
+        return defaultSearchPipeline;
+    }
+
+    public void setDefaultSearchPipeline(String defaultSearchPipeline) {
+        if (FeatureFlags.isEnabled(SEARCH_PIPELINE)) {
+            this.defaultSearchPipeline = defaultSearchPipeline;
+        } else {
+            throw new SettingsException("Unsupported setting: " + DEFAULT_SEARCH_PIPELINE.getKey());
+        }
     }
 }

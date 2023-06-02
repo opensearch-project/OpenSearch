@@ -51,7 +51,7 @@ jobs:
       - name: Update the changelog
         uses: dangoslen/dependabot-changelog-helper@v3
         with:
-          version: 'Unreleased 3.0'
+          version: 'Unreleased 2.x'
 
       - name: Commit the changes
         uses: stefanzweifel/git-auto-commit-action@v4

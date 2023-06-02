@@ -181,21 +181,27 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
 
-        // max_shard_size is only supported for shrink
-        ByteSizeValue maxShardSize = resizeRequest.getMaxShardSize();
-        if (resizeRequest.getResizeType() != ResizeType.SHRINK && maxShardSize != null) {
-            throw new IllegalArgumentException("Unsupported parameter [max_shard_size]");
+        // We should check the source index's setting `index.blocks.read_only`, because the setting will be copied to target index,
+        // it will block target index's metadata writes and then cause the new shards to be unassigned,
+        // but if user overwrites the setting to `false` or `null`, everything is fine.
+        // We don't need to check the setting `index.blocks.metadata`, because it was checked when fetching index stats
+        if (IndexMetadata.INDEX_READ_ONLY_SETTING.get(metadata.getSettings()) == true
+            && IndexMetadata.INDEX_READ_ONLY_SETTING.exists(targetIndexSettings) == false) {
+            throw new IllegalArgumentException(
+                "target index ["
+                    + targetIndexName
+                    + "] will be blocked by [index.blocks.read_only=true] which is copied from the source index ["
+                    + sourceIndexName
+                    + "], this will disable metadata writes and cause the shards to be unassigned"
+            );
         }
 
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
-            if (resizeRequest.getResizeType() == ResizeType.SHRINK && maxShardSize != null) {
-                throw new IllegalArgumentException("Cannot set max_shard_size and index.number_of_shards at the same time!");
-            }
         } else {
             assert resizeRequest.getResizeType() != ResizeType.SPLIT : "split must specify the number of shards explicitly";
             if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
-                numShards = calculateTargetIndexShardsNum(maxShardSize, primaryShardsStoreStats, metadata);
+                numShards = calculateTargetIndexShardsNum(resizeRequest.getMaxShardSize(), primaryShardsStoreStats, metadata);
             } else {
                 assert resizeRequest.getResizeType() == ResizeType.CLONE;
                 numShards = metadata.getNumberOfShards();
@@ -229,9 +235,6 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
             }
         }
 
-        if (IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
-            throw new IllegalArgumentException("cannot provide a routing partition size value when resizing an index");
-        }
         if (IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(targetIndexSettings)) {
             // if we have a source index with 1 shards it's legal to set this
             final boolean splitFromSingleShards = resizeRequest.getResizeType() == ResizeType.SPLIT && metadata.getNumberOfShards() == 1;

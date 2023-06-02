@@ -39,6 +39,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
@@ -63,7 +64,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -557,7 +558,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             serviceA.submitRequest(nodeB, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(OpenSearchException.class));
-            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
+            assertThat(BaseExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
         // use assert busy as callbacks are called on a different thread
@@ -576,7 +577,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             serviceB.submitRequest(nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(OpenSearchException.class));
-            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
+            assertThat(BaseExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
         // use assert busy as callbacks are called on a different thread
@@ -596,7 +597,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             serviceA.submitRequest(nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(OpenSearchException.class));
-            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
+            assertThat(BaseExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
         // use assert busy as callbacks are called on a different thread
@@ -1650,7 +1651,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
 
                 @Override
                 public void handleException(TransportException exp) {
-                    Throwable cause = ExceptionsHelper.unwrapCause(exp);
+                    Throwable cause = BaseExceptionsHelper.unwrapCause(exp);
                     assertThat(cause, instanceOf(ConnectTransportException.class));
                     assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
                 }
@@ -1661,7 +1662,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             res.txGet();
             fail("exception should be thrown");
         } catch (Exception e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            Throwable cause = BaseExceptionsHelper.unwrapCause(e);
             assertThat(cause, instanceOf(ConnectTransportException.class));
             assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
         }
@@ -2108,7 +2109,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             "internal:action1",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             TestRequest::new,
-            (request, message, task) -> { throw new AssertionError("boom"); }
+            (request, message, task) -> {
+                throw new AssertionError("boom");
+            }
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -2116,7 +2119,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 "internal:action1",
                 randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
                 TestRequest::new,
-                (request, message, task) -> { throw new AssertionError("boom"); }
+                (request, message, task) -> {
+                    throw new AssertionError("boom");
+                }
             )
         );
 
@@ -2124,7 +2129,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             "internal:action1",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             TestRequest::new,
-            (request, message, task) -> { throw new AssertionError("boom"); }
+            (request, message, task) -> {
+                throw new AssertionError("boom");
+            }
         );
     }
 

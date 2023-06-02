@@ -56,7 +56,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
@@ -74,6 +74,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -343,19 +344,17 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
             ".bar",
             new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())
         );
-        SystemIndices systemIndices = new SystemIndices(
-            org.opensearch.common.collect.Map.of("plugin", org.opensearch.common.collect.List.of(new SystemIndexDescriptor(".test", "")))
-        );
-        List<String> onlySystem = org.opensearch.common.collect.List.of(".foo", ".bar");
+        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(".test", ""))));
+        List<String> onlySystem = List.of(".foo", ".bar");
         assertTrue(bulkAction.includesSystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
-        onlySystem = org.opensearch.common.collect.List.of(".foo", ".bar", ".test");
+        onlySystem = List.of(".foo", ".bar", ".test");
         assertTrue(bulkAction.includesSystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
-        List<String> nonSystem = org.opensearch.common.collect.List.of("foo", "bar");
+        List<String> nonSystem = List.of("foo", "bar");
         assertFalse(bulkAction.includesSystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
 
-        List<String> mixed = org.opensearch.common.collect.List.of(".foo", ".test", "other");
+        List<String> mixed = List.of(".foo", ".test", "other");
         assertTrue(bulkAction.includesSystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 

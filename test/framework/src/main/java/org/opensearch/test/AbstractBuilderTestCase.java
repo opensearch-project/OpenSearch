@@ -57,7 +57,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.Index;
@@ -369,12 +369,9 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
             boolean registerType
         ) throws IOException {
             this.nowInMillis = nowInMillis;
-            Environment env = InternalSettingsPreparer.prepareEnvironment(
-                nodeSettings,
-                emptyMap(),
-                null,
-                () -> { throw new AssertionError("node.name must be set"); }
-            );
+            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, emptyMap(), null, () -> {
+                throw new AssertionError("node.name must be set");
+            });
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesDir(), env.pluginsDir(), plugins);
 

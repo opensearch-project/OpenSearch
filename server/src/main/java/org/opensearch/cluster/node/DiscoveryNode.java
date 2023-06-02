@@ -285,10 +285,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             validateLegacySettings(settings, roleMap);
             return Collections.unmodifiableSet(new HashSet<>(NODE_ROLES_SETTING.get(settings)));
         } else {
-            return roleMap.values()
-                .stream()
-                .filter(s -> s.legacySetting() != null && s.legacySetting().get(settings))
-                .collect(Collectors.toSet());
+            return roleMap.values().stream().filter(s -> s.isEnabledByDefault(settings)).collect(Collectors.toSet());
         }
     }
 
@@ -347,7 +344,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
-        this.version = Version.readVersion(in);
+        this.version = in.readVersion();
     }
 
     @Override
@@ -370,7 +367,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             out.writeString(compatibleRole.roleNameAbbreviation());
             out.writeBoolean(compatibleRole.canContainData());
         }
-        Version.writeVersion(version, out);
+        out.writeVersion(version);
     }
 
     /**

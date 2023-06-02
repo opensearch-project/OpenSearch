@@ -33,6 +33,7 @@
 package org.opensearch.client.node;
 
 import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilters;
@@ -57,14 +58,16 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         Settings settings = HEADER_SETTINGS;
         Actions actions = new Actions(settings, threadPool, testedActions);
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions, () -> "test", null, new NamedWriteableRegistry(Collections.emptyList()));
+        DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
+        dynamicActionRegistry.registerUnmodifiableActionMap(actions);
+        client.initialize(dynamicActionRegistry, () -> "test", null, new NamedWriteableRegistry(Collections.emptyList()));
         return client;
     }
 
     private static class Actions extends HashMap<ActionType, TransportAction> {
 
-        private Actions(Settings settings, ThreadPool threadPool, ActionType[] actions) {
-            for (ActionType action : actions) {
+        private Actions(Settings settings, ThreadPool threadPool, ActionType<?>[] actions) {
+            for (ActionType<?> action : actions) {
                 put(action, new InternalTransportAction(settings, action.name(), threadPool));
             }
         }

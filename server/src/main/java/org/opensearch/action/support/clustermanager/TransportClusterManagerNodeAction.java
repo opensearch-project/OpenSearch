@@ -53,6 +53,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.StreamInput;
@@ -178,17 +179,18 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         private ClusterStateObserver observer;
         private final long startTime;
         private final Task task;
-        private static final int BASE_DELAY_MILLIS = 10;
-        private static final int MAX_DELAY_MILLIS = 5000;
 
         AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
             super(
                 logger,
                 threadPool,
-                TimeValue.timeValueMillis(BASE_DELAY_MILLIS),
+                ClusterManagerTaskThrottler.getBaseDelayForRetry(),
                 request.clusterManagerNodeTimeout,
                 listener,
-                BackoffPolicy.exponentialEqualJitterBackoff(BASE_DELAY_MILLIS, MAX_DELAY_MILLIS),
+                BackoffPolicy.exponentialEqualJitterBackoff(
+                    ClusterManagerTaskThrottler.getBaseDelayForRetry().millis(),
+                    ClusterManagerTaskThrottler.getMaxDelayForRetry().millis()
+                ),
                 ThreadPool.Names.SAME
             );
             this.task = task;

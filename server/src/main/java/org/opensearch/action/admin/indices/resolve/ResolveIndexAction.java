@@ -51,13 +51,13 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
@@ -635,7 +635,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         IndexAbstraction.Index index = (IndexAbstraction.Index) ia;
 
                         String[] aliasNames = StreamSupport.stream(
-                            Spliterators.spliteratorUnknownSize(index.getWriteIndex().getAliases().keysIt(), 0),
+                            Spliterators.spliteratorUnknownSize(index.getWriteIndex().getAliases().keySet().iterator(), 0),
                             false
                         ).toArray(String[]::new);
                         Arrays.sort(aliasNames);

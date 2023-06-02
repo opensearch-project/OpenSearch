@@ -13,10 +13,13 @@ import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRe
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
+import org.opensearch.core.common.Strings;
+import org.opensearch.index.SegmentReplicationPerGroupStats;
+import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestHandler;
@@ -24,9 +27,10 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -67,12 +71,11 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
         segmentReplicationStatsRequest.detailed(request.paramAsBoolean("detailed", false));
         segmentReplicationStatsRequest.shards(Strings.splitStringByCommaToArray(request.param("shards")));
         segmentReplicationStatsRequest.activeOnly(request.paramAsBoolean("active_only", false));
-        segmentReplicationStatsRequest.completedOnly(request.paramAsBoolean("completed_only", false));
         segmentReplicationStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, segmentReplicationStatsRequest.indicesOptions()));
 
         return channel -> client.admin()
             .indices()
-            .segmentReplicationStats(segmentReplicationStatsRequest, new RestResponseListener<SegmentReplicationStatsResponse>(channel) {
+            .segmentReplicationStats(segmentReplicationStatsRequest, new RestResponseListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(final SegmentReplicationStatsResponse response) throws Exception {
                     return RestTable.buildResponse(buildSegmentReplicationTable(request, response), channel);
@@ -90,22 +93,23 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
 
         Table t = new Table();
         t.startHeaders()
-            .addCell("index", "alias:i,idx;desc:index name")
             .addCell("shardId", "alias:s;desc: shard Id")
-            .addCell("time", "alias:t,ti;desc:segment replication time")
-            .addCell("stage", "alias:st;desc:segment replication stage")
-            .addCell("source_description", "alias:sdesc;desc:source description")
-            .addCell("target_host", "alias:thost;desc:target host")
             .addCell("target_node", "alias:tnode;desc:target node name")
-            .addCell("files_fetched", "alias:ff;desc:files fetched")
-            .addCell("files_percent", "alias:fp;desc:percent of files fetched")
-            .addCell("bytes_fetched", "alias:bf;desc:bytes fetched")
-            .addCell("bytes_percent", "alias:bp;desc:percent of bytes fetched");
+            .addCell("target_host", "alias:thost;desc:target host")
+            .addCell("checkpoints_behind", "alias:cpb;desc:checkpoints behind primary")
+            .addCell("bytes_behind", "alias:bb;desc:bytes behind primary")
+            .addCell("current_lag", "alias:clag;desc:ongoing time elapsed waiting for replica to catch up to primary")
+            .addCell("last_completed_lag", "alias:lcl;desc:time taken for replica to catch up to latest primary refresh")
+            .addCell("rejected_requests", "alias:rr;desc:count of rejected requests for the replication group");
         if (detailed) {
-            t.addCell("start_time", "alias:start;desc:segment replication start time")
-                .addCell("start_time_millis", "alias:start_millis;desc:segment replication start time in epoch milliseconds")
+            t.addCell("stage", "alias:st;desc:segment replication event stage")
+                .addCell("time", "alias:t,ti;desc:current replication event time")
+                .addCell("files_fetched", "alias:ff;desc:files fetched")
+                .addCell("files_percent", "alias:fp;desc:percent of files fetched")
+                .addCell("bytes_fetched", "alias:bf;desc:bytes fetched")
+                .addCell("bytes_percent", "alias:bp;desc:percent of bytes fetched")
+                .addCell("start_time", "alias:start;desc:segment replication start time")
                 .addCell("stop_time", "alias:stop;desc:segment replication stop time")
-                .addCell("stop_time_millis", "alias:stop_millis;desc:segment replication stop time in epoch milliseconds")
                 .addCell("files", "alias:f;desc:number of files to fetch")
                 .addCell("files_total", "alias:tf;desc:total number of files")
                 .addCell("bytes", "alias:b;desc:number of bytes to fetch")
@@ -135,58 +139,61 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
         }
         Table t = getTableWithHeader(request);
 
-        for (String index : response.shardSegmentReplicationStates().keySet()) {
+        for (Map.Entry<String, List<SegmentReplicationPerGroupStats>> entry : response.getReplicationStats().entrySet()) {
+            final List<SegmentReplicationPerGroupStats> replicationPerGroupStats = entry.getValue();
 
-            List<SegmentReplicationState> shardSegmentReplicationStates = response.shardSegmentReplicationStates().get(index);
-            if (shardSegmentReplicationStates.size() == 0) {
+            if (replicationPerGroupStats.isEmpty()) {
                 continue;
             }
 
             // Sort ascending by shard id for readability
-            CollectionUtil.introSort(shardSegmentReplicationStates, new Comparator<SegmentReplicationState>() {
-                @Override
-                public int compare(SegmentReplicationState o1, SegmentReplicationState o2) {
-                    int id1 = o1.getShardRouting().shardId().id();
-                    int id2 = o2.getShardRouting().shardId().id();
-                    if (id1 < id2) {
-                        return -1;
-                    } else if (id1 > id2) {
-                        return 1;
-                    } else {
-                        return 0;
-                    }
-                }
+            CollectionUtil.introSort(replicationPerGroupStats, (o1, o2) -> {
+                int id1 = o1.getShardId().id();
+                int id2 = o2.getShardId().id();
+                return Integer.compare(id1, id2);
             });
 
-            for (SegmentReplicationState state : shardSegmentReplicationStates) {
-                t.startRow();
-                t.addCell(index);
-                t.addCell(state.getShardRouting().shardId().id());
-                t.addCell(new TimeValue(state.getTimer().time()));
-                t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
-                t.addCell(state.getSourceDescription());
-                t.addCell(state.getTargetNode().getHostName());
-                t.addCell(state.getTargetNode().getName());
-                t.addCell(state.getIndex().recoveredFileCount());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
-                t.addCell(state.getIndex().recoveredBytes());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
-                if (detailed) {
-                    t.addCell(XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()));
-                    t.addCell(state.getTimer().startTime());
-                    t.addCell(XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()));
-                    t.addCell(state.getTimer().stopTime());
-                    t.addCell(state.getIndex().totalRecoverFiles());
-                    t.addCell(state.getIndex().totalFileCount());
-                    t.addCell(state.getIndex().totalRecoverBytes());
-                    t.addCell(state.getIndex().totalBytes());
-                    t.addCell(state.getReplicatingStageTime());
-                    t.addCell(state.getGetCheckpointInfoStageTime());
-                    t.addCell(state.getFileDiffStageTime());
-                    t.addCell(state.getGetFileStageTime());
-                    t.addCell(state.getFinalizeReplicationStageTime());
+            for (SegmentReplicationPerGroupStats perGroupStats : replicationPerGroupStats) {
+
+                final Set<SegmentReplicationShardStats> replicaShardStats = perGroupStats.getReplicaStats();
+
+                for (SegmentReplicationShardStats shardStats : replicaShardStats) {
+                    final SegmentReplicationState state = shardStats.getCurrentReplicationState();
+                    if (state == null) {
+                        continue;
+                    }
+
+                    t.startRow();
+                    t.addCell(perGroupStats.getShardId());
+                    // these nulls should never happen, here for safety.
+                    t.addCell(state.getTargetNode().getName());
+                    t.addCell(state.getTargetNode().getHostName());
+                    t.addCell(shardStats.getCheckpointsBehindCount());
+                    t.addCell(new ByteSizeValue(shardStats.getBytesBehindCount()));
+                    t.addCell(new TimeValue(shardStats.getCurrentReplicationTimeMillis()));
+                    t.addCell(new TimeValue(shardStats.getLastCompletedReplicationTimeMillis()));
+                    t.addCell(perGroupStats.getRejectedRequestCount());
+                    if (detailed) {
+                        t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
+                        t.addCell(new TimeValue(state.getTimer().time()));
+                        t.addCell(state.getIndex().recoveredFileCount());
+                        t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
+                        t.addCell(state.getIndex().recoveredBytes());
+                        t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
+                        t.addCell(XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()));
+                        t.addCell(XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()));
+                        t.addCell(state.getIndex().totalRecoverFiles());
+                        t.addCell(state.getIndex().totalFileCount());
+                        t.addCell(new ByteSizeValue(state.getIndex().totalRecoverBytes()));
+                        t.addCell(new ByteSizeValue(state.getIndex().totalBytes()));
+                        t.addCell(state.getReplicatingStageTime());
+                        t.addCell(state.getGetCheckpointInfoStageTime());
+                        t.addCell(state.getFileDiffStageTime());
+                        t.addCell(state.getGetFileStageTime());
+                        t.addCell(state.getFinalizeReplicationStageTime());
+                    }
+                    t.endRow();
                 }
-                t.endRow();
             }
         }
 

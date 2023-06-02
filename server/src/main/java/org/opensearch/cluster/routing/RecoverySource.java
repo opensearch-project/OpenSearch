@@ -37,7 +37,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -280,9 +279,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         SnapshotRecoverySource(StreamInput in) throws IOException {
             restoreUUID = in.readString();
             snapshot = new Snapshot(in);
-            version = Version.readVersion(in);
+            version = in.readVersion();
             index = new IndexId(in);
-            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && in.getVersion().onOrAfter(Version.V_2_4_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
                 isSearchableSnapshot = in.readBoolean();
             } else {
                 isSearchableSnapshot = false;
@@ -319,9 +318,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
             snapshot.writeTo(out);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
             index.writeTo(out);
-            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && out.getVersion().onOrAfter(Version.V_2_4_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
                 out.writeBoolean(isSearchableSnapshot);
             }
         }
@@ -389,7 +388,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         RemoteStoreRecoverySource(StreamInput in) throws IOException {
             restoreUUID = in.readString();
-            version = Version.readVersion(in);
+            version = in.readVersion();
             index = new IndexId(in);
         }
 
@@ -414,7 +413,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
             index.writeTo(out);
         }
 

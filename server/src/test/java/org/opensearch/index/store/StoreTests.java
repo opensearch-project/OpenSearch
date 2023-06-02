@@ -75,7 +75,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
@@ -1273,7 +1273,8 @@ public class StoreTests extends OpenSearchTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         Store store = null;
 
-        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
+        try {
+            FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
                 "index",
                 Settings.builder()

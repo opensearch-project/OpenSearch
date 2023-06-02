@@ -95,6 +95,15 @@ public class MapXContentParser extends AbstractXContentParser {
     }
 
     @Override
+    protected BigInteger doBigIntegerValue() throws IOException {
+        if (numberValue() instanceof BigInteger) {
+            return (BigInteger) numberValue();
+        } else {
+            return BigInteger.valueOf(numberValue().longValue());
+        }
+    }
+
+    @Override
     public MediaType contentType() {
         return xContentType;
     }

@@ -73,16 +73,7 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
         }, (deferringCollector, finalCollector) -> {
             deferringCollector.prepareSelectedBuckets(0, 8, 9);
 
-            equalTo(
-                org.opensearch.common.collect.Map.of(
-                    0L,
-                    org.opensearch.common.collect.List.of(0, 1, 2, 3, 4, 5, 6, 7),
-                    1L,
-                    org.opensearch.common.collect.List.of(8),
-                    2L,
-                    org.opensearch.common.collect.List.of(9)
-                )
-            );
+            equalTo(Map.of(0L, List.of(0, 1, 2, 3, 4, 5, 6, 7), 1L, List.of(8), 2L, List.of(9)));
         });
     }
 
@@ -99,19 +90,7 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
         }, (deferringCollector, finalCollector) -> {
             deferringCollector.prepareSelectedBuckets(0, 8, 9);
 
-            assertThat(
-                finalCollector.collection,
-                equalTo(
-                    org.opensearch.common.collect.Map.of(
-                        0L,
-                        org.opensearch.common.collect.List.of(4, 5, 6, 7),
-                        1L,
-                        org.opensearch.common.collect.List.of(8),
-                        2L,
-                        org.opensearch.common.collect.List.of(9)
-                    )
-                )
-            );
+            assertThat(finalCollector.collection, equalTo(Map.of(0L, List.of(4, 5, 6, 7), 1L, List.of(8), 2L, List.of(9))));
         });
     }
 
@@ -129,19 +108,7 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
         }, (deferringCollector, finalCollector) -> {
             deferringCollector.prepareSelectedBuckets(0, 8, 9);
 
-            assertThat(
-                finalCollector.collection,
-                equalTo(
-                    org.opensearch.common.collect.Map.of(
-                        0L,
-                        org.opensearch.common.collect.List.of(0, 1, 2, 3),
-                        1L,
-                        org.opensearch.common.collect.List.of(8),
-                        2L,
-                        org.opensearch.common.collect.List.of(9)
-                    )
-                )
-            );
+            assertThat(finalCollector.collection, equalTo(Map.of(0L, List.of(0, 1, 2, 3), 1L, List.of(8), 2L, List.of(9))));
         });
     }
 

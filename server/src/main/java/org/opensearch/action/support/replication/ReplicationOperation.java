@@ -34,7 +34,8 @@ package org.opensearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.Assertions;
+import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
@@ -50,7 +51,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.shard.ShardId;
@@ -333,7 +334,7 @@ public class ReplicationOperation<
 
             @Override
             public boolean shouldRetry(Exception e) {
-                final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                final Throwable cause = BaseExceptionsHelper.unwrapCause(e);
                 return cause instanceof CircuitBreakingException
                     || cause instanceof OpenSearchRejectedExecutionException
                     || cause instanceof ConnectTransportException;
@@ -358,7 +359,7 @@ public class ReplicationOperation<
     }
 
     private void onNoLongerPrimary(Exception failure) {
-        final Throwable cause = ExceptionsHelper.unwrapCause(failure);
+        final Throwable cause = BaseExceptionsHelper.unwrapCause(failure);
         final boolean nodeIsClosing = cause instanceof NodeClosedException;
         final String message;
         if (nodeIsClosing) {

@@ -55,7 +55,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -84,15 +83,16 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.iterable.Iterables;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.search.sort.SortedWiderNumericSortField;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -137,21 +137,12 @@ public class Lucene {
 
     /**
      * A variant of {@link #readSegmentInfos(Directory)} that supports reading indices written by
-     * older major versions of Lucene. The underlying implementation is a workaround since the
-     * "expert" readLatestCommit API is currently package-private in Lucene. First, all commits in
-     * the given {@link Directory} are listed - this result includes older Lucene commits. Then,
-     * the latest index commit is opened via {@link DirectoryReader} by including a minimum supported
-     * Lucene major version based on the minimum compatibility of the given {@link org.opensearch.Version}.
+     * older major versions of Lucene. This leverages Lucene's "expert" readLatestCommit API. The
+     * {@link org.opensearch.Version} parameter determines the minimum supported Lucene major version.
      */
-    public static SegmentInfos readSegmentInfosExtendedCompatibility(Directory directory, org.opensearch.Version minimumVersion)
-        throws IOException {
-        // This list is sorted from oldest to latest
-        List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
-        IndexCommit latestCommit = indexCommits.get(indexCommits.size() - 1);
+    public static SegmentInfos readSegmentInfos(Directory directory, org.opensearch.Version minimumVersion) throws IOException {
         final int minSupportedLuceneMajor = minimumVersion.minimumIndexCompatibilityVersion().luceneVersion.major;
-        try (StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(latestCommit, minSupportedLuceneMajor, null)) {
-            return reader.getSegmentInfos();
-        }
+        return SegmentInfos.readLatestCommit(directory, minSupportedLuceneMajor);
     }
 
     /**
@@ -599,8 +590,8 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
-        } else if (sortField.getClass() == SortedNumericSortField.class) {
-            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
+        } else if (sortField.getClass() == SortedNumericSortField.class || sortField.getClass() == SortedWiderNumericSortField.class) {
+            // for multi-valued sort field, we replace the SortedNumericSortField/SortedWiderNumericSortField with a simple SortField.
             // It works because the sort field is only used to merge results from different shards.
             SortField newSortField = new SortField(
                 sortField.getField(),

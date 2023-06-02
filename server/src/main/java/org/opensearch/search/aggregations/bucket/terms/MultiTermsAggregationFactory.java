@@ -50,21 +50,14 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
     private final boolean showTermDocCountError;
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            config -> {
-                final IncludeExclude.StringFilter filter = config.v2() == null
-                    ? null
-                    : config.v2().convertToStringFilter(config.v1().format());
-                return MultiTermsAggregator.InternalValuesSourceFactory.bytesValuesSource(config.v1().getValuesSource(), filter);
-            },
-            true
-        );
+        builder.register(REGISTRY_KEY, List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP), config -> {
+            final IncludeExclude.StringFilter filter = config.v2() == null ? null : config.v2().convertToStringFilter(config.v1().format());
+            return MultiTermsAggregator.InternalValuesSourceFactory.bytesValuesSource(config.v1().getValuesSource(), filter);
+        }, true);
 
         builder.register(
             REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
             config -> {
                 ValuesSourceConfig valuesSourceConfig = config.v1();
                 IncludeExclude includeExclude = config.v2();
@@ -75,6 +68,11 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
                         longFilter = includeExclude.convertToDoubleFilter();
                     }
                     return MultiTermsAggregator.InternalValuesSourceFactory.doubleValueSource(valuesSource, longFilter);
+                } else if (valuesSource.isBigInteger()) {
+                    if (includeExclude != null) {
+                        longFilter = includeExclude.convertToDoubleFilter();
+                    }
+                    return MultiTermsAggregator.InternalValuesSourceFactory.unsignedLongValuesSource(valuesSource, longFilter);
                 } else {
                     if (includeExclude != null) {
                         longFilter = includeExclude.convertToLongFilter(valuesSourceConfig.format());

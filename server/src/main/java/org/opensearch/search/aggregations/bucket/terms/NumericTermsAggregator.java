@@ -37,7 +37,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
-import org.opensearch.common.collect.List;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongArray;
@@ -61,7 +61,9 @@ import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -490,6 +492,87 @@ public class NumericTermsAggregator extends TermsAggregator {
         @Override
         DoubleTerms buildEmptyResult() {
             return new DoubleTerms(
+                name,
+                order,
+                order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                0,
+                emptyList(),
+                0
+            );
+        }
+    }
+
+    class UnsignedLongTermsResults extends StandardTermsResultStrategy<UnsignedLongTerms, UnsignedLongTerms.Bucket> {
+        UnsignedLongTermsResults(boolean showTermDocCountError) {
+            super(showTermDocCountError);
+        }
+
+        @Override
+        String describe() {
+            return "unsigned_long_terms";
+        }
+
+        @Override
+        SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException {
+            return valuesSource.longValues(ctx);
+        }
+
+        @Override
+        UnsignedLongTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
+            return new UnsignedLongTerms.Bucket[size][];
+        }
+
+        @Override
+        UnsignedLongTerms.Bucket[] buildBuckets(int size) {
+            return new UnsignedLongTerms.Bucket[size];
+        }
+
+        @Override
+        UnsignedLongTerms.Bucket buildEmptyBucket() {
+            return new UnsignedLongTerms.Bucket(BigInteger.ZERO, 0, null, showTermDocCountError, 0, format);
+        }
+
+        @Override
+        void updateBucket(UnsignedLongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) {
+            spare.term = Numbers.toUnsignedBigInteger(ordsEnum.value());
+            spare.docCount = docCount;
+            spare.bucketOrd = ordsEnum.ord();
+        }
+
+        @Override
+        UnsignedLongTerms buildResult(long owningBucketOrd, long otherDocCount, UnsignedLongTerms.Bucket[] topBuckets) {
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+                Arrays.sort(topBuckets, reduceOrder.comparator());
+            } else {
+                reduceOrder = order;
+            }
+            return new UnsignedLongTerms(
+                name,
+                reduceOrder,
+                order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                List.of(topBuckets),
+                0
+            );
+        }
+
+        @Override
+        UnsignedLongTerms buildEmptyResult() {
+            return new UnsignedLongTerms(
                 name,
                 order,
                 order,

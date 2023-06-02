@@ -57,7 +57,7 @@ dependencies {
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   // Other dependencies
   api 'org.tukaani:xz:1.9'
-  api 'commons-io:commons-io:2.11.0'
+  api 'commons-io:commons-io:2.12.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -84,7 +84,7 @@ dependencies {
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  api 'org.apache.commons:commons-compress:1.22'
+  api 'org.apache.commons:commons-compress:1.23.0'
   // Outlook documents
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"

@@ -34,6 +34,7 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 

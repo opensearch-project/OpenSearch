@@ -10,9 +10,9 @@ package org.opensearch.action.admin.indices.replication;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 
@@ -24,10 +24,7 @@ import java.io.IOException;
 public class SegmentReplicationStatsRequest extends BroadcastRequest<SegmentReplicationStatsRequest> {
     private boolean detailed = false;       // Provides extra details in the response
     private boolean activeOnly = false;     // Only reports on active segment replication events
-
     private String[] shards = new String[0];
-
-    private boolean completedOnly = false;
 
     /**
      * Constructs a request for segment replication stats information for all shards
@@ -40,8 +37,6 @@ public class SegmentReplicationStatsRequest extends BroadcastRequest<SegmentRepl
         super(in);
         detailed = in.readBoolean();
         activeOnly = in.readBoolean();
-        completedOnly = in.readBoolean();
-
     }
 
     /**
@@ -92,25 +87,6 @@ public class SegmentReplicationStatsRequest extends BroadcastRequest<SegmentRepl
     }
 
     /**
-     * True if completedOnly flag is set, false otherwise. This value is false by default.
-     *
-     * @return  True if completedOnly flag is set, false otherwise
-     */
-    public boolean completedOnly() {
-        return completedOnly;
-    }
-
-    /**
-     * Set value of the completedOnly flag. If true, this request will only respond with
-     * latest completed segment replication event information.
-     *
-     * @param completedOnly   Whether or not to set the completedOnly flag.
-     */
-    public void completedOnly(boolean completedOnly) {
-        this.completedOnly = completedOnly;
-    }
-
-    /**
      * Contains list of shard id's if shards are passed, empty otherwise. Array is empty by default.
      *
      * @return  list of shard id's if shards are passed, empty otherwise
@@ -134,6 +110,5 @@ public class SegmentReplicationStatsRequest extends BroadcastRequest<SegmentRepl
         super.writeTo(out);
         out.writeBoolean(detailed);
         out.writeBoolean(activeOnly);
-        out.writeBoolean(completedOnly);
     }
 }

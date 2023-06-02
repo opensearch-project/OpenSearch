@@ -8,13 +8,14 @@
 
 package org.opensearch.indices.replication.common;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
-import org.opensearch.common.collect.Map;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.ShardId;
@@ -23,6 +24,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -49,7 +51,10 @@ public class CopyStateTests extends IndexShardTestCase {
 
     public void testCopyStateCreation() throws IOException {
         final IndexShard mockIndexShard = createMockIndexShard();
-        CopyState copyState = new CopyState(ReplicationCheckpoint.empty(mockIndexShard.shardId()), mockIndexShard);
+        CopyState copyState = new CopyState(
+            ReplicationCheckpoint.empty(mockIndexShard.shardId(), new CodecService(null, null).codec("default").getName()),
+            mockIndexShard
+        );
         ReplicationCheckpoint checkpoint = copyState.getCheckpoint();
         assertEquals(TEST_SHARD_ID, checkpoint.getShardId());
         // version was never set so this should be zero
@@ -67,7 +72,13 @@ public class CopyStateTests extends IndexShardTestCase {
         when(mockShard.store()).thenReturn(mockStore);
 
         SegmentInfos testSegmentInfos = new SegmentInfos(Version.LATEST.major);
-        ReplicationCheckpoint testCheckpoint = new ReplicationCheckpoint(mockShard.shardId(), mockShard.getOperationPrimaryTerm(), 0L, 0L);
+        ReplicationCheckpoint testCheckpoint = new ReplicationCheckpoint(
+            mockShard.shardId(),
+            mockShard.getOperationPrimaryTerm(),
+            0L,
+            0L,
+            Codec.getDefault().getName()
+        );
         final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> gatedCloseableReplicationCheckpointTuple = new Tuple<>(
             new GatedCloseable<>(testSegmentInfos, () -> {}),
             testCheckpoint

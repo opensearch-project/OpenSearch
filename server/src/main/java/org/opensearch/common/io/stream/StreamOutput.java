@@ -32,7 +32,6 @@
 
 package org.opensearch.common.io.stream;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -41,8 +40,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
+import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
@@ -51,19 +49,17 @@ import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
-import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.Writeable.Writer;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
+import org.opensearch.core.common.io.stream.BaseStreamOutput;
+import org.opensearch.core.common.io.stream.BaseWriteable;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.math.BigInteger;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -104,7 +100,7 @@ import java.util.function.IntFunction;
  *
  * @opensearch.internal
  */
-public abstract class StreamOutput extends OutputStream {
+public abstract class StreamOutput extends BaseStreamOutput {
 
     private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
 
@@ -497,6 +493,10 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public final void writeBigInteger(BigInteger v) throws IOException {
+        writeString(v.toString());
+    }
+
     private static byte ZERO = 0;
     private static byte ONE = 1;
     private static byte TWO = 2;
@@ -641,28 +641,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
-     *
-     * @param keyWriter The key writer
-     * @param valueWriter The value writer
-     */
-    public final <K, V> void writeMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
-        throws IOException {
-        writeVInt(map.size());
-        for (final ObjectObjectCursor<K, V> entry : map) {
-            keyWriter.write(this, entry.key);
-            valueWriter.write(this, entry.value);
-        }
-    }
-
-    /**
-     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
-     */
-    public final <K extends Writeable, V extends Writeable> void writeMap(final ImmutableOpenMap<K, V> map) throws IOException {
-        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
-    }
-
-    /**
      * Writes an {@link Instant} to the stream with nanosecond resolution
      */
     public final void writeInstant(Instant instant) throws IOException {
@@ -682,10 +660,10 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static final Map<Class<?>, Writer> WRITERS;
+    private static final Map<Class<?>, BaseWriteable.Writer<StreamOutput, Object>> WRITERS;
 
     static {
-        Map<Class<?>, Writer> writers = new HashMap<>();
+        Map<Class<?>, BaseWriteable.Writer<StreamOutput, Object>> writers = new HashMap<>();
         writers.put(String.class, (o, v) -> {
             o.writeByte((byte) 0);
             o.writeString((String) v);
@@ -754,12 +732,6 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 12);
             o.writeLong(((Date) v).getTime());
         });
-        writers.put(ReadableInstant.class, (o, v) -> {
-            o.writeByte((byte) 13);
-            final ReadableInstant instant = (ReadableInstant) v;
-            o.writeString(instant.getZone().getID());
-            o.writeLong(instant.getMillis());
-        });
         writers.put(BytesReference.class, (o, v) -> {
             o.writeByte((byte) 14);
             o.writeBytesReference((BytesReference) v);
@@ -792,23 +764,10 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 21);
             o.writeBytesRef((BytesRef) v);
         });
-        writers.put(GeoPoint.class, (o, v) -> {
-            o.writeByte((byte) 22);
-            o.writeGeoPoint((GeoPoint) v);
-        });
         writers.put(ZonedDateTime.class, (o, v) -> {
             o.writeByte((byte) 23);
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
-            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
-        });
-        writers.put(JodaCompatibleZonedDateTime.class, (o, v) -> {
-            // write the joda compatibility datetime as joda datetime
-            o.writeByte((byte) 13);
-            final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
-            String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
-            // joda does not understand "Z" for utc, so we must special case
-            o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
         writers.put(Set.class, (o, v) -> {
@@ -828,7 +787,10 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     private static Class<?> getGenericType(Object value) {
-        if (value instanceof List) {
+        Class<?> registeredClass = Writeable.WriteableRegistry.getCustomClassFromInstance(value);
+        if (registeredClass != null) {
+            return registeredClass;
+        } else if (value instanceof List) {
             return List.class;
         } else if (value instanceof Object[]) {
             return Object[].class;
@@ -836,8 +798,6 @@ public abstract class StreamOutput extends OutputStream {
             return Map.class;
         } else if (value instanceof Set) {
             return Set.class;
-        } else if (value instanceof ReadableInstant) {
-            return ReadableInstant.class;
         } else if (value instanceof BytesReference) {
             return BytesReference.class;
         } else {
@@ -857,7 +817,12 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         final Class<?> type = getGenericType(value);
-        final Writer writer = WRITERS.get(type);
+        BaseWriteable.Writer<StreamOutput, Object> writer = BaseWriteable.WriteableRegistry.getWriter(type);
+        if (writer == null) {
+            // fallback to this local hashmap
+            // todo: move all writers to the registry
+            writer = WRITERS.get(type);
+        }
         if (writer != null) {
             writer.write(this, value);
         } else {
@@ -1122,6 +1087,24 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /** Writes the OpenSearch {@link Version} to the output stream */
+    public void writeVersion(final Version version) throws IOException {
+        writeVInt(version.id);
+    }
+
+    /** Writes the OpenSearch {@link Build} informn to the output stream */
+    public void writeBuild(final Build build) throws IOException {
+        // the following is new for opensearch: we write the distribution name to support any "forks" of the code
+        writeString(build.getDistribution());
+
+        final Build.Type buildType = build.type();
+        writeString(buildType.displayName());
+        writeString(build.hash());
+        writeString(build.date());
+        writeBoolean(build.isSnapshot());
+        writeString(build.getQualifiedVersion());
+    }
+
     boolean failOnTooManyNestedExceptions(Throwable throwable) {
         throw new AssertionError("too many nested exceptions", throwable);
     }
@@ -1147,37 +1130,10 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes the given {@link GeoPoint} to the stream
-     */
-    public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
-        writeDouble(geoPoint.lat());
-        writeDouble(geoPoint.lon());
-    }
-
-    /**
-     * Write a {@linkplain DateTimeZone} to the stream.
-     */
-    public void writeTimeZone(DateTimeZone timeZone) throws IOException {
-        writeString(timeZone.getID());
-    }
-
-    /**
      * Write a {@linkplain ZoneId} to the stream.
      */
     public void writeZoneId(ZoneId timeZone) throws IOException {
         writeString(timeZone.getId());
-    }
-
-    /**
-     * Write an optional {@linkplain DateTimeZone} to the stream.
-     */
-    public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
-        if (timeZone == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeTimeZone(timeZone);
-        }
     }
 
     /**
@@ -1194,7 +1150,7 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Writes a collection to this stream. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(Writeable.Reader)}.
+     * {@link StreamInput#readList(BaseWriteable.Reader)}.
      *
      * @param collection the collection to write to this stream
      * @throws IOException if an I/O exception occurs writing the collection
@@ -1225,7 +1181,7 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Writes a collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(Writeable.Reader)}.
+     * {@link StreamInput#readList(BaseWriteable.Reader)}.
      *
      * @param collection the collection of strings
      * @throws IOException if an I/O exception occurs writing the collection
@@ -1236,7 +1192,7 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(Writeable.Reader)}.
+     * {@link StreamInput#readList(BaseWriteable.Reader)}.
      *
      * @param collection the collection of strings
      * @throws IOException if an I/O exception occurs writing the collection

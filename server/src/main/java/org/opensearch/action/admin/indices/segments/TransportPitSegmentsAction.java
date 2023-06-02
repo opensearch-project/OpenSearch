@@ -27,11 +27,11 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
@@ -44,8 +44,10 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.action.search.SearchContextId.decode;
@@ -94,8 +96,7 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
      */
     @Override
     protected void doExecute(Task task, PitSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener) {
-        List<String> pitIds = request.getPitIds();
-        if (pitIds.size() == 1 && "_all".equals(pitIds.get(0))) {
+        if (request.getPitIds().size() == 1 && "_all".equals(request.getPitIds().get(0))) {
             pitService.getAllPits(ActionListener.wrap(response -> {
                 request.clearAndSetPitIds(response.getPitInfos().stream().map(ListPitInfo::getPitId).collect(Collectors.toList()));
                 super.doExecute(task, request, listener);
@@ -114,7 +115,9 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
     @Override
     protected ShardsIterator shards(ClusterState clusterState, PitSegmentsRequest request, String[] concreteIndices) {
         final ArrayList<ShardRouting> iterators = new ArrayList<>();
-        for (String pitId : request.getPitIds()) {
+        // remove duplicates from the request
+        Set<String> uniquePitIds = new LinkedHashSet<>(request.getPitIds());
+        for (String pitId : uniquePitIds) {
             SearchContextId searchContext = decode(namedWriteableRegistry, pitId);
             for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
                 final SearchContextIdForNode perNode = entry.getValue();

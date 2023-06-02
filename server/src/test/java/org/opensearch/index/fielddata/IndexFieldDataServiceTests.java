@@ -327,10 +327,9 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             if (ft.hasDocValues()) {
                 ifds.getForField(ft, "test", () -> { throw new UnsupportedOperationException(); }); // no exception
             } else {
-                IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> ifds.getForField(ft, "test", () -> { throw new UnsupportedOperationException(); })
-                );
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ifds.getForField(ft, "test", () -> {
+                    throw new UnsupportedOperationException();
+                }));
                 assertThat(e.getMessage(), containsString("doc values"));
             }
         } finally {
@@ -360,6 +359,22 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberFieldMapper.NumberType.DOUBLE,
+                true,
+                false,
+                false,
+                false,
+                null,
+                Collections.emptyMap()
+            )
+        );
+    }
+
+    public void testRequireDocValuesOnUnsignedLongs() {
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG));
+        doTestRequireDocValues(
+            new NumberFieldMapper.NumberFieldType(
+                "field",
+                NumberFieldMapper.NumberType.UNSIGNED_LONG,
                 true,
                 false,
                 false,

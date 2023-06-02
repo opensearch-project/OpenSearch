@@ -73,7 +73,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.rest.RestStatus;
@@ -623,7 +623,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field or
             // that doesn't support data streams so it's safe to ignore
             int statusCode = e.getResponse().getStatusLine().getStatusCode();
-            if (org.opensearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
+            if (Set.of(404, 405, 500).contains(statusCode) == false) {
                 throw e;
             }
         }
@@ -1058,10 +1058,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     protected static Map<String, Object> getAlias(final String index, final String alias) throws IOException {
         String endpoint = "/_alias";
-        if (false == Strings.isEmpty(index)) {
+        if (false == org.opensearch.core.common.Strings.isEmpty(index)) {
             endpoint = index + endpoint;
         }
-        if (false == Strings.isEmpty(alias)) {
+        if (false == org.opensearch.core.common.Strings.isEmpty(alias)) {
             endpoint = endpoint + "/" + alias;
         }
         Map<String, Object> getAliasResponse = getAsMap(endpoint);
@@ -1244,7 +1244,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         final Builder options = RequestOptions.DEFAULT.toBuilder();
         // 8.0 kept in warning message for legacy purposes TODO: changge to 3.0
         final List<String> warningMessage = Arrays.asList(
-            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+            "Synced flush is deprecated and will be removed in 3.0. Use flush at _/flush or /{index}/_flush instead."
         );
         final List<String> expectedWarnings = Arrays.asList(
             "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version."

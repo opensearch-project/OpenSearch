@@ -368,7 +368,7 @@ public class WriteableSetting implements Writeable {
                 ((ByteSizeValue) defaultValue).writeTo(out);
                 break;
             case Version:
-                Version.writeVersion((Version) defaultValue, out);
+                out.writeVersion((Version) defaultValue);
                 break;
             default:
                 // This Should Never Happen (TM)
@@ -428,7 +428,7 @@ public class WriteableSetting implements Writeable {
             case ByteSizeValue:
                 return new ByteSizeValue(in);
             case Version:
-                return Version.readVersion(in);
+                return in.readVersion();
             default:
                 // This Should Never Happen (TM)
                 throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");

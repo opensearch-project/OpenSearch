@@ -33,7 +33,6 @@
 package org.opensearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -56,7 +55,6 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
@@ -70,7 +68,9 @@ import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -774,9 +774,9 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();
         String restoreUUID = UUIDs.randomBase64UUID();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            Index index = cursor.value.getIndex();
-            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            Index index = cursor.getIndex();
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(cursor);
 
             final int recoveryType = inputRecoveryType == null ? randomInt(5) : inputRecoveryType.intValue();
             if (recoveryType <= 4) {
@@ -829,10 +829,10 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
 
         final RoutingTable routingTable = routingTableBuilder.build();
 
-        final ImmutableOpenMap.Builder<String, ClusterState.Custom> restores = ImmutableOpenMap.builder();
+        final Map<String, ClusterState.Custom> restores = new HashMap<>();
         if (snapshotIndices.isEmpty() == false) {
             // Some indices are restored from snapshot, the RestoreInProgress must be set accordingly
-            ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = ImmutableOpenMap.builder();
+            final Map<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = new HashMap<>();
             for (ShardRouting shard : routingTable.allShards()) {
                 if (shard.primary() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                     final ShardId shardId = shard.shardId();
@@ -849,7 +849,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
                 snapshot,
                 RestoreInProgress.State.INIT,
                 new ArrayList<>(snapshotIndices),
-                restoreShards.build()
+                restoreShards
             );
             restores.put(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(restore).build());
         }
@@ -858,7 +858,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(node1))
             .metadata(metadataBuilder.build())
             .routingTable(routingTable)
-            .customs(restores.build())
+            .customs(restores)
             .build();
     }
 
@@ -885,14 +885,13 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
 
     private static class TestSnapshotsInfoService implements SnapshotsInfoService {
 
-        private volatile ImmutableOpenMap<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.of();
+        private volatile Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = Map.of();
 
         synchronized void addSnapshotShardSize(Snapshot snapshot, IndexId index, ShardId shard, Long size) {
-            final ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long> newSnapshotShardSizes = ImmutableOpenMap
-                .builder(snapshotShardSizes);
+            final Map<InternalSnapshotsInfoService.SnapshotShard, Long> newSnapshotShardSizes = new HashMap<>(snapshotShardSizes);
             boolean added = newSnapshotShardSizes.put(new InternalSnapshotsInfoService.SnapshotShard(snapshot, index, shard), size) == null;
             assert added : "cannot add snapshot shard size twice";
-            this.snapshotShardSizes = newSnapshotShardSizes.build();
+            this.snapshotShardSizes = Collections.unmodifiableMap(newSnapshotShardSizes);
         }
 
         @Override

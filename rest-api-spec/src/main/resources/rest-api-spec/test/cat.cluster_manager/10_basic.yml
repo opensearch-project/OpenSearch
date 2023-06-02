@@ -20,7 +20,7 @@ setup:
             host     .+ \n
             ip       .+ \n
             node     .+ \n
-        
+
         $/
 
 ---

@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
@@ -243,9 +243,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
+                    final boolean hasRemoteSegmentStore = indexShard.indexSettings().isRemoteStoreEnabled();
+                    if (hasRemoteSegmentStore) {
+                        indexShard.syncSegmentsFromRemoteSegmentStore(false, false);
+                    }
                     final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();
-                    final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog) == false;
+                    final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog || hasRemoteSegmentStore) == false;
                     final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!hasRemoteTranslog);
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
@@ -675,7 +679,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     e
                 );
             }
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            Throwable cause = BaseExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                 // this can also come from the source wrapped in a RemoteTransportException
                 onGoingRecoveries.fail(recoveryId, new RecoveryFailedException(request, "source has canceled the recovery", cause), false);
@@ -686,7 +690,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 cause = cause.getCause();
             }
             // do it twice, in case we have double transport exception
-            cause = ExceptionsHelper.unwrapCause(cause);
+            cause = BaseExceptionsHelper.unwrapCause(cause);
             if (cause instanceof RecoveryEngineException) {
                 // unwrap an exception that was thrown as part of the recovery
                 cause = cause.getCause();

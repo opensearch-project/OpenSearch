@@ -42,7 +42,9 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.opensearch.index.fielddata.fieldcomparator.IntValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.opensearch.index.fielddata.fieldcomparator.UnsignedLongValuesComparatorSource;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -65,76 +67,17 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * @opensearch.internal
      */
     public enum NumericType {
-        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN) {
-            @Deprecated
-            @Override
-            protected PointSortOptimization applyPointSortOptimization() {
-                return PointSortOptimization.DISABLED;
-            }
-        },
-        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
-            @Deprecated
-            @Override
-            protected PointSortOptimization applyPointSortOptimization() {
-                return PointSortOptimization.DISABLED;
-            }
-        },
-        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
-            @Deprecated
-            @Override
-            protected PointSortOptimization applyPointSortOptimization() {
-                return PointSortOptimization.DISABLED;
-            }
-        },
-        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
-            @Deprecated
-            @Override
-            protected PointSortOptimization applyPointSortOptimization() {
-                return PointSortOptimization.DISABLED;
-            }
-        },
-        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
-            @Deprecated
-            @Override
-            protected PointSortOptimization applyPointSortOptimization() {
-                return PointSortOptimization.ENABLED;
-            }
-        },
-        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE) {
-            @Deprecated
-            @Override
-            protected PointSortOptimization applyPointSortOptimization() {
-                return PointSortOptimization.ENABLED;
-            }
-        },
-        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE) {
-            @Deprecated
-            @Override
-            public PointSortOptimization applyPointSortOptimization() {
-                return PointSortOptimization.ENABLED;
-            }
-        },
-        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
-            @Deprecated
-            @Override
-            protected PointSortOptimization applyPointSortOptimization() {
-                return PointSortOptimization.DISABLED;
-            }
-        },
-        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC) {
-            @Deprecated
-            @Override
-            protected PointSortOptimization applyPointSortOptimization() {
-                return PointSortOptimization.DISABLED;
-            }
-        },
-        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC) {
-            @Deprecated
-            @Override
-            protected PointSortOptimization applyPointSortOptimization() {
-                return PointSortOptimization.ENABLED;
-            }
-        };
+        BOOLEAN(false, SortField.Type.INT, CoreValuesSourceType.BOOLEAN),
+        BYTE(false, SortField.Type.INT, CoreValuesSourceType.NUMERIC),
+        SHORT(false, SortField.Type.INT, CoreValuesSourceType.NUMERIC),
+        INT(false, SortField.Type.INT, CoreValuesSourceType.NUMERIC),
+        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
+        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
+        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
+        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC),
+        UNSIGNED_LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC);
 
         private final boolean floatingPoint;
         private final ValuesSourceType valuesSourceType;
@@ -153,24 +96,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         public final ValuesSourceType getValuesSourceType() {
             return valuesSourceType;
         }
-
-        @Deprecated
-        protected abstract PointSortOptimization applyPointSortOptimization();
-    }
-
-    /**
-     * Controls whether to apply sort optimization to skip non-competitive docs
-     * based on the BKD index.
-     *
-     * @deprecated this control will be removed in a future version of OpenSearch
-     *
-     * @opensearch.internal
-     * @opensearch.experimental
-     */
-    @Deprecated
-    private enum PointSortOptimization {
-        ENABLED,
-        DISABLED
     }
 
     /**
@@ -211,21 +136,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
-
-        // LUCENE-9280 added the ability for collectors to skip non-competitive
-        // documents when top docs are sorted by other fields different from the _score.
-        // However, from Lucene 9 onwards, numeric sort optimisation requires the byte size
-        // for points (BKD index) and doc values (columnar) and SortField.Type to be matched.
-        // NumericType violates this requirement
-        // (see: https://github.com/opensearch-project/OpenSearch/issues/2063#issuecomment-1069358826 test failure)
-        // because it uses the largest byte size (LONG) for the SortField of most types. The section below disables
-        // the BKD based sort optimization for numeric types whose encoded BYTE size does not match the comparator (LONG)/
-        // So as of now, we can only enable for DATE, DATE_NANOSECONDS, LONG, DOUBLE.
-        // BOOLEAN, BYTE, SHORT, INT, HALF_FLOAT, FLOAT (use long for doc values, but fewer for BKD Points)
-        // todo : Enable other SortField.Type as well, that will require wider change
-        if (getNumericType().applyPointSortOptimization() == PointSortOptimization.DISABLED) {
-            sortField.setOptimizeSortWithPoints(false);
-        }
         return sortField;
     }
 
@@ -294,13 +204,17 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
                 return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
             case DOUBLE:
                 return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+            case UNSIGNED_LONG:
+                return new UnsignedLongValuesComparatorSource(this, missingValue, sortMode, nested);
             case DATE:
                 return dateComparatorSource(missingValue, sortMode, nested);
             case DATE_NANOSECONDS:
                 return dateNanosComparatorSource(missingValue, sortMode, nested);
+            case LONG:
+                return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
             default:
                 assert !targetNumericType.isFloatingPoint();
-                return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+                return new IntValuesComparatorSource(this, missingValue, sortMode, nested);
         }
     }
 

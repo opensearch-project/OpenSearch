@@ -40,8 +40,8 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Booleans;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
@@ -200,6 +200,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+        searchRequest.pipeline(request.param("search_pipeline"));
 
         checkRestTotalHits(request, searchRequest);
 

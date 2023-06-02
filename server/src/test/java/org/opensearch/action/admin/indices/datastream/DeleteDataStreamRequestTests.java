@@ -41,11 +41,10 @@ import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
-import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.Index;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -56,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -95,11 +95,8 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";
-        final List<String> otherIndices = randomSubsetOf(org.opensearch.common.collect.List.of("foo", "bar", "baz"));
-        ClusterState cs = getClusterStateWithDataStreams(
-            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, 2)),
-            otherIndices
-        );
+        final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
+        ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
@@ -112,13 +109,13 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
     public void testDeleteMultipleDataStreams() {
         String[] dataStreamNames = { "foo", "bar", "baz", "eggplant" };
         ClusterState cs = getClusterStateWithDataStreams(
-            org.opensearch.common.collect.List.of(
+            List.of(
                 new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[2], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[3], randomIntBetween(1, 3))
             ),
-            org.opensearch.common.collect.List.of()
+            List.of()
         );
 
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { "ba*", "eggplant" });
@@ -171,7 +168,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
             Collections.singletonList(dataStreamName),
             0,
             1,
-            ImmutableOpenMap.of(),
+            Map.of(),
             null,
             null,
             null
@@ -182,13 +179,13 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
         final String dataStreamName = "my-data-stream";
         String[] dataStreamNames = { "foo", "bar", "baz", "eggplant" };
         ClusterState cs = getClusterStateWithDataStreams(
-            org.opensearch.common.collect.List.of(
+            List.of(
                 new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[2], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[3], randomIntBetween(1, 3))
             ),
-            org.opensearch.common.collect.List.of()
+            List.of()
         );
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);

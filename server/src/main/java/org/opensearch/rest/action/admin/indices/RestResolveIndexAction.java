@@ -35,7 +35,7 @@ package org.opensearch.rest.action.admin.indices;
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -57,7 +57,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.opensearch.common.collect.List.of(new Route(RestRequest.Method.GET, "/_resolve/index/{name}"));
+        return List.of(new Route(RestRequest.Method.GET, "/_resolve/index/{name}"));
     }
 
     @Override

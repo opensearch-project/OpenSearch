@@ -37,6 +37,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -44,7 +45,6 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
@@ -58,6 +58,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
@@ -173,27 +174,70 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         AtomicArray<SearchPhaseResult> results = generateQueryResults(nShards, suggestions, queryResultSize, false);
-        Optional<SearchPhaseResult> first = results.asList().stream().findFirst();
-        int from = 0, size = 0;
-        if (first.isPresent()) {
-            from = first.get().queryResult().from();
-            size = first.get().queryResult().size();
+        performSortDocs(results, queryResultSize);
+    }
+
+    /**
+     * Test to verify merge shard results with SortField.Type.Int, document type Integer
+     */
+    public void testSortIntFieldDocsMerge() {
+        List<CompletionSuggestion> suggestions = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20), false));
         }
-        int accumulatedLength = Math.min(queryResultSize, getTotalQueryHits(results));
-        List<CompletionSuggestion> reducedCompletionSuggestions = reducedSuggest(results);
-        for (Suggest.Suggestion<?> suggestion : reducedCompletionSuggestions) {
-            int suggestionSize = suggestion.getEntries().get(0).getOptions().size();
-            accumulatedLength += suggestionSize;
+        int nShards = randomIntBetween(1, 20);
+        int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
+        AtomicArray<SearchPhaseResult> results = generateQueryResultsWithIntSortedField(nShards, suggestions, queryResultSize, false);
+        performSortDocs(results, queryResultSize);
+    }
+
+    /**
+     * Test to verify merge shard results with different SortField.Type.
+     * Few shards with Int and few shards with Long
+     */
+    public void testSortIntLongFieldDocsMerge() {
+        List<CompletionSuggestion> suggestions = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20), false));
         }
-        List<TopDocs> topDocsList = new ArrayList<>();
-        for (SearchPhaseResult result : results.asList()) {
-            QuerySearchResult queryResult = result.queryResult();
-            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
-            SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
-            topDocsList.add(topDocs);
+        int nShards = randomIntBetween(1, 20);
+        int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
+        AtomicArray<SearchPhaseResult> results = generateQueryResultsWithIntLongSortedField(nShards, suggestions, queryResultSize, false);
+        performSortDocs(results, queryResultSize);
+    }
+
+    /**
+     * Test to verify merge shard results with SortField.Type.Float, document type Float
+     */
+    public void testSortFloatFieldDocsMerge() {
+        List<CompletionSuggestion> suggestions = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20), false));
         }
-        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, topDocsList, from, size, reducedCompletionSuggestions).scoreDocs;
-        assertThat(sortedDocs.length, equalTo(accumulatedLength));
+        int nShards = randomIntBetween(1, 20);
+        int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
+        AtomicArray<SearchPhaseResult> results = generateQueryResultsWithFloatSortedField(nShards, suggestions, queryResultSize, false);
+        performSortDocs(results, queryResultSize);
+    }
+
+    /**
+     * Test to verify merge shard results with different SortField.Type.
+     * Few shards with Float and few shards with Double
+     */
+    public void testSortIntFloatDoubleFieldDocsMerge() {
+        List<CompletionSuggestion> suggestions = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            suggestions.add(new CompletionSuggestion(randomAlphaOfLength(randomIntBetween(1, 5)), randomIntBetween(1, 20), false));
+        }
+        int nShards = randomIntBetween(1, 20);
+        int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
+        AtomicArray<SearchPhaseResult> results = generateQueryResultsWithFloatDoubleSortedField(
+            nShards,
+            suggestions,
+            queryResultSize,
+            false
+        );
+        performSortDocs(results, queryResultSize);
     }
 
     public void testSortDocsIsIdempotent() throws Exception {
@@ -239,6 +283,30 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             assertEquals(sortedDocs[i].shardIndex, sortedDocs2[i].shardIndex);
             assertEquals(sortedDocs[i].score, sortedDocs2[i].score, 0.0f);
         }
+    }
+
+    private static void performSortDocs(AtomicArray<SearchPhaseResult> results, int queryResultSize) {
+        Optional<SearchPhaseResult> first = results.asList().stream().findFirst();
+        int from = 0, size = 0;
+        if (first.isPresent()) {
+            from = first.get().queryResult().from();
+            size = first.get().queryResult().size();
+        }
+        int accumulatedLength = Math.min(queryResultSize, getTotalQueryHits(results));
+        List<CompletionSuggestion> reducedCompletionSuggestions = reducedSuggest(results);
+        for (Suggest.Suggestion<?> suggestion : reducedCompletionSuggestions) {
+            int suggestionSize = suggestion.getEntries().get(0).getOptions().size();
+            accumulatedLength += suggestionSize;
+        }
+        List<TopDocs> topDocsList = new ArrayList<>();
+        for (SearchPhaseResult result : results.asList()) {
+            QuerySearchResult queryResult = result.queryResult();
+            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
+            SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
+            topDocsList.add(topDocs);
+        }
+        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, topDocsList, from, size, reducedCompletionSuggestions).scoreDocs;
+        assertThat(sortedDocs.length, equalTo(accumulatedLength));
     }
 
     private AtomicArray<SearchPhaseResult> generateSeededQueryResults(
@@ -387,6 +455,128 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             queryResults.set(shardIndex, querySearchResult);
         }
         return queryResults;
+    }
+
+    private static AtomicArray<SearchPhaseResult> generateQueryResultsWithIntSortedField(
+        int nShards,
+        List<CompletionSuggestion> suggestions,
+        int searchHitsSize,
+        boolean useConstantScore
+    ) {
+        AtomicArray<SearchPhaseResult> results = generateQueryResults(nShards, suggestions, searchHitsSize, false);
+        for (int i = 0; i < results.length(); i++) {
+            int nDocs = randomIntBetween(0, searchHitsSize);
+            float maxScore = 0;
+            final TopDocs topDocs = getIntTopFieldDocs(nDocs, useConstantScore);
+            results.get(i).queryResult().topDocs(new TopDocsAndMaxScore(topDocs, maxScore), new DocValueFormat[1]);
+        }
+        return results;
+    }
+
+    private static AtomicArray<SearchPhaseResult> generateQueryResultsWithFloatSortedField(
+        int nShards,
+        List<CompletionSuggestion> suggestions,
+        int searchHitsSize,
+        boolean useConstantScore
+    ) {
+        AtomicArray<SearchPhaseResult> results = generateQueryResults(nShards, suggestions, searchHitsSize, false);
+        for (int i = 0; i < results.length(); i++) {
+            int nDocs = randomIntBetween(0, searchHitsSize);
+            float maxScore = 0;
+            final TopDocs topDocs = getFloatTopFieldDocs(nDocs, useConstantScore);
+            results.get(i).queryResult().topDocs(new TopDocsAndMaxScore(topDocs, maxScore), new DocValueFormat[1]);
+        }
+        return results;
+    }
+
+    private static AtomicArray<SearchPhaseResult> generateQueryResultsWithIntLongSortedField(
+        int nShards,
+        List<CompletionSuggestion> suggestions,
+        int searchHitsSize,
+        boolean useConstantScore
+    ) {
+        AtomicArray<SearchPhaseResult> results = generateQueryResults(nShards, suggestions, searchHitsSize, false);
+        for (int i = 0; i < results.length(); i++) {
+            int nDocs = randomIntBetween(0, searchHitsSize);
+            float maxScore = 0;
+            final TopDocs topDocs;
+            if (i % 2 == 0) {
+                topDocs = getLongTopFieldDocs(nDocs, useConstantScore);
+            } else {
+                topDocs = getIntTopFieldDocs(nDocs, useConstantScore);
+            }
+            results.get(i).queryResult().topDocs(new TopDocsAndMaxScore(topDocs, maxScore), new DocValueFormat[1]);
+        }
+        return results;
+    }
+
+    private static AtomicArray<SearchPhaseResult> generateQueryResultsWithFloatDoubleSortedField(
+        int nShards,
+        List<CompletionSuggestion> suggestions,
+        int searchHitsSize,
+        boolean useConstantScore
+    ) {
+        AtomicArray<SearchPhaseResult> results = generateQueryResults(nShards, suggestions, searchHitsSize, false);
+        for (int i = 0; i < results.length(); i++) {
+            int nDocs = randomIntBetween(0, searchHitsSize);
+            float maxScore = 0;
+            final TopDocs topDocs;
+            if (i % 2 == 0) {
+                topDocs = getFloatTopFieldDocs(nDocs, useConstantScore);
+            } else {
+                topDocs = getDoubleTopFieldDocs(nDocs, useConstantScore);
+            }
+            results.get(i).queryResult().topDocs(new TopDocsAndMaxScore(topDocs, maxScore), new DocValueFormat[1]);
+        }
+        return results;
+    }
+
+    private static TopFieldDocs getLongTopFieldDocs(int nDocs, boolean useConstantScore) {
+        FieldDoc[] fieldDocs = new FieldDoc[nDocs];
+        SortField[] sortFields = { new SortedNumericSortField("field", SortField.Type.LONG, true) };
+        float maxScore = 0;
+        for (int i = 0; i < nDocs; i++) {
+            float score = useConstantScore ? 1.0F : Math.abs(randomFloat());
+            fieldDocs[i] = new FieldDoc(i, score, new Long[] { randomLong() });
+            maxScore = Math.max(score, maxScore);
+        }
+        return new TopFieldDocs(new TotalHits(fieldDocs.length, TotalHits.Relation.EQUAL_TO), fieldDocs, sortFields);
+    }
+
+    private static TopFieldDocs getFloatTopFieldDocs(int nDocs, boolean useConstantScore) {
+        FieldDoc[] fieldDocs = new FieldDoc[nDocs];
+        SortField[] sortFields = { new SortedNumericSortField("field", SortField.Type.FLOAT, true) };
+        float maxScore = 0;
+        for (int i = 0; i < nDocs; i++) {
+            float score = useConstantScore ? 1.0F : Math.abs(randomFloat());
+            fieldDocs[i] = new FieldDoc(i, score, new Float[] { randomFloat() });
+            maxScore = Math.max(score, maxScore);
+        }
+        return new TopFieldDocs(new TotalHits(fieldDocs.length, TotalHits.Relation.EQUAL_TO), fieldDocs, sortFields);
+    }
+
+    private static TopFieldDocs getDoubleTopFieldDocs(int nDocs, boolean useConstantScore) {
+        FieldDoc[] fieldDocs = new FieldDoc[nDocs];
+        SortField[] sortFields = { new SortedNumericSortField("field", SortField.Type.DOUBLE, true) };
+        float maxScore = 0;
+        for (int i = 0; i < nDocs; i++) {
+            float score = useConstantScore ? 1.0F : Math.abs(randomFloat());
+            fieldDocs[i] = new FieldDoc(i, score, new Double[] { randomDouble() });
+            maxScore = Math.max(score, maxScore);
+        }
+        return new TopFieldDocs(new TotalHits(fieldDocs.length, TotalHits.Relation.EQUAL_TO), fieldDocs, sortFields);
+    }
+
+    private static TopFieldDocs getIntTopFieldDocs(int nDocs, boolean useConstantScore) {
+        FieldDoc[] fieldDocs = new FieldDoc[nDocs];
+        SortField[] sortFields = { new SortedNumericSortField("field", SortField.Type.INT, true) };
+        float maxScore = 0;
+        for (int i = 0; i < nDocs; i++) {
+            float score = useConstantScore ? 1.0F : Math.abs(randomFloat());
+            fieldDocs[i] = new FieldDoc(i, score, new Integer[] { randomInt() });
+            maxScore = Math.max(score, maxScore);
+        }
+        return new TopFieldDocs(new TotalHits(fieldDocs.length, TotalHits.Relation.EQUAL_TO), fieldDocs, sortFields);
     }
 
     private static int getTotalQueryHits(AtomicArray<SearchPhaseResult> results) {

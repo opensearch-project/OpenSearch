@@ -33,7 +33,7 @@
 package org.opensearch.packaging.util;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 
@@ -83,7 +83,7 @@ public class FileUtils {
     public static List<Path> lsGlob(Path directory, String glob) {
         List<Path> paths = new ArrayList<>();
         if (Files.exists(directory) == false) {
-            return org.opensearch.common.collect.List.of();
+            return List.of();
         }
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory, glob)) {
 

@@ -8,7 +8,6 @@
 
 package org.opensearch.action.search;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -18,9 +17,9 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.Strings;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
@@ -172,8 +171,7 @@ public class PitService {
      */
     public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
         final List<DiscoveryNode> nodes = new ArrayList<>();
-        for (ObjectCursor<DiscoveryNode> cursor : clusterService.state().nodes().getDataNodes().values()) {
-            DiscoveryNode node = cursor.value;
+        for (final DiscoveryNode node : clusterService.state().nodes().getDataNodes().values()) {
             nodes.add(node);
         }
         DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[0]);

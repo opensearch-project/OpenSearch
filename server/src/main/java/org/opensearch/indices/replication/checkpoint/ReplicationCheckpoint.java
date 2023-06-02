@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication.checkpoint;
 
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -29,23 +30,33 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
     private final long primaryTerm;
     private final long segmentsGen;
     private final long segmentInfosVersion;
+    private final long length;
+    private final String codec;
 
-    public static ReplicationCheckpoint empty(ShardId shardId) {
-        return new ReplicationCheckpoint(shardId);
+    public static ReplicationCheckpoint empty(ShardId shardId, String codec) {
+        return new ReplicationCheckpoint(shardId, codec);
     }
 
-    private ReplicationCheckpoint(ShardId shardId) {
+    private ReplicationCheckpoint(ShardId shardId, String codec) {
         this.shardId = shardId;
         primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
         segmentsGen = SequenceNumbers.NO_OPS_PERFORMED;
         segmentInfosVersion = SequenceNumbers.NO_OPS_PERFORMED;
+        length = 0L;
+        this.codec = codec;
     }
 
-    public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion) {
+    public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion, String codec) {
+        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec);
+    }
+
+    public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion, long length, String codec) {
         this.shardId = shardId;
         this.primaryTerm = primaryTerm;
         this.segmentsGen = segmentsGen;
         this.segmentInfosVersion = segmentInfosVersion;
+        this.length = length;
+        this.codec = codec;
     }
 
     public ReplicationCheckpoint(StreamInput in) throws IOException {
@@ -53,6 +64,13 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         primaryTerm = in.readLong();
         segmentsGen = in.readLong();
         segmentInfosVersion = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
+            length = in.readLong();
+            codec = in.readString();
+        } else {
+            length = 0L;
+            codec = null;
+        }
     }
 
     /**
@@ -87,12 +105,32 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         return shardId;
     }
 
+    /**
+     * @return The size in bytes of this checkpoint.
+     */
+    public long getLength() {
+        return length;
+    }
+
+    /**
+     * Latest supported codec version
+     *
+         * @return the codec name
+     */
+    public String getCodec() {
+        return codec;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
         out.writeLong(primaryTerm);
         out.writeLong(segmentsGen);
         out.writeLong(segmentInfosVersion);
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
+            out.writeLong(length);
+            out.writeString(codec);
+        }
     }
 
     @Override
@@ -108,7 +146,8 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         return primaryTerm == that.primaryTerm
             && segmentsGen == that.segmentsGen
             && segmentInfosVersion == that.segmentInfosVersion
-            && Objects.equals(shardId, that.shardId);
+            && Objects.equals(shardId, that.shardId)
+            && codec.equals(that.codec);
     }
 
     @Override
@@ -137,6 +176,10 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             + segmentsGen
             + ", version="
             + segmentInfosVersion
+            + ", size="
+            + length
+            + ", codec="
+            + codec
             + '}';
     }
 }

@@ -12,11 +12,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.indices.cluster.IndicesClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -38,9 +42,9 @@ public class FileCacheCleaner implements IndexEventListener {
     private final NodeEnvironment nodeEnvironment;
     private final FileCache fileCache;
 
-    public FileCacheCleaner(NodeEnvironment nodeEnvironment) {
+    public FileCacheCleaner(NodeEnvironment nodeEnvironment, FileCache fileCache) {
         this.nodeEnvironment = nodeEnvironment;
-        this.fileCache = nodeEnvironment.fileCache();
+        this.fileCache = fileCache;
     }
 
     /**
@@ -51,10 +55,9 @@ public class FileCacheCleaner implements IndexEventListener {
     @Override
     public void beforeIndexShardDeleted(ShardId shardId, Settings settings) {
         try {
-            String storeType = settings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
-            if (IndexModule.Type.REMOTE_SNAPSHOT.match(storeType)) {
-                ShardPath shardPath = ShardPath.loadFileCachePath(nodeEnvironment, shardId);
-                Path localStorePath = shardPath.getDataPath().resolve(LOCAL_STORE_LOCATION);
+            if (isRemoteSnapshot(settings)) {
+                final ShardPath shardPath = ShardPath.loadFileCachePath(nodeEnvironment, shardId);
+                final Path localStorePath = shardPath.getDataPath().resolve(LOCAL_STORE_LOCATION);
                 try (DirectoryStream<Path> ds = Files.newDirectoryStream(localStorePath)) {
                     for (Path subPath : ds) {
                         fileCache.remove(subPath.toRealPath());
@@ -62,7 +65,44 @@ public class FileCacheCleaner implements IndexEventListener {
                 }
             }
         } catch (IOException ioe) {
-            log.error(() -> new ParameterizedMessage("Error removing items from cache during shard deletion {})", shardId), ioe);
+            log.error(() -> new ParameterizedMessage("Error removing items from cache during shard deletion {}", shardId), ioe);
         }
+    }
+
+    @Override
+    public void afterIndexShardDeleted(ShardId shardId, Settings settings) {
+        if (isRemoteSnapshot(settings)) {
+            final Path path = ShardPath.loadFileCachePath(nodeEnvironment, shardId).getDataPath();
+            try {
+                if (Files.exists(path)) {
+                    IOUtils.rm(path);
+                }
+            } catch (IOException e) {
+                log.error(() -> new ParameterizedMessage("Failed to delete cache path for shard {}", shardId), e);
+            }
+        }
+    }
+
+    @Override
+    public void afterIndexRemoved(
+        Index index,
+        IndexSettings indexSettings,
+        IndicesClusterStateService.AllocatedIndices.IndexRemovalReason reason
+    ) {
+        if (isRemoteSnapshot(indexSettings.getSettings())
+            && reason == IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED) {
+            final Path indexCachePath = nodeEnvironment.fileCacheNodePath().fileCachePath.resolve(index.getUUID());
+            if (Files.exists(indexCachePath)) {
+                try {
+                    IOUtils.rm(indexCachePath);
+                } catch (IOException e) {
+                    log.error(() -> new ParameterizedMessage("Failed to delete cache path for index {}", index), e);
+                }
+            }
+        }
+    }
+
+    private static boolean isRemoteSnapshot(Settings settings) {
+        return IndexModule.Type.REMOTE_SNAPSHOT.match(settings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()));
     }
 }

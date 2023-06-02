@@ -12,8 +12,9 @@ import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocat
 import org.opensearch.cluster.routing.allocation.allocator.ShardsBalancer;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Predicate;
+
+import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CONSTRAINT_WEIGHT;
 
 /**
  * Defines a constraint useful to de-prioritize certain nodes as target of unassigned shards used in {@link AllocationConstraints} or
@@ -23,17 +24,11 @@ import java.util.function.Predicate;
  */
 public class Constraint implements Predicate<Constraint.ConstraintParams> {
 
-    public final static long CONSTRAINT_WEIGHT = 1000000L;
-
-    private String name;
-
     private boolean enable;
     private Predicate<ConstraintParams> predicate;
 
-    public Constraint(String name, Predicate<ConstraintParams> constraintPredicate) {
-        this.name = name;
+    public Constraint(Predicate<ConstraintParams> constraintPredicate) {
         this.predicate = constraintPredicate;
-        this.enable = false;
     }
 
     @Override
@@ -41,25 +36,8 @@ public class Constraint implements Predicate<Constraint.ConstraintParams> {
         return this.enable && predicate.test(constraintParams);
     }
 
-    public String getName() {
-        return name;
-    }
-
     public void setEnable(boolean enable) {
         this.enable = enable;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Constraint that = (Constraint) o;
-        return name.equals(that.name);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name);
     }
 
     static class ConstraintParams {

@@ -34,8 +34,9 @@ package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.analysis.PreBuiltAnalyzers;
@@ -77,7 +78,7 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     @Override
     public AnalyzerProvider<?> get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
         throws IOException {
-        Version versionCreated = Version.indexCreated(settings);
+        Version versionCreated = IndexMetadata.indexCreated(settings);
         if (Version.CURRENT.equals(versionCreated) == false) {
             return super.get(indexSettings, environment, name, settings);
         } else {

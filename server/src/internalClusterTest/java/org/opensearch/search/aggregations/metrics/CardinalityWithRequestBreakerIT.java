@@ -42,6 +42,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
@@ -62,7 +63,7 @@ public class CardinalityWithRequestBreakerIT extends OpenSearchIntegTestCase {
                 .mapToObj(
                     i -> client().prepareIndex("test")
                         .setId("id_" + i)
-                        .setSource(org.opensearch.common.collect.Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
+                        .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
                 )
                 .toArray(IndexRequestBuilder[]::new)
         );

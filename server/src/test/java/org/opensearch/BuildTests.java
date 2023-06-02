@@ -32,7 +32,7 @@
 
 package org.opensearch;
 
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -60,9 +60,11 @@ public class BuildTests extends OpenSearchTestCase {
         URL url = Build.getOpenSearchCodeSourceLocation();
         // throws exception if does not exist, or we cannot access it
         try (InputStream ignored = FileSystemUtils.openFileURLStream(url)) {}
-        // these should never be null
+        // these should never be null or "unknown"
         assertNotNull(Build.CURRENT.date());
+        assertNotEquals(Build.CURRENT.date(), "unknown");
         assertNotNull(Build.CURRENT.hash());
+        assertNotEquals(Build.CURRENT.hash(), "unknown");
     }
 
     public void testIsProduction() {
@@ -187,7 +189,7 @@ public class BuildTests extends OpenSearchTestCase {
         private final Build build;
 
         WriteableBuild(StreamInput in) throws IOException {
-            build = Build.readBuild(in);
+            build = in.readBuild();
         }
 
         WriteableBuild(Build build) {
@@ -196,7 +198,7 @@ public class BuildTests extends OpenSearchTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            Build.writeBuild(build, out);
+            out.writeBuild(build);
         }
 
         @Override

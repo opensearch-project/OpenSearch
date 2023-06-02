@@ -46,7 +46,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -437,7 +437,16 @@ public class IndexingPressureIT extends OpenSearchIntegTestCase {
     }
 
     private String getCoordinatingOnlyNode() {
-        return client().admin().cluster().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().iterator().next().value
+        return client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .nodes()
+            .getCoordinatingOnlyNodes()
+            .values()
+            .iterator()
+            .next()
             .getName();
     }
 

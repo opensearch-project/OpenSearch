@@ -6,6 +6,7 @@
  * compatible open source license.
  */
 
+
 import javax.annotation.Nullable
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -135,6 +136,7 @@ configure([
   project(":plugins:discovery-ec2:qa:amazon-ec2"),
   project(":plugins:discovery-gce"),
   project(":plugins:discovery-gce:qa:gce"),
+  project(":plugins:identity-shiro"),
   project(":plugins:ingest-attachment"),
   project(":plugins:mapper-annotated-text"),
   project(":plugins:mapper-murmur3"),
@@ -164,6 +166,7 @@ configure([
 configure([
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
+  project(":plugins:events-correlation-engine"),
   project(":server")
 ]) {
   project.tasks.withType(MissingJavadocTask) {

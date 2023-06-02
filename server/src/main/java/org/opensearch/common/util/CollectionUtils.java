@@ -32,14 +32,8 @@
 
 package org.opensearch.common.util;
 
-import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
-import org.apache.lucene.util.IntroSorter;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Iterators;
+import org.opensearch.core.common.Strings;
 
 import java.nio.file.Path;
 import java.util.AbstractList;
@@ -50,7 +44,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -95,59 +91,28 @@ public class CollectionUtils {
         return new RotatedList<>(list, d);
     }
 
-    public static void sortAndDedup(final ObjectArrayList<byte[]> array) {
-        int len = array.size();
-        if (len > 1) {
-            sort(array);
-            int uniqueCount = 1;
-            for (int i = 1; i < len; ++i) {
-                if (!Arrays.equals(array.get(i), array.get(i - 1))) {
-                    array.set(uniqueCount++, array.get(i));
-                }
-            }
-            array.elementsCount = uniqueCount;
+    /**
+     * in place de-duplicates items in a list
+     */
+    public static <T> void sortAndDedup(final List<T> array, Comparator<T> comparator) {
+        // base case: one item
+        if (array.size() <= 1) {
+            return;
         }
-    }
+        array.sort(comparator);
+        ListIterator<T> deduped = array.listIterator();
+        T cmp = deduped.next(); // return the first item and advance
+        Iterator<T> oldArray = array.iterator();
+        oldArray.next(); // advance to the old to the second item (advanced to third below)
 
-    public static void sort(final ObjectArrayList<byte[]> array) {
-        new IntroSorter() {
-
-            byte[] pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                final byte[] tmp = array.get(i);
-                array.set(i, array.get(j));
-                array.set(j, tmp);
+        do {
+            T old = oldArray.next(); // get the next item and advance iter
+            if (comparator.compare(cmp, old) != 0 && (cmp = deduped.next()) != old) {
+                deduped.set(old);
             }
-
-            @Override
-            protected int compare(int i, int j) {
-                return compare(array.get(i), array.get(j));
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = array.get(i);
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return compare(pivot, array.get(j));
-            }
-
-            private int compare(byte[] left, byte[] right) {
-                for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
-                    int a = left[i] & 0xFF;
-                    int b = right[j] & 0xFF;
-                    if (a != b) {
-                        return a - b;
-                    }
-                }
-                return left.length - right.length;
-            }
-
-        }.sort(0, array.size());
+        } while (oldArray.hasNext());
+        // in place update
+        array.subList(deduped.nextIndex(), array.size()).clear();
     }
 
     public static int[] toArray(Collection<Integer> ints) {
@@ -250,65 +215,6 @@ public class CollectionUtils {
         public int size() {
             return in.size();
         }
-    }
-
-    public static void sort(final BytesRefArray bytes, final int[] indices) {
-        sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
-    }
-
-    private static void sort(
-        final BytesRefBuilder scratch,
-        final BytesRefBuilder scratch1,
-        final BytesRefArray bytes,
-        final int[] indices
-    ) {
-
-        final int numValues = bytes.size();
-        assert indices.length >= numValues;
-        if (numValues > 1) {
-            new InPlaceMergeSorter() {
-                final Comparator<BytesRef> comparator = Comparator.naturalOrder();
-
-                @Override
-                protected int compare(int i, int j) {
-                    return comparator.compare(bytes.get(scratch, indices[i]), bytes.get(scratch1, indices[j]));
-                }
-
-                @Override
-                protected void swap(int i, int j) {
-                    int value_i = indices[i];
-                    indices[i] = indices[j];
-                    indices[j] = value_i;
-                }
-            }.sort(0, numValues);
-        }
-
-    }
-
-    public static int sortAndDedup(final BytesRefArray bytes, final int[] indices) {
-        final BytesRefBuilder scratch = new BytesRefBuilder();
-        final BytesRefBuilder scratch1 = new BytesRefBuilder();
-        final int numValues = bytes.size();
-        assert indices.length >= numValues;
-        if (numValues <= 1) {
-            return numValues;
-        }
-        sort(scratch, scratch1, bytes, indices);
-        int uniqueCount = 1;
-        BytesRefBuilder previous = scratch;
-        BytesRefBuilder current = scratch1;
-        bytes.get(previous, indices[0]);
-        for (int i = 1; i < numValues; ++i) {
-            bytes.get(current, indices[i]);
-            if (!previous.get().equals(current.get())) {
-                indices[uniqueCount++] = indices[i];
-            }
-            BytesRefBuilder tmp = previous;
-            previous = current;
-            current = tmp;
-        }
-        return uniqueCount;
-
     }
 
     public static <E> ArrayList<E> iterableAsArrayList(Iterable<? extends E> elements) {

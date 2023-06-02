@@ -8,6 +8,8 @@
 
 package org.opensearch.search.backpressure.settings;
 
+import java.util.Locale;
+
 /**
  * Defines the search backpressure mode.
  */
@@ -38,7 +40,7 @@ public enum SearchBackpressureMode {
     }
 
     public static SearchBackpressureMode fromName(String name) {
-        switch (name) {
+        switch (name.toLowerCase(Locale.ROOT)) {
             case "disabled":
                 return DISABLED;
             case "monitor_only":

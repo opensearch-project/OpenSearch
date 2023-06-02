@@ -38,10 +38,11 @@ import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.ResponseCollectorService;
@@ -93,16 +94,30 @@ public class OperationRouting {
 
     public static final Setting<Boolean> STRICT_WEIGHTED_SHARD_ROUTING_ENABLED = Setting.boolSetting(
         "cluster.routing.weighted.strict",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Boolean> IGNORE_WEIGHTED_SHARD_ROUTING = Setting.boolSetting(
+        "cluster.routing.ignore_weighted_routing",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    private static final List<Preference> WEIGHTED_ROUTING_RESTRICTED_PREFERENCES = Arrays.asList(
+        Preference.ONLY_NODES,
+        Preference.PREFER_NODES
+    );
+
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
     private volatile double weightedRoutingDefaultWeight;
     private volatile boolean isFailOpenEnabled;
     private volatile boolean isStrictWeightedShardRouting;
+    private volatile boolean ignoreWeightedRouting;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
@@ -116,11 +131,13 @@ public class OperationRouting {
         this.weightedRoutingDefaultWeight = WEIGHTED_ROUTING_DEFAULT_WEIGHT.get(settings);
         this.isFailOpenEnabled = WEIGHTED_ROUTING_FAILOPEN_ENABLED.get(settings);
         this.isStrictWeightedShardRouting = STRICT_WEIGHTED_SHARD_ROUTING_ENABLED.get(settings);
+        this.ignoreWeightedRouting = IGNORE_WEIGHTED_SHARD_ROUTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
         clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_DEFAULT_WEIGHT, this::setWeightedRoutingDefaultWeight);
         clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_FAILOPEN_ENABLED, this::setFailOpenEnabled);
         clusterSettings.addSettingsUpdateConsumer(STRICT_WEIGHTED_SHARD_ROUTING_ENABLED, this::setStrictWeightedShardRouting);
+        clusterSettings.addSettingsUpdateConsumer(IGNORE_WEIGHTED_SHARD_ROUTING, this::setIgnoreWeightedRouting);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -141,6 +158,10 @@ public class OperationRouting {
 
     void setStrictWeightedShardRouting(boolean strictWeightedShardRouting) {
         this.isStrictWeightedShardRouting = strictWeightedShardRouting;
+    }
+
+    void setIgnoreWeightedRouting(boolean isWeightedRoundRobinEnabled) {
+        this.ignoreWeightedRouting = isWeightedRoundRobinEnabled;
     }
 
     public boolean isIgnoreAwarenessAttr() {
@@ -218,6 +239,13 @@ public class OperationRouting {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
+            IndexMetadata indexMetadataForShard = indexMetadata(clusterState, shard.shardId.getIndex().getName());
+            if (IndexModule.Type.REMOTE_SNAPSHOT.match(
+                indexMetadataForShard.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+            ) && (preference == null || preference.isEmpty())) {
+                preference = Preference.PRIMARY.type();
+            }
+
             ShardIterator iterator = preferenceActiveShardIterator(
                 shard,
                 clusterState.nodes().getLocalNodeId(),
@@ -314,11 +342,7 @@ public class OperationRouting {
                 }
             }
             preferenceType = Preference.parse(preference);
-            if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
-                throw new PreferenceBasedSearchNotAllowedException(
-                    "Preference type  based routing not allowed with strict weighted shard routing enabled"
-                );
-            }
+            checkPreferenceBasedRoutingAllowed(preferenceType, weightedRoutingMetadata);
             switch (preferenceType) {
                 case PREFER_NODES:
                     final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
@@ -326,6 +350,14 @@ public class OperationRouting {
                     return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
                 case LOCAL:
                     return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
+                case PRIMARY:
+                    return indexShard.primaryActiveInitializingShardIt();
+                case REPLICA:
+                    return indexShard.replicaActiveInitializingShardIt();
+                case PRIMARY_FIRST:
+                    return indexShard.primaryFirstActiveInitializingShardsIt();
+                case REPLICA_FIRST:
+                    return indexShard.replicaFirstActiveInitializingShardsIt();
                 case ONLY_LOCAL:
                     return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
                 case ONLY_NODES:
@@ -344,11 +376,16 @@ public class OperationRouting {
         // for a different element in the list by also incorporating the
         // shard ID into the hash of the user-supplied preference key.
         routingHash = 31 * routingHash + indexShard.shardId.hashCode();
-        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
-            return indexShard.activeInitializingShardsSimpleWeightedIt(
+        if (WeightedRoutingUtils.shouldPerformStrictWeightedRouting(
+            isStrictWeightedShardRouting,
+            ignoreWeightedRouting,
+            weightedRoutingMetadata
+        )) {
+            return indexShard.activeInitializingShardsWeightedIt(
                 weightedRoutingMetadata.getWeightedRouting(),
                 nodes,
                 getWeightedRoutingDefaultWeight(),
+                isFailOpenEnabled,
                 routingHash
             );
         } else if (ignoreAwarenessAttributes()) {
@@ -365,12 +402,13 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts,
         @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
-        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet()) {
+        if (WeightedRoutingUtils.shouldPerformWeightedRouting(ignoreWeightedRouting, weightedRoutingMetadata)) {
             return indexShard.activeInitializingShardsWeightedIt(
                 weightedRoutingMetadata.getWeightedRouting(),
                 nodes,
                 getWeightedRoutingDefaultWeight(),
-                isFailOpenEnabled
+                isFailOpenEnabled,
+                null
             );
         } else if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
@@ -438,4 +476,15 @@ public class OperationRouting {
         return Math.floorMod(hash, indexMetadata.getRoutingNumShards()) / indexMetadata.getRoutingFactor();
     }
 
+    private void checkPreferenceBasedRoutingAllowed(Preference preference, @Nullable WeightedRoutingMetadata weightedRoutingMetadata) {
+        if (WeightedRoutingUtils.shouldPerformStrictWeightedRouting(
+            isStrictWeightedShardRouting,
+            ignoreWeightedRouting,
+            weightedRoutingMetadata
+        ) && WEIGHTED_ROUTING_RESTRICTED_PREFERENCES.contains(preference)) {
+            throw new PreferenceBasedSearchNotAllowedException(
+                "Preference type based routing not allowed with strict weighted shard routing enabled"
+            );
+        }
+    }
 }

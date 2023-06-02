@@ -36,8 +36,8 @@ import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAl
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.Response;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
@@ -92,9 +92,7 @@ public class ResolveIndexResponseTests extends AbstractSerializingTestCase<Respo
     private static ResolvedIndex createTestResolvedIndexInstance() {
         String name = randomAlphaOfLength(6);
         String[] aliases = randomStringArray(0, 5);
-        String[] attributes = randomSubsetOf(org.opensearch.common.collect.List.of("open", "hidden", "frozen")).toArray(
-            Strings.EMPTY_ARRAY
-        );
+        String[] attributes = randomSubsetOf(List.of("open", "hidden", "frozen")).toArray(Strings.EMPTY_ARRAY);
         String dataStream = randomBoolean() ? randomAlphaOfLength(6) : null;
 
         return new ResolvedIndex(name, aliases, attributes, dataStream);

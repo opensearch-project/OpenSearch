@@ -9,9 +9,9 @@
         help: true
       node_selector:
         # Only send request to nodes in <2.0 versions, especially during ':qa:mixed-cluster:v1.x.x#mixedClusterTest'.
-        # Because YAML REST test takes the minimum OpenSearch version in the cluster to apply the filter in 'skip' section, 
+        # Because YAML REST test takes the minimum OpenSearch version in the cluster to apply the filter in 'skip' section,
         # see OpenSearchClientYamlSuiteTestCase#initAndResetContext() for detail.
-        # During 'mixedClusterTest', the cluster can be mixed with nodes in 1.x and 2.x versions, 
+        # During 'mixedClusterTest', the cluster can be mixed with nodes in 1.x and 2.x versions,
         # so node_selector is required, and only filtering version in 'skip' is not enough.
         version: "1.0.0 - 1.4.99"
 
@@ -61,7 +61,7 @@
                    pending_tasks .+ \n
                    max_task_wait_time .+ \n
                    active_shards_percent .+ \n
-      
+
                $/
 
 ---

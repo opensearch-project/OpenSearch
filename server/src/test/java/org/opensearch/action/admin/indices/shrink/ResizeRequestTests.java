@@ -32,14 +32,16 @@
 
 package org.opensearch.action.admin.indices.shrink;
 
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestTests;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
@@ -123,6 +125,89 @@ public class ResizeRequestTests extends OpenSearchTestCase {
 
         BytesReference finalBytes = toShuffledXContent(parsedResizeRequest, xContentType, EMPTY_PARAMS, humanReadable);
         OpenSearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+    }
+
+    public void testTargetIndexSettingsValidation() {
+        ResizeRequest resizeRequest = new ResizeRequest(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10));
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(randomAlphaOfLengthBetween(3, 10));
+        createIndexRequest.settings(Settings.builder().put("index.blocks.read_only", true));
+        resizeRequest.setTargetIndex(createIndexRequest);
+        ActionRequestValidationException e = resizeRequest.validate();
+        assertEquals(
+            "Validation Failed: 1: target index ["
+                + createIndexRequest.index()
+                + "] will be blocked by [index.blocks.read_only=true],"
+                + " this will disable metadata writes and cause the shards to be unassigned;",
+            e.getMessage()
+        );
+
+        createIndexRequest.settings(Settings.builder().put("index.blocks.metadata", true));
+        resizeRequest.setMaxShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
+        resizeRequest.setTargetIndex(createIndexRequest);
+        e = resizeRequest.validate();
+        assertEquals(
+            "Validation Failed: 1: target index ["
+                + createIndexRequest.index()
+                + "] will be blocked by [index.blocks.metadata=true],"
+                + " this will disable metadata writes and cause the shards to be unassigned;",
+            e.getMessage()
+        );
+
+        createIndexRequest.settings(
+            Settings.builder()
+                .put("index.sort.field", randomAlphaOfLengthBetween(3, 10))
+                .put("index.routing_partition_size", randomIntBetween(1, 10))
+        );
+        resizeRequest.setTargetIndex(createIndexRequest);
+        e = resizeRequest.validate();
+        assertEquals(
+            "Validation Failed: 1: can't override index sort when resizing an index;"
+                + "2: cannot provide a routing partition size value when resizing an index;",
+            e.getMessage()
+        );
+
+        createIndexRequest.settings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 10)));
+        resizeRequest.setMaxShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
+        resizeRequest.setTargetIndex(createIndexRequest);
+        e = resizeRequest.validate();
+        assertEquals("Validation Failed: 1: Cannot set max_shard_size and index.number_of_shards at the same time!;", e.getMessage());
+
+        resizeRequest.setResizeType(ResizeType.SPLIT);
+        createIndexRequest.settings(Settings.builder().build());
+        resizeRequest.setMaxShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
+        resizeRequest.setTargetIndex(createIndexRequest);
+        e = resizeRequest.validate();
+        assertEquals(
+            "Validation Failed: 1: index.number_of_shards is required for split operations;" + "2: Unsupported parameter [max_shard_size];",
+            e.getMessage()
+        );
+
+        resizeRequest.setResizeType(ResizeType.CLONE);
+        createIndexRequest.settings(Settings.builder().build());
+        resizeRequest.setMaxShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
+        resizeRequest.setTargetIndex(createIndexRequest);
+        e = resizeRequest.validate();
+        assertEquals("Validation Failed: 1: Unsupported parameter [max_shard_size];", e.getMessage());
+    }
+
+    public void testGetDescription() {
+        String sourceIndexName = randomAlphaOfLengthBetween(3, 10);
+        String targetIndexName = randomAlphaOfLengthBetween(3, 10);
+        ResizeRequest request = new ResizeRequest(targetIndexName, sourceIndexName);
+        String resizeType;
+        switch (randomIntBetween(0, 2)) {
+            case 1:
+                request.setResizeType(ResizeType.SPLIT);
+                resizeType = "split";
+                break;
+            case 2:
+                request.setResizeType(ResizeType.CLONE);
+                resizeType = "clone";
+                break;
+            default:
+                resizeType = "shrink";
+        }
+        assertEquals(resizeType + " from [" + sourceIndexName + "] to [" + targetIndexName + "]", request.getDescription());
     }
 
     private static ResizeRequest createTestItem() {

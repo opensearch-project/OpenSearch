@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexGraveyard;
@@ -57,6 +55,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -411,9 +410,9 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
         Metadata.Builder metadataBuilder = new Metadata.Builder(previousState.metadata());
-        for (ObjectObjectCursor<String, Metadata.Custom> customMetadata : previousState.metadata().customs()) {
-            if (customMetadata.value instanceof TestCustomMetadata) {
-                metadataBuilder.removeCustom(customMetadata.key);
+        for (Map.Entry<String, Metadata.Custom> customMetadata : previousState.metadata().customs().entrySet()) {
+            if (customMetadata.getValue() instanceof TestCustomMetadata) {
+                metadataBuilder.removeCustom(customMetadata.getKey());
             }
         }
         for (TestCustomMetadata testCustomMetadata : customMetadataList) {
@@ -550,8 +549,8 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     // Create the routing table for a cluster state.
     private static RoutingTable createRoutingTable(final long version, final Metadata metadata) {
         final RoutingTable.Builder builder = RoutingTable.builder().version(version);
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            builder.addAsNew(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            builder.addAsNew(cursor);
         }
         return builder.build();
     }
@@ -582,7 +581,7 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     ) {
         final int numAdd = randomIntBetween(0, 5); // add random # of indices to the next cluster state
         final List<Index> stateIndices = new ArrayList<>();
-        for (Iterator<IndexMetadata> iter = previousState.metadata().indices().valuesIt(); iter.hasNext();) {
+        for (Iterator<IndexMetadata> iter = previousState.metadata().indices().values().iterator(); iter.hasNext();) {
             stateIndices.add(iter.next().getIndex());
         }
         final int numDel;
