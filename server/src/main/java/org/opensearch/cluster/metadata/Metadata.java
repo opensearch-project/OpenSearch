@@ -1120,10 +1120,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private DiffableStringMap hashesOfConsistentSettings = new DiffableStringMap(Collections.emptyMap());
 
         private final Map<String, IndexMetadata> indices;
+
+        private final Map<String, IndexMetadata> indicesPreviousState;
         private final Map<String, IndexTemplateMetadata> templates;
         private final Map<String, Custom> customs;
+        private final Map<String, Custom> customsPreviousState;
 
-        private boolean rebuildIndicesLookups = true;
 
         public SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         private String[] allIndices = new String[0];
@@ -1136,8 +1138,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             indices = new HashMap<>();
+            indicesPreviousState = new HashMap<>();
             templates = new HashMap<>();
             customs = new HashMap<>();
+            customsPreviousState = new HashMap<>();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
         }
 
@@ -1150,8 +1154,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.hashesOfConsistentSettings = metadata.hashesOfConsistentSettings;
             this.version = metadata.version;
             this.indices = new HashMap<>(metadata.indices);
+            this.indicesPreviousState = new HashMap<>(metadata.indices); // required for comparing with updated indices
             this.templates = new HashMap<>(metadata.templates);
             this.customs = new HashMap<>(metadata.customs);
+            this.customsPreviousState = new HashMap<>(metadata.customs);
             this.indicesLookup = new TreeMap<>(metadata.indicesLookup);
             this.allIndices = Arrays.copyOf(metadata.allIndices, metadata.allIndices.length);
             this.visibleIndices = Arrays.copyOf(metadata.visibleIndices, metadata.visibleIndices.length);
@@ -1443,8 +1449,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Metadata build() {
-            TimeValue buildStartTime = TimeValue.timeValueMillis(System.currentTimeMillis());
-            if (rebuildIndicesLookups == true) {
+            TimeValue buildStartTime = TimeValue.timeValueMillis(System.nanoTime());
+            boolean recomputeRequired = indices.equals(indicesPreviousState) == false || customs.equals(customsPreviousState) == false;;
+            TimeValue recomputeEndTime = TimeValue.timeValueMillis(System.nanoTime());
+            logger.info("Recompute required: {}, time taken for comparing indices: {} ms", recomputeRequired, (recomputeEndTime.getNanos()-buildStartTime.getNanos())/1000000L);
+            // Will simplify this later to omit this recomputeRequired variable entirely - it's only used for testing for now
+            if (recomputeRequired) {
                 buildMetadataIndicesLookups();
             }
 
@@ -1467,9 +1477,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 visibleClosedIndices,
                 indicesLookup
             );
-            TimeValue endBuildTime = TimeValue.timeValueMillis(System.currentTimeMillis());
+            TimeValue endBuildTime = TimeValue.timeValueMillis(System.nanoTime());
             // Logging for testing only - will remove in future iterations
-            logger.info("built metadata in {} ms", endBuildTime.millis() - buildStartTime.millis());
+            logger.info("built metadata in {} ms", (endBuildTime.millis() - buildStartTime.millis())/1000000L);
             return metadata;
         }
 
@@ -1560,11 +1570,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 );
             }
 
-            TimeValue startTime = TimeValue.timeValueMillis(System.currentTimeMillis());
+            TimeValue startTime = TimeValue.timeValueNanos(System.nanoTime());
             indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup());
-            TimeValue endTime = TimeValue.timeValueMillis(System.currentTimeMillis());
+            TimeValue endTime = TimeValue.timeValueNanos(System.nanoTime());
             // Logging for testing only - will remove in future iterations
-            logger.info("rebuilt indicesLookupMap in {} ms, {} entries", endTime.millis() - startTime.millis(), indicesLookup != null ? indicesLookup.size() : 0);
+            logger.info("rebuilt indicesLookupMap in {} ms, {} entries", (endTime.nanos() - startTime.nanos())/1000000L, indicesLookup != null ? indicesLookup.size() : 0);
 
             validateDataStreams(indicesLookup, (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE));
 
@@ -1795,16 +1805,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
             }
             return builder.build();
-        }
-
-        /**
-         * This flag is used to omit re-evaluating the indices lookup when building Metadata to save time taken for Metadata build()
-         * Its utility is at places where there is no change in indices related objects of Metadata contents.
-         * Its default value is true - Toggle it to false only when you are sure about that you do not need to re-evaluate Metadata
-         */
-        public Builder rebuildIndicesLookups(boolean rebuildIndicesLookups) {
-            this.rebuildIndicesLookups = rebuildIndicesLookups;
-            return this;
         }
     }
 

@@ -447,9 +447,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 );
             }
             if (previousClusterState.metadata() != newClusterState.metadata()) {
-                // Logging for testing only - will remove in future iterations
-                logger.info("Skipping recomputing indices lookup in metadata now");
-                builder.metadata(Metadata.builder(newClusterState.metadata()).version(newClusterState.metadata().version() + 1).rebuildIndicesLookups(false));
+                builder.metadata(Metadata.builder(newClusterState.metadata()).version(newClusterState.metadata().version() + 1));
             }
 
             newClusterState = builder.build();

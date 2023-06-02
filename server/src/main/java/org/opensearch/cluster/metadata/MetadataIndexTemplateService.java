@@ -989,8 +989,7 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        // Template actions don't require changes in indicesLookups - so setting rebuildIndicesLookups(false)
-        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(template).rebuildIndicesLookups(false);
+        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(template);
         logger.info("adding template [{}] for index patterns {}", request.name, request.indexPatterns);
         return ClusterState.builder(currentState).metadata(builder).build();
     }
