@@ -32,7 +32,7 @@ public class InternalProfileCollectorManager
     private final List<InternalProfileCollectorManager> children;
     private long time = 0;
     private long reduceTime = 0;
-    private long maxSliceEndTime = 0;
+    private long maxSliceEndTime = Long.MIN_VALUE;
     private long minSliceStartTime = Long.MAX_VALUE;
     private long maxSliceTime = 0;
     private long minSliceTime = Long.MAX_VALUE;
@@ -51,8 +51,7 @@ public class InternalProfileCollectorManager
 
     @Override
     public InternalProfileCollector newCollector() throws IOException {
-        return new InternalProfileCollector(manager.newCollector(), reduceTime, maxSliceTime, minSliceTime,
-            avgSliceTime, sliceCount, reason, children);
+        return new InternalProfileCollector(manager.newCollector(), reason, children);
     }
 
     @SuppressWarnings("unchecked")
@@ -91,19 +90,19 @@ public class InternalProfileCollectorManager
         return time;
     }
 
-    public long getReduceTime() {
+    public Long getReduceTime() {
         return reduceTime;
     }
 
-    public long getMaxSliceTime() {
+    public Long getMaxSliceTime() {
         return maxSliceTime;
     }
 
-    public long getMinSliceTime() {
+    public Long getMinSliceTime() {
         return minSliceTime;
     }
 
-    public long getAvgSliceTime() {
+    public Long getAvgSliceTime() {
         return avgSliceTime;
     }
 
@@ -126,15 +125,23 @@ public class InternalProfileCollectorManager
         return doGetCollectorManagerTree(this);
     }
 
-    static CollectorResult doGetCollectorManagerTree(InternalProfileComponent collector) {
+    static CollectorResult doGetCollectorManagerTree(InternalProfileCollectorManager collector) {
         List<CollectorResult> childResults = new ArrayList<>(collector.children().size());
         for (InternalProfileComponent child : collector.children()) {
-            CollectorResult result = doGetCollectorManagerTree(child);
+            CollectorResult result = doGetCollectorManagerTree((InternalProfileCollectorManager) child);
             childResults.add(result);
         }
-        return new CollectorResult(collector.getName(), collector.getReason(), collector.getTime(),
-            collector.getReduceTime(), collector.getMaxSliceTime(), collector.getMinSliceTime(),
-            collector.getAvgSliceTime(), collector.getSliceCount(), childResults);
+        return new CollectorResult(
+            collector.getName(),
+            collector.getReason(),
+            collector.getTime(),
+            collector.getReduceTime(),
+            collector.getMaxSliceTime(),
+            collector.getMinSliceTime(),
+            collector.getAvgSliceTime(),
+            collector.getSliceCount(),
+            childResults
+        );
     }
 
     @Override

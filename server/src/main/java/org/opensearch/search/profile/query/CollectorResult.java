@@ -32,6 +32,7 @@
 
 package org.opensearch.search.profile.query;
 
+import org.opensearch.Version;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -66,6 +67,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
     public static final String REASON_SEARCH_MULTI = "search_multi";
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
+    public static final String COLLECTOR_MANAGER = "CollectorManager";
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField REASON = new ParseField("reason");
@@ -91,7 +93,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
     /**
      * The total elapsed time for this Collector
      */
-    private final Long time;
+    private final long time;
 
     /**
      * The total elapsed time in reduce phase for this CollectorManager
@@ -124,19 +126,20 @@ public class CollectorResult implements ToXContentObject, Writeable {
     private List<CollectorResult> children;
 
     public CollectorResult(String collectorName, String reason, Long time, List<CollectorResult> children) {
-        this.collectorName = collectorName;
-        this.reason = reason;
-        this.time = time;
-        this.reduceTime = 0L;
-        this.maxSliceTime = time;
-        this.minSliceTime = time;
-        this.avgSliceTime = time;
-        this.sliceCount = 1;
-        this.children = children;
+        this(collectorName, reason, time, 0L, time, time, time, 1, children);
     }
 
-    public CollectorResult(String collectorName, String reason, Long time, Long reduceTime, Long maxSliceTime, Long minSliceTime,
-                           Long avgSliceTime, int sliceCount, List<CollectorResult> children) {
+    public CollectorResult(
+        String collectorName,
+        String reason,
+        Long time,
+        Long reduceTime,
+        Long maxSliceTime,
+        Long minSliceTime,
+        Long avgSliceTime,
+        int sliceCount,
+        List<CollectorResult> children
+    ) {
         this.collectorName = collectorName;
         this.reason = reason;
         this.time = time;
@@ -155,16 +158,24 @@ public class CollectorResult implements ToXContentObject, Writeable {
         this.collectorName = in.readString();
         this.reason = in.readString();
         this.time = in.readLong();
-        this.reduceTime = in.readLong();
-        this.maxSliceTime = in.readLong();
-        this.minSliceTime = in.readLong();
-        this.avgSliceTime = in.readLong();
-        this.sliceCount = in.readVInt();
         int size = in.readVInt();
         this.children = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             CollectorResult child = new CollectorResult(in);
             this.children.add(child);
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            this.reduceTime = in.readLong();
+            this.maxSliceTime = in.readLong();
+            this.minSliceTime = in.readLong();
+            this.avgSliceTime = in.readLong();
+            this.sliceCount = in.readVInt();
+        } else {
+            this.reduceTime = 0L;
+            this.maxSliceTime = this.time;
+            this.minSliceTime = this.time;
+            this.avgSliceTime = this.time;
+            this.sliceCount = 1;
         }
     }
 
@@ -173,14 +184,16 @@ public class CollectorResult implements ToXContentObject, Writeable {
         out.writeString(collectorName);
         out.writeString(reason);
         out.writeLong(time);
-        out.writeLong(reduceTime);
-        out.writeLong(maxSliceTime);
-        out.writeLong(minSliceTime);
-        out.writeLong(avgSliceTime);
-        out.writeVInt(sliceCount);
         out.writeVInt(children.size());
         for (CollectorResult child : children) {
             child.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeLong(reduceTime);
+            out.writeLong(maxSliceTime);
+            out.writeLong(minSliceTime);
+            out.writeLong(avgSliceTime);
+            out.writeVInt(sliceCount);
         }
     }
 
@@ -256,7 +269,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
             builder.field(TIME.getPreferredName(), new TimeValue(getTime(), TimeUnit.NANOSECONDS).toString());
         }
         builder.field(TIME_NANOS.getPreferredName(), getTime());
-        if (getName().contains("CollectorManager")) {
+        if (getName().contains(COLLECTOR_MANAGER)) {
             builder.field(REDUCE_TIME_NANOS.getPreferredName(), getReduceTime());
             builder.field(MAX_SLICE_TIME_NANOS.getPreferredName(), getMaxSliceTime());
             builder.field(MIN_SLICE_TIME_IN_NANOS.getPreferredName(), getMinSliceTime());
@@ -325,7 +338,6 @@ public class CollectorResult implements ToXContentObject, Writeable {
                 parser.skipChildren();
             }
         }
-        return new CollectorResult(name, reason, time, reduceTime, maxSliceTime, minSliceTime, avgSliceTime, sliceCount,
-                children);
+        return new CollectorResult(name, reason, time, reduceTime, maxSliceTime, minSliceTime, avgSliceTime, sliceCount, children);
     }
 }

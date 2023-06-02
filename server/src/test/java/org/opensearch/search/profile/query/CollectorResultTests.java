@@ -61,10 +61,10 @@ public class CollectorResultTests extends OpenSearchTestCase {
             // also often use relatively "small" values, otherwise we will mostly test huge longs
             time = time % 100000;
         }
-        long reduceTime  = time;
-        long maxSliceTime  = time;
-        long minSliceTime  = time;
-        long avgSliceTime  = time;
+        long reduceTime = time;
+        long maxSliceTime = time;
+        long minSliceTime = time;
+        long avgSliceTime = time;
         int sliceCount = randomIntBetween(1, 10);
         int size = randomIntBetween(0, 5);
         List<CollectorResult> children = new ArrayList<>(size);
@@ -75,8 +75,17 @@ public class CollectorResultTests extends OpenSearchTestCase {
         }
 
         if (concurrentSearchEnabled) {
-            return new CollectorResult("defaultCollectorManager", "some reason", time, reduceTime,
-                maxSliceTime, minSliceTime, avgSliceTime, sliceCount, children);
+            return new CollectorResult(
+                "defaultCollectorManager",
+                "some reason",
+                time,
+                reduceTime,
+                maxSliceTime,
+                minSliceTime,
+                avgSliceTime,
+                sliceCount,
+                children
+            );
         }
         return new CollectorResult(name, reason, time, children);
     }
@@ -190,8 +199,17 @@ public class CollectorResultTests extends OpenSearchTestCase {
             Strings.toString(builder)
         );
 
-        result = new CollectorResult("defaultCollectorManager", "some reason", 123456789L,
-            123456789L, 123456789L, 123456789L, 123456789L, 5, Collections.emptyList());
+        result = new CollectorResult(
+            "defaultCollectorManager",
+            "some reason",
+            123456789L,
+            123456789L,
+            123456789L,
+            123456789L,
+            123456789L,
+            5,
+            Collections.emptyList()
+        );
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(

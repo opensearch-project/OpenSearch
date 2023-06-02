@@ -80,6 +80,7 @@ final class ProfileCollector extends FilterCollector {
         try {
             inLeafCollector = super.getLeafCollector(context);
         } finally {
+            sliceStartTime = sliceStartTime == 0 ? start : sliceStartTime;
             time += Math.max(1, System.nanoTime() - start);
         }
         return new FilterLeafCollector(inLeafCollector) {
