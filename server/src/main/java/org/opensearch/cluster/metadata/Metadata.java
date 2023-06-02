@@ -1125,12 +1125,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final Map<String, Custom> customs;
         private final Map<String, Custom> customsPreviousState;
         public SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-        private String[] allIndices = new String[0];
-        private String[] visibleIndices = new String[0];
-        private String[] allOpenIndices = new String[0];
-        private String[] visibleOpenIndices = new String[0];
-        private String[] allClosedIndices = new String[0];
-        private String[] visibleClosedIndices = new String[0];
+        private String[] allIndices;
+        private String[] visibleIndices;
+        private String[] allOpenIndices;
+        private String[] visibleOpenIndices;
+        private String[] allClosedIndices;
+        private String[] visibleClosedIndices;
 
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
@@ -1139,6 +1139,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             templates = new HashMap<>();
             customs = new HashMap<>();
             customsPreviousState = new HashMap<>();
+            allIndices = Strings.EMPTY_ARRAY;
+            visibleIndices = Strings.EMPTY_ARRAY;
+            allOpenIndices = Strings.EMPTY_ARRAY;
+            visibleOpenIndices = Strings.EMPTY_ARRAY;
+            allClosedIndices = Strings.EMPTY_ARRAY;
+            visibleClosedIndices = Strings.EMPTY_ARRAY;
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
         }
 

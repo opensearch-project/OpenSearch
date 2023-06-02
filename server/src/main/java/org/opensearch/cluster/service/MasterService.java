@@ -292,13 +292,10 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         final long computationStartTime = threadPool.relativeTimeInMillis();
-        TimeValue startTime = TimeValue.timeValueMillis(System.currentTimeMillis());
         final TaskOutputs taskOutputs = calculateTaskOutputs(taskInputs, previousClusterState);
         taskOutputs.notifyFailedTasks();
         final TimeValue computationTime = getTimeSince(computationStartTime);
-        TimeValue endTime = TimeValue.timeValueMillis(System.currentTimeMillis());
-        // Temporarily logging time diff from System time since threadpool time is not precise for less than 200ms
-        logExecutionTime(TimeValue.timeValueMillis(endTime.millis() - startTime.millis()), "compute cluster state update", summary);
+        logExecutionTime(computationTime, "compute cluster state update", summary);
 
         if (taskOutputs.clusterStateUnchanged()) {
             final long notificationStartTime = threadPool.relativeTimeInMillis();
