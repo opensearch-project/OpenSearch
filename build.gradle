@@ -647,25 +647,30 @@ tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
 }
 
 task checkCompatibility {
+  description('Checks code compatibility with remote component')
   ext.getPluginRepoURL = { jsonUrl->
     def url = new URL(jsonUrl)
-    def jsonSlurper = new JsonSlurper()
-    def json = jsonSlurper.parseText(url.text)
+    def json = new JsonSlurper().parseText(url.text)
     def labels = json.projects.values()
     return labels
+  }
+  ext.getGradleExec = {
+    if(System.properties['os.name'].toLowerCase().contains('windows')){
+      return 'gradlew.bat'
+    }
+    return './gradlew'
   }
   ArrayList repositoryUrls = new ArrayList<String>()
   if (project.hasProperty('repositoryUrls')) {
     repositoryUrls = project.property('repositoryUrls').split(',')
   } else {
-    println('repositoryUrls property was not provided, using components list from https://raw.githubusercontent.com/opensearch-project/opensearch-plugins/main/plugins/.meta ')
+    logger.info('repositoryUrls property was not provided, using components list from https://raw.githubusercontent.com/opensearch-project/opensearch-plugins/main/plugins/.meta ')
     repositoryUrls = getPluginRepoURL('https://raw.githubusercontent.com/opensearch-project/opensearch-plugins/main/plugins/.meta')
   };
-  String refToCheckout = project.hasProperty('refToCheckout') ? project.property('refToCheckout'): 'main'
+  String ref = project.hasProperty('ref') ? project.property('ref'): 'main'
   def failedComponents = []
   doLast {
-    println("Repository URLs: $repositoryUrls")
-    println("Reference that is being checked out: $refToCheckout")
+    println("Checking compability for: $repositoryUrls for $ref")
     repositoryUrls.parallelStream().forEach { repositoryUrl ->
       def tempDir = File.createTempDir()
       exec {
@@ -676,14 +681,15 @@ task checkCompatibility {
         exec {
           workingDir = tempDir
           def stdout = new ByteArrayOutputStream()
-          logger.info('Checking out:', refToCheckout)
-          commandLine 'git', 'checkout', refToCheckout
-          commandLine './gradlew', 'assemble'
+          def gradleScript = getGradleExec()
+          logger.info('Checking out:', ref)
+          commandLine 'git', 'checkout', ref
+          commandLine gradleScript, 'assemble'
           standardOutput stdout
         }
-      } catch (ignored) {
+      } catch (ex) {
         failedComponents.add(repositoryUrl)
-        logger.info("Gradle assemble failed for component: ", repositoryUrl)
+        logger.info("Gradle assemble failed for component: ", repositoryUrl, "Error logs:", ex)
       } finally {
         tempDir.deleteDir()
       }
