@@ -47,7 +47,7 @@ public class TaskResourceStats implements Writeable, ToXContentFragment {
      */
     public TaskResourceStats(StreamInput in) throws IOException {
         resourceUsage = in.readMap(StreamInput::readString, TaskResourceUsage::readFromStream);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             threadUsage = TaskThreadUsage.readFromStream(in);
         } else {
             // Initialize TaskThreadUsage in case it is not found in mixed cluster case
@@ -58,7 +58,7 @@ public class TaskResourceStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(resourceUsage, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             threadUsage.writeTo(out);
         }
     }
