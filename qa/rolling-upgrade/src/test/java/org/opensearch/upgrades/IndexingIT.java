@@ -31,30 +31,20 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.client.ResponseException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -248,7 +238,6 @@ public class IndexingIT extends AbstractRollingTestCase {
      *
      * @throws Exception
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7679")
     public void testIndexingWithSegRep() throws Exception {
         final String indexName = "test-index-segrep";
         final int shardCount = 3;
