@@ -57,8 +57,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.core.Assertions;
-import org.opensearch.cluster.metadata.DataStream;
-import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
