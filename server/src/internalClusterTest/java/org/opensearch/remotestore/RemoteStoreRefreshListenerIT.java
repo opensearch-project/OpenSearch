@@ -30,7 +30,7 @@ public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockReposit
     public void testRemoteRefreshRetryOnFailure() throws Exception {
 
         Path location = randomRepoPath().toAbsolutePath();
-        setup(location, randomDoubleBetween(0.1, 0.25, true), "metadata");
+        setup(location, randomDoubleBetween(0.1, 0.15, true), "metadata", 10L);
 
         // Here we are having flush/refresh after each iteration of indexing. However, the refresh will not always succeed
         // due to IOExceptions that are thrown while doing uploadBlobs.
