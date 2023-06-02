@@ -990,6 +990,7 @@ public class MetadataIndexTemplateService {
         }
 
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(template);
+
         logger.info("adding template [{}] for index patterns {}", request.name, request.indexPatterns);
         return ClusterState.builder(currentState).metadata(builder).build();
     }
