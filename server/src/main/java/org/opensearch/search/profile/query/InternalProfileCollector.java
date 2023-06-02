@@ -68,6 +68,21 @@ public class InternalProfileCollector implements Collector, InternalProfileCompo
     /** The wrapped collector */
     private final ProfileCollector collector;
 
+    /** The elapsed time in the concurrent search reduce phase */
+    private final Long reduceTime;
+
+    /** The maximum slice time for this collector manager */
+    private final Long maxSliceTime;
+
+    /** The minimum slice time for this collector manager */
+    private final Long minSliceTime;
+
+    /** The average slice time for this collector manager */
+    private final Long avgSliceTime;
+
+    /** The segment slice count for this collector manager */
+    private final int sliceCount;
+
     /**
      * A list of "embedded" children collectors
      */
@@ -75,6 +90,25 @@ public class InternalProfileCollector implements Collector, InternalProfileCompo
 
     public InternalProfileCollector(Collector collector, String reason, List<? extends InternalProfileComponent> children) {
         this.collector = new ProfileCollector(collector);
+        this.reduceTime = null;
+        this.maxSliceTime = null;
+        this.minSliceTime = null;
+        this.avgSliceTime = null;
+        this.sliceCount = 1;
+        this.reason = reason;
+        this.collectorName = deriveCollectorName(collector);
+        this.children = children;
+    }
+
+    public InternalProfileCollector(Collector collector, Long reduceTime, Long maxCollectorTime, Long minSliceTime,
+                                    Long avgSliceTime, int sliceCount, String reason,
+                                    List<? extends InternalProfileComponent> children) {
+        this.collector = new ProfileCollector(collector);
+        this.reduceTime = reduceTime;
+        this.maxSliceTime = maxCollectorTime;
+        this.minSliceTime = minSliceTime;
+        this.avgSliceTime = avgSliceTime;
+        this.sliceCount = sliceCount;
         this.reason = reason;
         this.collectorName = deriveCollectorName(collector);
         this.children = children;
@@ -85,6 +119,48 @@ public class InternalProfileCollector implements Collector, InternalProfileCompo
      */
     public long getTime() {
         return collector.getTime();
+    }
+
+    /**
+     * @return the profiled start time for this collector (inclusive of children)
+     */
+    public long getSliceStartTime() {
+        return collector.getSliceStartTime();
+    }
+
+    /**
+     * @return the profiled reduce time for this collector (inclusive of children)
+     */
+    public long getReduceTime() {
+        return this.reduceTime;
+    }
+
+    /**
+     * @return the profiled maximum time for this collector (inclusive of children)
+     */
+    public long getMaxSliceTime() {
+        return this.maxSliceTime;
+    }
+
+    /**
+     * @return the profiled minimum time for this collector (inclusive of children)
+     */
+    public long getMinSliceTime() {
+        return this.minSliceTime;
+    }
+
+    /**
+     * @return the profiled average time for this collector (inclusive of children)
+     */
+    public long getAvgSliceTime() {
+        return this.avgSliceTime;
+    }
+
+    /**
+     * @return the profiled segment slice count for this collector (inclusive of children)
+     */
+    public int getSliceCount() {
+        return this.sliceCount;
     }
 
     /**

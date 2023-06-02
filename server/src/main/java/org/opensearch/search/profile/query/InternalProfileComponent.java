@@ -32,6 +32,31 @@ public interface InternalProfileComponent {
     long getTime();
 
     /**
+     * @return the elapsed time in the reduce phase taken by this profile component
+     */
+    long getReduceTime();
+
+    /**
+     * @return the maximum slice time taken by this profile component
+     */
+    long getMaxSliceTime();
+
+    /**
+     * @return the minimum slice time taken by this profile component
+     */
+    long getMinSliceTime();
+
+    /**
+     * @return the average slice time taken by this profile component
+     */
+    long getAvgSliceTime();
+
+    /**
+     * @return the segment slice count taken by this profile component
+     */
+    int getSliceCount();
+
+    /**
      * @return the profiling results for this profile component
      */
     CollectorResult getCollectorTree();
