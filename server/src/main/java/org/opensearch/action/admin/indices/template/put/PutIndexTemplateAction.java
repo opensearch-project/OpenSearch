@@ -32,8 +32,11 @@
 
 package org.opensearch.action.admin.indices.template.put;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.identity.Scope;
 
 /**
  * An action for putting an index template into the cluster state
@@ -49,4 +52,8 @@ public class PutIndexTemplateAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
+    }
 }

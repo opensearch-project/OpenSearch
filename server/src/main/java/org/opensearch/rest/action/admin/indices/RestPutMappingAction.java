@@ -32,12 +32,14 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
+import org.opensearch.identity.Scope;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -98,5 +100,9 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
         putMappingRequest.writeIndexOnly(request.paramAsBoolean("write_index_only", false));
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

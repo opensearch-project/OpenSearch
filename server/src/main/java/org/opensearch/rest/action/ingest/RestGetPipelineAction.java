@@ -32,10 +32,12 @@
 
 package org.opensearch.rest.action.ingest;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ingest.GetPipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.common.Strings;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;
@@ -72,5 +74,9 @@ public class RestGetPipelineAction extends BaseRestHandler {
         request.clusterManagerNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.clusterManagerNodeTimeout()));
         parseDeprecatedMasterTimeoutParameter(request, restRequest, deprecationLogger, getName());
         return channel -> client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

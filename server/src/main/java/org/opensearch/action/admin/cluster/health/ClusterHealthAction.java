@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.cluster.health;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport endpoint action for obtaining cluster health
@@ -46,5 +49,10 @@ public class ClusterHealthAction extends ActionType<ClusterHealthResponse> {
 
     private ClusterHealthAction() {
         super(NAME, ClusterHealthResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_Read, ActionScopes.Cluster_ALL);
     }
 }

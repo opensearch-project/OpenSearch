@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.cluster.repositories.verify;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Verify repository action
@@ -46,5 +49,10 @@ public class VerifyRepositoryAction extends ActionType<VerifyRepositoryResponse>
 
     private VerifyRepositoryAction() {
         super(NAME, VerifyRepositoryResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

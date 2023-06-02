@@ -32,10 +32,12 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -77,5 +79,9 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
         putRequest.componentTemplate(ComponentTemplate.parse(request.contentParser()));
 
         return channel -> client.execute(PutComponentTemplateAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

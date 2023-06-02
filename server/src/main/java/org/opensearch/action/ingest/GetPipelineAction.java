@@ -32,7 +32,10 @@
 
 package org.opensearch.action.ingest;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action to get a pipeline
@@ -46,5 +49,10 @@ public class GetPipelineAction extends ActionType<GetPipelineResponse> {
 
     public GetPipelineAction() {
         super(NAME, GetPipelineResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

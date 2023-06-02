@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
@@ -44,6 +45,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -154,5 +156,10 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         parseDeprecatedMasterTimeoutParameter(clusterRerouteRequest, request, deprecationLogger, "cluster_reroute");
         request.applyContentParser(parser -> PARSER.parse(parser, clusterRerouteRequest, null));
         return clusterRerouteRequest;
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

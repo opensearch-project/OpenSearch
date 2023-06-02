@@ -86,4 +86,5 @@ public class IndexSegments implements Iterable<IndexShardSegments> {
     public Iterator<IndexShardSegments> iterator() {
         return indexShards.values().iterator();
     }
+
 }

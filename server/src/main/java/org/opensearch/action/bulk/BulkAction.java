@@ -32,8 +32,11 @@
 
 package org.opensearch.action.bulk;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.Scope;
 import org.opensearch.transport.TransportRequestOptions;
 
 /**
@@ -53,5 +56,10 @@ public class BulkAction extends ActionType<BulkResponse> {
     @Override
     public TransportRequestOptions transportOptions(Settings settings) {
         return TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK).build();
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

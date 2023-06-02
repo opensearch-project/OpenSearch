@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.indices.create;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for creating an index
@@ -46,6 +49,11 @@ public class CreateIndexAction extends ActionType<CreateIndexResponse> {
 
     private CreateIndexAction() {
         super(NAME, CreateIndexResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 
 }

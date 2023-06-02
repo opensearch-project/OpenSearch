@@ -32,8 +32,11 @@
 
 package org.opensearch.action.ingest;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action to delete a pipeline
@@ -47,6 +50,11 @@ public class DeletePipelineAction extends ActionType<AcknowledgedResponse> {
 
     public DeletePipelineAction() {
         super(NAME, AcknowledgedResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 
 }

@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.indices.validate.query.QueryExplanation;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -40,6 +41,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
@@ -127,5 +129,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
         }
         builder.endObject();
         return new BytesRestResponse(OK, builder);
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

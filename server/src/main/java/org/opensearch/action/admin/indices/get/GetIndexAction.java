@@ -47,4 +47,6 @@ public class GetIndexAction extends ActionType<GetIndexResponse> {
     private GetIndexAction() {
         super(NAME, GetIndexResponse::new);
     }
+
+
 }

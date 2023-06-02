@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.indices.settings.get;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for getting index segments
@@ -46,5 +49,10 @@ public class GetSettingsAction extends ActionType<GetSettingsResponse> {
 
     public GetSettingsAction() {
         super(NAME, GetSettingsResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

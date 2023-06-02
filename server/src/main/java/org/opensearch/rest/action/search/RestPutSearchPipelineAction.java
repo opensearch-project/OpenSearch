@@ -8,11 +8,13 @@
 
 package org.opensearch.rest.action.search;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -45,5 +47,9 @@ public class RestPutSearchPipelineAction extends BaseRestHandler {
         request.clusterManagerNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.clusterManagerNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().putSearchPipeline(request, new RestToXContentListener<>(channel));
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);
     }
 }

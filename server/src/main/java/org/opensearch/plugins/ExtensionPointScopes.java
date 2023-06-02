@@ -18,13 +18,13 @@ import org.opensearch.identity.Scope;
  */
 public enum ExtensionPointScopes implements Scope {
     Action,
-    // TODO: implement checks for all other scopes
     Analysis,
     CircuitBreaker,
     Cluster,
     Discovery,
     Engine,
     Extensible,
+    ExtensionAware,
     Identity,
     IndexStore,
     Ingest,

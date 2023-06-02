@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.indices.dangling.list;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Represents a request to list all dangling indices known to the cluster.
@@ -46,5 +49,10 @@ public class ListDanglingIndicesAction extends ActionType<ListDanglingIndicesRes
 
     private ListDanglingIndicesAction() {
         super(NAME, ListDanglingIndicesResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

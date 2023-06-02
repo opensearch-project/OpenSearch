@@ -8,11 +8,13 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -59,5 +61,10 @@ public class RestDecommissionAction extends BaseRestHandler {
             decommissionRequest.setDelayTimeout(delayTimeout);
         }
         return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

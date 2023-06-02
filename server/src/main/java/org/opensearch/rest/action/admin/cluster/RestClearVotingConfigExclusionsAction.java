@@ -32,9 +32,11 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -69,5 +71,9 @@ public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
             req.setWaitForRemoval(request.paramAsBoolean("wait_for_removal", true));
         }
         return channel -> client.execute(ClearVotingConfigExclusionsAction.INSTANCE, req, new RestToXContentListener<>(channel));
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

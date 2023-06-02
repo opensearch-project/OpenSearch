@@ -32,7 +32,10 @@
 
 package org.opensearch.action.fieldcaps;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for a field capabilities request
@@ -46,6 +49,11 @@ public class FieldCapabilitiesAction extends ActionType<FieldCapabilitiesRespons
 
     private FieldCapabilitiesAction() {
         super(NAME, FieldCapabilitiesResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 
 }

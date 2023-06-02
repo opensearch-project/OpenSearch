@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * ActionType for cancelling running tasks
@@ -46,5 +49,10 @@ public class CancelTasksAction extends ActionType<CancelTasksResponse> {
 
     private CancelTasksAction() {
         super(NAME, CancelTasksResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

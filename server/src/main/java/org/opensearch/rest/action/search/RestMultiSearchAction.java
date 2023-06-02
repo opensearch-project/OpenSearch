@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.search;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.SearchRequest;
@@ -48,6 +49,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestCancellableNodeClient;
@@ -216,5 +218,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     protected Set<String> responseParams() {
         return RESPONSE_PARAMS;
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);
     }
 }

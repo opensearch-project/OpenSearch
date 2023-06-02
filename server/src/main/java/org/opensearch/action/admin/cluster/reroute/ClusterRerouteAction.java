@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.cluster.reroute;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for rerouting allocation commands
@@ -46,5 +49,10 @@ public class ClusterRerouteAction extends ActionType<ClusterRerouteResponse> {
 
     private ClusterRerouteAction() {
         super(NAME, ClusterRerouteResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

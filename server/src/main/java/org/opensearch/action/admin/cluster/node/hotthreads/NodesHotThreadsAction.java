@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.cluster.node.hotthreads;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for requesting OpenSearch Hot Threads
@@ -46,5 +49,10 @@ public class NodesHotThreadsAction extends ActionType<NodesHotThreadsResponse> {
 
     private NodesHotThreadsAction() {
         super(NAME, NodesHotThreadsResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_Read, ActionScopes.Cluster_ALL);
     }
 }

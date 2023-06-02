@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action to request force merging the segments of one or more indices.
@@ -46,5 +49,10 @@ public class ForceMergeAction extends ActionType<ForceMergeResponse> {
 
     private ForceMergeAction() {
         super(NAME, ForceMergeResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

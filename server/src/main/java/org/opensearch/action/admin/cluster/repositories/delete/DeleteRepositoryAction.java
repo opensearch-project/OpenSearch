@@ -32,8 +32,11 @@
 
 package org.opensearch.action.admin.cluster.repositories.delete;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.identity.Scope;
 
 /**
  * Unregister repository action
@@ -47,6 +50,11 @@ public class DeleteRepositoryAction extends ActionType<AcknowledgedResponse> {
 
     private DeleteRepositoryAction() {
         super(NAME, AcknowledgedResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 
 }

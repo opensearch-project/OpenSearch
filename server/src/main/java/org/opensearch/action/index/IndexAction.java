@@ -32,7 +32,10 @@
 
 package org.opensearch.action.index;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for indexing a document.
@@ -46,5 +49,10 @@ public class IndexAction extends ActionType<IndexResponse> {
 
     private IndexAction() {
         super(NAME, IndexResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ReadWrite, ActionScopes.Index_ALL);
     }
 }

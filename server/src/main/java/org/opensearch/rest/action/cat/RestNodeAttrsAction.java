@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -43,6 +44,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.identity.Scope;
 import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -143,5 +145,9 @@ public class RestNodeAttrsAction extends AbstractCatAction {
             }
         }
         return table;
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

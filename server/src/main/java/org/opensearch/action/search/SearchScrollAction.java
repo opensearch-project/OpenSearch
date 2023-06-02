@@ -32,7 +32,10 @@
 
 package org.opensearch.action.search;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for a search scroll
@@ -46,6 +49,11 @@ public class SearchScrollAction extends ActionType<SearchResponse> {
 
     private SearchScrollAction() {
         super(NAME, SearchResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 
 }

@@ -32,10 +32,12 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.Strings;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -69,5 +71,9 @@ public class RestUpgradeStatusAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "upgrade_status_action";
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

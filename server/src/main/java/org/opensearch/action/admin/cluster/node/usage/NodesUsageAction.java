@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.cluster.node.usage;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for collecting OpenSearch telemetry
@@ -46,5 +49,10 @@ public class NodesUsageAction extends ActionType<NodesUsageResponse> {
 
     protected NodesUsageAction() {
         super(NAME, NodesUsageResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_Read, ActionScopes.Cluster_ALL);
     }
 }

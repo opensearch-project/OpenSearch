@@ -9,12 +9,14 @@
 
 package org.opensearch.rest.action.search;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.search.GetAllPitNodesRequest;
 import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -81,6 +83,10 @@ public class RestGetAllPitsAction extends BaseRestHandler {
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);
     }
 
     @Override

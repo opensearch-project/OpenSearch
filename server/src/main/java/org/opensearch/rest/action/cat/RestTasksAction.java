@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -42,6 +43,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -200,5 +202,9 @@ public class RestTasksAction extends AbstractCatAction {
         Table table = getTableWithHeader(request);
         buildGroups(table, fullId, detailed, listTasksResponse.getTaskGroups());
         return table;
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.indices.shrink;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for resizing an index
@@ -46,6 +49,11 @@ public class ResizeAction extends ActionType<ResizeResponse> {
 
     private ResizeAction() {
         super(NAME, ResizeResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 
 }

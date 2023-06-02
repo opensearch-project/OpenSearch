@@ -8,8 +8,10 @@
 
 package org.opensearch.rest.action.search;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -41,5 +43,9 @@ public class RestDeleteSearchPipelineAction extends BaseRestHandler {
         request.clusterManagerNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.clusterManagerNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().deleteSearchPipeline(request, new RestToXContentListener<>(channel));
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);
     }
 }

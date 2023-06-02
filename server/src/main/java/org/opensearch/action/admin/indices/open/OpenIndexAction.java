@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.indices.open;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action to open an index.
@@ -46,6 +49,11 @@ public class OpenIndexAction extends ActionType<OpenIndexResponse> {
 
     private OpenIndexAction() {
         super(NAME, OpenIndexResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 
 }

@@ -32,7 +32,10 @@
 
 package org.opensearch.action.ingest;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action to simulate a pipeline
@@ -46,5 +49,10 @@ public class SimulatePipelineAction extends ActionType<SimulatePipelineResponse>
 
     public SimulatePipelineAction() {
         super(NAME, SimulatePipelineResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

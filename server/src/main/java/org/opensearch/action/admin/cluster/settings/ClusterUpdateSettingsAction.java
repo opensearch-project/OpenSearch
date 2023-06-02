@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for updating cluster settings
@@ -46,5 +49,10 @@ public class ClusterUpdateSettingsAction extends ActionType<ClusterUpdateSetting
 
     private ClusterUpdateSettingsAction() {
         super(NAME, ClusterUpdateSettingsResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

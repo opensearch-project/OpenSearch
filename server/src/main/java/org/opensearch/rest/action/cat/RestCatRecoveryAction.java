@@ -33,6 +33,7 @@
 package org.opensearch.rest.action.cat;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.indices.recovery.RecoveryRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.support.IndicesOptions;
@@ -43,6 +44,7 @@ import org.opensearch.common.Table;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.core.common.Strings;
+import org.opensearch.identity.Scope;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -207,5 +209,9 @@ public class RestCatRecoveryAction extends AbstractCatAction {
         }
 
         return t;
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

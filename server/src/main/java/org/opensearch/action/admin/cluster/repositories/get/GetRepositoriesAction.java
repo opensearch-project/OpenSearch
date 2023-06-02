@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.cluster.repositories.get;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Get repositories action
@@ -46,5 +49,11 @@ public class GetRepositoriesAction extends ActionType<GetRepositoriesResponse> {
 
     private GetRepositoriesAction() {
         super(NAME, GetRepositoriesResponse::new);
+    }
+
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_Read, ActionScopes.Cluster_ALL);
     }
 }

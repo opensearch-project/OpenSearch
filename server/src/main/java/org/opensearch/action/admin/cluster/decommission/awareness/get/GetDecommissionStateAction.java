@@ -8,7 +8,10 @@
 
 package org.opensearch.action.admin.cluster.decommission.awareness.get;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Get decommission action
@@ -22,5 +25,10 @@ public class GetDecommissionStateAction extends ActionType<GetDecommissionStateR
 
     private GetDecommissionStateAction() {
         super(NAME, GetDecommissionStateResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

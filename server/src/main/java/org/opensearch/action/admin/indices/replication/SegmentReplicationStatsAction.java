@@ -8,7 +8,10 @@
 
 package org.opensearch.action.admin.indices.replication;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Segment Replication stats information action
@@ -21,5 +24,10 @@ public class SegmentReplicationStatsAction extends ActionType<SegmentReplication
 
     private SegmentReplicationStatsAction() {
         super(NAME, SegmentReplicationStatsResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

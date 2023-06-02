@@ -8,7 +8,10 @@
 
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Remote store stats action
@@ -22,5 +25,10 @@ public class RemoteStoreStatsAction extends ActionType<RemoteStoreStatsResponse>
 
     private RemoteStoreStatsAction() {
         super(NAME, RemoteStoreStatsResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

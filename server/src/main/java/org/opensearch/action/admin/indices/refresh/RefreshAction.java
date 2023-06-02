@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.indices.refresh;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Refresh information action
@@ -46,5 +49,10 @@ public class RefreshAction extends ActionType<RefreshResponse> {
 
     private RefreshAction() {
         super(NAME, RefreshResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

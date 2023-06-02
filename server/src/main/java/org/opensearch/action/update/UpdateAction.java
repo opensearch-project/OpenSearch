@@ -32,7 +32,10 @@
 
 package org.opensearch.action.update;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Action for updating an index
@@ -46,5 +49,10 @@ public class UpdateAction extends ActionType<UpdateResponse> {
 
     private UpdateAction() {
         super(NAME, UpdateResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

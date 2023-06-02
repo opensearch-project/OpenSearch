@@ -8,7 +8,10 @@
 
 package org.opensearch.action.search;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Action type for deleting point in time searches
@@ -20,5 +23,10 @@ public class DeletePitAction extends ActionType<DeletePitResponse> {
 
     private DeletePitAction() {
         super(NAME, DeletePitResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

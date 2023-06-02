@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.segments.IndexSegments;
@@ -44,6 +45,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.common.Strings;
+import org.opensearch.identity.Scope;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -181,5 +183,9 @@ public class RestSegmentsAction extends AbstractCatAction {
         }
 
         return table;
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

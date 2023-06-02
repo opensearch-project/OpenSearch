@@ -10,9 +10,11 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -63,5 +65,10 @@ public class RestClusterDeleteWeightedRoutingAction extends BaseRestHandler {
         );
         request.applyContentParser(p -> deleteWeightedRoutingRequest.source(p.mapStrings()));
         return deleteWeightedRoutingRequest;
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

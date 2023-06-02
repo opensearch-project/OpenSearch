@@ -34,6 +34,7 @@ package org.opensearch.rest.action.search;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
@@ -43,6 +44,7 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.identity.Scope;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -404,5 +406,9 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public boolean allowsUnsafeBuffers() {
         return true;
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);
     }
 }

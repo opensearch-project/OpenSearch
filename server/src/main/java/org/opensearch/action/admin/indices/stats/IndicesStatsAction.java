@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.indices.stats;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for retrieving index stats
@@ -46,5 +49,10 @@ public class IndicesStatsAction extends ActionType<IndicesStatsResponse> {
 
     private IndicesStatsAction() {
         super(NAME, IndicesStatsResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action to rollover an index.
@@ -46,6 +49,11 @@ public class RolloverAction extends ActionType<RolloverResponse> {
 
     private RolloverAction() {
         super(NAME, RolloverResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 
 }

@@ -33,6 +33,7 @@
 package org.opensearch.rest.action.cat;
 
 import com.carrotsearch.hppc.ObjectIntScatterMap;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -46,6 +47,7 @@ import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
@@ -192,5 +194,8 @@ public class RestAllocationAction extends AbstractCatAction {
 
         return table;
     }
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
+    }
 }

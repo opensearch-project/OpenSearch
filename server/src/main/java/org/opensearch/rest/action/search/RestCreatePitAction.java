@@ -8,11 +8,13 @@
 
 package org.opensearch.rest.action.search;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;
@@ -53,5 +55,8 @@ public class RestCreatePitAction extends BaseRestHandler {
     public List<Route> routes() {
         return unmodifiableList(asList(new Route(POST, "/{index}/_search/point_in_time")));
     }
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);
+    }
 }

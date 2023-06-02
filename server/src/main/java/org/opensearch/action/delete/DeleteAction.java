@@ -32,7 +32,10 @@
 
 package org.opensearch.action.delete;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action to delete a document from an index
@@ -46,5 +49,10 @@ public class DeleteAction extends ActionType<DeleteResponse> {
 
     private DeleteAction() {
         super(NAME, DeleteResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

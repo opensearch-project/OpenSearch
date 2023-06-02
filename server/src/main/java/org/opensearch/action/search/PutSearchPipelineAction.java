@@ -8,8 +8,11 @@
 
 package org.opensearch.action.search;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.identity.Scope;
 
 /**
  * Action type to put a new search pipeline
@@ -22,5 +25,10 @@ public class PutSearchPipelineAction extends ActionType<AcknowledgedResponse> {
 
     public PutSearchPipelineAction() {
         super(NAME, AcknowledgedResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

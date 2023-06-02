@@ -32,7 +32,10 @@
 
 package org.opensearch.action.search;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport Action for clearing a scroll
@@ -46,5 +49,10 @@ public class ClearScrollAction extends ActionType<ClearScrollResponse> {
 
     private ClearScrollAction() {
         super(NAME, ClearScrollResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

@@ -32,7 +32,10 @@
 
 package org.opensearch.action.search;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for executing a multi search
@@ -46,5 +49,10 @@ public class MultiSearchAction extends ActionType<MultiSearchResponse> {
 
     private MultiSearchAction() {
         super(NAME, MultiSearchResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

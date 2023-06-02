@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.cluster.snapshots.create;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Create snapshot action
@@ -46,5 +49,10 @@ public class CreateSnapshotAction extends ActionType<CreateSnapshotResponse> {
 
     private CreateSnapshotAction() {
         super(NAME, CreateSnapshotResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

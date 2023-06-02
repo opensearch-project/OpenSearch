@@ -31,7 +31,10 @@
 
 package org.opensearch.action.admin.cluster.repositories.cleanup;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for cleaning up snapshot repositories
@@ -45,5 +48,10 @@ public final class CleanupRepositoryAction extends ActionType<CleanupRepositoryR
 
     private CleanupRepositoryAction() {
         super(NAME, CleanupRepositoryResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Cluster_ALL);
     }
 }

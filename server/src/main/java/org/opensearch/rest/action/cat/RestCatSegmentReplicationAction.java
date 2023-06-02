@@ -9,6 +9,7 @@
 package org.opensearch.rest.action.cat;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequest;
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.support.IndicesOptions;
@@ -18,6 +19,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.core.common.Strings;
+import org.opensearch.identity.Scope;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.indices.replication.SegmentReplicationState;
@@ -198,5 +200,9 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
         }
 
         return t;
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

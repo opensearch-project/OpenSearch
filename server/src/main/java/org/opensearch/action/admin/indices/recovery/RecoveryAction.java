@@ -32,7 +32,10 @@
 
 package org.opensearch.action.admin.indices.recovery;
 
+import java.util.List;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.Scope;
 
 /**
  * Recovery information action
@@ -46,5 +49,10 @@ public class RecoveryAction extends ActionType<RecoveryResponse> {
 
     private RecoveryAction() {
         super(NAME, RecoveryResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }

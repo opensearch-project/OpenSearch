@@ -32,9 +32,11 @@
 
 package org.opensearch.rest.action.ingest;
 
+import org.opensearch.action.ActionScopes;
 import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -70,5 +72,9 @@ public class RestDeletePipelineAction extends BaseRestHandler {
         parseDeprecatedMasterTimeoutParameter(request, restRequest, deprecationLogger, getName());
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().deletePipeline(request, new RestToXContentListener<>(channel));
+    }
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_ALL);
     }
 }
