@@ -94,9 +94,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
 
-        try (Store remoteStore = indexShard.remoteStore()) {
+        try (Store remoteStore = indexShard.store()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
-                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.remoteDirectory()).getDelegate())
+                    .getDelegate();
 
             verifyUploadedSegments(remoteSegmentStoreDirectory);
 
@@ -112,9 +113,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertDocs(indexShard, "1", "2", "3");
         flushShard(indexShard);
 
-        try (Store remoteStore = indexShard.remoteStore()) {
+        try (Store remoteStore = indexShard.store()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
-                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.remoteDirectory()).getDelegate())
+                    .getDelegate();
 
             verifyUploadedSegments(remoteSegmentStoreDirectory);
 
@@ -136,9 +138,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         indexDocs(8, 4);
         indexShard.refresh("test");
 
-        try (Store remoteStore = indexShard.remoteStore()) {
+        try (Store remoteStore = indexShard.store()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
-                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.remoteDirectory()).getDelegate())
+                    .getDelegate();
 
             verifyUploadedSegments(remoteSegmentStoreDirectory);
 
@@ -158,9 +161,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             flushShard(indexShard);
         }
 
-        try (Store remoteStore = indexShard.remoteStore()) {
+        try (Store remoteStore = indexShard.store()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
-                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.remoteDirectory()).getDelegate())
+                    .getDelegate();
 
             verifyUploadedSegments(remoteSegmentStoreDirectory);
 
@@ -175,9 +179,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         setup(false, 3);
         remoteStoreRefreshListener.afterRefresh(true);
 
-        try (Store remoteStore = indexShard.remoteStore()) {
+        try (Store remoteStore = indexShard.store()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
-                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.remoteDirectory()).getDelegate())
+                    .getDelegate();
 
             assertEquals(0, remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().size());
         }
@@ -188,7 +193,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         remoteStoreRefreshListener.afterRefresh(true);
 
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
-            (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate())
+            (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.store().remoteDirectory()).getDelegate())
                 .getDelegate();
 
         assertEquals(0, remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().size());
@@ -359,13 +364,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(store.directory()).thenReturn(indexShard.store().directory());
 
         // Mock (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
-        Store remoteStore = mock(Store.class);
-        when(shard.remoteStore()).thenReturn(remoteStore);
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
-            (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate())
+            (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.store().remoteDirectory()).getDelegate())
                 .getDelegate();
         FilterDirectory remoteStoreFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(remoteSegmentStoreDirectory));
-        when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
+        when(store.remoteDirectory()).thenReturn(remoteStoreFilterDirectory);
 
         // Mock indexShard.getOperationPrimaryTerm()
         when(shard.getOperationPrimaryTerm()).thenReturn(indexShard.getOperationPrimaryTerm());

@@ -438,8 +438,7 @@ final class StoreRecovery {
     }
 
     private void recoverFromRemoteStore(IndexShard indexShard) throws IndexShardRecoveryException {
-        final Store remoteStore = indexShard.remoteStore();
-        if (remoteStore == null) {
+        if (indexShard.store().remoteDirectory() == null) {
             throw new IndexShardRecoveryException(
                 indexShard.shardId(),
                 "Remote store is not enabled for this index",
@@ -450,7 +449,6 @@ final class StoreRecovery {
         indexShard.prepareForIndexRecovery();
         final Store store = indexShard.store();
         store.incRef();
-        remoteStore.incRef();
         try {
             // Download segments from remote segment store
             indexShard.syncSegmentsFromRemoteSegmentStore(true);
@@ -474,7 +472,6 @@ final class StoreRecovery {
             throw new IndexShardRecoveryException(indexShard.shardId, "Exception while recovering from remote store", e);
         } finally {
             store.decRef();
-            remoteStore.decRef();
         }
     }
 

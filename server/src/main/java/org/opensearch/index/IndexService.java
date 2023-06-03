@@ -470,17 +470,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             };
 
-            Store remoteStore = null;
+            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            Directory remoteDirectory = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
-                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
-                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
+                remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
             }
 
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
             store = new Store(
                 shardId,
                 this.indexSettings,
                 directory,
+                remoteDirectory,
                 lock,
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
             );
@@ -508,7 +508,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 translogFactorySupplier,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
-                remoteStore,
                 remoteRefreshSegmentPressureService
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");

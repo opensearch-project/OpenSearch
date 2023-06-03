@@ -326,7 +326,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
-    private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
 
@@ -353,7 +352,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final Store remoteStore,
         final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
@@ -444,7 +442,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.checkpointPublisher = checkpointPublisher;
-        this.remoteStore = remoteStore;
         this.translogFactorySupplier = translogFactorySupplier;
         this.remoteRefreshSegmentPressureService = remoteRefreshSegmentPressureService;
     }
@@ -455,10 +452,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Store store() {
         return this.store;
-    }
-
-    public Store remoteStore() {
-        return this.remoteStore;
     }
 
     /**
@@ -3587,7 +3580,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private boolean isRemoteStoreEnabled() {
-        return (remoteStore != null && shardRouting.primary());
+        return (store.remoteDirectory() != null && shardRouting.primary());
     }
 
     public boolean isRemoteTranslogEnabled() {
@@ -4468,8 +4461,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
-        assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
-        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
+        assert store.remoteDirectory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
+        FilterDirectory remoteStoreDirectory = (FilterDirectory) store.remoteDirectory();
         assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
             : "Store.directory is not enclosing an instance of FilterDirectory";
         FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
@@ -4481,7 +4474,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory)
             .getSegmentsUploadedToRemoteStore();
         store.incRef();
-        remoteStore.incRef();
         List<String> downloadedSegments = new ArrayList<>();
         List<String> skippedSegments = new ArrayList<>();
         try {
@@ -4538,7 +4530,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.info("Downloaded segments: {}", downloadedSegments);
             logger.info("Skipped download for segments: {}", skippedSegments);
             store.decRef();
-            remoteStore.decRef();
         }
     }
 

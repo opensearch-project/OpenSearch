@@ -174,8 +174,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 new EngineConfigFactory(new IndexSettings(indexMetadata, settings)),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER,
-                null
+                EMPTY_EVENT_LISTENER
             ),
             true
         );
@@ -551,8 +550,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             indexShard.getEngineConfigFactory(),
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER,
-            null
+            EMPTY_EVENT_LISTENER
         );
     }
 

@@ -179,6 +179,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
+    private final StoreDirectory remoteDirectory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
     private final OnClose onClose;
@@ -200,11 +201,30 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock, OnClose onClose) {
+        this(shardId, indexSettings, directory, null, shardLock, onClose);
+    }
+
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        Directory remoteDirectory,
+        ShardLock shardLock,
+        OnClose onClose
+    ) {
         super(shardId, indexSettings);
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
         ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
         this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
+
+        if (remoteDirectory != null) {
+            ByteSizeCachingDirectory sizeCachingRemoteDir = new ByteSizeCachingDirectory(remoteDirectory, refreshInterval);
+            this.remoteDirectory = new StoreDirectory(sizeCachingRemoteDir, Loggers.getLogger("index.store.deletes", shardId));
+        } else {
+            this.remoteDirectory = null;
+        }
+
         this.shardLock = shardLock;
         this.onClose = onClose;
         this.replicaFileTracker = indexSettings.isSegRepEnabled() ? new ReplicaFileTracker() : null;
@@ -217,6 +237,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public Directory directory() {
         ensureOpen();
         return directory;
+    }
+
+    public Directory remoteDirectory() {
+        ensureOpen();
+        return remoteDirectory;
     }
 
     /**

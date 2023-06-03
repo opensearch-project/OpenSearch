@@ -79,8 +79,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                 replica.getEngineConfigFactory(),
                 replica.getGlobalCheckpointSyncer(),
                 replica.getRetentionLeaseSyncer(),
-                EMPTY_EVENT_LISTENER,
-                null
+                EMPTY_EVENT_LISTENER
             );
             shards.addReplica(newReplicaShard);
             AtomicBoolean assertDone = new AtomicBoolean(false);
