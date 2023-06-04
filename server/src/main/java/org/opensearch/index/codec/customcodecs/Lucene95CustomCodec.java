@@ -15,7 +15,7 @@ import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
 import org.opensearch.index.mapper.MapperService;
 
-abstract class Lucene95CustomCodec extends FilterCodec {
+public abstract class Lucene95CustomCodec extends FilterCodec {
     public static final int DEFAULT_COMPRESSION_LEVEL = 6;
 
     /** Each mode represents a compression algorithm. */

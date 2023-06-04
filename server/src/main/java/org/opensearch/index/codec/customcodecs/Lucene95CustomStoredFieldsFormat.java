@@ -96,7 +96,7 @@ public class Lucene95CustomStoredFieldsFormat extends StoredFieldsFormat {
         return impl(mode).fieldsWriter(directory, si, context);
     }
 
-    private StoredFieldsFormat impl(Lucene95CustomCodec.Mode mode) {
+    StoredFieldsFormat impl(Lucene95CustomCodec.Mode mode) {
         switch (mode) {
             case ZSTD:
                 return new Lucene90CompressingStoredFieldsFormat(
@@ -117,5 +117,9 @@ public class Lucene95CustomStoredFieldsFormat extends StoredFieldsFormat {
             default:
                 throw new AssertionError();
         }
+    }
+
+    Lucene95CustomCodec.Mode getMode() {
+        return mode;
     }
 }
