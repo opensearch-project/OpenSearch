@@ -1,0 +1,55 @@
+---
+"Named queries with score":
+  - do:
+      indices.create:
+        index:  test
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { foo: bar }
+
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:   { foo: bar, foo2: bar2 }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool: {
+              should: [
+                {
+                  match: {
+                    foo: {
+                      query: bar,
+                      _name: foo_query,
+                      boost: 5
+                    }
+                  }
+                },
+                {
+                  match: {
+                    foo2: {
+                      query: bar2,
+                      _name: foo2_query,
+                      boost: 20
+                    }
+                  }
+                }
+              ]
+            }
+
+  - match:  {hits.total.value: 2}
+  - length: {hits.hits.0.matched_queries: 2}
+  - gt: {hits.hits.0.matched_queries.foo_query: 0.0}
+  - gt: {hits.hits.0.matched_queries.foo2_query: 0.0}
+  - length: {hits.hits.1.matched_queries: 1 }
+  - gt: {hits.hits.1.matched_queries.foo_query: 0.0}

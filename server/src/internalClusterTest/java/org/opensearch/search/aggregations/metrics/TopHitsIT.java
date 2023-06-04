@@ -76,6 +76,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.opensearch.common.xcontent.XContentFactory.yamlBuilder;
@@ -93,16 +103,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase()
 public class TopHitsIT extends OpenSearchIntegTestCase {
@@ -686,7 +686,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
                 assertThat(hit.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
             }
 
-            assertThat(hit.getMatchedQueries()[0], equalTo("test"));
+            assertThat(hit.getMatchedQueries(), hasKey("test"));
 
             DocumentField field1 = hit.field("field1");
             assertThat(field1.getValue(), equalTo(5L));
@@ -961,7 +961,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         long version = searchHit.getVersion();
         assertThat(version, equalTo(1L));
 
-        assertThat(searchHit.getMatchedQueries(), arrayContaining("test"));
+        assertThat(searchHit.getMatchedQueries(), hasKey("test"));
 
         DocumentField field = searchHit.field("comments.user");
         assertThat(field.getValue().toString(), equalTo("a"));

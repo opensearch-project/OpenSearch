@@ -69,10 +69,10 @@ import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -118,7 +118,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private SearchSortValues sortValues = SearchSortValues.EMPTY;
 
-    private String[] matchedQueries = Strings.EMPTY_ARRAY;
+    private Map<String, Float> matchedQueries = null;
 
     private Explanation explanation;
 
@@ -202,9 +202,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
         size = in.readVInt();
         if (size > 0) {
-            matchedQueries = new String[size];
+            matchedQueries = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
-                matchedQueries[i] = in.readString();
+                String matchedQueryName = in.readString();
+                matchedQueries.put(matchedQueryName, in.readFloat());
             }
         }
         // we call the setter here because that also sets the local index parameter
@@ -284,12 +285,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         sortValues.writeTo(out);
 
-        if (matchedQueries.length == 0) {
+        if (matchedQueries == null || matchedQueries.size() == 0) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(matchedQueries.length);
-            for (String matchedFilter : matchedQueries) {
-                out.writeString(matchedFilter);
+            out.writeVInt(matchedQueries.size());
+            for (Map.Entry<String, Float> entry : matchedQueries.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeFloat(entry.getValue());
             }
         }
         out.writeOptionalWriteable(shard);
@@ -557,14 +559,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return clusterAlias;
     }
 
-    public void matchedQueries(String[] matchedQueries) {
+    public void matchedQueries(Map<String, Float> matchedQueries) {
         this.matchedQueries = matchedQueries;
     }
 
     /**
      * The set of query and filter names the query matched with. Mainly makes sense for compound filters and queries.
      */
-    public String[] getMatchedQueries() {
+    public Map<String, Float> getMatchedQueries() {
         return this.matchedQueries;
     }
 
@@ -685,12 +687,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.endObject();
         }
         sortValues.toXContent(builder, params);
-        if (matchedQueries.length > 0) {
-            builder.startArray(Fields.MATCHED_QUERIES);
-            for (String matchedFilter : matchedQueries) {
-                builder.value(matchedFilter);
+        if (matchedQueries != null && matchedQueries.size() > 0) {
+            builder.startObject(Fields.MATCHED_QUERIES);
+            for (Map.Entry<String, Float> matchedFilter : matchedQueries.entrySet()) {
+                builder.field(matchedFilter.getKey());
+                builder.value(matchedFilter.getValue());
             }
-            builder.endArray();
+            builder.endObject();
         }
         if (getExplanation() != null) {
             builder.field(Fields._EXPLANATION);
@@ -795,7 +798,26 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             (p, c) -> parseInnerHits(p),
             new ParseField(Fields.INNER_HITS)
         );
-        parser.declareStringArray((map, list) -> map.put(Fields.MATCHED_QUERIES, list), new ParseField(Fields.MATCHED_QUERIES));
+        parser.declareField((p, map, context) -> {
+            Map<String, Float> matchedQueries = new LinkedHashMap<>();
+            XContentParser.Token t = p.currentToken();
+            if (t == XContentParser.Token.START_ARRAY) { // backwards compatibility with array responses
+                while (p.nextToken() != XContentParser.Token.END_ARRAY) {
+                    matchedQueries.put(p.text(), Float.NaN);
+                }
+            }
+            if (t == XContentParser.Token.START_OBJECT) {
+                String fieldName = null;
+                while ((t = p.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (t == XContentParser.Token.FIELD_NAME) {
+                        fieldName = p.currentName();
+                    } else if (t.isValue()) {
+                        matchedQueries.put(fieldName, p.floatValue());
+                    }
+                }
+            }
+            map.put(Fields.MATCHED_QUERIES, matchedQueries);
+        }, new ParseField(Fields.MATCHED_QUERIES), ObjectParser.ValueType.OBJECT_ARRAY);
         parser.declareField(
             (map, list) -> map.put(Fields.SORT, list),
             SearchSortValues::fromXContent,
@@ -840,9 +862,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         searchHit.sourceRef(get(SourceFieldMapper.NAME, values, null));
         searchHit.explanation(get(Fields._EXPLANATION, values, null));
         searchHit.setInnerHits(get(Fields.INNER_HITS, values, null));
-        List<String> matchedQueries = get(Fields.MATCHED_QUERIES, values, null);
+        Map<String, Float> matchedQueries = get(Fields.MATCHED_QUERIES, values, null);
         if (matchedQueries != null) {
-            searchHit.matchedQueries(matchedQueries.toArray(new String[0]));
+            searchHit.matchedQueries(matchedQueries);
         }
         return searchHit;
     }
@@ -963,7 +985,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             && Objects.equals(documentFields, other.documentFields)
             && Objects.equals(metaFields, other.metaFields)
             && Objects.equals(getHighlightFields(), other.getHighlightFields())
-            && Arrays.equals(matchedQueries, other.matchedQueries)
+            && Objects.equals(matchedQueries, other.matchedQueries)
             && Objects.equals(explanation, other.explanation)
             && Objects.equals(shard, other.shard)
             && Objects.equals(innerHits, other.innerHits)
@@ -983,7 +1005,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             documentFields,
             metaFields,
             getHighlightFields(),
-            Arrays.hashCode(matchedQueries),
+            matchedQueries,
             explanation,
             shard,
             innerHits,

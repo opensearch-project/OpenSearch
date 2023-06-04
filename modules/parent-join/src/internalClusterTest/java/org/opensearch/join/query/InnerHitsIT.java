@@ -61,6 +61,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
@@ -79,11 +85,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class InnerHitsIT extends ParentChildTestCase {
 
@@ -545,13 +546,13 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries(), hasKey("_name1"));
 
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
+        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries(), hasKey("_name1"));
 
         QueryBuilder query = hasChildQuery("child", matchQuery("field", "value2").queryName("_name2"), ScoreMode.None).innerHit(
             new InnerHitBuilder()
@@ -560,8 +561,8 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries(), hasKey("_name2"));
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {

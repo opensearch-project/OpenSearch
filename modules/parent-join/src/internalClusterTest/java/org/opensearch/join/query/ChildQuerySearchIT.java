@@ -72,6 +72,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
@@ -93,10 +98,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class ChildQuerySearchIT extends ParentChildTestCase {
 
@@ -1250,29 +1251,29 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             .setQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.Max).queryName("test"))
             .get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries(), hasKey("test"));
 
         searchResponse = client().prepareSearch("test")
             .setQuery(hasParentQuery("parent", termQuery("p_field", "1"), true).queryName("test"))
             .get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries(), hasKey("test"));
 
         searchResponse = client().prepareSearch("test")
             .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.None).queryName("test")))
             .get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries(), hasKey("test"));
 
         searchResponse = client().prepareSearch("test")
             .setQuery(constantScoreQuery(hasParentQuery("parent", termQuery("p_field", "1"), false).queryName("test")))
             .get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries(), hasKey("test"));
     }
 
     public void testParentChildQueriesNoParentType() throws Exception {
