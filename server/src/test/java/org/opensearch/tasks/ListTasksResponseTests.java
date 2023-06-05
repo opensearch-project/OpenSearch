@@ -32,6 +32,7 @@
 
 package org.opensearch.tasks;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;
@@ -158,11 +159,11 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         assertOnTaskFailures(newInstance.getTaskFailures(), expectedInstance.getTaskFailures());
     }
 
-    protected static void assertOnNodeFailures(List<OpenSearchException> nodeFailures, List<OpenSearchException> expectedFailures) {
+    protected static void assertOnNodeFailures(List<BaseOpenSearchException> nodeFailures, List<BaseOpenSearchException> expectedFailures) {
         assertThat(nodeFailures.size(), equalTo(expectedFailures.size()));
         for (int i = 0; i < nodeFailures.size(); i++) {
-            OpenSearchException newException = nodeFailures.get(i);
-            OpenSearchException expectedException = expectedFailures.get(i);
+            BaseOpenSearchException newException = nodeFailures.get(i);
+            BaseOpenSearchException expectedException = expectedFailures.get(i);
             assertThat(newException.getMetadata("opensearch.node_id").get(0), equalTo(((FailedNodeException) expectedException).nodeId()));
             assertThat(newException.getMessage(), equalTo("OpenSearch exception [type=failed_node_exception, reason=error message]"));
             assertThat(newException.getCause(), instanceOf(OpenSearchException.class));

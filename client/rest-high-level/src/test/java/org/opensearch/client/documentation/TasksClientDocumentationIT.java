@@ -33,7 +33,6 @@
 package org.opensearch.client.documentation;
 
 import org.opensearch.BaseOpenSearchException;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.TaskOperationFailure;
