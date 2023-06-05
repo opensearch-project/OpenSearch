@@ -123,9 +123,9 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             IngestDocument document = a[4] == null ? null : ((WriteableIngestDocument) a[4]).getIngestDocument();
             Exception failure = null;
             if (a[5] != null) {
-                failure = (OpenSearchException) a[5];
+                failure = (BaseOpenSearchException) a[5];
             } else if (a[6] != null) {
-                failure = (OpenSearchException) a[6];
+                failure = (BaseOpenSearchException) a[6];
             }
 
             return new SimulateProcessorResult(type, processorTag, description, document, failure, conditionalWithResult);

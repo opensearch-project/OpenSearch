@@ -32,6 +32,7 @@
 
 package org.opensearch.action.support.tasks;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.FailedNodeException;
@@ -62,9 +63,9 @@ public class BaseTasksResponse extends ActionResponse {
     protected static final String NODE_FAILURES = "node_failures";
 
     private List<TaskOperationFailure> taskFailures;
-    private List<OpenSearchException> nodeFailures;
+    private List<BaseOpenSearchException> nodeFailures;
 
-    public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends OpenSearchException> nodeFailures) {
+    public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends BaseOpenSearchException> nodeFailures) {
         this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(taskFailures));
         this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(nodeFailures));
     }
@@ -92,7 +93,7 @@ public class BaseTasksResponse extends ActionResponse {
             exp.writeTo(out);
         }
         out.writeVInt(nodeFailures.size());
-        for (OpenSearchException exp : nodeFailures) {
+        for (BaseOpenSearchException exp : nodeFailures) {
             exp.writeTo(out);
         }
     }
@@ -107,7 +108,7 @@ public class BaseTasksResponse extends ActionResponse {
     /**
      * The list of node failures exception.
      */
-    public List<OpenSearchException> getNodeFailures() {
+    public List<BaseOpenSearchException> getNodeFailures() {
         return nodeFailures;
     }
 
@@ -144,7 +145,7 @@ public class BaseTasksResponse extends ActionResponse {
 
         if (getNodeFailures() != null && getNodeFailures().size() > 0) {
             builder.startArray(NODE_FAILURES);
-            for (OpenSearchException ex : getNodeFailures()) {
+            for (BaseOpenSearchException ex : getNodeFailures()) {
                 builder.startObject();
                 ex.toXContent(builder, params);
                 builder.endObject();
