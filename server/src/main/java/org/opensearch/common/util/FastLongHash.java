@@ -229,7 +229,10 @@ public class FastLongHash implements Releasable {
         }
 
         // Find an alternative slot for the displaced value such that the longest PSL is minimized.
-        for (idx = (idx + 1) & mask;; idx = (idx + 1) & mask) {
+        do {
+            idx = (idx + 1) & mask;
+            value += INCR_PSL;
+
             if ((existingValue = table.get(idx)) == -1) {
                 // Empty slot; insert the candidate value here.
                 table.set(idx, value);
@@ -242,8 +245,7 @@ public class FastLongHash implements Releasable {
                 // correlated lookups.
                 value = table.set(idx, value);
             }
-            value += INCR_PSL;
-        }
+        } while (true);
     }
 
     /**
@@ -257,9 +259,18 @@ public class FastLongHash implements Releasable {
 
     /**
      * Returns the hash for the given key.
+     * Visible for unit-tests.
      */
-    protected long hash(final long key) {
+    long hash(final long key) {
         return BitMixer.mix64(key);
+    }
+
+    /**
+     * Returns the underlying hash table.
+     * Visible for unit-tests.
+     */
+    LongArray getTable() {
+        return table;
     }
 
     /**

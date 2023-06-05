@@ -46,6 +46,101 @@ public class FastLongHashTests extends OpenSearchTestCase {
 
             // Verify the behaviour of "size".
             assertEquals(reference.size(), h.size());
+
+            // Verify the calculation of PSLs.
+            final long capacity = h.getTable().size();
+            final long mask = capacity - 1;
+            for (long idx = 0; idx < h.getTable().size(); idx++) {
+                final long value = h.getTable().get(idx);
+                if (value != -1) {
+                    final long homeIdx = h.hash(h.get((int) value)) & mask;
+                    assertEquals((capacity + idx - homeIdx) & mask, value >>> 48);
+                }
+            }
         }
+    }
+
+    public void testRearrangement() {
+        try (FastLongHash h = new FastLongHash(4, 0.6f, BigArrays.NON_RECYCLING_INSTANCE) {
+            /**
+             * Overriding with an "identity" hash function to make it easier to reason about the placement
+             * of values in the hash table. The backing array of the hash table will have a size (8),
+             * i.e. nextPowerOfTwo(initialCapacity/loadFactor), so the bitmask will be (7).
+             * The ideal home slot of a key can then be defined as: (hash(key) & mask) = (key & 7).
+             */
+            @Override
+            long hash(long key) {
+                return key;
+            }
+        }) {
+            /*
+             * Add key=0, hash=0, home_slot=0
+             *
+             * Before: empty slot.
+             *   ▼
+             * [ _ _ _ _ _ _ _ _ ]
+             *
+             * After: inserted [ordinal=0, psl=0] at the empty slot.
+             * [ 0 _ _ _ _ _ _ _ ]
+             */
+            h.add(0);
+            assertEquals(encodeValue(0, 0, 0), h.getTable().get(0));
+
+            /*
+             * Add key=8, hash=8, home_slot=0
+             *
+             * Before: occupied slot.
+             *   ▼
+             * [ 0 _ _ _ _ _ _ _ ]
+             *
+             * After: inserted [ordinal=1, psl=0] at the existing slot, displaced [ordinal=0, psl=0],
+             *        and re-inserted it at the next empty slot as [ordinal=0, psl=1].
+             * [ 1 0 _ _ _ _ _ _ ]
+             */
+            h.add(8);
+            assertEquals(encodeValue(0, 0, 1), h.getTable().get(0));
+            assertEquals(encodeValue(1, 0, 0), h.getTable().get(1));
+
+            /*
+             * Add key=1, hash=1, home_slot=1
+             *
+             * Before: occupied slot.
+             *     ▼
+             * [ 1 0 _ _ _ _ _ _ ]
+             *
+             * After: inserted [ordinal=2, psl=0] at the existing slot, displaced [ordinal=0, psl=1],
+             *        and re-inserted it at the next empty slot as [ordinal=0, psl=2].
+             * [ 1 2 0 _ _ _ _ _ ]
+             */
+            h.add(1);
+            assertEquals(encodeValue(0, 0, 1), h.getTable().get(0));
+            assertEquals(encodeValue(0, 0, 2), h.getTable().get(1));
+            assertEquals(encodeValue(2, 0, 0), h.getTable().get(2));
+
+            /*
+             * Add key=16, hash=16, home_slot=0
+             *
+             * Before: occupied slot.
+             *   ▼
+             * [ 1 2 0 _ _ _ _ _ ]
+             *
+             * After: inserted [ordinal=3, psl=0] at the existing slot, displaced [ordinal=1, psl=0]
+             *        and re-inserted it at the next best slot. Repeated this for other displaced values
+             *        until everything found an empty slot.
+             * [ 3 1 0 2 _ _ _ _ ]
+             */
+            h.add(16);
+            assertEquals(encodeValue(0, 0, 3), h.getTable().get(0));
+            assertEquals(encodeValue(1, 0, 1), h.getTable().get(1));
+            assertEquals(encodeValue(2, 0, 0), h.getTable().get(2));
+            assertEquals(encodeValue(2, 0, 2), h.getTable().get(3));
+        }
+    }
+
+    private static long encodeValue(long psl, long fingerprint, long ordinal) {
+        assert psl < (1L << 15);
+        assert fingerprint < (1L << 16);
+        assert ordinal < (1L << 32);
+        return (psl << 48) | (fingerprint << 32) | ordinal;
     }
 }
