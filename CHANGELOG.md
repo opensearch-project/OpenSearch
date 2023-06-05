@@ -13,11 +13,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.gradle.test-retry` from 1.5.2 to 1.5.3 (#7810)
 - Bump `com.diffplug.spotless` from 6.17.0 to 6.18.0 (#7896)
 - Bump `jackson` from 2.15.1 to 2.15.2 ([#7897](https://github.com/opensearch-project/OpenSearch/pull/7897))
+- Add `com.github.luben:zstd-jni` version 1.5.5-3 ([#2996](https://github.com/opensearch-project/OpenSearch/pull/2996))
 
 ### Changed
 - Replace jboss-annotations-api_1.2_spec with jakarta.annotation-api ([#7836](https://github.com/opensearch-project/OpenSearch/pull/7836))
 - Reduce memory copy in zstd compression ([#7681](https://github.com/opensearch-project/OpenSearch/pull/7681))
 - Add min, max, average and thread info to resource stats in tasks API ([#7673](https://github.com/opensearch-project/OpenSearch/pull/7673))
+- Add ZSTD compression for snapshotting ([#2996](https://github.com/opensearch-project/OpenSearch/pull/2996))
 
 ### Deprecated
 
