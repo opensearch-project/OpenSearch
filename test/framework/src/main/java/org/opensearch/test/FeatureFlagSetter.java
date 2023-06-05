@@ -8,14 +8,13 @@
 
 package org.opensearch.test;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Set;
 
 /**
  * Helper class that wraps the lifecycle of setting and finally clearing of

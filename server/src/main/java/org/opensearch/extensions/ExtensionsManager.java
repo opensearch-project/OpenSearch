@@ -121,6 +121,7 @@ public class ExtensionsManager {
         logger.info("ExtensionsManager initialized");
         this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
+        this.extensionSettingsMap = new HashMap<String, Extension>();
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;

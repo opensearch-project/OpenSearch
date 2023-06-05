@@ -10,20 +10,14 @@ package org.opensearch.extensions.rest;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
 import java.util.Map;
-import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.mockito.Mockito.mock;
-
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
@@ -57,6 +51,10 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 import org.opensearch.usage.UsageService;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.mockito.Mockito.mock;
 
 public class RestSendToExtensionActionTests extends OpenSearchTestCase {
 
@@ -102,6 +100,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
             Version.fromString("3.0.0"),
+            Collections.emptyList(),
             Collections.emptyList()
         );
         SettingsModule settingsModule = new SettingsModule(settings);

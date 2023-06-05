@@ -7,6 +7,9 @@
  */
 package org.opensearch.discovery;
 
+import java.net.InetAddress;
+import java.util.HashMap;
+import java.util.List;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -17,10 +20,6 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionDependency;
 import org.opensearch.test.OpenSearchTestCase;
-
-import java.net.InetAddress;
-import java.util.HashMap;
-import java.util.List;
 
 public class InitializeExtensionRequestTests extends OpenSearchTestCase {
 
@@ -35,7 +34,8 @@ public class InitializeExtensionRequestTests extends OpenSearchTestCase {
             new HashMap<>(),
             Version.CURRENT,
             Version.CURRENT,
-            List.of(expectedDependency)
+            List.of(expectedDependency),
+            List.of()
         );
         DiscoveryNode expectedSourceNode = new DiscoveryNode(
             "sourceNode",

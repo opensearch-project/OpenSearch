@@ -8,15 +8,14 @@
 
 package org.opensearch.extensions;
 
-import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
-import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.test.OpenSearchTestCase;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.test.OpenSearchTestCase;
 
 public class DiscoveryExtensionNodeTests extends OpenSearchTestCase {
 
@@ -29,6 +28,7 @@ public class DiscoveryExtensionNodeTests extends OpenSearchTestCase {
             Version.fromString("3.0.0"),
             // minimum compatible version
             Version.fromString("3.0.0"),
+            Collections.emptyList(),
             Collections.emptyList()
         );
         assertTrue(Version.CURRENT.onOrAfter(extensionNode.getMinimumCompatibleVersion()));
@@ -45,6 +45,7 @@ public class DiscoveryExtensionNodeTests extends OpenSearchTestCase {
                 Version.fromString("3.0.0"),
                 // minimum compatible version
                 Version.fromString("3.99.0"),
+                Collections.emptyList(),
                 Collections.emptyList()
             )
         );

@@ -8,19 +8,6 @@
 
 package org.opensearch.extensions;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.mock;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Path;
@@ -32,7 +19,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.junit.After;
@@ -57,14 +43,16 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.WriteableSetting;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.settings.WriteableSetting.SettingType;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
+import org.opensearch.common.settings.WriteableSetting;
+import org.opensearch.common.settings.WriteableSetting.SettingType;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.env.Environment;
+import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
@@ -85,6 +73,18 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 import org.opensearch.usage.UsageService;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 public class ExtensionsManagerTests extends OpenSearchTestCase {
     private TransportService transportService;
@@ -112,6 +112,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     version: '0.0.7'",
         "     opensearchVersion: '3.0.0'",
         "     minimumCompatibleVersion: '3.0.0'",
+        "     scopes: ['Index_ALL']",
         "     custom_extension_setting: 'custom_setting'",
         "   - name: secondExtension",
         "     uniqueId: 'uniqueid2'",
@@ -120,6 +121,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     version: '3.14.16'",
         "     opensearchVersion: '2.0.0'",
         "     minimumCompatibleVersion: '2.0.0'",
+        "     scopes: ['Index_ALL']",
         "     dependencies:",
         "       - uniqueId: 'uniqueid0'",
         "         version: '2.0.0'"
@@ -189,7 +191,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
             Version.fromString("3.0.0"),
-            Collections.emptyList()
+            Collections.emptyList(),
+            List.of()
         );
         client = new NoOpNodeClient(this.getTestName());
     }
@@ -249,7 +252,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new HashMap<String, String>(),
                 Version.fromString("3.0.0"),
                 Version.fromString("3.0.0"),
-                Collections.emptyList()
+                Collections.emptyList(),
+                List.of()
             )
         );
 
@@ -261,7 +265,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new HashMap<String, String>(),
                 Version.fromString("2.0.0"),
                 Version.fromString("2.0.0"),
-                List.of(expectedDependency)
+                List.of(expectedDependency),
+                List.of()
             )
         );
         assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
@@ -321,7 +326,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new HashMap<String, String>(),
                 Version.fromString("3.0.0"),
                 Version.fromString("3.0.0"),
-                Collections.emptyList()
+                Collections.emptyList(),
+                List.of()
             )
         );
         assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
@@ -347,7 +353,42 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         IOException exception = expectThrows(IOException.class, () -> extensionsManager.loadExtension(firstExtension));
         assertEquals("Required field [minimum opensearch version] is missing in the request", exception.getMessage());
 
+
         assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
+
+            extensionsManager = new ExtensionsManager(emptyExtensionDir, Set.of());
+
+            mockLogAppender.assertAllExpectationsMatched();
+        }
+
+        List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
+
+        expectedExtensions.add(
+            new DiscoveryExtensionNode(
+                "firstExtension",
+                "uniqueid1",
+                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+                new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
+                Version.fromString("3.0.0"),
+                Collections.emptyList(),
+                List.of()
+            )
+        );
+        assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        for (DiscoveryExtensionNode extension : expectedExtensions) {
+            DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
+            assertEquals(extension.getName(), initializedExtension.getName());
+            assertEquals(extension.getId(), initializedExtension.getId());
+            assertEquals(extension.getAddress(), initializedExtension.getAddress());
+            assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
+            assertEquals(extension.getVersion(), initializedExtension.getVersion());
+            assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
+            assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+        }
+        assertTrue(expectedExtensions.containsAll(emptyList()));
+        assertTrue(expectedExtensions.containsAll(emptyList()));
+
     }
 
     public void testDiscoveryExtension() throws Exception {
@@ -362,7 +403,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
             Version.fromString("3.0.0"),
-            List.of(expectedDependency)
+            List.of(expectedDependency),
+            List.of()
         );
 
         assertEquals(List.of(expectedDependency), discoveryExtensionNode.getDependencies());
@@ -465,7 +507,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterSettingsRequest() throws Exception {
+
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+
         initialize(extensionsManager);
 
         String uniqueIdStr = "uniqueid1";
@@ -612,7 +656,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new HashMap<String, String>(),
                 Version.fromString("3.0.0"),
                 Version.fromString("3.0.0"),
-                List.of(expectedDependency)
+                List.of(expectedDependency),
+                List.of()
             )
         );
 
@@ -826,6 +871,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         );
         expectThrows(OpenSearchException.class, () -> extensionsManager.loadExtension(firstExtension));
         assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
+
     }
 
     public void testAdditionalExtensionSettingsForExtensionWithCustomSettingSet() throws Exception {
@@ -863,7 +909,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
             Version.fromString("3.0.0"),
-            List.of()
+            List.of(),
+            List.of("test")
         );
         DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
         assertEquals(extension.getName(), initializedExtension.getName());
@@ -901,11 +948,14 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new HashMap<String, String>(),
             Version.fromString("2.0.0"),
             Version.fromString("2.0.0"),
+            List.of(),
             List.of()
         );
         DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
+        System.out.println("Extensions initialized: " + initializedExtension.getName() + " with ID: " + initializedExtension.getId());
         assertEquals(extension.getName(), initializedExtension.getName());
         assertEquals(extension.getId(), initializedExtension.getId());
+        System.out.println("Extension idMap is : " + extensionsManager.getExtensionIdMap());
         assertTrue(extensionsManager.lookupExtensionSettingsById(extension.getId()).isPresent());
         assertEquals(
             "none",

@@ -32,9 +32,13 @@
 
 package org.opensearch.plugins.wrappers;
 
-import org.opensearch.action.ActionType;
+import java.util.Collection;
+import java.util.List;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -49,14 +53,9 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensionPointScopes;
+import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
-import org.opensearch.rest.RestController;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 /**
  * Only allowed plugins are able to respond
@@ -73,7 +72,7 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
     }
 
     private void throwIfNotAllowed() {
-        if (identity.getSubject().isAllowed(List.of(ExtensionPointScopes.Action))) {
+        if (!identity.getSubject().isAllowed(List.of(ExtensionPointScopes.Action))) {
             throw new ExtensionPointScopes.ExtensionPointScopeException(ExtensionPointScopes.Action);
         }
     }

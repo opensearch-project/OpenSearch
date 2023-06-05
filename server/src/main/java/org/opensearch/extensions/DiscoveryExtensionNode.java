@@ -8,6 +8,11 @@
 
 package org.opensearch.extensions;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -19,12 +24,6 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 /**
  * Discover extensions running independently or in a separate process
  *
@@ -35,6 +34,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     private Version minimumCompatibleVersion;
     private List<ExtensionDependency> dependencies = Collections.emptyList();
     private List<String> implementedInterfaces = Collections.emptyList();
+    private List<String> scopes = Collections.emptyList();
 
     public DiscoveryExtensionNode(
         String name,
@@ -43,11 +43,13 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         Map<String, String> attributes,
         Version version,
         Version minimumCompatibleVersion,
-        List<ExtensionDependency> dependencies
+        List<ExtensionDependency> dependencies,
+        List<String> scopes
     ) {
         super(name, id, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
         this.minimumCompatibleVersion = minimumCompatibleVersion;
         this.dependencies = dependencies;
+        this.scopes = scopes;
         validate();
     }
 
