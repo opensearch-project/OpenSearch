@@ -62,6 +62,7 @@ public class CodecService {
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
     public static final String ZSTD_CODEC = "zstd";
     public static final String ZSTD_NO_DICT_CODEC = "zstd_no_dict";
+
     public CodecService(@Nullable MapperService mapperService, Logger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
