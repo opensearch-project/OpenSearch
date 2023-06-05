@@ -31,7 +31,7 @@ public class TranslogCheckedContainer {
     private final String file;
 
     /**
-     * Creates NRTCheckedContainer from provided channel.
+     * Creates TranslogCheckedContainer from provided channel.
      *
      * @param channel {@link FileChannel} to read from
      * @param offset  offset of channel from which bytes are to be read.

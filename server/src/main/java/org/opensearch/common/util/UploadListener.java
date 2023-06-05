@@ -6,14 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.shard;
+package org.opensearch.common.util;
 
 /**
  * A tracker class that is fed to FileUploader.
  *
  * @opensearch.internal
  */
-public interface UploadTracker {
+public interface UploadListener {
 
     void beforeUpload(String file);
 

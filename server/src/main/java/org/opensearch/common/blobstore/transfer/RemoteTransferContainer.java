@@ -12,19 +12,18 @@ import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
-import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
-import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.ResettableCheckedInputStream;
+import org.opensearch.common.io.InputStreamContainer;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Path;
 import java.util.Objects;
 
 /**
@@ -52,18 +51,17 @@ public class RemoteTransferContainer implements Closeable {
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
     /**
-     * Construct a new RemoteTransferContainer object using {@link Path} reference to the file.
-     * This constructor calculates the <code>expectedChecksum</code> of the uploaded file internally by calling
-     * <code>TranslogCheckedContainer#getChecksum</code>
+     * Construct a new RemoteTransferContainer object
      *
-     * @param fileName                  Name of the local file
+     * @param fileName                       Name of the local file
      * @param remoteFileName                 Name of the remote file
      * @param contentLength                  Total content length of the file to be uploaded
      * @param failTransferIfFileExists       A boolean to determine if upload has to be failed if file exists
      * @param writePriority                  The {@link WritePriority} of current upload
      * @param offsetRangeInputStreamSupplier A supplier to create OffsetRangeInputStreams
+     * @param expectedChecksum               The expected checksum value for the file being uploaded. This checksum will be used for local or remote data integrity checks
      * @param isRemoteDataIntegritySupported A boolean to signify whether the remote repository supports server side data integrity verification
-     * @param areInputStreamsDecorated            A boolean to signify whether the streams created via {@link OffsetRangeInputStreamSupplier#get} are decorated or not
+     * @param areInputStreamsDecorated       A boolean to signify whether the streams created via {@link OffsetRangeInputStreamSupplier#get} are decorated or not
      */
     public RemoteTransferContainer(
         String fileName,
@@ -104,6 +102,7 @@ public class RemoteTransferContainer implements Closeable {
     }
 
     // package-private for testing
+
     /**
      * This method is called to create the {@link StreamContext} object that will be used by the vendor plugin to
      * open streams during uploads. Calling this method won't actually create the streams, for that the consumer needs

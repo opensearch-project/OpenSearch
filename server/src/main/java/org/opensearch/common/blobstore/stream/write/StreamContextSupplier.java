@@ -15,6 +15,7 @@ import org.opensearch.common.StreamContext;
  *
  * @opensearch.internal
  */
+@FunctionalInterface
 public interface StreamContextSupplier {
 
     /**
