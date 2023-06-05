@@ -231,13 +231,13 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(
-        SnapshotId snapshotId,
-        IndexId indexId,
-        ShardId shardId,
-        boolean isRemoteIndexShard
-    ) {
-        return in.getShardSnapshotStatus(snapshotId, indexId, shardId, isRemoteIndexShard);
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        return in.getShardSnapshotStatus(snapshotId, indexId, shardId);
+    }
+
+    @Override
+    public IndexShardSnapshotStatus getShallowShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        return in.getShallowShardSnapshotStatus(snapshotId, indexId, shardId);
     }
 
     @Override

@@ -48,9 +48,11 @@ import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -108,6 +110,50 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final SnapshotStatus snStatus = snapshotStatus.get(0);
         assertEquals(snStatus.getStats().getStartTime(), snapshotInfo.startTime());
         assertEquals(snStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
+    }
+
+    public void testStatusAPICallForShallowCopySnapshot() throws Exception {
+        disableRepoConsistencyCheck("Remote store repository is being used for the test");
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotRepoName = "snapshot-repo-name";
+        createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy());
+
+        final Path remoteStoreRepoPath = randomRepoPath();
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
+
+        final String indexName = "index-1";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+
+        final String remoteStoreEnabledIndexName = "remote-index-1";
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
+        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+
+        final String snapshot = "snapshot";
+        createFullSnapshot(snapshotRepoName, snapshot);
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 1);
+
+        final SnapshotStatus snapshotStatus = getSnapshotStatus(snapshotRepoName, snapshot);
+        assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
+
+        final SnapshotIndexShardStatus snapshotShardState = stateFirstShard(snapshotStatus, indexName);
+        assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
+        assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
+        assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
+        assertThat(snapshotShardState.getStats().getIncrementalFileCount(), greaterThan(0));
+        assertThat(snapshotShardState.getStats().getIncrementalSize(), greaterThan(0L));
+
+        // Validating that the incremental file count and incremental file size is zero for shallow copy
+        final SnapshotIndexShardStatus shallowSnapshotShardState = stateFirstShard(snapshotStatus, remoteStoreEnabledIndexName);
+        assertThat(shallowSnapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
+        assertThat(shallowSnapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
+        assertThat(shallowSnapshotShardState.getStats().getTotalSize(), greaterThan(0L));
+        assertThat(shallowSnapshotShardState.getStats().getIncrementalFileCount(), is(0));
+        assertThat(shallowSnapshotShardState.getStats().getIncrementalSize(), is(0L));
     }
 
     public void testStatusAPICallInProgressSnapshot() throws Exception {
@@ -186,6 +232,49 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             SnapshotMissingException.class,
             () -> client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet()
         );
+    }
+
+    public void testStatusAPIStatsForBackToBackShallowSnapshot() throws Exception {
+        disableRepoConsistencyCheck("Remote store repository is being used for the test");
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotRepoName = "snapshot-repo-name";
+        createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy());
+
+        final Path remoteStoreRepoPath = randomRepoPath();
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
+
+        final String indexName = "index-1";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+
+        final String remoteStoreEnabledIndexName = "remote-index-1";
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
+        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+
+        final String snapshot = "snapshot";
+        createFullSnapshot(snapshotRepoName, snapshot);
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 1);
+
+        SnapshotStatus snapshotStatus = getSnapshotStatus(snapshotRepoName, snapshot);
+        assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
+
+        SnapshotIndexShardStatus shallowSnapshotShardState = stateFirstShard(snapshotStatus, remoteStoreEnabledIndexName);
+        assertThat(shallowSnapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
+        final int totalFileCount = shallowSnapshotShardState.getStats().getTotalFileCount();
+        final long totalSize = shallowSnapshotShardState.getStats().getTotalSize();
+        final int incrementalFileCount = shallowSnapshotShardState.getStats().getIncrementalFileCount();
+        final long incrementalSize = shallowSnapshotShardState.getStats().getIncrementalSize();
+
+        snapshotStatus = getSnapshotStatus(snapshotRepoName, snapshot);
+        shallowSnapshotShardState = stateFirstShard(snapshotStatus, remoteStoreEnabledIndexName);
+        assertThat(shallowSnapshotShardState.getStats().getTotalFileCount(), equalTo(totalFileCount));
+        assertThat(shallowSnapshotShardState.getStats().getTotalSize(), equalTo(totalSize));
+        assertThat(shallowSnapshotShardState.getStats().getIncrementalFileCount(), equalTo(incrementalFileCount));
+        assertThat(shallowSnapshotShardState.getStats().getIncrementalSize(), equalTo(incrementalSize));
     }
 
     public void testGetSnapshotsWithoutIndices() throws Exception {

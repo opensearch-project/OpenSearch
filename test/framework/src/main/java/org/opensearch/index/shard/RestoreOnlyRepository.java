@@ -177,12 +177,12 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     ) {}
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(
-        SnapshotId snapshotId,
-        IndexId indexId,
-        ShardId shardId,
-        boolean IsRemoteIndexShard
-    ) {
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        return null;
+    }
+
+    @Override
+    public IndexShardSnapshotStatus getShallowShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return null;
     }
 

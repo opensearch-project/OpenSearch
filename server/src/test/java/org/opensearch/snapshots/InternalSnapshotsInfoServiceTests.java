@@ -152,12 +152,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(
-                SnapshotId snapshotId,
-                IndexId indexId,
-                ShardId shardId,
-                boolean isRemoteIndexShard
-            ) {
+            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 try {
                     assertThat(indexId.getName(), equalTo(indexName));
                     assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
@@ -217,12 +212,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
         final Map<InternalSnapshotsInfoService.SnapshotShard, Long> results = new ConcurrentHashMap<>();
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(
-                SnapshotId snapshotId,
-                IndexId indexId,
-                ShardId shardId,
-                boolean isRemoteIndexShard
-            ) {
+            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 final InternalSnapshotsInfoService.SnapshotShard snapshotShard = new InternalSnapshotsInfoService.SnapshotShard(
                     new Snapshot("_repo", snapshotId),
                     indexId,
@@ -310,12 +300,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
 
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(
-                SnapshotId snapshotId,
-                IndexId indexId,
-                ShardId shardId,
-                boolean isRemoteIndexShard
-            ) {
+            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
             }
         };
@@ -351,13 +336,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
     public void testCleanUpSnapshotShardSizes() throws Exception {
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId, boolean isRemoteIndexShard) {
-            public IndexShardSnapshotStatus getShardSnapshotStatus(
-                SnapshotId snapshotId,
-                IndexId indexId,
-                ShardId shardId,
-                boolean isRemoteIndexShard
-            ) {
+            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 if (randomBoolean()) {
                     throw new SnapshotException(new Snapshot("_repo", snapshotId), "simulated");
                 } else {

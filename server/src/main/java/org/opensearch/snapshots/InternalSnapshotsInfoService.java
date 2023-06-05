@@ -53,6 +53,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -255,12 +256,21 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                     && repository.getSnapshotInfo(snapshotShard.snapshot.getSnapshotId()).isRemoteStoreIndexShallowCopyEnabled();
 
                 logger.debug("fetching snapshot shard size for {}", snapshotShard);
-                final long snapshotShardSize = repository.getShardSnapshotStatus(
-                    snapshotShard.snapshot().getSnapshotId(),
-                    snapshotShard.index(),
-                    snapshotShard.shardId(),
-                    isRemoteIndexShard
-                ).asCopy().getTotalSize();
+                final IndexShardSnapshotStatus shardSnapshotStatus;
+                if (isRemoteIndexShard) {
+                    shardSnapshotStatus = repository.getShallowShardSnapshotStatus(
+                        snapshotShard.snapshot().getSnapshotId(),
+                        snapshotShard.index(),
+                        snapshotShard.shardId()
+                    );
+                } else {
+                    shardSnapshotStatus = repository.getShardSnapshotStatus(
+                        snapshotShard.snapshot().getSnapshotId(),
+                        snapshotShard.index(),
+                        snapshotShard.shardId()
+                    );
+                }
+                final long snapshotShardSize = shardSnapshotStatus.asCopy().getTotalSize();
 
                 logger.debug("snapshot shard size for {}: {} bytes", snapshotShard, snapshotShardSize);
 
