@@ -1899,14 +1899,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
                     IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
 
-                    // Remote Segment Store and Remote Translog Cleanup
+                    // Remote Segment Store Cleanup
                     if (deleted && isPrimaryMode() && isRemoteStoreEnabled()) {
                         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
                         remoteDirectory.deleteStaleSegments(0);
                         remoteDirectory.deleteIfEmpty();
-                        // Translog Clean up
-                        engine.translogManager().onDelete();
                     }
+                    // Translog Clean up
+                    engine.translogManager().onDelete();
                     indexShardOperationPermits.close();
                 }
             }
