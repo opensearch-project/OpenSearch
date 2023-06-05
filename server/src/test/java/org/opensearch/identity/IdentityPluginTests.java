@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.bootstrap;
+package org.opensearch.identity;
 
 import java.util.List;
 import org.opensearch.OpenSearchException;

@@ -8,19 +8,23 @@
 
 package org.opensearch.identity.shiro;
 
-import org.opensearch.test.OpenSearchTestCase;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import org.junit.Before;
-import org.junit.After;
-
 import java.security.Principal;
-
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.hamcrest.Matchers.nullValue;
+import java.util.List;
+import org.junit.After;
+import org.junit.Before;
+import org.opensearch.action.ActionScopes;
+import org.opensearch.action.admin.cluster.state.ClusterStateAction;
+import org.opensearch.action.admin.indices.shrink.ResizeAction;
+import org.opensearch.action.get.GetAction;
+import org.opensearch.action.get.MultiGetAction;
+import org.opensearch.identity.Scope;
+import org.opensearch.test.OpenSearchTestCase;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class ShiroSubjectTests extends OpenSearchTestCase {
 
@@ -71,4 +75,53 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
         verifyNoMoreInteractions(objPrincipal);
     }
 
+    public void testSetAndGetScopesShouldPass() {
+
+        List<Scope> testScopes = List.of(ActionScopes.Index_Read);
+        // Set scopes for a subject
+        subject.setScopes(testScopes);
+        assertEquals(subject.getScopes(), testScopes);
+
+        List<Scope> testScopes2 = List.of(ActionScopes.Index_Search);
+        subject.setScopes(testScopes2);
+        assertEquals(subject.getScopes(), testScopes2);
+        assertFalse(subject.getScopes().contains(ActionScopes.Index_Read)); // Verify that setScopes overwrites completely
+    }
+
+    public void testSetScopeGetActionAreaName() {
+
+        assertEquals(ActionScopes.Cluster_ALL.getAction(), "ALL");
+        assertEquals(ActionScopes.Cluster_ALL.getArea(), "Cluster");
+        assertEquals(ActionScopes.Cluster_ALL.getNamespace(), "Action");
+
+        assertEquals(ActionScopes.Index_Read.getAction(), "Read");
+        assertEquals(ActionScopes.Index_Read.getArea(), "Index");
+        assertEquals(ActionScopes.Index_Read.getNamespace(), "Action");
+    }
+
+    public void testIsAllowedShouldPass() {
+
+        List<Scope> testScopes = List.of(ActionScopes.Index_Read);
+        // Set scopes for a subject
+        subject.setScopes(testScopes);
+        assertEquals(subject.getScopes(), testScopes);
+
+        GetAction getAction = GetAction.INSTANCE;
+        MultiGetAction multiGetAction = MultiGetAction.INSTANCE;
+        assertTrue(subject.isAllowed(getAction.allowedScopes()));
+        assertTrue(subject.isAllowed(multiGetAction.allowedScopes()));
+    }
+
+    public void testIsAllowedShouldFail() {
+
+        List<Scope> testScopes = List.of(ActionScopes.Index_Read);
+        // Set scopes for a subject
+        subject.setScopes(testScopes);
+        assertEquals(subject.getScopes(), testScopes);
+
+        ResizeAction resizeAction = ResizeAction.INSTANCE;
+        ClusterStateAction clusterStateAction = ClusterStateAction.INSTANCE;
+        assertFalse(subject.isAllowed(resizeAction.allowedScopes()));
+        assertFalse(subject.isAllowed(clusterStateAction.allowedScopes()));
+    }
 }
