@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.util.UploadListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 import java.io.IOException;
@@ -30,7 +31,7 @@ public class FileUploader {
 
     private static final Logger logger = LogManager.getLogger(FileUploader.class);
 
-    private final UploadTracker uploadTracker;
+    private final UploadListener uploadListener;
 
     private final RemoteSegmentStoreDirectory remoteDirectory;
 
@@ -41,13 +42,13 @@ public class FileUploader {
     private final CheckedFunction<String, String, IOException> checksumProvider;
 
     public FileUploader(
-        UploadTracker uploadTracker,
+        UploadListener uploadListener,
         RemoteSegmentStoreDirectory remoteDirectory,
         Directory storeDirectory,
         Set<String> excludeFiles,
         CheckedFunction<String, String, IOException> checksumProvider
     ) {
-        this.uploadTracker = uploadTracker;
+        this.uploadListener = uploadListener;
         this.remoteDirectory = remoteDirectory;
         this.storeDirectory = storeDirectory;
         this.excludeFiles = excludeFiles;

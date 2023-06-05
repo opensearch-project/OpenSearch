@@ -8,11 +8,11 @@
 
 package org.opensearch.index.store;
 
-import org.opensearch.index.shard.UploadTracker;
+import org.opensearch.common.util.UploadListener;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-public class TestUploadTracker implements UploadTracker {
+public class TestUploadListener implements UploadListener {
 
     private final ConcurrentHashMap<String, UploadStatus> uploadStatusMap = new ConcurrentHashMap<>();
 
