@@ -40,7 +40,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
@@ -213,7 +212,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         SnapshotId source,
         SnapshotId target,
         RepositoryShardId shardId,
-        @Nullable String shardGeneration,
+        String shardGeneration,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<String> listener
     ) {
