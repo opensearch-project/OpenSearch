@@ -11,7 +11,6 @@ package org.opensearch.identity;
 import java.util.List;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.noop.NoopTokenManager;
 import org.opensearch.plugins.IdentityPlugin;
