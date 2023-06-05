@@ -251,8 +251,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 );
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(refreshTimeMs, refreshSeqNo, checkpoint);
+                                indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
                             }
-                            indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
                             // At this point since we have uploaded new segments, segment infos and segment metadata file,
                             // along with marking minSeqNoToKeep, upload has succeeded completely.
                             shouldRetry = false;
