@@ -1290,7 +1290,14 @@ public class SearchModule {
     }
 
     public QueryPhase getQueryPhase() {
-        return (queryPhaseSearcher == null) ? new QueryPhase() : new QueryPhase(queryPhaseSearcher);
+        QueryPhase queryPhase;
+        if (queryPhaseSearcher == null) {
+            // use the defaults
+            queryPhase = new QueryPhase();
+        } else {
+            queryPhase = new QueryPhase(queryPhaseSearcher);
+        }
+        return queryPhase;
     }
 
     public @Nullable ExecutorService getIndexSearcherExecutor(ThreadPool pool) {

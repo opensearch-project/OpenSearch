@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
+import org.opensearch.search.aggregations.AggregationProcessor;
+import org.opensearch.search.aggregations.ConcurrentAggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.ProfileCollectorManager;
@@ -47,12 +49,6 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     ) throws IOException {
         boolean couldUseConcurrentSegmentSearch = allowConcurrentSegmentSearch(searcher);
 
-        // TODO: support aggregations
-        if (searchContext.aggregations() != null) {
-            couldUseConcurrentSegmentSearch = false;
-            LOGGER.debug("Unable to use concurrent search over index segments (experimental): aggregations are present");
-        }
-
         if (couldUseConcurrentSegmentSearch) {
             LOGGER.debug("Using concurrent search over index segments (experimental)");
             return searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
@@ -77,19 +73,14 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         final QuerySearchResult queryResult = searchContext.queryResult();
         final CollectorManager<?, ReduceableSearchResult> collectorManager;
 
-        // TODO: support aggregations in concurrent segment search flow
-        if (searchContext.aggregations() != null) {
-            throw new UnsupportedOperationException("The concurrent segment search does not support aggregations yet");
-        }
-
         if (searchContext.getProfilers() != null) {
             final ProfileCollectorManager<? extends Collector, ReduceableSearchResult> profileCollectorManager =
                 QueryCollectorManagerContext.createQueryCollectorManagerWithProfiler(collectorContexts);
             searchContext.getProfilers().getCurrentQueryProfiler().setCollector(profileCollectorManager);
             collectorManager = profileCollectorManager;
         } else {
-            // Create multi collector manager instance
-            collectorManager = QueryCollectorManagerContext.createMultiCollectorManager(collectorContexts);
+            // Create collector manager tree
+            collectorManager = QueryCollectorManagerContext.createQueryCollectorManager(collectorContexts);
         }
 
         try {
@@ -110,6 +101,11 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         }
 
         return topDocsFactory.shouldRescore();
+    }
+
+    @Override
+    public AggregationProcessor newAggregationProcessor() {
+        return new ConcurrentAggregationProcessor();
     }
 
     private static boolean allowConcurrentSegmentSearch(final ContextIndexSearcher searcher) {
