@@ -261,7 +261,6 @@ public class JoinHelper {
         BytesTransportRequest request
     ) throws IOException {
         try (StreamInput input = CompressedStreamUtils.decompressBytes(request, namedWriteableRegistry)) {
-            input.setVersion(request.version());
             ClusterState incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
             runJoinValidators(currentStateSupplier, incomingState, joinValidators);
         }
