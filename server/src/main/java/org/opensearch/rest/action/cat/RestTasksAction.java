@@ -32,6 +32,15 @@
 
 package org.opensearch.rest.action.cat;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
 import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -49,17 +58,6 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
-
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.function.Supplier;
-
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
@@ -206,6 +204,6 @@ public class RestTasksAction extends AbstractCatAction {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 }

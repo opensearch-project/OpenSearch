@@ -104,6 +104,6 @@ public class RestMultiGetAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_Read, ActionScopes.Index_ReadWrite, ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_Read, ActionScopes.Index_ReadWrite, ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 }

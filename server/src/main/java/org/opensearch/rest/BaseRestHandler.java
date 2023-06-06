@@ -92,8 +92,8 @@ public abstract class BaseRestHandler implements RestHandler {
     }
 
     /**
-     * @return the name of this handler. The name should be human readable and
-     *         should describe the action that will performed when this API is
+     * @return the name of this handler. The name should be human-readable and
+     *         should describe the action that will be performed when this API is
      *         called. This name is used in the response to the
      *         {@link RestNodesUsageAction}.
      */

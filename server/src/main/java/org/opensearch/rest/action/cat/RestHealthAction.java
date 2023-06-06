@@ -32,6 +32,8 @@
 
 package org.opensearch.rest.action.cat;
 
+import java.util.List;
+import java.util.Locale;
 import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -41,10 +43,6 @@ import org.opensearch.identity.Scope;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
-
-import java.util.List;
-import java.util.Locale;
-
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
@@ -136,6 +134,6 @@ public class RestHealthAction extends AbstractCatAction {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 }

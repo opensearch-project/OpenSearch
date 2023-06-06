@@ -9,13 +9,10 @@
 package org.opensearch.identity.noop;
 
 import java.security.Principal;
-import java.util.List;
 import java.util.Objects;
-
 import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.Scope;
-import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.AuthToken;
 
 /**
  * Implementation of subject that is always authenticated
@@ -55,11 +52,5 @@ public class NoopSubject implements Subject {
     @Override
     public void authenticate(AuthToken AuthToken) {
         // Do nothing as noop subject is always logged in
-    }
-
-    @Override
-    public boolean isAllowed(final List<Scope> scope) {
-        // Noop subject is always allowed for any scope checks
-        return true;
     }
 }

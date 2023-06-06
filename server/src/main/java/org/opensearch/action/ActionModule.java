@@ -32,6 +32,19 @@
 
 package org.opensearch.action;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
@@ -40,10 +53,10 @@ import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusio
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.get.TransportGetDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.TransportDeleteDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.TransportGetDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
@@ -56,9 +69,7 @@ import org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.opensearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
-import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
-import org.opensearch.action.admin.cluster.remotestore.stats.TransportRemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
@@ -71,6 +82,8 @@ import org.opensearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.opensearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.TransportRestoreRemoteStoreAction;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsAction;
+import org.opensearch.action.admin.cluster.remotestore.stats.TransportRemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.opensearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
@@ -175,11 +188,11 @@ import org.opensearch.action.admin.indices.recovery.RecoveryAction;
 import org.opensearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.opensearch.action.admin.indices.refresh.RefreshAction;
 import org.opensearch.action.admin.indices.refresh.TransportRefreshAction;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.replication.TransportSegmentReplicationStatsAction;
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.TransportRolloverAction;
-import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsAction;
-import org.opensearch.action.admin.indices.replication.TransportSegmentReplicationStatsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
@@ -256,10 +269,10 @@ import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.DeletePitAction;
 import org.opensearch.action.search.DeleteSearchPipelineAction;
 import org.opensearch.action.search.DeleteSearchPipelineTransportAction;
+import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.GetSearchPipelineAction;
 import org.opensearch.action.search.GetSearchPipelineTransportAction;
 import org.opensearch.action.search.MultiSearchAction;
-import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.PutSearchPipelineAction;
 import org.opensearch.action.search.PutSearchPipelineTransportAction;
 import org.opensearch.action.search.SearchAction;
@@ -300,6 +313,7 @@ import org.opensearch.extensions.action.ExtensionProxyTransportAction;
 import org.opensearch.extensions.rest.RestInitializeExtensionAction;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
@@ -331,6 +345,7 @@ import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestCreateSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestDecommissionAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteDecommissionStateAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
@@ -348,7 +363,6 @@ import org.opensearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
-import org.opensearch.rest.action.admin.cluster.RestDecommissionAction;
 import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
@@ -413,10 +427,10 @@ import org.opensearch.rest.action.cat.RestAllocationAction;
 import org.opensearch.rest.action.cat.RestCatAction;
 import org.opensearch.rest.action.cat.RestCatRecoveryAction;
 import org.opensearch.rest.action.cat.RestCatSegmentReplicationAction;
+import org.opensearch.rest.action.cat.RestClusterManagerAction;
 import org.opensearch.rest.action.cat.RestFielddataAction;
 import org.opensearch.rest.action.cat.RestHealthAction;
 import org.opensearch.rest.action.cat.RestIndicesAction;
-import org.opensearch.rest.action.cat.RestClusterManagerAction;
 import org.opensearch.rest.action.cat.RestNodeAttrsAction;
 import org.opensearch.rest.action.cat.RestNodesAction;
 import org.opensearch.rest.action.cat.RestPitSegmentsAction;
@@ -459,21 +473,6 @@ import org.opensearch.extensions.rest.RestSendToExtensionAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 
@@ -1024,6 +1023,10 @@ public class ActionModule extends AbstractModule {
 
     public RestController getRestController() {
         return restController;
+    }
+
+    public List<ActionPlugin> getActionPlugins() {
+        return actionPlugins;
     }
 
     /**

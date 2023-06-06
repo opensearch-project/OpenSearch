@@ -17,6 +17,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.indices.shrink.ResizeAction;
 import org.opensearch.action.get.GetAction;
 import org.opensearch.action.get.MultiGetAction;
+import org.opensearch.identity.ApplicationAwareSubject;
 import org.opensearch.identity.Scope;
 import org.opensearch.test.OpenSearchTestCase;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,12 +32,14 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
     private org.apache.shiro.subject.Subject shiroSubject;
     private ShiroTokenManager authTokenHandler;
     private ShiroSubject subject;
+    private ApplicationAwareSubject applicationAwareSubject;
 
     @Before
     public void setup() {
         shiroSubject = mock(org.apache.shiro.subject.Subject.class);
         authTokenHandler = mock(ShiroTokenManager.class);
         subject = new ShiroSubject(authTokenHandler, shiroSubject);
+        applicationAwareSubject = new ApplicationAwareSubject(subject);
     }
 
     @After
@@ -90,9 +93,9 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
 
     public void testSetScopeGetActionAreaName() {
 
-        assertEquals(ActionScopes.Cluster_ALL.getAction(), "ALL");
-        assertEquals(ActionScopes.Cluster_ALL.getArea(), "Cluster");
-        assertEquals(ActionScopes.Cluster_ALL.getNamespace(), "Action");
+        assertEquals(ActionScopes.Cluster_ALL, ActionScopes.ALL.getAction(), "ALL");
+        assertEquals(ActionScopes.Cluster_ALL, ActionScopes.ALL.getArea(), "Cluster");
+        assertEquals(ActionScopes.Cluster_ALL, ActionScopes.ALL.getNamespace(), "Action");
 
         assertEquals(ActionScopes.Index_Read.getAction(), "Read");
         assertEquals(ActionScopes.Index_Read.getArea(), "Index");
@@ -108,8 +111,8 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
 
         GetAction getAction = GetAction.INSTANCE;
         MultiGetAction multiGetAction = MultiGetAction.INSTANCE;
-        assertTrue(subject.isAllowed(getAction.allowedScopes()));
-        assertTrue(subject.isAllowed(multiGetAction.allowedScopes()));
+        assertTrue(applicationAwareSubject.isAllowed(getAction.allowedScopes()));
+        assertTrue(applicationAwareSubject.isAllowed(multiGetAction.allowedScopes()));
     }
 
     public void testIsAllowedShouldFail() {
@@ -121,7 +124,7 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
 
         ResizeAction resizeAction = ResizeAction.INSTANCE;
         ClusterStateAction clusterStateAction = ClusterStateAction.INSTANCE;
-        assertFalse(subject.isAllowed(resizeAction.allowedScopes()));
-        assertFalse(subject.isAllowed(clusterStateAction.allowedScopes()));
+        assertFalse(applicationAwareSubject.isAllowed(resizeAction.allowedScopes()));
+        assertFalse(applicationAwareSubject.isAllowed(clusterStateAction.allowedScopes()));
     }
 }

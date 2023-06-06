@@ -53,6 +53,6 @@ public class AddIndexBlockAction extends ActionType<AddIndexBlockResponse> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ReadWrite, ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_ReadWrite, ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 }

@@ -32,6 +32,8 @@
 
 package org.opensearch.rest.action.cat;
 
+import java.util.List;
+import java.util.Map;
 import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -51,10 +53,6 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
-
-import java.util.List;
-import java.util.Map;
-
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
@@ -187,6 +185,6 @@ public class RestSegmentsAction extends AbstractCatAction {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 }

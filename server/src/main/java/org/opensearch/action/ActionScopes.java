@@ -15,6 +15,7 @@ import org.opensearch.identity.Scope;
  * @opensearch.experimental
  */
 public enum ActionScopes implements Scope {
+    ALL(),
     Cluster_Read(),
     Cluster_ALL(),
     Index_Read(),

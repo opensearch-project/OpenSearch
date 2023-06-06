@@ -26,6 +26,6 @@ public class GetAllPitsAction extends ActionType<GetAllPitNodesResponse> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 }

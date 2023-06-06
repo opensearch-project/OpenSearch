@@ -53,6 +53,6 @@ public class ValidateQueryAction extends ActionType<ValidateQueryResponse> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 }

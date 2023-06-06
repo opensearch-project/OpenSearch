@@ -86,6 +86,6 @@ public class RestClearScrollAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 }

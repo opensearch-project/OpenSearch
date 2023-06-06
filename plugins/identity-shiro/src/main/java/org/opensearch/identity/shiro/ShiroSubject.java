@@ -11,9 +11,6 @@ package org.opensearch.identity.shiro;
 import java.security.Principal;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.identity.Scope;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
@@ -108,15 +105,5 @@ public class ShiroSubject implements Subject {
      */
     public List<Scope> getScopes() {
         return this.scopes;
-    }
-
-    /**
-     * @param scope The scope to check against the subject's associated scopes
-     * @return Whether any of the scopes match
-     */
-    @Override
-    public boolean isAllowed(List<Scope> scope) {
-        Set<Scope> intersection = Sets.intersection(Set.copyOf(this.scopes), Set.copyOf(scope));
-        return intersection.size() > 0;
     }
 }

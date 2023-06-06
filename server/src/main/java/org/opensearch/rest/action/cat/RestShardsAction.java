@@ -32,6 +32,10 @@
 
 package org.opensearch.rest.action.cat;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
 import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -66,12 +70,6 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
-
-import java.time.Instant;
-import java.util.List;
-import java.util.Locale;
-import java.util.function.Function;
-
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
@@ -433,6 +431,6 @@ public class RestShardsAction extends AbstractCatAction {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 }

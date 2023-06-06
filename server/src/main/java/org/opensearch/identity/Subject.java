@@ -5,10 +5,8 @@
 
 package org.opensearch.identity;
 
-import org.opensearch.identity.tokens.AuthToken;
-
 import java.security.Principal;
-import java.util.List;
+import org.opensearch.identity.tokens.AuthToken;
 
 /**
  * An individual, process, or device that causes information to flow among objects or change to the system state.
@@ -30,11 +28,4 @@ public interface Subject {
      * throws SubjectDisabled
      */
     void authenticate(final AuthToken token);
-
-    /**
-     * Checks scopes of the current subject if they are allowed for any of the listed scopes
-     * @param scope The scopes to check against the subject
-     * @return true if allowed, false if none of the scopes are allowed.
-     */
-    boolean isAllowed(final List<Scope> scope);
 }

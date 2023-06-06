@@ -81,6 +81,6 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Cluster_ALL);
+        return List.of(ActionScopes.Cluster_ALL, ActionScopes.ALL);
     }
 }

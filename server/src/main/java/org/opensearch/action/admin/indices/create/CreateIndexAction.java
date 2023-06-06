@@ -53,7 +53,7 @@ public class CreateIndexAction extends ActionType<CreateIndexResponse> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 
 }

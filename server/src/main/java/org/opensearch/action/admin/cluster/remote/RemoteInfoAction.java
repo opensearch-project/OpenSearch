@@ -53,6 +53,6 @@ public final class RemoteInfoAction extends ActionType<RemoteInfoResponse> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Cluster_Read, ActionScopes.Cluster_ALL);
+        return List.of(ActionScopes.Cluster_Read, ActionScopes.Cluster_ALL, ActionScopes.ALL);
     }
 }

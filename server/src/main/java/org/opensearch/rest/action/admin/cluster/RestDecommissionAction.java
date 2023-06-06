@@ -8,6 +8,8 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
+import java.io.IOException;
+import java.util.List;
 import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.client.Requests;
@@ -18,10 +20,6 @@ import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
-
-import java.io.IOException;
-import java.util.List;
-
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
@@ -65,6 +63,6 @@ public class RestDecommissionAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Cluster_ALL);
+        return List.of(ActionScopes.Cluster_ALL, ActionScopes.ALL);
     }
 }

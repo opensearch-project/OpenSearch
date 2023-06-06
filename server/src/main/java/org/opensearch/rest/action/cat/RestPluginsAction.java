@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.cat;
 
+import java.util.List;
 import org.opensearch.action.ActionScopes;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
@@ -50,9 +51,6 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
-
-import java.util.List;
-
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
@@ -148,6 +146,6 @@ public class RestPluginsAction extends AbstractCatAction {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL);
+        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
     }
 }
