@@ -20,6 +20,11 @@ public class NamedPrincipal implements Principal {
      */
     public static final NamedPrincipal UNAUTHENTICATED = new NamedPrincipal("Unauthenticated");
 
+    /**
+     * Represents a principal for the root user
+     */
+    public static final NamedPrincipal ROOT = new NamedPrincipal("root");
+
     private final String name;
 
     /**
