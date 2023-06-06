@@ -27,7 +27,6 @@ public class NoopTokenManager implements TokenManager {
      */
     @Override
     public AuthToken issueToken(String audience) {
-        return new AuthToken() {
-        };
+        return new NoopAuthToken();
     }
 }

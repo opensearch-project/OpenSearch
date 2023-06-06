@@ -28,12 +28,10 @@ public interface IdentityPlugin {
 
     ScheduledJobIdentityManager getScheduledJobIdentityManager();
 
-    public Subject getSubject();
-
     /**
      * Get the Identity Plugin's token manager implementation
      *
      * Should never return null
      */
-    public TokenManager getTokenManager();
+    TokenManager getTokenManager();
 }
