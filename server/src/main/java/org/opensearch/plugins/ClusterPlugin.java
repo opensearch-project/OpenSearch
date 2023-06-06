@@ -88,6 +88,7 @@ public interface ClusterPlugin {
     /**
      * Called when the node is started
      */
+    @Deprecated
     default void onNodeStarted() {}
 
     /**
