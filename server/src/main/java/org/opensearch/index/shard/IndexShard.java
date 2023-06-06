@@ -4528,19 +4528,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         remoteSegmentMetadata.getGeneration()
                     );
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                    // Following code block makes sure to commit SegmentInfosSnapshot with the highest generation.
-                    // If local filesystem already has segments_N+2 and infosSnapshot has generation N, after commit,
-                    // there would be 2 files that would be created segments_N+1 and segments_N+2. With the policy of preserving
-                    // only the latest commit, we will delete segments_N+1 which in fact is the part of the latest commit.
+                    // Following code block makes sure to use SegmentInfosSnapshot in the remote store if generation differs
+                    // with local filesystem. If local filesystem already has segments_N+2 and infosSnapshot has generation N,
+                    // after commit, there would be 2 files that would be created segments_N+1 and segments_N+2. With the
+                    // policy of preserving only the latest commit, we will delete segments_N+1 which in fact is the part of the latest
+                    // commit.
                     Optional<String> localMaxSegmentInfos = localSegmentFiles.stream()
                         .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
                         .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
                     if (localMaxSegmentInfos.isPresent()
                         && infosSnapshot.getGeneration() < SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get()) - 1) {
-                        SegmentInfos localSegmentInfos = store.readLastCommittedSegmentsInfo();
-                        if (localSegmentInfos.files(false).equals(infosSnapshot.files(false))) {
-                            infosSnapshot = localSegmentInfos.clone();
-                        }
+                        storeDirectory.deleteFile(localMaxSegmentInfos.get());
                     }
                     store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                 }
