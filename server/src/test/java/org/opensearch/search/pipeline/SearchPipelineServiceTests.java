@@ -10,13 +10,22 @@ package org.opensearch.search.pipeline;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.junit.Before;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.action.search.DeleteSearchPipelineRequest;
+import org.opensearch.action.search.MockSearchPhaseContext;
 import org.opensearch.action.search.PutSearchPipelineRequest;
+import org.opensearch.action.search.QueryPhaseResultConsumer;
+import org.opensearch.action.search.SearchPhase;
+import org.opensearch.action.search.SearchPhaseContext;
+import org.opensearch.action.search.SearchPhaseController;
+import org.opensearch.action.search.SearchPhaseResults;
+import org.opensearch.action.search.SearchProgressListener;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
@@ -28,8 +37,11 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
@@ -39,7 +51,10 @@ import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchModule;
+import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -66,6 +81,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Processor.Parameters parameters) {
             return Map.of("bar", (factories, tag, description, config) -> null);
+        }
+
+        @Override
+        public Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> getPhaseInjectorProcessors(Processor.Parameters parameters) {
+            return Map.of("zoe", (factories, tag, description, config) -> null);
         }
     };
 
@@ -243,6 +263,41 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
     }
 
+    private static class FakeSearchPhaseInjectorProcessor extends FakeProcessor implements SearchPhaseInjectorProcessor {
+        private Consumer<SearchPhaseResult> querySearchResultConsumer;
+
+        public FakeSearchPhaseInjectorProcessor(
+            String type,
+            String tag,
+            String description,
+            Consumer<SearchPhaseResult> querySearchResultConsumer
+        ) {
+            super(type, tag, description);
+            this.querySearchResultConsumer = querySearchResultConsumer;
+        }
+
+        @Override
+        public <Result extends SearchPhaseResult> SearchPhaseResults<Result> execute(
+            SearchPhaseResults<Result> searchPhaseResult,
+            SearchPhaseContext searchPhaseContext
+        ) {
+            List<Result> resultAtomicArray = searchPhaseResult.getAtomicArray().asList();
+            // updating the maxScore
+            resultAtomicArray.forEach(querySearchResultConsumer);
+            return searchPhaseResult;
+        }
+
+        @Override
+        public SearchPhase.SearchPhaseName getBeforePhase() {
+            return SearchPhase.SearchPhaseName.QUERY;
+        }
+
+        @Override
+        public SearchPhase.SearchPhaseName getAfterPhase() {
+            return SearchPhase.SearchPhaseName.FETCH;
+        }
+    }
+
     private SearchPipelineService createWithProcessors() {
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessors = new HashMap<>();
         requestProcessors.put("scale_request_size", (processorFactories, tag, description, config) -> {
@@ -259,7 +314,15 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             float score = ((Number) config.remove("score")).floatValue();
             return new FakeResponseProcessor("fixed_score", tag, description, rsp -> rsp.getHits().forEach(h -> h.score(score)));
         });
-        return createWithProcessors(requestProcessors, responseProcessors);
+
+        Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> searchPhaseProcessors = new HashMap<>();
+        searchPhaseProcessors.put("max_score", (processorFactories, tag, description, config) -> {
+            final float finalScore = config.containsKey("score") ? ((Number) config.remove("score")).floatValue() : 100f;
+            final Consumer<SearchPhaseResult> querySearchResultConsumer = (result) -> result.queryResult().topDocs().maxScore = finalScore;
+            return new FakeSearchPhaseInjectorProcessor("max_score", tag, description, querySearchResultConsumer);
+        });
+
+        return createWithProcessors(requestProcessors, responseProcessors, searchPhaseProcessors);
     }
 
     @Override
@@ -270,7 +333,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
     private SearchPipelineService createWithProcessors(
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessors,
-        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessors
+        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessors,
+        Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> phaseProcessors
     ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -295,6 +359,14 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Processor.Parameters parameters) {
                     return responseProcessors;
                 }
+
+                @Override
+                public Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> getPhaseInjectorProcessors(
+                    Processor.Parameters parameters
+                ) {
+                    return phaseProcessors;
+                }
+
             }),
             client,
             true
@@ -313,7 +385,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             new BytesArray(
                 "{ "
                     + "\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ], "
-                    + "\"response_processors\" : [ { \"fixed_score\" : { \"score\" : 1.0 } } ]"
+                    + "\"response_processors\" : [ { \"fixed_score\" : { \"score\" : 1.0 } } ],"
+                    + "\"phase_injector_processors\" : [ { \"max_score\" : { \"score\": 100 } } ]"
                     + "}"
             ),
             XContentType.JSON
@@ -330,6 +403,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals(
             "scale_request_size",
             searchPipelineService.getPipelines().get("_id").pipeline.getSearchRequestProcessors().get(0).getType()
+        );
+        assertEquals(1, searchPipelineService.getPipelines().get("_id").pipeline.getSearchPhaseInjectorProcessors().size());
+        assertEquals(
+            "max_score",
+            searchPipelineService.getPipelines().get("_id").pipeline.getSearchPhaseInjectorProcessors().get(0).getType()
         );
         assertEquals(1, searchPipelineService.getPipelines().get("_id").pipeline.getSearchResponseProcessors().size());
         assertEquals(
@@ -368,6 +446,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals("empty pipeline", pipeline.pipeline.getDescription());
         assertEquals(0, pipeline.pipeline.getSearchRequestProcessors().size());
         assertEquals(0, pipeline.pipeline.getSearchResponseProcessors().size());
+        assertEquals(0, pipeline.pipeline.getSearchPhaseInjectorProcessors().size());
     }
 
     public void testPutInvalidPipeline() throws IllegalAccessException {
@@ -564,6 +643,87 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testTransformSearchPhase() {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "p1",
+                new PipelineConfiguration(
+                    "p1",
+                    new BytesArray("{\"phase_injector_processors\" : [ { \"max_score\" : { } } ]}"),
+                    XContentType.JSON
+                )
+            )
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousState = clusterState;
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder().putCustom(SearchPipelineMetadata.TYPE, metadata))
+            .build();
+        searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
+        SearchPhaseController controller = new SearchPhaseController(
+            writableRegistry(),
+            s -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+        SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(10);
+        QueryPhaseResultConsumer searchPhaseResults = new QueryPhaseResultConsumer(
+            searchPhaseContext.getRequest(),
+            OpenSearchExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            controller,
+            SearchProgressListener.NOOP,
+            writableRegistry(),
+            2,
+            exc -> {}
+        );
+
+        final QuerySearchResult querySearchResult = new QuerySearchResult();
+        querySearchResult.setShardIndex(1);
+        querySearchResult.topDocs(new TopDocsAndMaxScore(new TopDocs(null, new ScoreDoc[1]), 1f), null);
+        searchPhaseResults.consumeResult(querySearchResult, () -> {});
+
+        // First try without specifying a pipeline, which should be a no-op.
+        SearchRequest searchRequest = new SearchRequest();
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
+        SearchPhaseResults<SearchPhaseResult> notTransformedSearchPhaseResults = pipelinedRequest.transformSearchPhase(
+            searchPhaseResults,
+            searchPhaseContext,
+            SearchPhase.SearchPhaseName.QUERY.getName(),
+            SearchPhase.SearchPhaseName.FETCH.getName()
+        );
+        assertSame(searchPhaseResults, notTransformedSearchPhaseResults);
+
+        // Now set the pipeline as p1
+        searchRequest = new SearchRequest().pipeline("p1");
+        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
+
+        SearchPhaseResults<SearchPhaseResult> transformed = pipelinedRequest.transformSearchPhase(
+            searchPhaseResults,
+            searchPhaseContext,
+            SearchPhase.SearchPhaseName.QUERY.getName(),
+            SearchPhase.SearchPhaseName.FETCH.getName()
+        );
+
+        List<SearchPhaseResult> resultAtomicArray = transformed.getAtomicArray().asList();
+        assertEquals(1, resultAtomicArray.size());
+        // updating the maxScore
+        for (SearchPhaseResult result : resultAtomicArray) {
+            assertEquals(100f, result.queryResult().topDocs().maxScore, 0);
+        }
+
+        // Check Processor doesn't run for between other phases
+        searchRequest = new SearchRequest().pipeline("p1");
+        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
+        SearchPhaseResults<SearchPhaseResult> notTransformed = pipelinedRequest.transformSearchPhase(
+            searchPhaseResults,
+            searchPhaseContext,
+            SearchPhase.SearchPhaseName.DFS_QUERY.getName(),
+            SearchPhase.SearchPhaseName.QUERY.getName()
+        );
+
+        assertSame(searchPhaseResults, notTransformed);
+    }
+
     public void testGetPipelines() {
         //
         assertEquals(0, SearchPipelineService.innerGetPipelines(null, "p1").size());
@@ -581,16 +741,23 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     "p2",
                     new BytesArray("{\"response_processors\" : [ { \"fixed_score\": { \"score\" : 2 } } ] }"),
                     XContentType.JSON
+                ),
+                "p3",
+                new PipelineConfiguration(
+                    "p3",
+                    new BytesArray("{\"phase_injector_processors\" : [ { \"max_score\" : { } } ]}"),
+                    XContentType.JSON
                 )
             )
         );
 
         // Return all when no ids specified
         List<PipelineConfiguration> pipelines = SearchPipelineService.innerGetPipelines(metadata);
-        assertEquals(2, pipelines.size());
+        assertEquals(3, pipelines.size());
         pipelines.sort(Comparator.comparing(PipelineConfiguration::getId));
         assertEquals("p1", pipelines.get(0).getId());
         assertEquals("p2", pipelines.get(1).getId());
+        assertEquals("p3", pipelines.get(2).getId());
 
         // Get specific pipeline
         pipelines = SearchPipelineService.innerGetPipelines(metadata, "p1");
@@ -606,17 +773,19 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         // Match all
         pipelines = SearchPipelineService.innerGetPipelines(metadata, "*");
-        assertEquals(2, pipelines.size());
+        assertEquals(3, pipelines.size());
         pipelines.sort(Comparator.comparing(PipelineConfiguration::getId));
         assertEquals("p1", pipelines.get(0).getId());
         assertEquals("p2", pipelines.get(1).getId());
+        assertEquals("p3", pipelines.get(2).getId());
 
         // Match prefix
         pipelines = SearchPipelineService.innerGetPipelines(metadata, "p*");
-        assertEquals(2, pipelines.size());
+        assertEquals(3, pipelines.size());
         pipelines.sort(Comparator.comparing(PipelineConfiguration::getId));
         assertEquals("p1", pipelines.get(0).getId());
         assertEquals("p2", pipelines.get(1).getId());
+        assertEquals("p3", pipelines.get(2).getId());
     }
 
     public void testValidatePipeline() throws Exception {
@@ -624,6 +793,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         ProcessorInfo reqProcessor = new ProcessorInfo("scale_request_size");
         ProcessorInfo rspProcessor = new ProcessorInfo("fixed_score");
+        ProcessorInfo injProcessor = new ProcessorInfo("max_score");
         DiscoveryNode n1 = new DiscoveryNode("n1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode n2 = new DiscoveryNode("n2", buildNewFakeTransportAddress(), Version.CURRENT);
         PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(
@@ -631,7 +801,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             new BytesArray(
                 "{"
                     + "\"request_processors\": [{ \"scale_request_size\": { \"scale\" : 2 } }],"
-                    + "\"response_processors\": [{ \"fixed_score\": { \"score\" : 2 } }]"
+                    + "\"response_processors\": [{ \"fixed_score\": { \"score\" : 2 } }],"
+                    + "\"phase_injector_processors\" : [ { \"max_score\" : { } } ]"
                     + "}"
             ),
             XContentType.JSON
@@ -729,7 +900,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             "bad_factory",
             (pf, t, f, c) -> { throw new RuntimeException(); }
         );
-        SearchPipelineService searchPipelineService = createWithProcessors(badFactory, Collections.emptyMap());
+        SearchPipelineService searchPipelineService = createWithProcessors(badFactory, Collections.emptyMap(), Collections.emptyMap());
 
         Map<String, Object> pipelineSourceMap = new HashMap<>();
         pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(Map.of("bad_factory", Collections.emptyMap())));
@@ -751,7 +922,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             (pf, t, f, c) -> throwingRequestProcessor
         );
 
-        SearchPipelineService searchPipelineService = createWithProcessors(throwingRequestProcessorFactory, Collections.emptyMap());
+        SearchPipelineService searchPipelineService = createWithProcessors(
+            throwingRequestProcessorFactory,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
 
         Map<String, Object> pipelineSourceMap = new HashMap<>();
         pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(Map.of("throwing_request", Collections.emptyMap())));
@@ -772,7 +947,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             (pf, t, f, c) -> throwingResponseProcessor
         );
 
-        SearchPipelineService searchPipelineService = createWithProcessors(Collections.emptyMap(), throwingResponseProcessorFactory);
+        SearchPipelineService searchPipelineService = createWithProcessors(
+            Collections.emptyMap(),
+            throwingResponseProcessorFactory,
+            Collections.emptyMap()
+        );
 
         Map<String, Object> pipelineSourceMap = new HashMap<>();
         pipelineSourceMap.put(Pipeline.RESPONSE_PROCESSORS_KEY, List.of(Map.of("throwing_response", Collections.emptyMap())));

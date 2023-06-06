@@ -8,8 +8,11 @@
 
 package org.opensearch.search.pipeline;
 
+import org.opensearch.action.search.SearchPhaseContext;
+import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.search.SearchPhaseResult;
 
 /**
  * Groups a search pipeline based on a request and the request after being transformed by the pipeline.
@@ -31,6 +34,15 @@ public final class PipelinedRequest {
 
     public SearchRequest transformedRequest() {
         return transformedRequest;
+    }
+
+    public <Result extends SearchPhaseResult> SearchPhaseResults<Result> transformSearchPhase(
+        final SearchPhaseResults<Result> searchPhaseResult,
+        final SearchPhaseContext searchPhaseContext,
+        final String currentPhase,
+        final String nextPhase
+    ) {
+        return pipeline.runSearchPhaseTransformer(searchPhaseResult, searchPhaseContext, currentPhase, nextPhase);
     }
 
     // Visible for testing

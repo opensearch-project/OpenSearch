@@ -90,6 +90,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Security
 
 ## [Unreleased 2.x]
+### Added
+- [SearchPipeline] Initial code for adding the SearchPhaseInjectorProcessor interface in Search Pipeline.([#7283](https://github.com/opensearch-project/OpenSearch/pull/7283))
 ### Add TokenManager Interface ([#7452](https://github.com/opensearch-project/OpenSearch/pull/7452))
 
 ### Dependencies

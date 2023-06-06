@@ -34,6 +34,7 @@ package org.opensearch.action.search;
 import org.opensearch.common.CheckedRunnable;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -41,7 +42,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-abstract class SearchPhase implements CheckedRunnable<IOException> {
+public abstract class SearchPhase implements CheckedRunnable<IOException> {
     private final String name;
 
     protected SearchPhase(String name) {
@@ -53,5 +54,35 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
      */
     public String getName() {
         return name;
+    }
+
+    /**
+     * Returns the SearchPhase name as {@link SearchPhaseName}. Exception will come if SearchPhase name is not defined
+     * in {@link SearchPhaseName}
+     * @return {@link SearchPhaseName}
+     */
+    public SearchPhaseName getSearchPhaseName() {
+        return SearchPhaseName.valueOf(name.toUpperCase(Locale.ROOT));
+    }
+
+    /**
+     * Enum for different Search Phases in OpenSearch
+     * @opensearch.internal
+     */
+    public enum SearchPhaseName {
+        QUERY("query"),
+        FETCH("fetch"),
+        DFS_QUERY("dfs_query"),
+        EXPAND("expand");
+
+        private final String name;
+
+        SearchPhaseName(final String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
     }
 }

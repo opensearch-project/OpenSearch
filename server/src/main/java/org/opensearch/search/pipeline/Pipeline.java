@@ -9,6 +9,8 @@
 package org.opensearch.search.pipeline;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.search.SearchPhaseContext;
+import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Nullable;
@@ -17,6 +19,7 @@ import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.search.SearchPhaseResult;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +38,7 @@ class Pipeline {
 
     public static final String REQUEST_PROCESSORS_KEY = "request_processors";
     public static final String RESPONSE_PROCESSORS_KEY = "response_processors";
+    public static final String PHASE_PROCESSORS_KEY = "phase_injector_processors";
     private final String id;
     private final String description;
     private final Integer version;
@@ -43,8 +47,8 @@ class Pipeline {
     // Then these can be CompoundProcessors instead of lists.
     private final List<SearchRequestProcessor> searchRequestProcessors;
     private final List<SearchResponseProcessor> searchResponseProcessors;
-
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final List<SearchPhaseInjectorProcessor> searchPhaseInjectorProcessors;
 
     private Pipeline(
         String id,
@@ -52,6 +56,7 @@ class Pipeline {
         @Nullable Integer version,
         List<SearchRequestProcessor> requestProcessors,
         List<SearchResponseProcessor> responseProcessors,
+        List<SearchPhaseInjectorProcessor> phaseInjectorProcessors,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.id = id;
@@ -59,6 +64,7 @@ class Pipeline {
         this.version = version;
         this.searchRequestProcessors = requestProcessors;
         this.searchResponseProcessors = responseProcessors;
+        this.searchPhaseInjectorProcessors = phaseInjectorProcessors;
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
@@ -67,6 +73,7 @@ class Pipeline {
         Map<String, Object> config,
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories,
         Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories,
+        Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> phaseInjectorProcessorFactories,
         NamedWriteableRegistry namedWriteableRegistry
     ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
@@ -79,7 +86,16 @@ class Pipeline {
             config,
             RESPONSE_PROCESSORS_KEY
         );
-        List<SearchResponseProcessor> responseProcessors = readProcessors(responseProcessorFactories, responseProcessorConfigs);
+
+        final List<Map<String, Object>> phaseProcessorConfigs = ConfigurationUtils.readOptionalList(
+            null,
+            null,
+            config,
+            PHASE_PROCESSORS_KEY
+        );
+        final List<SearchResponseProcessor> responseProcessors = readProcessors(responseProcessorFactories, responseProcessorConfigs);
+        final List<SearchPhaseInjectorProcessor> phaseProcessors = readProcessors(phaseInjectorProcessorFactories, phaseProcessorConfigs);
+
         if (config.isEmpty() == false) {
             throw new OpenSearchParseException(
                 "pipeline ["
@@ -88,7 +104,7 @@ class Pipeline {
                     + Arrays.toString(config.keySet().toArray())
             );
         }
-        return new Pipeline(id, description, version, requestProcessors, responseProcessors, namedWriteableRegistry);
+        return new Pipeline(id, description, version, requestProcessors, responseProcessors, phaseProcessors, namedWriteableRegistry);
     }
 
     private static <T extends Processor> List<T> readProcessors(
@@ -111,7 +127,17 @@ class Pipeline {
                 processors.add(processorFactories.get(type).create(processorFactories, tag, description, config));
             }
         }
-        return Collections.unmodifiableList(processors);
+        return processors;
+    }
+
+    List<Processor> flattenAllProcessors() {
+        List<Processor> allProcessors = new ArrayList<>(
+            searchRequestProcessors.size() + searchResponseProcessors.size() + searchPhaseInjectorProcessors.size()
+        );
+        allProcessors.addAll(searchRequestProcessors);
+        allProcessors.addAll(searchPhaseInjectorProcessors);
+        allProcessors.addAll(searchResponseProcessors);
+        return allProcessors;
     }
 
     String getId() {
@@ -132,6 +158,10 @@ class Pipeline {
 
     List<SearchResponseProcessor> getSearchResponseProcessors() {
         return searchResponseProcessors;
+    }
+
+    List<SearchPhaseInjectorProcessor> getSearchPhaseInjectorProcessors() {
+        return searchPhaseInjectorProcessors;
     }
 
     SearchRequest transformRequest(SearchRequest request) throws Exception {
@@ -168,6 +198,27 @@ class Pipeline {
         0,
         Collections.emptyList(),
         Collections.emptyList(),
+        Collections.emptyList(),
         null
     );
+
+    <Result extends SearchPhaseResult> SearchPhaseResults<Result> runSearchPhaseTransformer(
+        SearchPhaseResults<Result> searchPhaseResult,
+        SearchPhaseContext context,
+        String currentPhase,
+        String nextPhase
+    ) throws SearchPipelineProcessingException {
+
+        try {
+            for (SearchPhaseInjectorProcessor searchPhaseInjectorProcessor : searchPhaseInjectorProcessors) {
+                if (currentPhase.equals(searchPhaseInjectorProcessor.getBeforePhase().getName())
+                    && nextPhase.equals(searchPhaseInjectorProcessor.getAfterPhase().getName())) {
+                    searchPhaseResult = searchPhaseInjectorProcessor.execute(searchPhaseResult, context);
+                }
+            }
+            return searchPhaseResult;
+        } catch (Exception e) {
+            throw new SearchPipelineProcessingException(e);
+        }
+    }
 }

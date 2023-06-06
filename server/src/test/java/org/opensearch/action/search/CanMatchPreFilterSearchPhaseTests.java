@@ -32,6 +32,7 @@
 package org.opensearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
+import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
@@ -47,6 +48,7 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
@@ -71,6 +73,8 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
+
+    private final SearchPipelineService searchPipelineService = Mockito.mock(SearchPipelineService.class);
 
     public void testFilterShards() throws InterruptedException {
 
@@ -136,7 +140,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     latch.countDown();
                 }
             },
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            searchPipelineService
         );
 
         canMatchPhase.start();
@@ -227,7 +232,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     latch.countDown();
                 }
             },
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            searchPipelineService
         );
 
         canMatchPhase.start();
@@ -317,7 +323,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 null,
                 new ArraySearchPhaseResults<>(iter.size()),
                 randomIntBetween(1, 32),
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                searchPipelineService
             ) {
 
                 @Override
@@ -344,7 +351,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     }
                 }
             },
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            searchPipelineService
         );
 
         canMatchPhase.start();
@@ -428,7 +436,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                         latch.countDown();
                     }
                 },
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                searchPipelineService
             );
 
             canMatchPhase.start();
@@ -527,7 +536,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                         latch.countDown();
                     }
                 },
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                searchPipelineService
             );
 
             canMatchPhase.start();
