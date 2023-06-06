@@ -222,7 +222,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this.onJoinValidators,
             rerouteService,
             nodeHealthService,
-            this::onNodeCommissionStatusChange
+            this::onNodeCommissionStatusChange,
+            namedWriteableRegistry
         );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
