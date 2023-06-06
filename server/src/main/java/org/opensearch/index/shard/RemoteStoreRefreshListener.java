@@ -164,14 +164,13 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     @Override
     public void afterRefresh(boolean didRefresh) {
 
-        if (didRefresh) {
+        if (didRefresh || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
             updateLocalRefreshTimeAndSeqNo();
-        }
-
-        try {
-            indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
-        } catch (InterruptedException | ExecutionException e) {
-            logger.info("Exception occurred while scheduling syncSegments", e);
+            try {
+                indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
+            } catch (InterruptedException | ExecutionException e) {
+                logger.info("Exception occurred while scheduling syncSegments", e);
+            }
         }
     }
 
@@ -232,9 +231,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             // Start metadata file upload
                             uploadMetadata(localSegmentsPostRefresh, segmentInfos);
                             clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
-                            onSuccessfulSegmentsSync(refreshTimeMs, refreshSeqNo);
-                            indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
-                            checkpointPublisher.publish(indexShard, checkpoint);
+                            onSuccessfulSegmentsSync(refreshTimeMs, refreshSeqNo, lastRefreshedCheckpoint, checkpoint);
                             // At this point since we have uploaded new segments, segment infos and segment metadata file,
                             // along with marking minSeqNoToKeep, upload has succeeded completely.
                             shouldRetry = false;
@@ -278,7 +275,12 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         segmentTracker.incrementTotalUploadsStarted();
     }
 
-    private void onSuccessfulSegmentsSync(long refreshTimeMs, long refreshSeqNo) {
+    private void onSuccessfulSegmentsSync(
+        long refreshTimeMs,
+        long refreshSeqNo,
+        long lastRefreshedCheckpoint,
+        ReplicationCheckpoint checkpoint
+    ) {
         // Update latest uploaded segment files name in segment tracker
         segmentTracker.setLatestUploadedFiles(latestFileNameSizeOnLocalMap.keySet());
         // Update the remote refresh time and refresh seq no
@@ -287,6 +289,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         resetBackOffDelayIterator();
         // Cancel the scheduled cancellable retry if possible and set it to null
         cancelAndResetScheduledCancellableRetry();
+        // Set the minimum sequence number for keeping translog
+        indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        // Publishing the new checkpoint which is used for remote store + segrep indexes
+        checkpointPublisher.publish(indexShard, checkpoint);
     }
 
     /**
