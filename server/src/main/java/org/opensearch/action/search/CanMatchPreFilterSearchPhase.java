@@ -36,7 +36,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.search.SearchService.CanMatchResponse;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.builder.SearchSourceBuilder;
