@@ -207,6 +207,15 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         }
     }
 
+    public static InternalAggregations merge(InternalAggregations first, InternalAggregations second) {
+        final List<InternalAggregation> fromFirst = first.getInternalAggregations();
+        final List<InternalAggregation> fromSecond = second.getInternalAggregations();
+        final List<InternalAggregation> mergedAggregation = new ArrayList<>(fromFirst.size() + fromSecond.size());
+        mergedAggregation.addAll(fromFirst);
+        mergedAggregation.addAll(fromSecond);
+        return new InternalAggregations(mergedAggregation);
+    }
+
     /**
      * A counting stream output
      *
