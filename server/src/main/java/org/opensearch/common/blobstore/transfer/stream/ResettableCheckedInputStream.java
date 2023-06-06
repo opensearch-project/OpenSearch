@@ -107,6 +107,11 @@ public class ResettableCheckedInputStream extends FilterInputStream {
     }
 
     @Override
+    public boolean markSupported() {
+        return true;
+    }
+
+    @Override
     public synchronized void mark(int readlimit) {
         markedChecksum.reset(checksum.getValue());
         super.mark(readlimit);
