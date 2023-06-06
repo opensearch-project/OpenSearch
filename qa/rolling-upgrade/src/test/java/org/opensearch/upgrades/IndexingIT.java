@@ -90,7 +90,8 @@ public class IndexingIT extends AbstractRollingTestCase {
     private void waitForSearchableDocs(String index, int shardCount) throws Exception {
         Map<Integer,String> primaryShardToNodeIDMap = new HashMap<>();
         Map<Integer,String> replicaShardToNodeIDMap = new HashMap<>();
-        logger.info("--> _cat/shards \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
+        waitForClusterHealthWithNoShardMigration(index, "green");
+        logger.info("--> _cat/shards before search \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
 
         Request request = new Request("GET", index + "/_stats");
         request.addParameter("level", "shards");
