@@ -665,7 +665,6 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
-    private volatile boolean searchSegmentOrderReversed;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -906,10 +905,6 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_PIPELINE, this::setDefaultSearchPipeline);
     }
 
-    private void setSearchSegmentOrderReversed(boolean reversed) {
-        this.searchSegmentOrderReversed = reversed;
-    }
-
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
         this.searchIdleAfter = searchIdleAfter;
     }
@@ -1087,13 +1082,6 @@ public final class IndexSettings {
      */
     public Settings getNodeSettings() {
         return nodeSettings;
-    }
-
-    /**
-     * Returns true if index level setting for leaf reverse order search optimization is enabled
-     */
-    public boolean getSearchSegmentOrderReversed() {
-        return this.searchSegmentOrderReversed;
     }
 
     /**
