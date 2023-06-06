@@ -32,8 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.util.json.Jackson;
-import org.opensearch.SpecialPermission;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
@@ -48,8 +46,6 @@ import org.opensearch.repositories.Repository;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -60,22 +56,6 @@ import java.util.Objects;
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
-
-    static {
-        SpecialPermission.check();
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                // kick jackson to do some static caching of declared members info
-                Jackson.jsonNodeOf("{}");
-                // ClientConfiguration clinit has some classloader problems
-                // TODO: fix that
-                Class.forName("com.amazonaws.ClientConfiguration");
-            } catch (final ClassNotFoundException e) {
-                throw new RuntimeException(e);
-            }
-            return null;
-        });
-    }
 
     protected final S3Service service;
     private final Path configPath;
@@ -124,6 +104,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.SESSION_TOKEN_SETTING,
             S3ClientSettings.ENDPOINT_SETTING,
             S3ClientSettings.PROTOCOL_SETTING,
+            S3ClientSettings.PROXY_TYPE_SETTING,
             S3ClientSettings.PROXY_HOST_SETTING,
             S3ClientSettings.PROXY_PORT_SETTING,
             S3ClientSettings.PROXY_USERNAME_SETTING,

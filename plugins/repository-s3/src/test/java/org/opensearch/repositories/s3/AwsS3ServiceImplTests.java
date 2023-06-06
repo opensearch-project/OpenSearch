@@ -32,16 +32,16 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.http.IdleConnectionReaper;
-
-import org.junit.AfterClass;
+import org.junit.Before;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.repositories.s3.utils.Protocol;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
+import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -55,21 +55,32 @@ import static org.hamcrest.Matchers.is;
 import static org.opensearch.repositories.s3.S3ClientSettings.PROTOCOL_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.PROXY_TYPE_SETTING;
 
-public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigPathSupport {
-    @AfterClass
-    public static void shutdownIdleConnectionReaper() {
-        // created by default STS client
-        IdleConnectionReaper.shutdown();
+public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
+
+    private static final String HOST = "127.0.0.10";
+    private static final int PORT = 8080;
+
+    private Settings.Builder settingsBuilder;
+
+    @Override
+    @Before
+    @SuppressForbidden(reason = "Need to set system property here for AWS SDK v2")
+    public void setUp() throws Exception {
+        settingsBuilder = Settings.builder()
+            .put("s3.client.default.proxy.type", "http")
+            .put("s3.client.default.proxy.host", HOST)
+            .put("s3.client.default.proxy.port", PORT);
+        super.setUp();
     }
 
-    public void testAWSCredentialsDefaultToInstanceProviders() {
+    public void testAwsCredentialsDefaultToInstanceProviders() {
         final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName, configPath());
-        final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, clientSettings);
+        final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, clientSettings);
         assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
-    public void testAWSCredentialsFromKeystore() {
+    public void testAwsCredentialsFromKeystore() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final String clientNamePrefix = "some_client_name_";
         final int clientsCount = randomIntBetween(0, 4);
@@ -85,14 +96,14 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
-            assertThat(credentialsProvider, instanceOf(AWSStaticCredentialsProvider.class));
-            assertThat(credentialsProvider.getCredentials().getAWSAccessKeyId(), is(clientName + "_aws_access_key"));
-            assertThat(credentialsProvider.getCredentials().getAWSSecretKey(), is(clientName + "_aws_secret_key"));
+            final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
+            assertThat(credentialsProvider, instanceOf(StaticCredentialsProvider.class));
+            assertThat(credentialsProvider.resolveCredentials().accessKeyId(), is(clientName + "_aws_access_key"));
+            assertThat(credentialsProvider.resolveCredentials().secretAccessKey(), is(clientName + "_aws_secret_key"));
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
         assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -120,13 +131,13 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
+            final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
             assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedSTSAssumeRoleSessionCredentialsProvider.class));
             ((Closeable) credentialsProvider).close();
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
         assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -154,13 +165,13 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
+            final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
             assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedSTSAssumeRoleSessionCredentialsProvider.class));
             ((Closeable) credentialsProvider).close();
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
         assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -181,13 +192,13 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
+            final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
             assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedSTSAssumeRoleSessionCredentialsProvider.class));
             ((Closeable) credentialsProvider).close();
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
         assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -202,10 +213,10 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         assertThat(allClientsSettings.size(), is(1));
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
-        assertThat(defaultCredentialsProvider, instanceOf(AWSStaticCredentialsProvider.class));
-        assertThat(defaultCredentialsProvider.getCredentials().getAWSAccessKeyId(), is(awsAccessKey));
-        assertThat(defaultCredentialsProvider.getCredentials().getAWSSecretKey(), is(awsSecretKey));
+        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        assertThat(defaultCredentialsProvider, instanceOf(StaticCredentialsProvider.class));
+        assertThat(defaultCredentialsProvider.resolveCredentials().accessKeyId(), is(awsAccessKey));
+        assertThat(defaultCredentialsProvider.resolveCredentials().secretAccessKey(), is(awsSecretKey));
     }
 
     public void testCredentialsIncomplete() {
@@ -227,16 +238,8 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(
-            Settings.EMPTY,
-            Protocol.HTTPS,
-            null,
-            -1,
-            null,
-            null,
-            3,
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
-            ClientConfiguration.DEFAULT_SOCKET_TIMEOUT
+        SocketAccess.doPrivilegedVoid(
+            () -> launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3, true, 50_000)
         );
     }
 
@@ -247,20 +250,22 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         final Settings settings = Settings.builder()
             .setSecureSettings(secureSettings)
             .put("s3.client.default.protocol", "http")
-            .put("s3.client.default.proxy.host", "127.0.0.10")
-            .put("s3.client.default.proxy.port", 8080)
+            .put("s3.client.default.proxy.host", HOST)
+            .put("s3.client.default.proxy.port", PORT)
             .put("s3.client.default.read_timeout", "10s")
             .build();
-        launchAWSConfigurationTest(
-            settings,
-            Protocol.HTTP,
-            "127.0.0.10",
-            8080,
-            "aws_proxy_username",
-            "aws_proxy_password",
-            3,
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
-            10000
+        SocketAccess.doPrivilegedVoid(
+            () -> launchAWSConfigurationTest(
+                settings,
+                Protocol.HTTP,
+                HOST,
+                PORT,
+                "aws_proxy_username",
+                "aws_proxy_password",
+                3,
+                true,
+                10000
+            )
         );
         assertWarnings(
             "Using of "
@@ -279,20 +284,22 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
             .setSecureSettings(secureSettings)
             .put("s3.client.default.protocol", "http")
             .put("s3.client.default.proxy.type", "https")
-            .put("s3.client.default.proxy.host", "127.0.0.10")
-            .put("s3.client.default.proxy.port", 8080)
+            .put("s3.client.default.proxy.host", HOST)
+            .put("s3.client.default.proxy.port", PORT)
             .put("s3.client.default.read_timeout", "10s")
             .build();
-        launchAWSConfigurationTest(
-            settings,
-            Protocol.HTTP,
-            "127.0.0.10",
-            8080,
-            "aws_proxy_username",
-            "aws_proxy_password",
-            3,
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
-            10000
+        SocketAccess.doPrivilegedVoid(
+            () -> launchAWSConfigurationTest(
+                settings,
+                Protocol.HTTP,
+                HOST,
+                PORT,
+                "aws_proxy_username",
+                "aws_proxy_password",
+                3,
+                true,
+                10000
+            )
         );
     }
 
@@ -303,31 +310,29 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         final Settings settings = Settings.builder()
             .setSecureSettings(secureSettings)
             .put("s3.client.default.proxy.type", "socks")
-            .put("s3.client.default.proxy.host", "127.0.0.10")
-            .put("s3.client.default.proxy.port", 8080)
+            .put("s3.client.default.proxy.host", HOST)
+            .put("s3.client.default.proxy.port", PORT)
             .put("s3.client.default.read_timeout", "10s")
             .build();
 
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default", configPath());
-        final ClientConfiguration configuration = S3Service.buildConfiguration(clientSettings);
+        final ProxyConfiguration configuration = S3Service.buildHttpProxyConfiguration(clientSettings);
 
-        assertEquals(Protocol.HTTPS, configuration.getProtocol());
-        assertEquals(Protocol.HTTP, configuration.getProxyProtocol()); // default value in SDK
-        assertEquals(-1, configuration.getProxyPort());
-        assertNull(configuration.getProxyUsername());
-        assertNull(configuration.getProxyPassword());
+        assertEquals(0, configuration.port());
+        assertNull(configuration.username());
+        assertNull(configuration.password());
     }
 
     public void testRepositoryMaxRetries() {
-        final Settings settings = Settings.builder().put("s3.client.default.max_retries", 5).build();
-        launchAWSConfigurationTest(settings, Protocol.HTTPS, null, -1, null, null, 5, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 50000);
+        final Settings settings = settingsBuilder.put("s3.client.default.max_retries", 5).build();
+        SocketAccess.doPrivilegedVoid(() -> launchAWSConfigurationTest(settings, Protocol.HTTPS, HOST, PORT, "", "", 5, true, 50000));
     }
 
     public void testRepositoryThrottleRetries() {
         final boolean throttling = randomBoolean();
 
-        final Settings settings = Settings.builder().put("s3.client.default.use_throttle_retries", throttling).build();
-        launchAWSConfigurationTest(settings, Protocol.HTTPS, null, -1, null, null, 3, throttling, 50000);
+        final Settings settings = settingsBuilder.put("s3.client.default.use_throttle_retries", throttling).build();
+        SocketAccess.doPrivilegedVoid(() -> launchAWSConfigurationTest(settings, Protocol.HTTPS, HOST, PORT, "", "", 3, throttling, 50000));
     }
 
     private void launchAWSConfigurationTest(
@@ -343,17 +348,27 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
     ) {
 
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default", configPath());
-        final ClientConfiguration configuration = S3Service.buildConfiguration(clientSettings);
+        if (clientSettings.proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
+            final ProxyConfiguration proxyConfiguration = S3Service.buildHttpProxyConfiguration(clientSettings);
+            assertThat(proxyConfiguration.host(), is(expectedProxyHost));
+            assertThat(proxyConfiguration.port(), is(expectedProxyPort));
+            assertThat(proxyConfiguration.username(), is(expectedProxyUsername));
+            assertThat(proxyConfiguration.password(), is(expectedProxyPassword));
+        }
 
-        assertThat(configuration.getResponseMetadataCacheSize(), is(0));
-        assertThat(configuration.getProtocol(), is(expectedProtocol));
-        assertThat(configuration.getProxyHost(), is(expectedProxyHost));
-        assertThat(configuration.getProxyPort(), is(expectedProxyPort));
-        assertThat(configuration.getProxyUsername(), is(expectedProxyUsername));
-        assertThat(configuration.getProxyPassword(), is(expectedProxyPassword));
-        assertThat(configuration.getMaxErrorRetry(), is(expectedMaxRetries));
-        assertThat(configuration.useThrottledRetries(), is(expectedUseThrottleRetries));
-        assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));
+        final ClientOverrideConfiguration clientOverrideConfiguration = S3Service.buildOverrideConfiguration(clientSettings);
+
+        assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
+        assertThat(clientOverrideConfiguration.retryPolicy().get().numRetries(), is(expectedMaxRetries));
+        if (expectedUseThrottleRetries) {
+            assertThat(
+                clientOverrideConfiguration.retryPolicy().get().throttlingBackoffStrategy(),
+                is(BackoffStrategy.defaultThrottlingStrategy())
+            );
+        } else {
+            assertThat(clientOverrideConfiguration.retryPolicy().get().throttlingBackoffStrategy(), is(BackoffStrategy.none()));
+        }
+        // assertThat(proxyConfiguration.getSocketTimeout(), is(expectedReadTimeout));
     }
 
     public void testEndpointSetting() {

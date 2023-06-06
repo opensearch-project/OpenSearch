@@ -15,7 +15,6 @@ import org.opensearch.search.profile.query.InternalProfileCollectorManager;
 import org.opensearch.search.profile.query.ProfileCollectorManager;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -59,34 +58,24 @@ public abstract class QueryCollectorManagerContext {
         }
     }
 
-    private static class OpaqueQueryCollectorManager extends QueryCollectorManager {
-        private OpaqueQueryCollectorManager(Collection<CollectorManager<? extends Collector, ReduceableSearchResult>> managers) {
-            super(managers);
-        }
-
-        @Override
-        protected ReduceableSearchResult reduceWith(final ReduceableSearchResult[] results) {
-            return (QuerySearchResult result) -> {};
-        }
-    }
-
-    public static CollectorManager<? extends Collector, ReduceableSearchResult> createOpaqueCollectorManager(
-        List<CollectorManager<? extends Collector, ReduceableSearchResult>> managers
+    /**
+     * Create query {@link CollectorManager} tree using the provided query collector contexts
+     * @param collectorContexts list of {@link QueryCollectorContext}
+     * @return {@link CollectorManager} representing the manager tree for the query
+     */
+    public static CollectorManager<? extends Collector, ReduceableSearchResult> createQueryCollectorManager(
+        List<QueryCollectorContext> collectorContexts
     ) throws IOException {
-        return new OpaqueQueryCollectorManager(managers);
+        CollectorManager<?, ReduceableSearchResult> manager = null;
+        for (QueryCollectorContext ctx : collectorContexts) {
+            manager = ctx.createManager(manager);
+        }
+        return manager;
     }
 
     public static CollectorManager<? extends Collector, ReduceableSearchResult> createMultiCollectorManager(
-        List<QueryCollectorContext> collectors
-    ) throws IOException {
-        final Collection<CollectorManager<? extends Collector, ReduceableSearchResult>> managers = new ArrayList<>();
-
-        CollectorManager<?, ReduceableSearchResult> manager = null;
-        for (QueryCollectorContext ctx : collectors) {
-            manager = ctx.createManager(manager);
-            managers.add(manager);
-        }
-
+        List<CollectorManager<?, ReduceableSearchResult>> managers
+    ) {
         return new QueryCollectorManager(managers);
     }
 

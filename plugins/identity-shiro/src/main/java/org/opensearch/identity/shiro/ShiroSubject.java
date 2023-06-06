@@ -20,7 +20,7 @@ import org.opensearch.identity.tokens.AuthToken;
  * @opensearch.experimental
  */
 public class ShiroSubject implements Subject {
-    private final AuthTokenHandler authTokenHandler;
+    private final ShiroTokenManager authTokenHandler;
     private final org.apache.shiro.subject.Subject shiroSubject;
 
     /**
@@ -29,7 +29,7 @@ public class ShiroSubject implements Subject {
      * @param authTokenHandler Used to extract auth header info
      * @param subject The specific subject being authc/z'd
      */
-    public ShiroSubject(final AuthTokenHandler authTokenHandler, final org.apache.shiro.subject.Subject subject) {
+    public ShiroSubject(final ShiroTokenManager authTokenHandler, final org.apache.shiro.subject.Subject subject) {
         this.authTokenHandler = Objects.requireNonNull(authTokenHandler);
         this.shiroSubject = Objects.requireNonNull(subject);
     }
