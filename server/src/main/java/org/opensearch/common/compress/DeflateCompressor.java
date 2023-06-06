@@ -157,16 +157,9 @@ public class DeflateCompressor implements Compressor {
      * @return             decompressing stream
      */
     public static InputStream inputStream(InputStream in, boolean threadLocal) throws IOException {
-        final byte[] headerBytes = new byte[HEADER.length];
-        int len = 0;
-        while (len < headerBytes.length) {
-            final int read = in.read(headerBytes, len, headerBytes.length - len);
-            if (read == -1) {
-                break;
-            }
-            len += read;
-        }
-        if (len != HEADER.length || Arrays.equals(headerBytes, HEADER) == false) {
+        final byte[] header = in.readNBytes(HEADER.length);
+
+        if (Arrays.equals(header, HEADER) == false) {
             throw new IllegalArgumentException("Input stream is not compressed with DEFLATE!");
         }
 
@@ -252,9 +245,11 @@ public class DeflateCompressor implements Compressor {
         } finally {
             inflater.reset();
         }
-        final BytesReference res = buffer.copyBytes();
-        buffer.reset();
-        return res;
+        try {
+            return buffer.copyBytes();
+        } finally {
+            buffer.reset();
+        }
     }
 
     // Reusable Deflater reference. Note: This is a separate instance from the one used for the compressing stream wrapper because we
@@ -271,8 +266,10 @@ public class DeflateCompressor implements Compressor {
         } finally {
             deflater.reset();
         }
-        final BytesReference res = buffer.copyBytes();
-        buffer.reset();
-        return res;
+        try {
+            return buffer.copyBytes();
+        } finally {
+            buffer.reset();
+        }
     }
 }

@@ -82,9 +82,6 @@ thirdPartyAudit.ignoreViolations(
 )
 
 thirdPartyAudit.ignoreMissingClasses(
-  'com.github.luben.zstd.BufferPool',
-  'com.github.luben.zstd.ZstdInputStream',
-  'com.github.luben.zstd.ZstdOutputStream',
   'org.brotli.dec.BrotliInputStream',
   'org.objectweb.asm.AnnotationVisitor',
   'org.objectweb.asm.Attribute',
