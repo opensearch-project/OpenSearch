@@ -38,14 +38,12 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -231,7 +229,10 @@ public class JoinHelperTests extends OpenSearchTestCase {
         TransportRequest request;
         final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
         if (actionName.equals(VALIDATE_COMPRESSED_JOIN_ACTION_NAME)) {
-            BytesReference bytes = ClusterStateUtils.serializeClusterState(otherClusterState, testCluster.localNode);
+            BytesReference bytes = CompressedStreamUtils.createCompressedStream(
+                testCluster.localNode.getVersion(),
+                otherClusterState::writeTo
+            );
             request = new BytesTransportRequest(bytes, testCluster.localNode.getVersion());
             testCluster.transportService.sendRequest(
                 testCluster.localNode,
@@ -376,27 +377,6 @@ public class JoinHelperTests extends OpenSearchTestCase {
         CapturedRequest[] validateRequests = testCluster.capturingTransport.getCapturedRequestsAndClear();
         assertEquals(1, validateRequests.length);
         assertEquals(expectedActionName, validateRequests[0].action);
-    }
-
-    public void testJoinValidationFailsOnSendingCompressedDiffClusterState() throws IOException {
-        TestClusterSetup testCluster = getTestClusterSetup(Version.CURRENT, false);
-        Diff<ClusterState> clusterStateDiff = testCluster.localClusterState.diff(ClusterState.EMPTY_STATE);
-        TransportRequest request;
-        final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
-        BytesReference bytes = ClusterStateUtils.serializeClusterState(clusterStateDiff, testCluster.localNode);
-        request = new BytesTransportRequest(bytes, testCluster.localNode.getVersion());
-        testCluster.transportService.sendRequest(
-            testCluster.localNode,
-            VALIDATE_COMPRESSED_JOIN_ACTION_NAME,
-            request,
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
-        );
-        testCluster.deterministicTaskQueue.runAllTasks();
-        final UncategorizedExecutionException invalidStateException = expectThrows(
-            UncategorizedExecutionException.class,
-            future::actionGet
-        );
-        assertTrue(invalidStateException.getCause().getMessage().contains("requires full cluster state"));
     }
 
     public void testJoinValidationFailsOnDecompressionFailure() {

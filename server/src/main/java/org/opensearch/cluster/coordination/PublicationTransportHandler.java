@@ -46,7 +46,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BytesTransportRequest;
 import org.opensearch.transport.TransportChannel;
@@ -161,12 +160,16 @@ public class PublicationTransportHandler {
     }
 
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
-        StreamInput in = null;
-        try {
-            in = ClusterStateUtils.decompressClusterState(request, namedWriteableRegistry);
+        try (StreamInput in = CompressedStreamUtils.decompressBytes(request, namedWriteableRegistry)) {
             ClusterState incomingState;
             if (in.readBoolean()) {
-                incomingState = ClusterStateUtils.deserializeFullClusterState(in, transportService.getLocalNode());
+                // Close early to release resources used by the de-compression as early as possible
+                try (StreamInput input = in) {
+                    incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
+                } catch (Exception e) {
+                    logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                    throw e;
+                }
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
                 final PublishWithJoinResponse response = acceptState(incomingState);
@@ -180,10 +183,17 @@ public class PublicationTransportHandler {
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 } else {
                     try {
-                        Diff<ClusterState> diff = ClusterStateUtils.deserializeClusterStateDiff(in, lastSeen.getNodes().getLocalNode());
+                        final Diff<ClusterState> diff;
+                        // Close stream early to release resources used by the de-compression as early as possible
+                        try (StreamInput input = in) {
+                            diff = ClusterState.readDiffFrom(input, lastSeen.nodes().getLocalNode());
+                        }
                         incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
                     } catch (IncompatibleClusterStateVersionException e) {
                         incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+                        throw e;
+                    } catch (Exception e) {
+                        logger.warn("unexpected error while deserializing an incoming cluster state", e);
                         throw e;
                     }
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
@@ -198,8 +208,6 @@ public class PublicationTransportHandler {
                     return response;
                 }
             }
-        } finally {
-            IOUtils.close(in);
         }
     }
 
@@ -224,6 +232,27 @@ public class PublicationTransportHandler {
         // therefore serializing it) if the diff-based publication fails.
         publicationContext.buildDiffAndSerializeStates();
         return publicationContext;
+    }
+
+    private static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
+        final BytesReference serializedState = CompressedStreamUtils.createCompressedStream(nodeVersion, stream -> {
+            stream.writeBoolean(true);
+            clusterState.writeTo(stream);
+        });
+        logger.trace(
+            "serialized full cluster state version [{}] for node version [{}] with size [{}]",
+            clusterState.version(),
+            nodeVersion,
+            serializedState.length()
+        );
+        return serializedState;
+    }
+
+    private static BytesReference serializeDiffClusterState(Diff<ClusterState> diff, Version nodeVersion) throws IOException {
+        return CompressedStreamUtils.createCompressedStream(nodeVersion, stream -> {
+            stream.writeBoolean(false);
+            diff.writeTo(stream);
+        });
     }
 
     /**
@@ -255,7 +284,7 @@ public class PublicationTransportHandler {
                 try {
                     if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
                         if (serializedStates.containsKey(node.getVersion()) == false) {
-                            serializedStates.put(node.getVersion(), ClusterStateUtils.serializeClusterState(newState, node));
+                            serializedStates.put(node.getVersion(), serializeFullClusterState(newState, node.getVersion()));
                         }
                     } else {
                         // will send a diff
@@ -263,7 +292,7 @@ public class PublicationTransportHandler {
                             diff = newState.diff(previousState);
                         }
                         if (serializedDiffs.containsKey(node.getVersion()) == false) {
-                            final BytesReference serializedDiff = ClusterStateUtils.serializeClusterState(diff, node);
+                            final BytesReference serializedDiff = serializeDiffClusterState(diff, node.getVersion());
                             serializedDiffs.put(node.getVersion(), serializedDiff);
                             logger.trace(
                                 "serialized cluster state diff for version [{}] in for node version [{}] with size [{}]",
@@ -359,7 +388,7 @@ public class PublicationTransportHandler {
             BytesReference bytes = serializedStates.get(destination.getVersion());
             if (bytes == null) {
                 try {
-                    bytes = ClusterStateUtils.serializeClusterState(newState, destination);
+                    bytes = serializeFullClusterState(newState, destination.getVersion());
                     serializedStates.put(destination.getVersion(), bytes);
                 } catch (Exception e) {
                     logger.warn(

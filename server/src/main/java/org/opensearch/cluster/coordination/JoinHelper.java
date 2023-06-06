@@ -57,7 +57,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool;
@@ -74,7 +73,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InvalidObjectException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -262,18 +260,10 @@ public class JoinHelper {
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
         BytesTransportRequest request
     ) throws IOException {
-        StreamInput in = null;
-        try {
-            in = ClusterStateUtils.decompressClusterState(request, namedWriteableRegistry);
-            if (in.readBoolean()) {
-                ClusterState incomingState = ClusterStateUtils.deserializeFullClusterState(in, transportService.getLocalNode());
-                runJoinValidators(currentStateSupplier, incomingState, joinValidators);
-            } else {
-                logger.error("validate new node join request requires full cluster state");
-                throw new InvalidObjectException("validate new node join request requires full cluster state");
-            }
-        } finally {
-            IOUtils.close(in);
+        try (StreamInput input = CompressedStreamUtils.decompressBytes(request, namedWriteableRegistry)) {
+            input.setVersion(request.version());
+            ClusterState incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
+            runJoinValidators(currentStateSupplier, incomingState, joinValidators);
         }
     }
 
@@ -470,7 +460,10 @@ public class JoinHelper {
                 final BytesReference bytes = serializedState.updateAndGet(cachedState -> {
                     if (cachedState == null || cachedState.v1() != state.version()) {
                         try {
-                            return new Tuple<>(state.version(), ClusterStateUtils.serializeClusterState(state, node));
+                            return new Tuple<>(
+                                state.version(),
+                                CompressedStreamUtils.createCompressedStream(node.getVersion(), state::writeTo)
+                            );
                         } catch (IOException e) {
                             // mandatory as AtomicReference doesn't rethrow IOException.
                             throw new RuntimeException(e);
