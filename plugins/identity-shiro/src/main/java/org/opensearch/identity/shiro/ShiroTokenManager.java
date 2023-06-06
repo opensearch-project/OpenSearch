@@ -22,7 +22,6 @@ import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.opensearch.common.Randomness;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.TokenManager;
@@ -57,11 +56,10 @@ class ShiroTokenManager implements TokenManager {
     }
 
     @Override
-    public AuthToken issueToken() {
+    public AuthToken issueToken(String audience) {
 
-        Subject subject = new ShiroSubject(this, SecurityUtils.getSubject());
         String password = generatePassword();
-        final byte[] rawEncoded = Base64.getEncoder().encode((subject.getPrincipal().getName() + ":" + password).getBytes(UTF_8));
+        final byte[] rawEncoded = Base64.getEncoder().encode((audience + ":" + password).getBytes(UTF_8));
         final String usernamePassword = new String(rawEncoded, UTF_8);
         final String header = "Basic " + usernamePassword;
         BasicAuthToken token = new BasicAuthToken(header);
@@ -70,7 +68,6 @@ class ShiroTokenManager implements TokenManager {
         return token;
     }
 
-    @Override
     public boolean validateToken(AuthToken token) {
         if (token instanceof BasicAuthToken) {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) token;
@@ -80,7 +77,6 @@ class ShiroTokenManager implements TokenManager {
         return false;
     }
 
-    @Override
     public String getTokenInfo(AuthToken token) {
         if (token instanceof BasicAuthToken) {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) token;
@@ -89,7 +85,6 @@ class ShiroTokenManager implements TokenManager {
         throw new UnsupportedAuthenticationToken();
     }
 
-    @Override
     public void revokeToken(AuthToken token) {
         if (token instanceof BasicAuthToken) {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) token;
@@ -99,7 +94,6 @@ class ShiroTokenManager implements TokenManager {
         throw new UnsupportedAuthenticationToken();
     }
 
-    @Override
     public void resetToken(AuthToken token) {
         if (token instanceof BasicAuthToken) {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) token;

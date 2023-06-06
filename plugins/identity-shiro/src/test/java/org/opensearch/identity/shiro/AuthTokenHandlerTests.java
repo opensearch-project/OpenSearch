@@ -89,14 +89,6 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         assertThrows(UnsupportedAuthenticationToken.class, () -> shiroAuthTokenHandler.revokeToken(bearerAuthToken));
     }
 
-    public void testShouldGetTokenInfoSuccessfully() {
-        final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
-        assert (authToken.toString().equals(shiroAuthTokenHandler.getTokenInfo(authToken)));
-        final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
-        assert (noopTokenManager.getTokenInfo(authToken).equals("Token is of type: " + authToken.getClass()));
-        assert (noopTokenManager.getTokenInfo(bearerAuthToken).equals("Token is of type: " + bearerAuthToken.getClass()));
-    }
-
     public void testShouldFailGetTokenInfo() {
         final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
         assert (bearerAuthToken.getTokenIdentifier().equals("Bearer"));
@@ -117,12 +109,6 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
     public void testShouldPassThrougbResetToken(AuthToken token) {
         final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
         shiroAuthTokenHandler.resetToken(bearerAuthToken);
-    }
-
-    public void testShouldPassThrough() {
-        final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
-        noopTokenManager.resetToken(bearerAuthToken);
-        noopTokenManager.revokeToken(bearerAuthToken);
     }
 
     public void testVerifyBearerTokenObject() {
