@@ -239,7 +239,7 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
         BlobPath shardLevelBlobPath = remoteStorerepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
         BlobContainer blobContainer = remoteStorerepository.blobStore().blobContainer(shardLevelBlobPath);
         try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
-            return lockDirectory.listAll();
+            return Arrays.stream(lockDirectory.listAll()).filter(lock -> lock.endsWith(".lock")).toArray(String[]::new);
         }
     }
 

@@ -17,7 +17,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Remote Store based Shard snapshot metadata
@@ -40,7 +39,7 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
     private final String indexUUID;
     private final List<String> fileNames;
 
-    private static final String DEFAULT_VERSION = "1";
+    static final String DEFAULT_VERSION = "1";
     static final String NAME = "name";
     static final String VERSION = "version";
     static final String INDEX_VERSION = "index_version";
@@ -116,10 +115,18 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         String repositoryBasePath,
         List<String> fileNames
     ) {
-        this.snapshot = Objects.requireNonNull(snapshot, "Invalid/Missing Snapshot Name");
-        assert indexVersion > 0 : "Invalid Index Version";
-        assert primaryTerm > 0 : "Invalid Primary Term";
-        assert commitGeneration > 0 : "Invalid Commit Generation";
+        this.version = DEFAULT_VERSION;
+        verifyParameters(
+            version,
+            snapshot,
+            indexVersion,
+            primaryTerm,
+            commitGeneration,
+            indexUUID,
+            remoteStoreRepository,
+            repositoryBasePath
+        );
+        this.snapshot = snapshot;
         this.indexVersion = indexVersion;
         this.primaryTerm = primaryTerm;
         this.commitGeneration = commitGeneration;
@@ -127,11 +134,50 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         this.time = time;
         this.totalFileCount = totalFileCount;
         this.totalSize = totalSize;
-        this.indexUUID = Objects.requireNonNull(indexUUID, "Invalid/Missing Index UUID");
-        this.remoteStoreRepository = Objects.requireNonNull(remoteStoreRepository, "Invalid/Missing Remote Store Repository");
-        this.repositoryBasePath = Objects.requireNonNull(repositoryBasePath, "Invalid/Missing Repository Base Path");
+        this.indexUUID = indexUUID;
+        this.remoteStoreRepository = remoteStoreRepository;
+        this.repositoryBasePath = repositoryBasePath;
         this.fileNames = fileNames;
-        this.version = DEFAULT_VERSION;
+    }
+
+    private RemoteStoreShardShallowCopySnapshot(
+        String version,
+        String snapshot,
+        long indexVersion,
+        long primaryTerm,
+        long commitGeneration,
+        long startTime,
+        long time,
+        int totalFileCount,
+        long totalSize,
+        String indexUUID,
+        String remoteStoreRepository,
+        String repositoryBasePath,
+        List<String> fileNames
+    ) {
+        verifyParameters(
+            version,
+            snapshot,
+            indexVersion,
+            primaryTerm,
+            commitGeneration,
+            indexUUID,
+            remoteStoreRepository,
+            repositoryBasePath
+        );
+        this.version = version;
+        this.snapshot = snapshot;
+        this.indexVersion = indexVersion;
+        this.primaryTerm = primaryTerm;
+        this.commitGeneration = commitGeneration;
+        this.startTime = startTime;
+        this.time = time;
+        this.totalFileCount = totalFileCount;
+        this.totalSize = totalSize;
+        this.indexUUID = indexUUID;
+        this.remoteStoreRepository = remoteStoreRepository;
+        this.repositoryBasePath = repositoryBasePath;
+        this.fileNames = fileNames;
     }
 
     /**
@@ -142,7 +188,7 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
      */
     public static RemoteStoreShardShallowCopySnapshot fromXContent(XContentParser parser) throws IOException {
         String snapshot = null;
-        String version = DEFAULT_VERSION;
+        String version = null;
         long indexVersion = -1;
         long startTime = 0;
         long time = 0;
@@ -205,6 +251,7 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         }
 
         return new RemoteStoreShardShallowCopySnapshot(
+            version,
             snapshot,
             indexVersion,
             primaryTerm,
@@ -247,8 +294,22 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         return indexUUID;
     }
 
+    /**
+     * Returns Remote Store Repository Name
+     *
+     * @return remote store Repository Name
+     */
     public String getRemoteStoreRepository() {
         return remoteStoreRepository;
+    }
+
+    /**
+     * Returns Remote Store Repository Base Path
+     *
+     * @return repository base path
+     */
+    public String getRepositoryBasePath() {
+        return repositoryBasePath;
     }
 
     /**
@@ -308,4 +369,43 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         return totalSize;
     }
 
+    private void verifyParameters(
+        String version,
+        String snapshot,
+        long indexVersion,
+        long primaryTerm,
+        long commitGeneration,
+        String indexUUID,
+        String remoteStoreRepository,
+        String repositoryBasePath
+    ) {
+        String exceptionStr = null;
+        if (version == null) {
+            exceptionStr = "Invalid Version Provided";
+        }
+        if (snapshot == null) {
+            exceptionStr = "Invalid/Missing Snapshot Name";
+        }
+        if (indexVersion < 0) {
+            exceptionStr = "Invalid Index Version";
+        }
+        if (primaryTerm < 0) {
+            exceptionStr = "Invalid Primary Term";
+        }
+        if (commitGeneration < 0) {
+            exceptionStr = "Invalid Commit Generation";
+        }
+        if (indexUUID == null) {
+            exceptionStr = "Invalid/Missing Index UUID";
+        }
+        if (remoteStoreRepository == null) {
+            exceptionStr = "Invalid/Missing Remote Store Repository";
+        }
+        if (repositoryBasePath == null) {
+            exceptionStr = "Invalid/Missing Repository Base Path";
+        }
+        if (exceptionStr != null) {
+            throw new IllegalArgumentException(exceptionStr);
+        }
+    }
 }

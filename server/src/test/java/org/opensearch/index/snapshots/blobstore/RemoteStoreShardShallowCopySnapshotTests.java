@@ -135,9 +135,10 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             List<String> fileNames = new ArrayList<>(5);
             fileNames.addAll(Arrays.asList("file1", "file2", "file3", "file4", "file5"));
             String failure = null;
+            String version = RemoteStoreShardShallowCopySnapshot.DEFAULT_VERSION;
             long length = Math.max(0, Math.abs(randomLong()));
             // random corruption
-            switch (randomIntBetween(0, 7)) {
+            switch (randomIntBetween(0, 8)) {
                 case 0:
                     snapshot = null;
                     failure = "Invalid/Missing Snapshot Name";
@@ -167,6 +168,10 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                     failure = "Invalid/Missing Repository Base Path";
                     break;
                 case 7:
+                    version = null;
+                    failure = "Invalid Version Provided";
+                    break;
+                case 8:
                     break;
                 default:
                     fail("shouldn't be here");
@@ -174,6 +179,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
 
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.startObject();
+            builder.field(RemoteStoreShardShallowCopySnapshot.VERSION, version);
             builder.field(RemoteStoreShardShallowCopySnapshot.NAME, snapshot);
             builder.field(RemoteStoreShardShallowCopySnapshot.INDEX_VERSION, indexVersion);
             builder.field(RemoteStoreShardShallowCopySnapshot.START_TIME, startTime);
@@ -213,7 +219,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                     parser.nextToken();
                     RemoteStoreShardShallowCopySnapshot.fromXContent(parser);
                     fail("Should have failed with [" + failure + "]");
-                } catch (NullPointerException | AssertionError ex) {
+                } catch (IllegalArgumentException ex) {
                     assertThat(ex.getMessage(), containsString(failure));
                 }
             }

@@ -338,9 +338,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
                 boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
-                if (remoteStoreIndexShallowCopy && !currentState.nodes().getMinNodeVersion().onOrAfter(Version.V_2_9_0)) {
+                Version minVersionInCluster = currentState.nodes().getMinNodeVersion();
+                if (remoteStoreIndexShallowCopy && !minVersionInCluster.onOrAfter(Version.V_2_9_0)) {
                     remoteStoreIndexShallowCopy = false;
-                    logger.warn("setting is ignored and will be used when all nodes are moved to version > 2.9");
+                    logger.warn(
+                        "Setting {} is ignored as some of the nodes in cluster are on version older than {}. Minimum node version in cluster is: {}",
+                        REMOTE_STORE_INDEX_SHALLOW_COPY,
+                        Version.V_2_9_0,
+                        minVersionInCluster
+                    );
                 }
                 newEntry = SnapshotsInProgress.startedEntry(
                     new Snapshot(repositoryName, snapshotId),
