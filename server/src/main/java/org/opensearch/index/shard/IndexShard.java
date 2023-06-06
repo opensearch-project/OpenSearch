@@ -200,6 +200,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -228,6 +229,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.index.translog.Translog.Durability;
+import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
 /**
  * An OpenSearch index shard
@@ -4538,6 +4540,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
                     if (localMaxSegmentInfos.isPresent()
                         && infosSnapshot.getGeneration() < SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get()) - 1) {
+                        // If remote translog is not enabled, local translog will be created with different UUID.
+                        // This fails in Store.trimUnsafeCommits() as translog UUID of checkpoint and SegmentInfos needs
+                        // to be same. Following code block make sure to have the same UUID.
+                        if (indexSettings.isRemoteTranslogStoreEnabled() == false) {
+                            SegmentInfos localSegmentInfos = store.readLastCommittedSegmentsInfo();
+                            Map<String, String> userData = new HashMap<>(infosSnapshot.getUserData());
+                            userData.put(TRANSLOG_UUID_KEY, localSegmentInfos.userData.get(TRANSLOG_UUID_KEY));
+                            infosSnapshot.setUserData(userData, false);
+                        }
                         storeDirectory.deleteFile(localMaxSegmentInfos.get());
                     }
                     store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);

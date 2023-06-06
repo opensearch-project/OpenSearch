@@ -83,7 +83,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
     // Visible for testing
     static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
-    static final String SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX = "segment_infos_snapshot_filename";
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;
