@@ -11,6 +11,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import java.util.List;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 import java.util.stream.Collectors;
 
@@ -47,5 +48,12 @@ public class IdentityService {
      */
     public Subject getSubject() {
         return identityPlugin.getSubject();
+    }
+
+    /**
+     * Gets the token manager
+     */
+    public TokenManager getTokenManager() {
+        return identityPlugin.getTokenManager();
     }
 }
