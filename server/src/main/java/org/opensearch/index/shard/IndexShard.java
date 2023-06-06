@@ -1918,7 +1918,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private RemoteSegmentStoreDirectory getRemoteDirectory() {
-        assert isRemoteStoreEnabled();
+        assert indexSettings.isRemoteStoreEnabled();
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
         FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
         FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
