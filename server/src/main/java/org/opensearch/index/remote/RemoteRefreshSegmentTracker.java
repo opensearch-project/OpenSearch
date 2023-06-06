@@ -446,6 +446,8 @@ public class RemoteRefreshSegmentTracker {
     public RemoteRefreshSegmentTracker.Stats stats() {
         return new RemoteRefreshSegmentTracker.Stats(
             shardId,
+            localRefreshTimeMs,
+            remoteRefreshTimeMs,
             timeMsLag,
             localRefreshSeqNo,
             remoteRefreshSeqNo,
@@ -473,6 +475,8 @@ public class RemoteRefreshSegmentTracker {
     public static class Stats implements Writeable {
 
         public final ShardId shardId;
+        public final long localRefreshTimeMs;
+        public final long remoteRefreshTimeMs;
         public final long refreshTimeLagMs;
         public final long localRefreshNumber;
         public final long remoteRefreshNumber;
@@ -492,6 +496,8 @@ public class RemoteRefreshSegmentTracker {
 
         public Stats(
             ShardId shardId,
+            long localRefreshTimeMs,
+            long remoteRefreshTimeMs,
             long refreshTimeLagMs,
             long localRefreshNumber,
             long remoteRefreshNumber,
@@ -510,6 +516,8 @@ public class RemoteRefreshSegmentTracker {
             long bytesLag
         ) {
             this.shardId = shardId;
+            this.localRefreshTimeMs = localRefreshTimeMs;
+            this.remoteRefreshTimeMs = remoteRefreshTimeMs;
             this.refreshTimeLagMs = refreshTimeLagMs;
             this.localRefreshNumber = localRefreshNumber;
             this.remoteRefreshNumber = remoteRefreshNumber;
@@ -531,6 +539,8 @@ public class RemoteRefreshSegmentTracker {
         public Stats(StreamInput in) throws IOException {
             try {
                 this.shardId = new ShardId(in);
+                this.localRefreshTimeMs = in.readLong();
+                this.remoteRefreshTimeMs = in.readLong();
                 this.refreshTimeLagMs = in.readLong();
                 this.localRefreshNumber = in.readLong();
                 this.remoteRefreshNumber = in.readLong();
@@ -555,6 +565,8 @@ public class RemoteRefreshSegmentTracker {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
+            out.writeLong(localRefreshTimeMs);
+            out.writeLong(remoteRefreshTimeMs);
             out.writeLong(refreshTimeLagMs);
             out.writeLong(localRefreshNumber);
             out.writeLong(remoteRefreshNumber);
