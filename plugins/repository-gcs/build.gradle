@@ -9,14 +9,12 @@
  * GitHub history for details.
  */
 
-import java.nio.file.Files
-import java.security.KeyPair
-import java.security.KeyPairGenerator
+
 import org.opensearch.gradle.MavenFilteringHack
 import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.test.InternalClusterTestPlugin
 import org.opensearch.gradle.test.RestIntegTestTask
 import org.opensearch.gradle.test.rest.YamlRestTestPlugin
-import org.opensearch.gradle.test.InternalClusterTestPlugin
 
 import java.nio.file.Files
 import java.security.KeyPair
