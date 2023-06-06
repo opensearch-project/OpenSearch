@@ -167,7 +167,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     @Override
     public void afterRefresh(boolean didRefresh) {
 
-        if (didRefresh) {
+        if (didRefresh || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
             updateLocalRefreshTimeAndSeqNo();
             try {
                 indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
