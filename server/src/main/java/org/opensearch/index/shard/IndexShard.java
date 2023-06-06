@@ -1906,7 +1906,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         remoteDirectory.deleteIfEmpty();
                     }
 
-                    if (engine != null) {
+                    if (deleted && engine != null) {
                         // Translog Clean up
                         engine.translogManager().onDelete();
                     }
