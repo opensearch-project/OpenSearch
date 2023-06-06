@@ -30,14 +30,12 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.lease;
-
-import org.opensearch.OpenSearchException;
+package org.opensearch.core.common.lease;
 
 import java.io.Closeable;
 
 /**
- * Specialization of {@link AutoCloseable} that may only throw an {@link OpenSearchException}.
+ * Specialization of {@link AutoCloseable} that may only throw an {@code BaseOpenSearchException}.
  *
  * @opensearch.internal
  */

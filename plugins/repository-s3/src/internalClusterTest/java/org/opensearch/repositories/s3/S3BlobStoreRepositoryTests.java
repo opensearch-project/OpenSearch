@@ -140,6 +140,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
             // Disable request throttling because some random values in tests might generate too many failures for the S3 client
             .put(S3ClientSettings.USE_THROTTLE_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), false)
+            .put(S3ClientSettings.PROXY_TYPE_SETTING.getConcreteSettingForNamespace("test").getKey(), ProxySettings.ProxyType.DIRECT)
             .put(super.nodeSettings(nodeOrdinal))
             .setSecureSettings(secureSettings);
 
