@@ -386,14 +386,16 @@ public interface Repository extends LifecycleComponent {
      * @param remoteStoreLockManagerFactory remoteStoreLockManagerFactory for cloning metadata lock file
      * @param listener                      listener to complete with new shard generation once clone has completed
      */
-    void cloneRemoteStoreIndexShardSnapshot(
+    default void cloneRemoteStoreIndexShardSnapshot(
         SnapshotId source,
         SnapshotId target,
         RepositoryShardId shardId,
         @Nullable String shardGeneration,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<String> listener
-    );
+    ) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
