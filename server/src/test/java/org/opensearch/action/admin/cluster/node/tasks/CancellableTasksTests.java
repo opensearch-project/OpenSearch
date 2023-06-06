@@ -566,8 +566,17 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
         AtomicBoolean onTaskCancelled = new AtomicBoolean();
         AtomicBoolean onTaskCompleted = new AtomicBoolean();
-        taskManager.addTaskCancellationListeners(task -> onTaskCancelled.set(true));
-        taskManager.addTaskCompletionListener(task -> onTaskCompleted.set(true));
+        taskManager.addTaskEventListeners(new TaskManager.TaskEventListeners() {
+            @Override
+            public void onTaskCancelled(CancellableTask task) {
+                onTaskCancelled.set(true);
+            }
+
+            @Override
+            public void onTaskCompleted(Task task) {
+                onTaskCompleted.set(true);
+            }
+        });
         int numTasks = randomIntBetween(1, 10);
         List<CancellableTask> tasks = new ArrayList<>(numTasks);
         for (int i = 0; i < numTasks; i++) {
@@ -601,7 +610,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     public void testCancelWithCancellationListenerThrowingException() {
         setupTestNodes(Settings.EMPTY);
         final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
-        taskManager.addTaskCancellationListeners(task -> { throw new OpenSearchException("Exception"); });
+        taskManager.addTaskEventListeners(new TaskManager.TaskEventListeners() {
+            @Override
+            public void onTaskCancelled(CancellableTask task) {
+                throw new OpenSearchException("Exception");
+            }
+        });
         CancellableTask cancellableTask = (CancellableTask) taskManager.register("type-0", "action-0", new CancellableNodeRequest());
         AtomicBoolean taskCompleted = new AtomicBoolean();
         assertThrows(OpenSearchException.class, () -> taskManager.cancel(cancellableTask, "test", () -> taskCompleted.set(true)));

@@ -132,8 +132,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private volatile boolean taskResourceConsumersEnabled;
     private final Set<Consumer<Task>> taskResourceConsumer;
-    private final List<TaskCancellationListener> taskCancellationListeners = new ArrayList<>();
-    private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
+    private final List<TaskEventListeners> taskEventListeners = new ArrayList<>();
 
     public static TaskManager createTaskManagerWithClusterSettings(
         Settings settings,
@@ -155,25 +154,16 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Listener that gets invoked when a task gets cancelled.
+     * Listener that gets invoked during an event such as task cancellation/completion.
      */
-    public interface TaskCancellationListener {
-        void onTaskCancelled(CancellableTask task);
+    public interface TaskEventListeners {
+        default void onTaskCancelled(CancellableTask task) {}
+
+        default void onTaskCompleted(Task task) {}
     }
 
-    public void addTaskCancellationListeners(TaskCancellationListener taskCancellationListener) {
-        this.taskCancellationListeners.add(taskCancellationListener);
-    }
-
-    /**
-     * Listener that gets invoked when a task completes.
-     */
-    public interface TaskCompletionListener {
-        void onTaskCompleted(Task task);
-    }
-
-    public void addTaskCompletionListener(TaskCompletionListener listener) {
-        this.taskCompletionListeners.add(listener);
+    public void addTaskEventListeners(TaskEventListeners taskEventListeners) {
+        this.taskEventListeners.add(taskEventListeners);
     }
 
     public void registerTaskResourceConsumer(Consumer<Task> consumer) {
@@ -286,9 +276,9 @@ public class TaskManager implements ClusterStateApplier {
     public void cancel(CancellableTask task, String reason, Runnable listener) {
         CancellableTaskHolder holder = cancellableTasks.get(task.getId());
         List<Exception> exceptions = new ArrayList<>();
-        for (TaskCancellationListener cancellationListener : taskCancellationListeners) {
+        for (TaskEventListeners taskEventListener : taskEventListeners) {
             try {
-                cancellationListener.onTaskCancelled(task);
+                taskEventListener.onTaskCancelled(task);
             } catch (Exception e) {
                 exceptions.add(e);
             }
@@ -310,9 +300,9 @@ public class TaskManager implements ClusterStateApplier {
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
         List<Exception> exceptions = new ArrayList<>();
-        for (TaskCompletionListener taskCompletionListener : taskCompletionListeners) {
+        for (TaskEventListeners taskEventListener : taskEventListeners) {
             try {
-                taskCompletionListener.onTaskCompleted(task);
+                taskEventListener.onTaskCompleted(task);
             } catch (Exception e) {
                 exceptions.add(e);
             }

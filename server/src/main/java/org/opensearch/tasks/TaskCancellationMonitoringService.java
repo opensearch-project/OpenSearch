@@ -29,10 +29,7 @@ import java.util.stream.Collectors;
  * This monitoring service is responsible to track long-running(defined by a threshold) cancelled tasks as part of
  * node stats.
  */
-public class TaskCancellationMonitoringService extends AbstractLifecycleComponent
-    implements
-        TaskManager.TaskCancellationListener,
-        TaskManager.TaskCompletionListener {
+public class TaskCancellationMonitoringService extends AbstractLifecycleComponent implements TaskManager.TaskEventListeners {
 
     private static final Logger logger = LogManager.getLogger(TaskCancellationMonitoringService.class);
     private final static List<Class<? extends CancellableTask>> TASKS_TO_TRACK = Arrays.asList(SearchShardTask.class);
@@ -68,8 +65,7 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         this.cancelledTaskTracker = new ConcurrentHashMap<>();
         cancellationStatsHolder = TASKS_TO_TRACK.stream()
             .collect(Collectors.toConcurrentMap(task -> task, task -> new TaskCancellationStatsHolder()));
-        taskManager.addTaskCancellationListeners(this);
-        taskManager.addTaskCompletionListener(this);
+        taskManager.addTaskEventListeners(this);
     }
 
     void doRun() {

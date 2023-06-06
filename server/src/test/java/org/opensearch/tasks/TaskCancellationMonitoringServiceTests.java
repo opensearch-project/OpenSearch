@@ -110,7 +110,7 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         stats = taskCancellationMonitoringService.stats();
         assertEquals(numberOfTasksCancelled, stats.getSearchShardTaskCancellationStats().getCurrentLongRunningCancelledTaskCount());
         assertEquals(numberOfTasksCancelled, stats.getSearchShardTaskCancellationStats().getTotalLongRunningCancelledTaskCount());
-        completeTasksConcurrently(tasks, taskCancellationMonitoringService).await();
+        completeTasksConcurrently(tasks).await();
         taskCancellationMonitoringService.doRun(); // 3rd run to verify current count is 0 and total remains the same.
         stats = taskCancellationMonitoringService.stats();
         assertTrue(taskCancellationMonitoringService.getCancelledTaskTracker().isEmpty());
@@ -150,7 +150,7 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         assertEquals(numTasks, stats.getSearchShardTaskCancellationStats().getCurrentLongRunningCancelledTaskCount());
         assertEquals(numTasks, stats.getSearchShardTaskCancellationStats().getTotalLongRunningCancelledTaskCount());
 
-        completeTasksConcurrently(tasks, taskCancellationMonitoringService).await();
+        completeTasksConcurrently(tasks).await();
         stats = taskCancellationMonitoringService.stats();
         assertTrue(taskCancellationMonitoringService.getCancelledTaskTracker().isEmpty());
         assertEquals(0, stats.getSearchShardTaskCancellationStats().getCurrentLongRunningCancelledTaskCount());
@@ -206,7 +206,7 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         assertEquals(numTasks, stats.getSearchShardTaskCancellationStats().getCurrentLongRunningCancelledTaskCount());
         assertEquals(numTasks, stats.getSearchShardTaskCancellationStats().getTotalLongRunningCancelledTaskCount());
 
-        completeTasksConcurrently(tasks, taskCancellationMonitoringService).await();
+        completeTasksConcurrently(tasks).await();
         taskCancellationMonitoringService.doRun();
         stats = taskCancellationMonitoringService.stats();
         // Verify no current running tasks
@@ -265,10 +265,7 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         return countDownLatch;
     }
 
-    private CountDownLatch completeTasksConcurrently(
-        List<? extends CancellableTask> tasks,
-        TaskCancellationMonitoringService taskCancellationMonitoringService
-    ) {
+    private CountDownLatch completeTasksConcurrently(List<? extends CancellableTask> tasks) {
         int numTasks = tasks.size();
         Phaser phaser = new Phaser(numTasks + 1);
         Thread[] threads = new Thread[numTasks];
