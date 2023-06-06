@@ -33,7 +33,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import java.io.IOException;
 import java.util.List;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -78,6 +78,6 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Cluster_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

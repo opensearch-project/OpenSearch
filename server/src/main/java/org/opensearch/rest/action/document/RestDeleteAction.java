@@ -32,7 +32,7 @@
 
 package org.opensearch.rest.action.document;
 
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
@@ -88,6 +88,6 @@ public class RestDeleteAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

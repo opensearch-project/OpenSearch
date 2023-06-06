@@ -1026,7 +1026,7 @@ public class ActionModule extends AbstractModule {
     }
 
     public List<ActionPlugin> getActionPlugins() {
-        return actionPlugins;
+        return List.copyOf(actionPlugins);
     }
 
     /**

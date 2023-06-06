@@ -8,7 +8,7 @@
 
 package org.opensearch.rest.action.search;
 
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
@@ -51,6 +51,6 @@ public class RestPutSearchPipelineAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_Search, ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

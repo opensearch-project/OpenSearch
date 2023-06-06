@@ -33,7 +33,7 @@ package org.opensearch.action.admin.indices.datastream;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.ValidateActions;
@@ -183,6 +183,6 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

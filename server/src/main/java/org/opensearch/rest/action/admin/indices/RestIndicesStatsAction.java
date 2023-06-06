@@ -32,7 +32,7 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -179,6 +179,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

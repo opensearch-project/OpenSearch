@@ -8,7 +8,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.Scope;
@@ -52,6 +52,6 @@ public final class RestRestoreRemoteStoreAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Cluster_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

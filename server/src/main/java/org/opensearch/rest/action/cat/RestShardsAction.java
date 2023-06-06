@@ -36,7 +36,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.CommonStats;
@@ -431,6 +431,6 @@ public class RestShardsAction extends AbstractCatAction {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

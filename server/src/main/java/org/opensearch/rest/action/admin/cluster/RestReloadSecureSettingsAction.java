@@ -32,7 +32,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
@@ -135,6 +135,6 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Cluster_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

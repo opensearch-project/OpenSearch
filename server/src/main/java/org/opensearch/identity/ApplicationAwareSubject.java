@@ -4,74 +4,78 @@
  * The OpenSearch Contributors require contributions made to
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 package org.opensearch.identity;
 
-import java.security.Principal;
-import java.util.List;
-import java.util.Set;
-import org.opensearch.action.ActionScopes;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.identity.tokens.AuthToken;
 
-public final class ApplicationAwareSubject implements Subject {
-    private List<Scope> scopes;
-    private List<Principal> applications;
+import java.security.Principal;
+import java.util.Set;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-    /**
-     * Creates a new ApplicationAwareSubject for use with the IdentityPlugin
-     * Cannot return null
-     * @param subject The name of the subject
-     */
-    public ApplicationAwareSubject(Subject subject) {
-        this.scopes = List.of();
-        this.applications = List.of();
+/**
+ * An individual, process, or device that causes information to flow among objects or change to the system state.
+ *
+ * @opensearch.experimental
+ */
+public final class ApplicationAwareSubject implements Subject {
+
+    // TODO: Wire this up to check the list of applications
+    // private final Function<Principal, boolean> checkApplicationExists;
+
+    // TODO: Wire this up to list of applications scopes
+    // private final Function<Principal, Set<Scope>> getApplicationScopes;
+
+    private final Subject wrapped;
+
+    /** Only to be used by IdentityService / tests */
+    public ApplicationAwareSubject(final Subject wrapped) {
+        this.wrapped = wrapped;
     }
+
+    // Passthroughs for wrapped subject
+    public Principal getPrincipal() {
+        return wrapped.getPrincipal();
+    }
+    public void authenticate(final AuthToken token) {
+        wrapped.authenticate(token);
+    }
+    public Optional<Principal> getApplication() {
+        return wrapped.getApplication();
+    }
+    // end Passthroughs for wrapped subject
+
 
     /**
      * Checks scopes of the current subject if they are allowed for any of the listed scopes
-     * @param scopes The scopes to check against the subject
+     * @param scope The scopes to check against the subject
      * @return true if allowed, false if none of the scopes are allowed.
      */
-    public boolean isAllowed(final List<Scope> scopes) {
-        if (scopes.contains(ActionScopes.ALL)) {
+    boolean isAllowed(final List<Scope> scope) {
+        final Optional<Principal> appPrincipal = wrapped.getApplication();
+        if (appPrincipal.isEmpty()) {
+            // If there is no application, actions are permitted by default
             return true;
         }
-        Set<Scope> intersection = Sets.intersection(Set.copyOf(this.scopes), Set.copyOf(scopes));
-        return intersection.size() > 0;
-    }
 
-    /**
-     * Sets the scopes of the Subject to the provided list
-     * @param scopes The scopes the subject should have
-     */
-    public void setScopes(List<Scope> scopes) {
-        this.scopes = (scopes);
-    }
+        if (!this.checkApplicationExists.apply(appPrincipal.get())) {
+            // Unable to find the application, something is wrong! deny by default
+            return false;
+        }
 
-    /**
-     * @return The scopes associated with the subject
-     */
-    public List<Scope> getScopes() {
-        return this.scopes;
-    }
+        final Set<Scope> scopesOfApplication = this.getApplicationScopes.apply(appPrincipal.get());
+        if (scopesOfApplication.contains(ApplicationScopes.Trusted_Fully)) {
+            // Applications that are fully trusted automatically pass all checks
+            return true;
+        }
 
-    @Override
-    public Principal getPrincipal() {
-        return null;
-    }
-
-    @Override
-    public void authenticate(AuthToken token) {
-
-    }
-
-    public void setApplications(List<Principal> applications) {
-        this.applications = applications;
-    }
-
-    public List<Principal> getApplications() {
-        return this.applications;
+        final List<Scope> matchingScopes = scopesOfApplication.stream().filter(scope::contains).collect(Collectors.toList());
+        return !matchingScopes.isEmpty());
     }
 }

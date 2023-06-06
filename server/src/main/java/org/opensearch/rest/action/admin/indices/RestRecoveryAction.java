@@ -34,7 +34,7 @@ package org.opensearch.rest.action.admin.indices;
 
 import java.io.IOException;
 import java.util.List;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.indices.recovery.RecoveryRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
@@ -81,6 +81,6 @@ public class RestRecoveryAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

@@ -32,7 +32,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -99,7 +99,7 @@ public class RestCancelTasksAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Cluster_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 
 }

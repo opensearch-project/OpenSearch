@@ -35,7 +35,7 @@ package org.opensearch.rest.action.cat;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
@@ -961,6 +961,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

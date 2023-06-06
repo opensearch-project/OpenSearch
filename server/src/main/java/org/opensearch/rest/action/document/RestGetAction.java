@@ -41,7 +41,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -75,7 +75,7 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_Read, ActionScopes.Index_ReadWrite, ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_Read, ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
     }
 
     @Override

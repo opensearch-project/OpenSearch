@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.template.post;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -159,6 +159,6 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

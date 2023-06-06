@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.readonly;
 
 import java.util.List;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.identity.Scope;
 
@@ -53,6 +53,6 @@ public class AddIndexBlockAction extends ActionType<AddIndexBlockResponse> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ReadWrite, ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

@@ -9,7 +9,7 @@
 package org.opensearch.rest.action.cat;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequest;
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.support.IndicesOptions;
@@ -204,6 +204,6 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

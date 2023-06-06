@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.storedscripts;
 
 import java.util.List;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.identity.Scope;
@@ -54,7 +54,7 @@ public class DeleteStoredScriptAction extends ActionType<AcknowledgedResponse> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Cluster_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 
 }

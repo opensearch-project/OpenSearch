@@ -34,7 +34,7 @@ package org.opensearch.rest.action.search;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
@@ -410,6 +410,6 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_Search, ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_Search, ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

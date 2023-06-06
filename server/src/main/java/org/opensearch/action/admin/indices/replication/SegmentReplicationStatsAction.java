@@ -9,7 +9,7 @@
 package org.opensearch.action.admin.indices.replication;
 
 import java.util.List;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.identity.Scope;
 
@@ -28,6 +28,6 @@ public class SegmentReplicationStatsAction extends ActionType<SegmentReplication
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

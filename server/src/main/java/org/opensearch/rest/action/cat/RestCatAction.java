@@ -32,7 +32,7 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
@@ -83,6 +83,6 @@ public class RestCatAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

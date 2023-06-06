@@ -14,14 +14,14 @@ import org.opensearch.identity.Scope;
  *
  * @opensearch.experimental
  */
-public enum ActionScopes implements Scope {
-    ALL(),
-    Cluster_Read(),
-    Cluster_ALL(),
-    Index_Read(),
-    Index_ReadWrite(),
-    Index_Search(),
-    Index_ALL();
+public enum ActionScope implements Scope {
+    ALL,
+    CLUSTER_READ,
+    CLUSTER_ALL,
+    INDEX_READ,
+    INDEX_READWRITE,
+    INDEX_SEARCH,
+    INDEX_ALL;
 
     public String getNamespace() {
         return "Action";

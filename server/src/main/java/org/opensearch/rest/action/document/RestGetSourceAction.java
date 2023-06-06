@@ -34,7 +34,7 @@ package org.opensearch.rest.action.document;
 
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.client.node.NodeClient;
@@ -138,6 +138,6 @@ public class RestGetSourceAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

@@ -34,7 +34,7 @@ package org.opensearch.action.get;
 
 import java.util.List;
 import org.opensearch.identity.Scope;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 
 /**
@@ -53,6 +53,6 @@ public class GetAction extends ActionType<GetResponse> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_Read, ActionScopes.Index_ReadWrite, ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_Read, ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

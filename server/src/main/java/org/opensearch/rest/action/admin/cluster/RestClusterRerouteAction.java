@@ -32,7 +32,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
@@ -160,6 +160,6 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Cluster_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

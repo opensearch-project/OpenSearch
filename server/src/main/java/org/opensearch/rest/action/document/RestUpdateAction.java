@@ -33,7 +33,7 @@
 package org.opensearch.rest.action.document;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
@@ -127,6 +127,6 @@ public class RestUpdateAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

@@ -7,6 +7,7 @@ package org.opensearch.identity;
 
 import java.security.Principal;
 import org.opensearch.identity.tokens.AuthToken;
+import java.util.Optional;
 
 /**
  * An individual, process, or device that causes information to flow among objects or change to the system state.
@@ -28,4 +29,9 @@ public interface Subject {
      * throws SubjectDisabled
      */
     void authenticate(final AuthToken token);
+
+    /**
+     * Gets the application principal (if any) associated with the subject
+     */
+    Optional<Principal> getApplication();
 }

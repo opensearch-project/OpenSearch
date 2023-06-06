@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.template.get;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.metadata.ComponentTemplate;
@@ -175,7 +175,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Index_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 
 }

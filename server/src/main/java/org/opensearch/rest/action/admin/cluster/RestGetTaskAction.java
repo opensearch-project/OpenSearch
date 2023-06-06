@@ -32,7 +32,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.ActionScopes;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.unit.TimeValue;
@@ -80,6 +80,6 @@ public class RestGetTaskAction extends BaseRestHandler {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScopes.Cluster_Read, ActionScopes.Cluster_ALL, ActionScopes.ALL);
+        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

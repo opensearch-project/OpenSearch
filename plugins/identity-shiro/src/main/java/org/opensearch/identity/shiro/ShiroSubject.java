@@ -11,6 +11,7 @@ package org.opensearch.identity.shiro;
 import java.security.Principal;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import org.opensearch.identity.Scope;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
@@ -92,18 +93,23 @@ public class ShiroSubject implements Subject {
         shiroSubject.login(authToken);
     }
 
+    @Override
+    public Optional<Principal> getApplication() {
+        return Optional.empty();
+    }
+
     /**
      * Sets the scopes of the Subject to the provided list
      * @param scopes The scopes the subject should have
      */
     public void setScopes(List<Scope> scopes) {
-        this.scopes = (scopes);
+        this.scopes = (List.copyOf(scopes));
     }
 
     /**
      * @return The scopes associated with the subject
      */
     public List<Scope> getScopes() {
-        return this.scopes;
+        return List.copyOf(this.scopes);
     }
 }
