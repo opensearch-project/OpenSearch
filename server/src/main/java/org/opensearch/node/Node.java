@@ -1342,14 +1342,7 @@ public class Node implements Closeable {
 
         logger.info("started");
 
-        pluginsService.filterPlugins(ClusterPlugin.class).forEach(plugin -> {
-            // TODO: analyse whether the localNode info needs to be passed in all plugin calls
-            if (plugin.getClass().getSimpleName().equals("OpenSearchSecurityPlugin")) {
-                plugin.onNodeStarted(clusterService.localNode());
-            } else {
-                plugin.onNodeStarted();
-            }
-        });
+        pluginsService.filterPlugins(ClusterPlugin.class).forEach(plugin -> plugin.onNodeStarted(clusterService.localNode()));
 
         return this;
     }

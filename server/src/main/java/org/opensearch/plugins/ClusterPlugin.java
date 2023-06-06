@@ -38,7 +38,6 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.node.Node;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -93,10 +92,8 @@ public interface ClusterPlugin {
 
     /**
      * Called when node is started. DiscoveryNode argument is passed to allow referring localNode value inside plugin
-     * NOTE: Currently this function implementation is limited to OpenSearchSecurityPlugin inside {@link Node#start()}
      *
-     * TODO: modify javadoc when the restriction to SecurityPlugin is lifted
-     * @param localNode Current Node info
+     * @param localNode local Node info
      */
     default void onNodeStarted(DiscoveryNode localNode) {
         onNodeStarted();
