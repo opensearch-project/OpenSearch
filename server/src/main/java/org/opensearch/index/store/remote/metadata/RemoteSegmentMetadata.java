@@ -8,9 +8,12 @@
 
 package org.opensearch.index.store.remote.metadata;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 /**
@@ -33,8 +36,18 @@ public class RemoteSegmentMetadata {
      */
     private final Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata;
 
-    public RemoteSegmentMetadata(Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata) {
+    private final byte[] segmentInfosBytes;
+
+    private final long generation;
+
+    public RemoteSegmentMetadata(
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata,
+        byte[] segmentInfosBytes,
+        long generation
+    ) {
         this.metadata = metadata;
+        this.segmentInfosBytes = segmentInfosBytes;
+        this.generation = generation;
     }
 
     /**
@@ -43,6 +56,14 @@ public class RemoteSegmentMetadata {
      */
     public Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> getMetadata() {
         return this.metadata;
+    }
+
+    public byte[] getSegmentInfosBytes() {
+        return segmentInfosBytes;
+    }
+
+    public long getGeneration() {
+        return generation;
     }
 
     /**
@@ -58,16 +79,30 @@ public class RemoteSegmentMetadata {
      * @param segmentMetadata metadata content in the form of {@code Map<String, String>}
      * @return {@link RemoteSegmentMetadata}
      */
-    public static RemoteSegmentMetadata fromMapOfStrings(Map<String, String> segmentMetadata) {
-        return new RemoteSegmentMetadata(
-            segmentMetadata.entrySet()
-                .stream()
-                .collect(
-                    Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(entry.getValue())
-                    )
+    public static Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> fromMapOfStrings(Map<String, String> segmentMetadata) {
+        return segmentMetadata.entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(entry.getValue())
                 )
-        );
+            );
+    }
+
+    public void write(IndexOutput out) throws IOException {
+        out.writeMapOfStrings(toMapOfStrings());
+        out.writeLong(generation);
+        out.writeLong(segmentInfosBytes.length);
+        out.writeBytes(segmentInfosBytes, segmentInfosBytes.length);
+    }
+
+    public static RemoteSegmentMetadata read(IndexInput indexInput) throws IOException {
+        Map<String, String> metadata = indexInput.readMapOfStrings();
+        long generation = indexInput.readLong();
+        int byteArraySize = (int) indexInput.readLong();
+        byte[] segmentInfosBytes = new byte[byteArraySize];
+        indexInput.readBytes(segmentInfosBytes, 0, byteArraySize);
+        return new RemoteSegmentMetadata(RemoteSegmentMetadata.fromMapOfStrings(metadata), segmentInfosBytes, generation);
     }
 }

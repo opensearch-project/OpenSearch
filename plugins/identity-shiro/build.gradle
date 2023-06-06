@@ -18,6 +18,7 @@ opensearchplugin {
 
 dependencies {
   implementation 'org.apache.shiro:shiro-core:1.11.0'
+
   // Needed for shiro
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
 
@@ -25,12 +26,15 @@ dependencies {
   implementation 'commons-logging:commons-logging:1.2'
   implementation 'commons-lang:commons-lang:2.6'
 
+  implementation 'org.passay:passay:1.6.3'
+
   implementation "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
 
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation project(path: ':plugins:transport-nio') // for http
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
-    testImplementation project(path: ':client:rest-high-level')
+  testImplementation project(path: ':client:rest-high-level')
+  testImplementation 'junit:junit:4.13.2'
 }
 
 /*
@@ -46,6 +50,7 @@ internalClusterTest {
 }
 
 thirdPartyAudit.ignoreMissingClasses(
+  'com.google.common.hash.BloomFilter',
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
   'org.apache.avalon.framework.logger.Logger',
@@ -61,7 +66,10 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log4j.Level',
   'org.apache.log4j.Logger',
   'org.apache.log4j.Priority',
+  'org.cryptacular.bean.HashBean',
   'org.slf4j.impl.StaticLoggerBinder',
   'org.slf4j.impl.StaticMDCBinder',
-  'org.slf4j.impl.StaticMarkerBinder'
+  'org.slf4j.impl.StaticMarkerBinder',
+  'org.springframework.context.MessageSource',
+  'org.springframework.context.support.MessageSourceAccessor'
 )
