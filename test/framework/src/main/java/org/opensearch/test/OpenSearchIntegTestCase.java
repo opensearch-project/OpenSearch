@@ -761,7 +761,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 ).getStringRep()
             );
         }
-
         return builder.build();
     }
 
@@ -2472,6 +2471,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         String nodeId = clusterState.getRoutingTable().index(indexName).shard(0).replicaShards().get(0).currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node().getName();
+    }
+
+    protected ClusterState getClusterState() {
+        return client(internalCluster().getClusterManagerName()).admin().cluster().prepareState().get().getState();
     }
 
 }

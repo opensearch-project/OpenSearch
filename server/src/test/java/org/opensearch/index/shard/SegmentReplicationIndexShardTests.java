@@ -40,6 +40,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
@@ -294,7 +295,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testRejectCheckpointOnShardRoutingPrimary() throws IOException {
         IndexShard primaryShard = newStartedShard(true);
         SegmentReplicationTargetService sut;
-        sut = prepareForReplication(primaryShard, null);
+        sut = prepareForReplication(primaryShard, null, mock(TransportService.class), mock(IndicesService.class));
         SegmentReplicationTargetService spy = spy(sut);
 
         // Starting a new shard in PrimaryMode and shard routing primary.
@@ -314,7 +315,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L, Codec.getDefault().getName()), spyShard);
 
         // Verify that checkpoint is not processed as shard routing is primary.
-        verify(spy, times(0)).startReplication(any(), any(), any());
+        verify(spy, times(0)).startReplication(any(), any());
         closeShards(primaryShard);
     }
 
@@ -1027,7 +1028,10 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
     private void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
         try {
-            final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primary.shardId, primary.getDefaultCodecName()), primary);
+            final CopyState copyState = new CopyState(
+                ReplicationCheckpoint.empty(primary.shardId, primary.getLatestReplicationCheckpoint().getCodec()),
+                primary
+            );
             listener.onResponse(
                 new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );
@@ -1041,7 +1045,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         final SegmentReplicationTarget target = targetService.startReplication(
-            ReplicationCheckpoint.empty(replica.shardId, replica.getDefaultCodecName()),
             replica,
             new SegmentReplicationTargetService.SegmentReplicationListener() {
                 @Override

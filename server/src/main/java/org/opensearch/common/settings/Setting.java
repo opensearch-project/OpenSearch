@@ -162,7 +162,12 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Indicates an index-level setting that is privately managed. Such a setting can not even be set on index creation.
          */
-        PrivateIndex
+        PrivateIndex,
+
+        /**
+         * Extension scope
+         */
+        ExtensionScope
     }
 
     private final Key key;

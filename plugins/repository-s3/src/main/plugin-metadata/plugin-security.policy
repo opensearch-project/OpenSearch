@@ -56,4 +56,10 @@ grant {
 
   // only for tests : org.opensearch.repositories.s3.S3RepositoryPlugin
   permission java.util.PropertyPermission "opensearch.allow_insecure_settings", "read,write";
+
+  permission java.util.PropertyPermission "aws.sharedCredentialsFile", "read,write";
+  permission java.util.PropertyPermission "aws.configFile", "read,write";
+  permission java.util.PropertyPermission "opensearch.path.conf", "read,write";
+
+  permission java.io.FilePermission "config", "read";
 };
