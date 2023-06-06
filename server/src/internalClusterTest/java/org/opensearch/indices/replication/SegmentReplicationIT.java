@@ -192,7 +192,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     public void testReplicationAfterPrimaryRefreshAndFlush() throws Exception {
         final String nodeA = internalCluster().startNode();
         final String nodeB = internalCluster().startNode();
-        createIndex(INDEX_NAME);
+        final Settings settings = Settings.builder()
+            .put(indexSettings())
+            .put(
+                EngineConfig.INDEX_CODEC_SETTING.getKey(),
+                randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC, CodecService.LUCENE_DEFAULT_CODEC)
+            )
+            .build();
+        createIndex(INDEX_NAME, settings);
         ensureGreen(INDEX_NAME);
 
         final int initialDocCount = scaledRandomIntBetween(0, 200);

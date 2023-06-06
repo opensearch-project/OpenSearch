@@ -32,7 +32,7 @@ if (BuildParams.getIsRuntimeJavaHomeSet()) {
   jdks {
     provisioned_runtime {
       vendor = VersionProperties.bundledJdkVendor
-      version = VersionProperties.getBundledJdk(OS.current().name().toLowerCase(), Architecture.current().name().toLowerCase())
+      version = VersionProperties.getBundledJdk(OS.current().name().toLowerCase())
       platform = OS.current().name().toLowerCase()
       architecture = Architecture.current().name().toLowerCase()
     }
