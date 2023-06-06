@@ -124,6 +124,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.SESSION_TOKEN_SETTING,
             S3ClientSettings.ENDPOINT_SETTING,
             S3ClientSettings.PROTOCOL_SETTING,
+            S3ClientSettings.PROXY_TYPE_SETTING,
             S3ClientSettings.PROXY_HOST_SETTING,
             S3ClientSettings.PROXY_PORT_SETTING,
             S3ClientSettings.PROXY_USERNAME_SETTING,
