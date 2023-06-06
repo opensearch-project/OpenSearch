@@ -447,7 +447,7 @@ public class JoinHelper {
     }
 
     public void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
-        if (node.getVersion().before(Version.V_3_0_0)) {
+        if (node.getVersion().before(Version.V_2_9_0)) {
             transportService.sendRequest(
                 node,
                 VALIDATE_JOIN_ACTION_NAME,
