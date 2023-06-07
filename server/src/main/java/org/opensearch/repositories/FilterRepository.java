@@ -45,6 +45,7 @@ import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
@@ -183,6 +184,35 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public void snapshotRemoteStoreIndexShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        long primaryTerm,
+        ActionListener<String> listener
+    ) {
+        in.snapshotRemoteStoreIndexShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            primaryTerm,
+            listener
+        );
+    }
+
+    @Override
     public void restoreShard(
         Store store,
         SnapshotId snapshotId,
@@ -192,6 +222,15 @@ public class FilterRepository implements Repository {
         ActionListener<Void> listener
     ) {
         in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
+    }
+
+    @Override
+    public RemoteStoreShardShallowCopySnapshot getRemoteStoreShallowCopyShardMetadata(
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId
+    ) {
+        return in.getRemoteStoreShallowCopyShardMetadata(snapshotId, indexId, snapshotShardId);
     }
 
     @Override

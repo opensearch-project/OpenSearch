@@ -115,7 +115,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             shards,
             null,
             SnapshotInfoTests.randomUserMetadata(),
-            VersionUtils.randomVersion(random())
+            VersionUtils.randomVersion(random()),
+            false
         );
     }
 

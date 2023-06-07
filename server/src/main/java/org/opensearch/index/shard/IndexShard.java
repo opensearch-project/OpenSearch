@@ -1476,6 +1476,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public GatedCloseable<IndexCommit> acquireLastIndexCommitAndRefresh(boolean flushFirst) throws EngineException {
+        GatedCloseable<IndexCommit> indexCommit = acquireLastIndexCommit(flushFirst);
+        getEngine().refresh("Snapshot for Remote Store based Shard");
+        return indexCommit;
+    }
+
     public Optional<NRTReplicationEngine> getReplicationEngine() {
         if (getEngine() instanceof NRTReplicationEngine) {
             return Optional.of((NRTReplicationEngine) getEngine());

@@ -36,6 +36,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -62,6 +64,8 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus.Stage;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -279,38 +283,47 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     // then no need to snapshot the shard and can immediately notify success.
                     notifySuccessfulSnapshotShard(snapshot, shardId, snapshotStatus.generation());
                 } else {
-                    snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(), new ActionListener<>() {
-                        @Override
-                        public void onResponse(String newGeneration) {
-                            assert newGeneration != null;
-                            assert newGeneration.equals(snapshotStatus.generation());
-                            if (logger.isDebugEnabled()) {
-                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                                logger.debug(
-                                    "snapshot [{}] completed to [{}] with [{}] at generation [{}]",
-                                    snapshot,
-                                    snapshot.getRepository(),
-                                    lastSnapshotStatus,
-                                    snapshotStatus.generation()
-                                );
+                    snapshot(
+                        shardId,
+                        snapshot,
+                        indexId,
+                        entry.userMetadata(),
+                        entry.remoteStoreIndexShallowCopy(),
+                        snapshotStatus,
+                        entry.version(),
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(String newGeneration) {
+                                assert newGeneration != null;
+                                assert newGeneration.equals(snapshotStatus.generation());
+                                if (logger.isDebugEnabled()) {
+                                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+                                    logger.debug(
+                                        "snapshot [{}] completed to [{}] with [{}] at generation [{}]",
+                                        snapshot,
+                                        snapshot.getRepository(),
+                                        lastSnapshotStatus,
+                                        snapshotStatus.generation()
+                                    );
+                                }
+                                notifySuccessfulSnapshotShard(snapshot, shardId, newGeneration);
                             }
-                            notifySuccessfulSnapshotShard(snapshot, shardId, newGeneration);
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            final String failure;
-                            if (e instanceof AbortedSnapshotException) {
-                                failure = "aborted";
-                                logger.debug(() -> new ParameterizedMessage("[{}][{}] aborted shard snapshot", shardId, snapshot), e);
-                            } else {
-                                failure = summarizeFailure(e);
-                                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
+                            @Override
+                            public void onFailure(Exception e) {
+                                final String failure;
+                                if (e instanceof AbortedSnapshotException) {
+                                    failure = "aborted";
+                                    logger.debug(() -> new ParameterizedMessage("[{}][{}] aborted shard snapshot", shardId, snapshot), e);
+                                } else {
+                                    failure = summarizeFailure(e);
+                                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
+                                }
+                                snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
+                                notifyFailedSnapshotShard(snapshot, shardId, failure);
                             }
-                            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
-                            notifyFailedSnapshotShard(snapshot, shardId, failure);
                         }
-                    });
+                    );
                 }
             }
         });
@@ -360,6 +373,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final Snapshot snapshot,
         final IndexId indexId,
         final Map<String, Object> userMetadata,
+        final boolean remoteStoreIndexShallowCopy,
         final IndexShardSnapshotStatus snapshotStatus,
         Version version,
         ActionListener<String> listener
@@ -384,8 +398,35 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             GatedCloseable<IndexCommit> wrappedSnapshot = null;
             try {
                 // we flush first to make sure we get the latest writes snapshotted
-                wrappedSnapshot = indexShard.acquireLastIndexCommit(true);
+                if (remoteStoreIndexShallowCopy && indexShard.indexSettings().isRemoteStoreEnabled()) {
+                    wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
+                } else {
+                    wrappedSnapshot = indexShard.acquireLastIndexCommit(true);
+                }
+
                 final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
+                if (remoteStoreIndexShallowCopy && indexShard.indexSettings().isRemoteStoreEnabled()) {
+                    acquireLockOnCommitData(
+                        indexShard.remoteStore(),
+                        snapshot.getSnapshotId().getUUID(),
+                        indexShard.getOperationPrimaryTerm(),
+                        snapshotIndexCommit.getGeneration()
+                    );
+                    repository.snapshotRemoteStoreIndexShard(
+                        indexShard.store(),
+                        indexShard.mapperService(),
+                        snapshot.getSnapshotId(),
+                        indexId,
+                        wrappedSnapshot.get(),
+                        getShardStateId(indexShard, snapshotIndexCommit),
+                        snapshotStatus,
+                        version,
+                        userMetadata,
+                        indexShard.getOperationPrimaryTerm(),
+                        ActionListener.runBefore(listener, wrappedSnapshot::close)
+                    );
+                    return;
+                }
                 repository.snapshotShard(
                     indexShard.store(),
                     indexShard.mapperService(),
@@ -405,6 +446,18 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private void acquireLockOnCommitData(Store remoteStore, String snapshotId, long primaryTerm, long generation) throws IOException {
+        assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of " + "FilterDirectory";
+        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
+        assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
+            : "Store.directory is not enclosing an instance of FilterDirectory";
+        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
+        assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of "
+            + "RemoteSegmentStoreDirectory";
+        ((RemoteSegmentStoreDirectory) remoteDirectory).acquireLock(primaryTerm, generation, snapshotId);
     }
 
     /**
