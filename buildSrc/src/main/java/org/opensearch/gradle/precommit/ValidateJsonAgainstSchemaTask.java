@@ -114,7 +114,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
                 File file = fileChange.getFile();
                 if (file.isDirectory() == false) {
                     // validate all files and hold on to errors for a complete report if there are failures
-                    getLogger().debug("Validating JSON: " + file.getName());
+                   getLogger().debug("Validating JSON [{}]", file.getName());
                     try {
                         Set<ValidationMessage> validationMessages = jsonSchema.validate(mapper.readTree(file));
                         maybeLogAndCollectError(validationMessages, errors, file);
