@@ -33,9 +33,9 @@ import org.opensearch.gradle.info.BuildParams
 plugins {
   id('com.google.protobuf') version 'latest.release'
   id('opensearch.build')
-  id('com.netflix.nebula.optional-base')
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')
+  id('opensearch.optional-dependencies')
 }
 
 publishing {
@@ -135,13 +135,13 @@ dependencies {
   api 'org.hdrhistogram:HdrHistogram:2.1.12'
 
   // lucene spatial
-  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}"
-  api "org.locationtech.jts:jts-core:${versions.jts}"
+  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
+  api "org.locationtech.jts:jts-core:${versions.jts}", optional
 
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
