@@ -198,7 +198,7 @@
                     "title": "The type of the parameter."
                 },
                 "options": {
-                    "type": "array",
+                    "type": ["string", "enum", "array"],
                     "items": {
                         "type": "string",
                         "pattern": "^\\d*|[a-zA-Z_]+$"
