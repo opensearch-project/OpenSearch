@@ -51,7 +51,6 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
                     }
                 },
                 0,
-                false,
                 false
             )
         ) {
@@ -74,7 +73,6 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
                     }
                 },
                 0,
-                false,
                 false
             )
         ) {
@@ -129,7 +127,6 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
                     }
                 },
                 0,
-                false,
                 false
             )
         ) {
@@ -139,13 +136,11 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
     }
 
     public void testTypeOfProvidedStreamsAllCases() throws IOException {
-        testTypeOfProvidedStreams(true, true);
-        testTypeOfProvidedStreams(true, false);
-        testTypeOfProvidedStreams(false, true);
-        testTypeOfProvidedStreams(false, false);
+        testTypeOfProvidedStreams(true);
+        testTypeOfProvidedStreams(false);
     }
 
-    private void testTypeOfProvidedStreams(boolean isRemoteDataIntegritySupported, boolean areInputStreamsDecorated) throws IOException {
+    private void testTypeOfProvidedStreams(boolean isRemoteDataIntegritySupported) throws IOException {
         try (
             RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
                 testFile.getFileName().toString(),
@@ -160,13 +155,12 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
                     }
                 },
                 0,
-                isRemoteDataIntegritySupported,
-                areInputStreamsDecorated
+                isRemoteDataIntegritySupported
             )
         ) {
             StreamContext streamContext = remoteTransferContainer.supplyStreamContext(16);
             InputStreamContainer inputStreamContainer = streamContext.provideStream(0);
-            if (shouldOffsetInputStreamsBeChecked(isRemoteDataIntegritySupported, areInputStreamsDecorated)) {
+            if (shouldOffsetInputStreamsBeChecked(isRemoteDataIntegritySupported)) {
                 assertTrue(inputStreamContainer.getInputStream() instanceof ResettableCheckedInputStream);
             } else {
                 assertTrue(inputStreamContainer.getInputStream() instanceof OffsetRangeInputStream);
@@ -175,7 +169,7 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
         }
     }
 
-    private boolean shouldOffsetInputStreamsBeChecked(boolean isRemoteDataIntegritySupported, boolean areInputStreamsDecorated) {
-        return !isRemoteDataIntegritySupported || areInputStreamsDecorated;
+    private boolean shouldOffsetInputStreamsBeChecked(boolean isRemoteDataIntegritySupported) {
+        return !isRemoteDataIntegritySupported;
     }
 }

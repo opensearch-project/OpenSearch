@@ -46,7 +46,6 @@ public class RemoteTransferContainer implements Closeable {
     private final long expectedChecksum;
     private final OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
     private final boolean isRemoteDataIntegritySupported;
-    private final boolean areInputStreamsDecorated;
 
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
@@ -61,7 +60,6 @@ public class RemoteTransferContainer implements Closeable {
      * @param offsetRangeInputStreamSupplier A supplier to create OffsetRangeInputStreams
      * @param expectedChecksum               The expected checksum value for the file being uploaded. This checksum will be used for local or remote data integrity checks
      * @param isRemoteDataIntegritySupported A boolean to signify whether the remote repository supports server side data integrity verification
-     * @param areInputStreamsDecorated       A boolean to signify whether the streams created via {@link OffsetRangeInputStreamSupplier#get} are decorated or not
      */
     public RemoteTransferContainer(
         String fileName,
@@ -71,8 +69,7 @@ public class RemoteTransferContainer implements Closeable {
         WritePriority writePriority,
         OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier,
         long expectedChecksum,
-        boolean isRemoteDataIntegritySupported,
-        boolean areInputStreamsDecorated
+        boolean isRemoteDataIntegritySupported
     ) {
         this.fileName = fileName;
         this.remoteFileName = remoteFileName;
@@ -82,7 +79,6 @@ public class RemoteTransferContainer implements Closeable {
         this.offsetRangeInputStreamSupplier = offsetRangeInputStreamSupplier;
         this.expectedChecksum = expectedChecksum;
         this.isRemoteDataIntegritySupported = isRemoteDataIntegritySupported;
-        this.areInputStreamsDecorated = areInputStreamsDecorated;
     }
 
     /**
@@ -173,7 +169,7 @@ public class RemoteTransferContainer implements Closeable {
     }
 
     private boolean isRemoteDataIntegrityCheckPossible() {
-        return isRemoteDataIntegritySupported && !areInputStreamsDecorated;
+        return isRemoteDataIntegritySupported;
     }
 
     private void finalizeUpload(boolean uploadSuccessful) {
