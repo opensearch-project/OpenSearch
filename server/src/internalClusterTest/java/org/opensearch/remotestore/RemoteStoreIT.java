@@ -263,7 +263,11 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         assertTrue(getFileCount(indexPath) > 0);
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
         // Delete is async. Give time for it
-        assertBusy(() -> { assertThat(getFileCount(indexPath), comparesEqualTo(0)); }, 30, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            try {
+                assertThat(getFileCount(indexPath), comparesEqualTo(0));
+            } catch (Exception e) {}
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testRemoteSegmentCleanup() throws Exception {

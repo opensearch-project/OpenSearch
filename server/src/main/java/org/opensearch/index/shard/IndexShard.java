@@ -4545,7 +4545,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
         // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
         // are uploaded to the remote segment store.
-        RemoteSegmentMetadata remoteSegmentMetadata =  remoteDirectory.init();
+        RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory)
             .getSegmentsUploadedToRemoteStore();
         store.incRef();
