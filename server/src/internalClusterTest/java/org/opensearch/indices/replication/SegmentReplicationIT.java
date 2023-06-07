@@ -51,7 +51,9 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -189,7 +191,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     public void testReplicationAfterPrimaryRefreshAndFlush() throws Exception {
         final String nodeA = internalCluster().startNode();
         final String nodeB = internalCluster().startNode();
-        createIndex(INDEX_NAME);
+        final Settings settings = Settings.builder()
+            .put(indexSettings())
+            .put(
+                EngineConfig.INDEX_CODEC_SETTING.getKey(),
+                randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC, CodecService.LUCENE_DEFAULT_CODEC)
+            )
+            .build();
+        createIndex(INDEX_NAME, settings);
         ensureGreen(INDEX_NAME);
 
         final int initialDocCount = scaledRandomIntBetween(0, 200);
