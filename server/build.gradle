@@ -156,9 +156,6 @@ dependencies {
   //zstd
   api "com.github.luben:zstd-jni:${versions.zstd}"
 
-  // jcraft
-  api "com.jcraft:jzlib:${versions.jzlib}"
-
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
