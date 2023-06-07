@@ -8,7 +8,6 @@
 
 package org.opensearch.remotestore;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -22,13 +21,13 @@ import java.nio.file.Path;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
- * The aim of this class is to run Segment Replication integ tests by enabling remote store specific settings.
- * This makes sure that the constructs/flows that are being tested with Segment Replication, holds true after enabling
- * remote store.
+ * This class runs Segment Replication Integ test suite with remote store enabled.
+ * Setup is similar to SegmentReplicationRemoteStoreIT but this also enables the segment replication using remote store which
+ * is behind SEGMENT_REPLICATION_EXPERIMENTAL flag. After this is moved out of experimental, we can combine and keep only one
+ * test suite for Segment and Remote store integration tests.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7643")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SegmentReplicationRemoteStoreIT extends SegmentReplicationIT {
+public class SegmentReplicationUsingRemoteStoreIT extends SegmentReplicationIT {
 
     private static final String REPOSITORY_NAME = "test-remote-store-repo";
 
@@ -38,14 +37,17 @@ public class SegmentReplicationRemoteStoreIT extends SegmentReplicationIT {
             .put(super.indexSettings())
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, REPOSITORY_NAME)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
             .build();
     }
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
+        return Settings.builder()
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.REMOTE_STORE, "true")
+            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
+            .build();
     }
 
     @Before
