@@ -15,6 +15,13 @@ import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
 import org.opensearch.index.mapper.MapperService;
 
+/**
+ *
+ * Extends {@link FilterCodec} to reuse the functionality of Lucene Codec.
+ * Supports two modes zstd and zstd_no_dict.
+ *
+ * @opensearch.internal
+ */
 public abstract class Lucene95CustomCodec extends FilterCodec {
     public static final int DEFAULT_COMPRESSION_LEVEL = 6;
 
@@ -41,7 +48,7 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
      * the other compression codecs: default, lucene_default, and best_compression.
      *
      * @param mode The compression codec (ZSTD or ZSTDNODICT).
-     * @parama compressionLevel The compression level.
+     * @param compressionLevel The compression level.
      */
     public Lucene95CustomCodec(Mode mode, int compressionLevel) {
         super("Lucene95CustomCodec", new Lucene95Codec());
