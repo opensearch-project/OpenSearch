@@ -179,7 +179,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             return;
         }
         beforeSegmentsSync(isRetry);
-        long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
+        long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs(), refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
         long bytesBeforeUpload = segmentTracker.getUploadBytesSucceeded(), startTimeInNS = System.nanoTime();
         boolean shouldRetry = true;
         try {
@@ -231,7 +231,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             // Start metadata file upload
                             uploadMetadata(localSegmentsPostRefresh, segmentInfos);
                             clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
-                            onSuccessfulSegmentsSync(refreshTimeMs, refreshSeqNo, lastRefreshedCheckpoint, checkpoint);
+                            onSuccessfulSegmentsSync(refreshTimeMs, refreshClockTimeMs, refreshSeqNo, lastRefreshedCheckpoint, checkpoint);
                             // At this point since we have uploaded new segments, segment infos and segment metadata file,
                             // along with marking minSeqNoToKeep, upload has succeeded completely.
                             shouldRetry = false;
@@ -277,6 +277,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     private void onSuccessfulSegmentsSync(
         long refreshTimeMs,
+        long refreshClockTimeMs,
         long refreshSeqNo,
         long lastRefreshedCheckpoint,
         ReplicationCheckpoint checkpoint
@@ -284,7 +285,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         // Update latest uploaded segment files name in segment tracker
         segmentTracker.setLatestUploadedFiles(latestFileNameSizeOnLocalMap.keySet());
         // Update the remote refresh time and refresh seq no
-        updateRemoteRefreshTimeAndSeqNo(refreshTimeMs, refreshSeqNo);
+        updateRemoteRefreshTimeAndSeqNo(refreshTimeMs, refreshClockTimeMs, refreshSeqNo);
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
         // Cancel the scheduled cancellable retry if possible and set it to null
@@ -384,14 +385,16 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      * Updates the last refresh time and refresh seq no which is seen by local store.
      */
     private void updateLocalRefreshTimeAndSeqNo() {
-        segmentTracker.updateLocalRefreshTimeMs(System.currentTimeMillis());
+        segmentTracker.updateLocalRefreshClockTimeMs(System.currentTimeMillis());
+        segmentTracker.updateLocalRefreshTimeMs(System.nanoTime());
         segmentTracker.updateLocalRefreshSeqNo(segmentTracker.getLocalRefreshSeqNo() + 1);
     }
 
     /**
      * Updates the last refresh time and refresh seq no which is seen by remote store.
      */
-    private void updateRemoteRefreshTimeAndSeqNo(long refreshTimeMs, long refreshSeqNo) {
+    private void updateRemoteRefreshTimeAndSeqNo(long refreshTimeMs, long refreshClockTimeMs, long refreshSeqNo) {
+        segmentTracker.updateRemoteRefreshClockTimeMs(refreshClockTimeMs);
         segmentTracker.updateRemoteRefreshTimeMs(refreshTimeMs);
         segmentTracker.updateRemoteRefreshSeqNo(refreshSeqNo);
     }

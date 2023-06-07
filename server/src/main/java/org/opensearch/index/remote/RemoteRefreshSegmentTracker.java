@@ -48,6 +48,11 @@ public class RemoteRefreshSegmentTracker {
     private volatile long localRefreshTimeMs;
 
     /**
+     * The refresh time(clock) of the most recent refresh.
+     */
+    private volatile long localRefreshClockTimeMs;
+
+    /**
      * Sequence number of the most recent remote refresh.
      */
     private volatile long remoteRefreshSeqNo;
@@ -58,6 +63,11 @@ public class RemoteRefreshSegmentTracker {
     private volatile long remoteRefreshTimeMs;
 
     /**
+     * The refresh time(clock) of most recent remote refresh.
+     */
+    private volatile long remoteRefreshClockTimeMs;
+
+    /**
      * Keeps the seq no lag computed so that we do not compute it for every request.
      */
     private volatile long refreshSeqNoLag;
@@ -66,6 +76,11 @@ public class RemoteRefreshSegmentTracker {
      * Keeps the time (ms) lag computed so that we do not compute it for every request.
      */
     private volatile long timeMsLag;
+
+    /**
+     * Keeps the clock time (ms) lag computed so that we do not compute it for every request.
+     */
+    private volatile long clockTimeMsLag;
 
     /**
      * Keeps track of the total bytes of segment files which were uploaded to remote store during last successful remote refresh
@@ -167,9 +182,12 @@ public class RemoteRefreshSegmentTracker {
     ) {
         this.shardId = shardId;
         // Both the local refresh time and remote refresh time are set with current time to give consistent view of time lag when it arises.
+        long currentClockTimeMs = System.currentTimeMillis();
         long currentTimeMs = System.nanoTime() / 1_000_000L;
         localRefreshTimeMs = currentTimeMs;
         remoteRefreshTimeMs = currentTimeMs;
+        localRefreshClockTimeMs = currentClockTimeMs;
+        remoteRefreshClockTimeMs = currentClockTimeMs;
         uploadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesMovingAverageWindowSize));
         uploadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesPerSecMovingAverageWindowSize));
         uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
@@ -199,6 +217,10 @@ public class RemoteRefreshSegmentTracker {
         return localRefreshTimeMs;
     }
 
+    public long getLocalRefreshClockTimeMs() {
+        return localRefreshClockTimeMs;
+    }
+
     public void updateLocalRefreshTimeMs(long localRefreshTimeMs) {
         assert localRefreshTimeMs >= this.localRefreshTimeMs : "newLocalRefreshTimeMs="
             + localRefreshTimeMs
@@ -207,6 +229,16 @@ public class RemoteRefreshSegmentTracker {
             + this.localRefreshTimeMs;
         this.localRefreshTimeMs = localRefreshTimeMs;
         computeTimeMsLag();
+    }
+
+    public void updateLocalRefreshClockTimeMs(long localRefreshClockTimeMs) {
+        assert localRefreshClockTimeMs >= this.localRefreshClockTimeMs : "newLocalRefreshClockTimeMs="
+            + localRefreshClockTimeMs
+            + " < "
+            + "currentLocalRefreshClockTimeMs="
+            + this.localRefreshClockTimeMs;
+        this.localRefreshClockTimeMs = localRefreshClockTimeMs;
+        computeClockTimeMsLag();
     }
 
     long getRemoteRefreshSeqNo() {
@@ -227,6 +259,10 @@ public class RemoteRefreshSegmentTracker {
         return remoteRefreshTimeMs;
     }
 
+    long getRemoteRefreshClockTimeMs() {
+        return remoteRefreshClockTimeMs;
+    }
+
     public void updateRemoteRefreshTimeMs(long remoteRefreshTimeMs) {
         assert remoteRefreshTimeMs >= this.remoteRefreshTimeMs : "newRemoteRefreshTimeMs="
             + remoteRefreshTimeMs
@@ -235,6 +271,16 @@ public class RemoteRefreshSegmentTracker {
             + this.remoteRefreshTimeMs;
         this.remoteRefreshTimeMs = remoteRefreshTimeMs;
         computeTimeMsLag();
+    }
+
+    public void updateRemoteRefreshClockTimeMs(long remoteRefreshClockTimeMs) {
+        assert remoteRefreshTimeMs >= this.remoteRefreshClockTimeMs : "newRemoteRefreshClockTimeMs="
+            + remoteRefreshTimeMs
+            + " < "
+            + "currentRemoteRefreshClockTimeMs="
+            + this.remoteRefreshClockTimeMs;
+        this.remoteRefreshClockTimeMs = remoteRefreshClockTimeMs;
+        computeClockTimeMsLag();
     }
 
     private void computeRefreshSeqNoLag() {
@@ -247,6 +293,10 @@ public class RemoteRefreshSegmentTracker {
 
     private void computeTimeMsLag() {
         timeMsLag = localRefreshTimeMs - remoteRefreshTimeMs;
+    }
+
+    private void computeClockTimeMsLag() {
+        clockTimeMsLag = localRefreshClockTimeMs - remoteRefreshClockTimeMs;
     }
 
     public long getTimeMsLag() {
@@ -446,8 +496,8 @@ public class RemoteRefreshSegmentTracker {
     public RemoteRefreshSegmentTracker.Stats stats() {
         return new RemoteRefreshSegmentTracker.Stats(
             shardId,
-            localRefreshTimeMs,
-            remoteRefreshTimeMs,
+            localRefreshClockTimeMs,
+            remoteRefreshClockTimeMs,
             timeMsLag,
             localRefreshSeqNo,
             remoteRefreshSeqNo,
@@ -475,8 +525,8 @@ public class RemoteRefreshSegmentTracker {
     public static class Stats implements Writeable {
 
         public final ShardId shardId;
-        public final long localRefreshTimeMs;
-        public final long remoteRefreshTimeMs;
+        public final long localRefreshClockTimeMs;
+        public final long remoteRefreshClockTimeMs;
         public final long refreshTimeLagMs;
         public final long localRefreshNumber;
         public final long remoteRefreshNumber;
@@ -496,8 +546,8 @@ public class RemoteRefreshSegmentTracker {
 
         public Stats(
             ShardId shardId,
-            long localRefreshTimeMs,
-            long remoteRefreshTimeMs,
+            long localRefreshClockTimeMs,
+            long remoteRefreshClockTimeMs,
             long refreshTimeLagMs,
             long localRefreshNumber,
             long remoteRefreshNumber,
@@ -516,8 +566,8 @@ public class RemoteRefreshSegmentTracker {
             long bytesLag
         ) {
             this.shardId = shardId;
-            this.localRefreshTimeMs = localRefreshTimeMs;
-            this.remoteRefreshTimeMs = remoteRefreshTimeMs;
+            this.localRefreshClockTimeMs = localRefreshClockTimeMs;
+            this.remoteRefreshClockTimeMs = remoteRefreshClockTimeMs;
             this.refreshTimeLagMs = refreshTimeLagMs;
             this.localRefreshNumber = localRefreshNumber;
             this.remoteRefreshNumber = remoteRefreshNumber;
@@ -539,8 +589,8 @@ public class RemoteRefreshSegmentTracker {
         public Stats(StreamInput in) throws IOException {
             try {
                 this.shardId = new ShardId(in);
-                this.localRefreshTimeMs = in.readLong();
-                this.remoteRefreshTimeMs = in.readLong();
+                this.localRefreshClockTimeMs = in.readLong();
+                this.remoteRefreshClockTimeMs = in.readLong();
                 this.refreshTimeLagMs = in.readLong();
                 this.localRefreshNumber = in.readLong();
                 this.remoteRefreshNumber = in.readLong();
@@ -565,8 +615,8 @@ public class RemoteRefreshSegmentTracker {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
-            out.writeLong(localRefreshTimeMs);
-            out.writeLong(remoteRefreshTimeMs);
+            out.writeLong(localRefreshClockTimeMs);
+            out.writeLong(remoteRefreshClockTimeMs);
             out.writeLong(refreshTimeLagMs);
             out.writeLong(localRefreshNumber);
             out.writeLong(remoteRefreshNumber);
