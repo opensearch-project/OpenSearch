@@ -8,18 +8,16 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -32,11 +30,11 @@ import java.util.Objects;
  */
 public class TranslogTransferMetadata {
 
-    private final long primaryTerm;
+    private long primaryTerm;
 
-    private final long generation;
+    private long generation;
 
-    private final long minTranslogGeneration;
+    private long minTranslogGeneration;
 
     private int count;
 
@@ -52,6 +50,12 @@ public class TranslogTransferMetadata {
 
     public static final Comparator<String> METADATA_FILENAME_COMPARATOR = new MetadataFilenameComparator();
 
+    private static final VersionedCodecStreamWrapper<TranslogTransferMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
+        new TranslogTransferMetadataHandler(),
+        TranslogTransferMetadata.CURRENT_VERSION,
+        TranslogTransferMetadata.METADATA_CODEC
+    );
+
     public TranslogTransferMetadata(long primaryTerm, long generation, long minTranslogGeneration, int count) {
         this.primaryTerm = primaryTerm;
         this.generation = generation;
@@ -60,12 +64,7 @@ public class TranslogTransferMetadata {
     }
 
     public TranslogTransferMetadata(IndexInput indexInput) throws IOException {
-        CodecUtil.checksumEntireFile(indexInput);
-        CodecUtil.checkHeader(indexInput, METADATA_CODEC, CURRENT_VERSION, CURRENT_VERSION);
-        this.primaryTerm = indexInput.readLong();
-        this.generation = indexInput.readLong();
-        this.minTranslogGeneration = indexInput.readLong();
-        this.generationToPrimaryTermMapper.set(indexInput.readMapOfStrings());
+        metadataStreamWrapper.readStream(indexInput);
     }
 
     public long getPrimaryTerm() {
@@ -106,9 +105,7 @@ public class TranslogTransferMetadata {
                     BUFFER_SIZE
                 )
             ) {
-                CodecUtil.writeHeader(indexOutput, METADATA_CODEC, CURRENT_VERSION);
-                write(indexOutput);
-                CodecUtil.writeFooter(indexOutput);
+                metadataStreamWrapper.writeStream(indexOutput, this);
             }
             return BytesReference.toBytes(output.bytes());
         }
@@ -125,17 +122,6 @@ public class TranslogTransferMetadata {
         if (o == null || getClass() != o.getClass()) return false;
         TranslogTransferMetadata other = (TranslogTransferMetadata) o;
         return Objects.equals(this.primaryTerm, other.primaryTerm) && Objects.equals(this.generation, other.generation);
-    }
-
-    private void write(DataOutput out) throws IOException {
-        out.writeLong(primaryTerm);
-        out.writeLong(generation);
-        out.writeLong(minTranslogGeneration);
-        if (generationToPrimaryTermMapper.get() != null) {
-            out.writeMapOfStrings(generationToPrimaryTermMapper.get());
-        } else {
-            out.writeMapOfStrings(new HashMap<>());
-        }
     }
 
     private static class MetadataFilenameComparator implements Comparator<String> {
