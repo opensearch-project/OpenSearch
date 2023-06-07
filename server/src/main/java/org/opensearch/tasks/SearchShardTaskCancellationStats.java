@@ -17,6 +17,9 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Holds monitoring service stats specific to search shard task.
+ */
 public class SearchShardTaskCancellationStats implements ToXContentObject, Writeable {
 
     private final long currentLongRunningCancelledTaskCount;

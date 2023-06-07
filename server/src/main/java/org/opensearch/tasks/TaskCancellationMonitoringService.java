@@ -173,6 +173,9 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
             .collect(Collectors.groupingBy(CancellableTask::getClass, Collectors.toList()));
     }
 
+    /**
+     * Holds stats related to monitoring service
+     */
     public static class TaskCancellationStatsHolder {
         CounterMetric totalLongRunningCancelledTaskCount = new CounterMetric();
     }
