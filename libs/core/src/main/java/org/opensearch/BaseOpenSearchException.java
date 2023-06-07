@@ -34,7 +34,6 @@ package org.opensearch;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -42,7 +41,6 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.logging.LoggerMessageFormat;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -89,14 +87,27 @@ public class BaseOpenSearchException extends RuntimeException implements Writeab
     static {
         registerExceptionHandle(
             new BaseOpenSearchExceptionHandle(
-                IndexShardSnapshotFailedException.class,
-                IndexShardSnapshotFailedException::new,
+                org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException.class,
+                org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException::new,
                 0,
                 UNKNOWN_VERSION_ADDED
             )
         );
         registerExceptionHandle(
-            new BaseOpenSearchExceptionHandle(ParsingException.class, ParsingException::new, 40, UNKNOWN_VERSION_ADDED)
+            new BaseOpenSearchExceptionHandle(
+                org.opensearch.core.common.ParsingException.class,
+                org.opensearch.core.common.ParsingException::new,
+                40,
+                UNKNOWN_VERSION_ADDED
+            )
+        );
+        registerExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
+                org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper.class,
+                org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper::new,
+                62,
+                UNKNOWN_VERSION_ADDED
+            )
         );
     }
 

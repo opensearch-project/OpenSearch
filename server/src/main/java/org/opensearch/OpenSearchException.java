@@ -40,7 +40,6 @@ import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper;
 import org.opensearch.core.index.snapshots.IndexShardSnapshotException;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.pipeline.SearchPipelineProcessingException;
@@ -487,14 +486,6 @@ public class OpenSearchException extends BaseOpenSearchException {
         // 59 used to be OpenSearchRejectedExecutionException
         // 60 used to be for EarlyTerminationException
         // 61 used to be for RoutingValidationException
-        registerExceptionHandle(
-            new BaseOpenSearchExceptionHandle(
-                NotSerializableExceptionWrapper.class,
-                NotSerializableExceptionWrapper::new,
-                62,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
         registerExceptionHandle(
             new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.AliasFilterParsingException.class,
