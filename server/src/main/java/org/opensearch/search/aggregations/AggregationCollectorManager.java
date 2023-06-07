@@ -84,15 +84,20 @@ class AggregationCollectorManager implements CollectorManager<Collector, Reducea
             }
         }
 
-        final InternalAggregations internalAggregations = InternalAggregations.from(internals);
+        // PipelineTreeSource is serialized to the coordinators on older OpenSearch versions for bwc but is deprecated in latest release
+        // To handle that we need to add it in the InternalAggregations object sent in QuerySearchResult.
+        final InternalAggregations internalAggregations = new InternalAggregations(
+            internals,
+            context.request().source().aggregations()::buildPipelineTree
+        );
         // Reduce the aggregations across slices before sending to the coordinator. We will perform shard level reduce iff multiple slices
         // were created to execute this request and it used concurrent segment search path
         // TODO: Add the check for flag that the request was executed using concurrent search
         if (collectors.size() > 1) {
-            // using reduce is fine here instead of topLevelReduce as pipeline aggregation is evaluated on the coordinator after all
-            // documents are collected across shards for an aggregation
+            // using topLevelReduce here as PipelineTreeSource needs to be sent to coordinator in older release of OpenSearch. The actual
+            // evaluation of pipeline aggregation though happens on the coordinator during final reduction phase
             return new AggregationReduceableSearchResult(
-                InternalAggregations.reduce(Collections.singletonList(internalAggregations), context.partial())
+                InternalAggregations.topLevelReduce(Collections.singletonList(internalAggregations), context.partial())
             );
         } else {
             return new AggregationReduceableSearchResult(internalAggregations);

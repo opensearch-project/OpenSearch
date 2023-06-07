@@ -72,9 +72,6 @@ public class ConcurrentAggregationProcessor extends DefaultAggregationProcessor 
                 final ReduceableSearchResult result = context.searcher().search(query, globalCollectorManager);
                 result.reduce(context.queryResult());
             }
-            // create the final result with pipeline tree for versions 2.x which needs to be done after reduce of both global/non-global
-            // aggs
-            finalizeAggregationResults(context);
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);
         }

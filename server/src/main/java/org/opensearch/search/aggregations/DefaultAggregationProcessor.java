@@ -78,9 +78,6 @@ public class DefaultAggregationProcessor implements AggregationProcessor {
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);
             }
-            // create the final result with pipeline tree for versions 2.x which needs to be done after reduce of both global/non-global
-            // aggs
-            finalizeAggregationResults(context);
         } catch (IOException ex) {
             throw new QueryPhaseExecutionException(context.shardTarget(), "Post processing failed for aggregators", ex);
         }
@@ -89,17 +86,5 @@ public class DefaultAggregationProcessor implements AggregationProcessor {
         context.aggregations(null);
         context.queryCollectorManagers().remove(NonGlobalAggCollectorManager.class);
         context.queryCollectorManagers().remove(GlobalAggCollectorManager.class);
-    }
-
-    /**
-     * PipelineTreeSource is serialized to the coordinators on older OpenSearch versions for bwc but is deprecated in latest release. To
-     * handle that we need to add it in the {@link InternalAggregations} object sent in
-     * {@link org.opensearch.search.query.QuerySearchResult}. This method takes care of finalizing the results of aggregation after both
-     * global and non-global aggregations are collected with the pipelineTree information
-     * @param context {@link SearchContext} for the request
-     */
-    protected void finalizeAggregationResults(SearchContext context) {
-        final InternalAggregations allAggs = context.queryResult().aggregations().expand();
-        context.queryResult().aggregations(new InternalAggregations(allAggs, context.request().source().aggregations()::buildPipelineTree));
     }
 }

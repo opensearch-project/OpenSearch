@@ -322,7 +322,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         final List<InternalAggregation> mergedAggregation = new ArrayList<>(fromFirst.size() + fromSecond.size());
         mergedAggregation.addAll(fromFirst);
         mergedAggregation.addAll(fromSecond);
-        return new InternalAggregations(mergedAggregation);
+        return new InternalAggregations(mergedAggregation, first.getPipelineTreeForBwcSerialization());
     }
 
     /**
