@@ -110,7 +110,7 @@ public class TranslogTransferManager {
                 fileSnapshot -> transferService.uploadBlobAsync(
                     ThreadPool.Names.TRANSLOG_TRANSFER,
                     fileSnapshot,
-                    remoteBaseTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
+                    remoteBaseTransferPath.add("data").add(String.valueOf(fileSnapshot.getPrimaryTerm())),
                     latchedActionListener
                 )
             );
