@@ -103,6 +103,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         File jsonSchemaOnDisk = getJsonSchema();
         getLogger().debug("JSON schema : [{}]", jsonSchemaOnDisk.getAbsolutePath());
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
+        config.setEcma262Validator(true);
         JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
         JsonSchema jsonSchema = factory.getSchema(mapper.readTree(jsonSchemaOnDisk), config);
         Map<File, Set<String>> errors = new LinkedHashMap<>();
@@ -113,7 +114,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
                 File file = fileChange.getFile();
                 if (file.isDirectory() == false) {
                     // validate all files and hold on to errors for a complete report if there are failures
-                    getLogger().debug("Validating JSON [{}]", file.getName());
+                    getLogger().debug("Validating JSON: " + file.getName());
                     try {
                         Set<ValidationMessage> validationMessages = jsonSchema.validate(mapper.readTree(file));
                         maybeLogAndCollectError(validationMessages, errors, file);
@@ -143,7 +144,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         }
     }
 
-    private void maybeLogAndCollectError(Set<ValidationMessage> messages, Map<File, Set<String>> errors, File file) {
+    private void maybeLogAndCollectError(Set<ValidationMessage> messages, Map<File, Set<String>> errors, File file) throws IOException {
         for (ValidationMessage message : messages) {
             getLogger().error("[validate JSON][ERROR][{}][{}]", file.getName(), message.toString());
             errors.computeIfAbsent(file, k -> new LinkedHashSet<>())
