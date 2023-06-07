@@ -198,10 +198,64 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         assertTrue(expectedNames.containsAll(names));
     }
 
+    public void testRestSendToExtensionActionWithNamedRouteAndLegacyActionName() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of(
+                "GET /foo foo cluster:admin/opensearch/abc/foo",
+                "PUT /bar bar cluster:admin/opensearch/jkl/bar",
+                "POST /baz baz cluster:admin/opensearch/xyz/baz"
+            ),
+            List.of("GET /deprecated/foo foo_deprecated cluster:admin/opensearch/abc/foo_deprecated", "It's deprecated!")
+        );
+        RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
+            registerRestActionRequest,
+            discoveryExtensionNode,
+            transportService,
+            dynamicActionRegistry
+        );
+
+        assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
+        List<NamedRoute> expected = new ArrayList<>();
+        String uriPrefix = "/_extensions/_uniqueid1";
+        expected.add(new NamedRoute(Method.GET, uriPrefix + "/foo", "foo", "cluster:admin/opensearch/abc/foo"));
+        expected.add(new NamedRoute(Method.PUT, uriPrefix + "/bar", "bar", "cluster:admin/opensearch/jkl/bar"));
+        expected.add(new NamedRoute(Method.POST, uriPrefix + "/baz", "baz", "cluster:admin/opensearch/xyz/baz"));
+
+        List<Route> routes = restSendToExtensionAction.routes();
+        assertEquals(expected.size(), routes.size());
+        List<String> expectedPaths = expected.stream().map(Route::getPath).collect(Collectors.toList());
+        List<String> paths = routes.stream().map(Route::getPath).collect(Collectors.toList());
+        List<Method> expectedMethods = expected.stream().map(Route::getMethod).collect(Collectors.toList());
+        List<Method> methods = routes.stream().map(Route::getMethod).collect(Collectors.toList());
+        List<String> expectedNames = expected.stream().map(NamedRoute::name).collect(Collectors.toList());
+        List<String> names = routes.stream().map(r -> ((NamedRoute) r).name()).collect(Collectors.toList());
+        List<String> expectedLegacyActionNames = expected.stream().map(NamedRoute::legacyName).collect(Collectors.toList());
+        List<String> legacyActionNames = routes.stream().map(r -> ((NamedRoute) r).legacyName()).collect(Collectors.toList());
+        assertTrue(paths.containsAll(expectedPaths));
+        assertTrue(expectedPaths.containsAll(paths));
+        assertTrue(methods.containsAll(expectedMethods));
+        assertTrue(expectedMethods.containsAll(methods));
+        assertTrue(expectedNames.containsAll(names));
+        assertTrue(expectedLegacyActionNames.containsAll(legacyActionNames));
+    }
+
     public void testRestSendToExtensionMultipleNamedRoutesWithSameName() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
             List.of("GET /foo foo", "PUT /bar foo"),
+            List.of()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, dynamicActionRegistry)
+        );
+    }
+
+    public void testRestSendToExtensionMultipleNamedRoutesWithSameLegacyActionName() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo foo cluster:admin/opensearch/abc/foo", "PUT /bar bar cluster:admin/opensearch/abc/foo"),
             List.of()
         );
         expectThrows(
@@ -234,7 +288,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
     }
 
-    public void testRestSendToExtensionMultipleRoutesWithSameMethodAndPathWithPathParams() throws Exception {
+    public void testRestSendToExtensionMultipleRoutesWithSameMethodAndPathWithPathParams() {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
             List.of("GET /foo/{path_param}", "GET /foo/{path_param}/list"),
