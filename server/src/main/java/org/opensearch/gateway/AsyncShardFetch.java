@@ -43,7 +43,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.transport.ReceiveTimeoutTransportException;

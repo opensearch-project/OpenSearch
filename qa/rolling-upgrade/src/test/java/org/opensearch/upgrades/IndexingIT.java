@@ -31,28 +31,20 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.client.ResponseException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,7 +87,8 @@ public class IndexingIT extends AbstractRollingTestCase {
     private void waitForSearchableDocs(String index, int shardCount) throws Exception {
         Map<Integer,String> primaryShardToNodeIDMap = new HashMap<>();
         Map<Integer,String> replicaShardToNodeIDMap = new HashMap<>();
-        logger.info("--> _cat/shards \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
+        waitForClusterHealthWithNoShardMigration(index, "green");
+        logger.info("--> _cat/shards before search \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
 
         Request request = new Request("GET", index + "/_stats");
         request.addParameter("level", "shards");
@@ -245,7 +238,6 @@ public class IndexingIT extends AbstractRollingTestCase {
      *
      * @throws Exception
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7679")
     public void testIndexingWithSegRep() throws Exception {
         final String indexName = "test-index-segrep";
         final int shardCount = 3;
