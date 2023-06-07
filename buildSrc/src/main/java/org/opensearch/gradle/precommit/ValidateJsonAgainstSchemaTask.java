@@ -144,7 +144,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         }
     }
 
-    private void maybeLogAndCollectError(Set<ValidationMessage> messages, Map<File, Set<String>> errors, File file) throws IOException {
+    private void maybeLogAndCollectError(Set<ValidationMessage> messages, Map<File, Set<String>> errors, File file) {
         for (ValidationMessage message : messages) {
             getLogger().error("[validate JSON][ERROR][{}][{}]", file.getName(), message.toString());
             errors.computeIfAbsent(file, k -> new LinkedHashSet<>())
