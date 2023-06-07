@@ -152,6 +152,7 @@ dependencies {
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
+  api "javax.annotation:javax.annotation-api:1.3.2"
 
   //zstd
   api "com.github.luben:zstd-jni:${versions.zstd}"
