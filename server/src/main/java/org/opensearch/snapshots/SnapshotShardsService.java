@@ -394,7 +394,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             GatedCloseable<IndexCommit> wrappedSnapshot = null;
             try {
                 if (remoteStoreIndexShallowCopy && indexShard.indexSettings().isRemoteStoreEnabled()) {
-                    long startTime = threadPool.absoluteTimeInMillis();
+                    long startTime = threadPool.relativeTimeInMillis();
                     // we flush first to make sure we get the latest writes snapshotted
                     wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
                     long primaryTerm = indexShard.getOperationPrimaryTerm();
@@ -426,7 +426,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         indexShard.releaseLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
                         throw e;
                     }
-                    long endTime = threadPool.absoluteTimeInMillis();
+                    long endTime = threadPool.relativeTimeInMillis();
                     logger.debug(
                         "Time taken (in milliseconds) to complete shallow copy snapshot, "
                             + "for index "
