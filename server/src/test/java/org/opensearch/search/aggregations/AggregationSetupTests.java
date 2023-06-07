@@ -36,6 +36,7 @@ public class AggregationSetupTests extends OpenSearchSingleNodeTestCase {
         client().prepareIndex("idx").setId("1").setSource("f", 5).execute().get();
         client().admin().indices().prepareRefresh("idx").get();
         context = createSearchContext(index);
+        context.setConcurrentSegmentSearchEnabled(true);
     }
 
     protected AggregatorFactories getAggregationFactories(String agg) throws IOException {

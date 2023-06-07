@@ -97,6 +97,7 @@ public abstract class SearchContext implements Releasable {
     private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
+    protected boolean concurrentSegmentSearchEnabled;
 
     protected SearchContext() {}
 
@@ -365,6 +366,17 @@ public abstract class SearchContext implements Releasable {
      * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
      */
     public abstract Profilers getProfilers();
+
+    /**
+     * Returns concurrent segment search status for the search context
+     */
+    public boolean concurrentSegmentSearchEnabled() {
+        return concurrentSegmentSearchEnabled;
+    }
+
+    public void setConcurrentSegmentSearchEnabled(boolean concurrentSegmentSearchEnabled) {
+        this.concurrentSegmentSearchEnabled = concurrentSegmentSearchEnabled;
+    }
 
     /**
      * Adds a releasable that will be freed when this context is closed.

@@ -193,7 +193,8 @@ final class DefaultSearchContext extends SearchContext {
         Version minNodeVersion,
         boolean validate,
         Executor executor,
-        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder
+        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
+        boolean concurrentSegmentSearchEnabled
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -231,6 +232,7 @@ final class DefaultSearchContext extends SearchContext {
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
+        this.concurrentSegmentSearchEnabled = concurrentSegmentSearchEnabled;
     }
 
     @Override
