@@ -47,6 +47,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
@@ -590,6 +591,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * from xlog.
      */
     public void testReplicationPostDeleteAndForceMerge() throws Exception {
+        assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
         final String primary = internalCluster().startNode();
         createIndex(INDEX_NAME);
         final String replica = internalCluster().startNode();
@@ -795,6 +797,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPressureServiceStats() throws Exception {
+        assumeFalse(
+            "Skipping the test as pressure service is not compatible with SegRep and Remote store yet.",
+            segmentReplicationWithRemoteEnabled()
+        );
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
         final String replicaNode = internalCluster().startNode();
@@ -884,6 +890,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * @throws Exception when issue is encountered
      */
     public void testScrollCreatedOnReplica() throws Exception {
+        assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
         final String primary = internalCluster().startNode();
         createIndex(INDEX_NAME);
@@ -973,6 +980,11 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * @throws Exception when issue is encountered
      */
     public void testScrollWithOngoingSegmentReplication() throws Exception {
+        assumeFalse(
+            "Skipping the test as its not compatible with segment replication with remote store yet.",
+            segmentReplicationWithRemoteEnabled()
+        );
+
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
         final String primary = internalCluster().startNode();
         prepareCreate(
@@ -1259,4 +1271,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         waitForSearchableDocs(2, nodes);
     }
 
+    private boolean segmentReplicationWithRemoteEnabled() {
+        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue()
+            && "true".equalsIgnoreCase(featureFlagSettings().get(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL));
+    }
 }

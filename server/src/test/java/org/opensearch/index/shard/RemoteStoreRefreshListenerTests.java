@@ -421,14 +421,14 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         return Tuple.tuple(refreshListener, remoteRefreshSegmentPressureService);
     }
 
-    private static class TestFilterDirectory extends FilterDirectory {
+    public static class TestFilterDirectory extends FilterDirectory {
 
         /**
          * Sole constructor, typically called from sub-classes.
          *
          * @param in
          */
-        protected TestFilterDirectory(Directory in) {
+        public TestFilterDirectory(Directory in) {
             super(in);
         }
     }
