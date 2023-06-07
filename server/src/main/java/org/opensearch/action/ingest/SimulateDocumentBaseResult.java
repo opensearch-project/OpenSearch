@@ -63,7 +63,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
                 return new SimulateDocumentBaseResult(((WriteableIngestDocument) a[0]).getIngestDocument());
             } else {
                 assert a[0] == null;
-                return new SimulateDocumentBaseResult((OpenSearchException) a[1]);
+                return new SimulateDocumentBaseResult((BaseOpenSearchException) a[1]);
             }
         }
     );

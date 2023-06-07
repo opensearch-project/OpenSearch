@@ -88,10 +88,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
     private final Exception failure;
     private final Tuple<String, Boolean> conditionalWithResult;
 
-    private static final ConstructingObjectParser<OpenSearchException, Void> IGNORED_ERROR_PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<BaseOpenSearchException, Void> IGNORED_ERROR_PARSER = new ConstructingObjectParser<>(
         "ignored_error_parser",
         true,
-        a -> (OpenSearchException) a[0]
+        a -> (BaseOpenSearchException) a[0]
     );
     static {
         IGNORED_ERROR_PARSER.declareObject(constructorArg(), (p, c) -> OpenSearchException.fromXContent(p), new ParseField("error"));

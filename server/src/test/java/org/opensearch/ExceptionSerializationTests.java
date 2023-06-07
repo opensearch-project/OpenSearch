@@ -579,7 +579,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         final Exception ex = new UnknownException("eggplant", parsingException);
         Exception exception = serialize(ex);
         assertEquals("unknown_exception: eggplant", exception.getMessage());
-        assertTrue(exception instanceof OpenSearchException);
+        assertTrue(exception instanceof BaseOpenSearchException);
         ParsingException e = (ParsingException) exception.getCause();
         assertEquals(parsingException.getIndex(), e.getIndex());
         assertEquals(parsingException.getMessage(), e.getMessage());

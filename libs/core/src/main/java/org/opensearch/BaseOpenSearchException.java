@@ -34,6 +34,7 @@ package org.opensearch;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -72,7 +73,7 @@ import static java.util.Collections.singletonMap;
  * @opensearch.internal
  */
 @SuppressWarnings("rawtypes")
-public abstract class BaseOpenSearchException extends RuntimeException implements Writeable, ToXContentFragment {
+public class BaseOpenSearchException extends RuntimeException implements Writeable, ToXContentFragment {
 
     protected static final String ERROR = "error";
     protected static final String ROOT_CAUSE = "root_cause";
@@ -93,6 +94,9 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
                 0,
                 UNKNOWN_VERSION_ADDED
             )
+        );
+        registerExceptionHandle(
+            new BaseOpenSearchExceptionHandle(ParsingException.class, ParsingException::new, 40, UNKNOWN_VERSION_ADDED)
         );
     }
 
@@ -557,7 +561,11 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
     }
 
     /**
-     * An ExceptionHandle for registering Exceptions that can be serialized over the transport wire
+     * This is the list of Exceptions OpenSearch can throw over the wire or save into a corruption marker. Each value in the enum is a
+     * single exception tying the Class to an id for use of the encode side and the id back to a constructor for use on the decode side. As
+     * such its ok if the exceptions to change names so long as their constructor can still read the exception. Each exception is listed
+     * in id order. If you want to remove an exception leave a tombstone comment and mark the id as null in
+     * ExceptionSerializationTests.testIds.ids.
      *
      * @opensearch.internal
      */

@@ -38,11 +38,9 @@ import org.opensearch.cluster.routing.NodeWeighedAwayException;
 import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
 import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
-import org.opensearch.common.CheckedFunction;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.index.snapshots.IndexShardSnapshotException;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.pipeline.SearchPipelineProcessingException;
@@ -73,7 +71,7 @@ public class OpenSearchException extends BaseOpenSearchException {
 
     static {
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.search.dfs.DfsPhaseExecutionException.class,
                 org.opensearch.search.dfs.DfsPhaseExecutionException::new,
                 1,
@@ -81,7 +79,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.common.util.CancellableThreads.ExecutionCancelledException.class,
                 org.opensearch.common.util.CancellableThreads.ExecutionCancelledException::new,
                 2,
@@ -89,7 +87,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.discovery.ClusterManagerNotDiscoveredException.class,
                 org.opensearch.discovery.ClusterManagerNotDiscoveredException::new,
                 3,
@@ -97,7 +95,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.OpenSearchSecurityException.class,
                 org.opensearch.OpenSearchSecurityException::new,
                 4,
@@ -105,7 +103,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.snapshots.IndexShardRestoreException.class,
                 org.opensearch.index.snapshots.IndexShardRestoreException::new,
                 5,
@@ -113,7 +111,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.IndexClosedException.class,
                 org.opensearch.indices.IndexClosedException::new,
                 6,
@@ -121,7 +119,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.http.BindHttpException.class,
                 org.opensearch.http.BindHttpException::new,
                 7,
@@ -129,7 +127,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.search.ReduceSearchPhaseException.class,
                 org.opensearch.action.search.ReduceSearchPhaseException::new,
                 8,
@@ -137,7 +135,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.node.NodeClosedException.class,
                 org.opensearch.node.NodeClosedException::new,
                 9,
@@ -145,7 +143,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.engine.SnapshotFailedEngineException.class,
                 org.opensearch.index.engine.SnapshotFailedEngineException::new,
                 10,
@@ -153,7 +151,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.ShardNotFoundException.class,
                 org.opensearch.index.shard.ShardNotFoundException::new,
                 11,
@@ -161,7 +159,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.ConnectTransportException.class,
                 org.opensearch.transport.ConnectTransportException::new,
                 12,
@@ -169,7 +167,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.NotSerializableTransportException.class,
                 org.opensearch.transport.NotSerializableTransportException::new,
                 13,
@@ -177,7 +175,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.ResponseHandlerFailureTransportException.class,
                 org.opensearch.transport.ResponseHandlerFailureTransportException::new,
                 14,
@@ -185,7 +183,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.IndexCreationException.class,
                 org.opensearch.indices.IndexCreationException::new,
                 15,
@@ -193,7 +191,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.IndexNotFoundException.class,
                 org.opensearch.index.IndexNotFoundException::new,
                 16,
@@ -201,7 +199,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.routing.IllegalShardRoutingStateException.class,
                 org.opensearch.cluster.routing.IllegalShardRoutingStateException::new,
                 17,
@@ -209,7 +207,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException.class,
                 org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException::new,
                 18,
@@ -217,7 +215,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.ResourceNotFoundException.class,
                 org.opensearch.ResourceNotFoundException::new,
                 19,
@@ -225,7 +223,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.ActionTransportException.class,
                 org.opensearch.transport.ActionTransportException::new,
                 20,
@@ -233,7 +231,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.OpenSearchGenerationException.class,
                 org.opensearch.OpenSearchGenerationException::new,
                 21,
@@ -242,7 +240,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 22 was CreateFailedEngineException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.IndexShardStartedException.class,
                 org.opensearch.index.shard.IndexShardStartedException::new,
                 23,
@@ -250,7 +248,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.search.SearchContextMissingException.class,
                 org.opensearch.search.SearchContextMissingException::new,
                 24,
@@ -258,7 +256,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.script.GeneralScriptException.class,
                 org.opensearch.script.GeneralScriptException::new,
                 25,
@@ -267,7 +265,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 26 was BatchOperationException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.snapshots.SnapshotCreationException.class,
                 org.opensearch.snapshots.SnapshotCreationException::new,
                 27,
@@ -276,7 +274,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 28 was DeleteFailedEngineException, deprecated in 6.0, removed in 7.0
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.engine.DocumentMissingException.class,
                 org.opensearch.index.engine.DocumentMissingException::new,
                 29,
@@ -284,7 +282,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.snapshots.SnapshotException.class,
                 org.opensearch.snapshots.SnapshotException::new,
                 30,
@@ -292,7 +290,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.InvalidAliasNameException.class,
                 org.opensearch.indices.InvalidAliasNameException::new,
                 31,
@@ -300,7 +298,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.InvalidIndexNameException.class,
                 org.opensearch.indices.InvalidIndexNameException::new,
                 32,
@@ -308,7 +306,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.IndexPrimaryShardNotAllocatedException.class,
                 org.opensearch.indices.IndexPrimaryShardNotAllocatedException::new,
                 33,
@@ -316,7 +314,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.TransportException.class,
                 org.opensearch.transport.TransportException::new,
                 34,
@@ -324,7 +322,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.OpenSearchParseException.class,
                 org.opensearch.OpenSearchParseException::new,
                 35,
@@ -332,7 +330,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.search.SearchException.class,
                 org.opensearch.search.SearchException::new,
                 36,
@@ -340,7 +338,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.mapper.MapperException.class,
                 org.opensearch.index.mapper.MapperException::new,
                 37,
@@ -348,7 +346,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.InvalidTypeNameException.class,
                 org.opensearch.indices.InvalidTypeNameException::new,
                 38,
@@ -356,16 +354,15 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.snapshots.SnapshotRestoreException.class,
                 org.opensearch.snapshots.SnapshotRestoreException::new,
                 39,
                 UNKNOWN_VERSION_ADDED
             )
         );
-        registerExceptionHandle(new OpenSearchExceptionHandle(ParsingException.class, ParsingException::new, 40, UNKNOWN_VERSION_ADDED));
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.IndexShardClosedException.class,
                 org.opensearch.index.shard.IndexShardClosedException::new,
                 41,
@@ -373,7 +370,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.recovery.RecoverFilesRecoveryException.class,
                 org.opensearch.indices.recovery.RecoverFilesRecoveryException::new,
                 42,
@@ -381,7 +378,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.translog.TruncatedTranslogException.class,
                 org.opensearch.index.translog.TruncatedTranslogException::new,
                 43,
@@ -389,7 +386,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.recovery.RecoveryFailedException.class,
                 org.opensearch.indices.recovery.RecoveryFailedException::new,
                 44,
@@ -397,7 +394,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.IndexShardRelocatedException.class,
                 org.opensearch.index.shard.IndexShardRelocatedException::new,
                 45,
@@ -405,7 +402,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.NodeShouldNotConnectException.class,
                 org.opensearch.transport.NodeShouldNotConnectException::new,
                 46,
@@ -414,7 +411,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 47 used to be for IndexTemplateAlreadyExistsException which was deprecated in 5.1 removed in 6.0
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.translog.TranslogCorruptedException.class,
                 org.opensearch.index.translog.TranslogCorruptedException::new,
                 48,
@@ -422,7 +419,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.block.ClusterBlockException.class,
                 org.opensearch.cluster.block.ClusterBlockException::new,
                 49,
@@ -430,7 +427,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.search.fetch.FetchPhaseExecutionException.class,
                 org.opensearch.search.fetch.FetchPhaseExecutionException::new,
                 50,
@@ -439,7 +436,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 51 used to be for IndexShardAlreadyExistsException which was deprecated in 5.1 removed in 6.0
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.engine.VersionConflictEngineException.class,
                 org.opensearch.index.engine.VersionConflictEngineException::new,
                 52,
@@ -447,7 +444,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.engine.EngineException.class,
                 org.opensearch.index.engine.EngineException::new,
                 53,
@@ -456,7 +453,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 54 was DocumentAlreadyExistsException, which is superseded by VersionConflictEngineException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.NoSuchNodeException.class,
                 org.opensearch.action.NoSuchNodeException::new,
                 55,
@@ -464,7 +461,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.common.settings.SettingsException.class,
                 org.opensearch.common.settings.SettingsException::new,
                 56,
@@ -472,7 +469,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.IndexTemplateMissingException.class,
                 org.opensearch.indices.IndexTemplateMissingException::new,
                 57,
@@ -480,7 +477,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.SendRequestTransportException.class,
                 org.opensearch.transport.SendRequestTransportException::new,
                 58,
@@ -491,7 +488,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         // 60 used to be for EarlyTerminationException
         // 61 used to be for RoutingValidationException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 NotSerializableExceptionWrapper.class,
                 NotSerializableExceptionWrapper::new,
                 62,
@@ -499,7 +496,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.AliasFilterParsingException.class,
                 org.opensearch.indices.AliasFilterParsingException::new,
                 63,
@@ -508,7 +505,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 64 was DeleteByQueryFailedEngineException, which was removed in 5.0
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.gateway.GatewayException.class,
                 org.opensearch.gateway.GatewayException::new,
                 65,
@@ -516,7 +513,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.IndexShardNotRecoveringException.class,
                 org.opensearch.index.shard.IndexShardNotRecoveringException::new,
                 66,
@@ -524,7 +521,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.http.HttpException.class,
                 org.opensearch.http.HttpException::new,
                 67,
@@ -532,10 +529,10 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(OpenSearchException.class, OpenSearchException::new, 68, UNKNOWN_VERSION_ADDED)
+            new BaseOpenSearchExceptionHandle(OpenSearchException.class, OpenSearchException::new, 68, UNKNOWN_VERSION_ADDED)
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.snapshots.SnapshotMissingException.class,
                 org.opensearch.snapshots.SnapshotMissingException::new,
                 69,
@@ -543,7 +540,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.PrimaryMissingActionException.class,
                 org.opensearch.action.PrimaryMissingActionException::new,
                 70,
@@ -551,7 +548,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.search.SearchParseException.class,
                 org.opensearch.search.SearchParseException::new,
                 72,
@@ -559,7 +556,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.FailedNodeException.class,
                 org.opensearch.action.FailedNodeException::new,
                 71,
@@ -567,7 +564,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.snapshots.ConcurrentSnapshotExecutionException.class,
                 org.opensearch.snapshots.ConcurrentSnapshotExecutionException::new,
                 73,
@@ -575,7 +572,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.common.blobstore.BlobStoreException.class,
                 org.opensearch.common.blobstore.BlobStoreException::new,
                 74,
@@ -583,7 +580,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.IncompatibleClusterStateVersionException.class,
                 org.opensearch.cluster.IncompatibleClusterStateVersionException::new,
                 75,
@@ -591,7 +588,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.engine.RecoveryEngineException.class,
                 org.opensearch.index.engine.RecoveryEngineException::new,
                 76,
@@ -599,7 +596,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.common.util.concurrent.UncategorizedExecutionException.class,
                 org.opensearch.common.util.concurrent.UncategorizedExecutionException::new,
                 77,
@@ -607,7 +604,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.TimestampParsingException.class,
                 org.opensearch.action.TimestampParsingException::new,
                 78,
@@ -615,7 +612,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.RoutingMissingException.class,
                 org.opensearch.action.RoutingMissingException::new,
                 79,
@@ -624,7 +621,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 80 was IndexFailedEngineException, deprecated in 6.0, removed in 7.0
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.snapshots.IndexShardRestoreFailedException.class,
                 org.opensearch.index.snapshots.IndexShardRestoreFailedException::new,
                 81,
@@ -632,7 +629,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.repositories.RepositoryException.class,
                 org.opensearch.repositories.RepositoryException::new,
                 82,
@@ -640,7 +637,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.ReceiveTimeoutTransportException.class,
                 org.opensearch.transport.ReceiveTimeoutTransportException::new,
                 83,
@@ -648,7 +645,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.NodeDisconnectedException.class,
                 org.opensearch.transport.NodeDisconnectedException::new,
                 84,
@@ -657,7 +654,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 85 used to be for AlreadyExpiredException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.search.aggregations.AggregationExecutionException.class,
                 org.opensearch.search.aggregations.AggregationExecutionException::new,
                 86,
@@ -666,7 +663,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 87 used to be for MergeMappingException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.InvalidIndexTemplateException.class,
                 org.opensearch.indices.InvalidIndexTemplateException::new,
                 88,
@@ -674,7 +671,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.engine.RefreshFailedEngineException.class,
                 org.opensearch.index.engine.RefreshFailedEngineException::new,
                 90,
@@ -682,7 +679,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.search.aggregations.AggregationInitializationException.class,
                 org.opensearch.search.aggregations.AggregationInitializationException::new,
                 91,
@@ -690,7 +687,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.recovery.DelayRecoveryException.class,
                 org.opensearch.indices.recovery.DelayRecoveryException::new,
                 92,
@@ -699,7 +696,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 93 used to be for IndexWarmerMissingException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.client.transport.NoNodeAvailableException.class,
                 org.opensearch.client.transport.NoNodeAvailableException::new,
                 94,
@@ -707,7 +704,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.snapshots.InvalidSnapshotNameException.class,
                 org.opensearch.snapshots.InvalidSnapshotNameException::new,
                 96,
@@ -715,7 +712,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.IllegalIndexShardStateException.class,
                 org.opensearch.index.shard.IllegalIndexShardStateException::new,
                 97,
@@ -723,10 +720,15 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(IndexShardSnapshotException.class, IndexShardSnapshotException::new, 98, UNKNOWN_VERSION_ADDED)
+            new BaseOpenSearchExceptionHandle(
+                IndexShardSnapshotException.class,
+                IndexShardSnapshotException::new,
+                98,
+                UNKNOWN_VERSION_ADDED
+            )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.IndexShardNotStartedException.class,
                 org.opensearch.index.shard.IndexShardNotStartedException::new,
                 99,
@@ -734,7 +736,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.search.SearchPhaseExecutionException.class,
                 org.opensearch.action.search.SearchPhaseExecutionException::new,
                 100,
@@ -742,7 +744,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.ActionNotFoundTransportException.class,
                 org.opensearch.transport.ActionNotFoundTransportException::new,
                 101,
@@ -750,7 +752,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.TransportSerializationException.class,
                 org.opensearch.transport.TransportSerializationException::new,
                 102,
@@ -758,7 +760,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.RemoteTransportException.class,
                 org.opensearch.transport.RemoteTransportException::new,
                 103,
@@ -766,7 +768,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.engine.EngineCreationFailureException.class,
                 org.opensearch.index.engine.EngineCreationFailureException::new,
                 104,
@@ -774,7 +776,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.routing.RoutingException.class,
                 org.opensearch.cluster.routing.RoutingException::new,
                 105,
@@ -782,7 +784,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.IndexShardRecoveryException.class,
                 org.opensearch.index.shard.IndexShardRecoveryException::new,
                 106,
@@ -790,7 +792,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.repositories.RepositoryMissingException.class,
                 org.opensearch.repositories.RepositoryMissingException::new,
                 107,
@@ -798,7 +800,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.engine.DocumentSourceMissingException.class,
                 org.opensearch.index.engine.DocumentSourceMissingException::new,
                 109,
@@ -807,7 +809,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 110 used to be FlushNotAllowedEngineException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.common.settings.NoClassSettingsException.class,
                 org.opensearch.common.settings.NoClassSettingsException::new,
                 111,
@@ -815,7 +817,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.BindTransportException.class,
                 org.opensearch.transport.BindTransportException::new,
                 112,
@@ -823,7 +825,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.rest.action.admin.indices.AliasesNotFoundException.class,
                 org.opensearch.rest.action.admin.indices.AliasesNotFoundException::new,
                 113,
@@ -831,7 +833,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.IndexShardRecoveringException.class,
                 org.opensearch.index.shard.IndexShardRecoveringException::new,
                 114,
@@ -839,7 +841,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.translog.TranslogException.class,
                 org.opensearch.index.translog.TranslogException::new,
                 115,
@@ -847,7 +849,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException.class,
                 org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException::new,
                 116,
@@ -855,7 +857,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 ReplicationOperation.RetryOnPrimaryException.class,
                 ReplicationOperation.RetryOnPrimaryException::new,
                 117,
@@ -863,7 +865,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.OpenSearchTimeoutException.class,
                 org.opensearch.OpenSearchTimeoutException::new,
                 118,
@@ -871,7 +873,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.search.query.QueryPhaseExecutionException.class,
                 org.opensearch.search.query.QueryPhaseExecutionException::new,
                 119,
@@ -879,7 +881,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.repositories.RepositoryVerificationException.class,
                 org.opensearch.repositories.RepositoryVerificationException::new,
                 120,
@@ -887,7 +889,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.search.aggregations.InvalidAggregationPathException.class,
                 org.opensearch.search.aggregations.InvalidAggregationPathException::new,
                 121,
@@ -896,7 +898,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 123 used to be IndexAlreadyExistsException and was renamed
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 ResourceAlreadyExistsException.class,
                 ResourceAlreadyExistsException::new,
                 123,
@@ -905,7 +907,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 124 used to be Script.ScriptParseException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 TcpTransport.HttpRequestOnTransportException.class,
                 TcpTransport.HttpRequestOnTransportException::new,
                 125,
@@ -913,7 +915,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.mapper.MapperParsingException.class,
                 org.opensearch.index.mapper.MapperParsingException::new,
                 126,
@@ -922,7 +924,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 127 used to be org.opensearch.search.SearchContextException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.search.builder.SearchSourceBuilderException.class,
                 org.opensearch.search.builder.SearchSourceBuilderException::new,
                 128,
@@ -931,7 +933,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 129 was EngineClosedException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.NoShardAvailableActionException.class,
                 org.opensearch.action.NoShardAvailableActionException::new,
                 130,
@@ -939,7 +941,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.UnavailableShardsException.class,
                 org.opensearch.action.UnavailableShardsException::new,
                 131,
@@ -947,7 +949,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.engine.FlushFailedEngineException.class,
                 org.opensearch.index.engine.FlushFailedEngineException::new,
                 132,
@@ -955,7 +957,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.common.breaker.CircuitBreakingException.class,
                 org.opensearch.common.breaker.CircuitBreakingException::new,
                 133,
@@ -963,7 +965,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.NodeNotConnectedException.class,
                 org.opensearch.transport.NodeNotConnectedException::new,
                 134,
@@ -971,7 +973,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.mapper.StrictDynamicMappingException.class,
                 org.opensearch.index.mapper.StrictDynamicMappingException::new,
                 135,
@@ -979,7 +981,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException.class,
                 org.opensearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException::new,
                 136,
@@ -987,7 +989,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.TypeMissingException.class,
                 org.opensearch.indices.TypeMissingException::new,
                 137,
@@ -995,7 +997,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.coordination.FailedToCommitClusterStateException.class,
                 org.opensearch.cluster.coordination.FailedToCommitClusterStateException::new,
                 140,
@@ -1003,7 +1005,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.query.QueryShardException.class,
                 org.opensearch.index.query.QueryShardException::new,
                 141,
@@ -1011,7 +1013,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 ShardStateAction.NoLongerPrimaryShardException.class,
                 ShardStateAction.NoLongerPrimaryShardException::new,
                 142,
@@ -1019,7 +1021,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.script.ScriptException.class,
                 org.opensearch.script.ScriptException::new,
                 143,
@@ -1027,7 +1029,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.NotClusterManagerException.class,
                 org.opensearch.cluster.NotClusterManagerException::new,
                 144,
@@ -1035,7 +1037,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.OpenSearchStatusException.class,
                 org.opensearch.OpenSearchStatusException::new,
                 145,
@@ -1043,7 +1045,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.tasks.TaskCancelledException.class,
                 org.opensearch.tasks.TaskCancelledException::new,
                 146,
@@ -1051,7 +1053,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.env.ShardLockObtainFailedException.class,
                 org.opensearch.env.ShardLockObtainFailedException::new,
                 147,
@@ -1060,7 +1062,7 @@ public class OpenSearchException extends BaseOpenSearchException {
         );
         // 148 was UnknownNamedObjectException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 MultiBucketConsumerService.TooManyBucketsException.class,
                 MultiBucketConsumerService.TooManyBucketsException::new,
                 149,
@@ -1068,7 +1070,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.coordination.CoordinationStateRejectedException.class,
                 org.opensearch.cluster.coordination.CoordinationStateRejectedException::new,
                 150,
@@ -1076,7 +1078,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.snapshots.SnapshotInProgressException.class,
                 org.opensearch.snapshots.SnapshotInProgressException::new,
                 151,
@@ -1084,7 +1086,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.NoSuchRemoteClusterException.class,
                 org.opensearch.transport.NoSuchRemoteClusterException::new,
                 152,
@@ -1092,7 +1094,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.seqno.RetentionLeaseAlreadyExistsException.class,
                 org.opensearch.index.seqno.RetentionLeaseAlreadyExistsException::new,
                 153,
@@ -1100,7 +1102,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.seqno.RetentionLeaseNotFoundException.class,
                 org.opensearch.index.seqno.RetentionLeaseNotFoundException::new,
                 154,
@@ -1108,7 +1110,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.ShardNotInPrimaryModeException.class,
                 org.opensearch.index.shard.ShardNotInPrimaryModeException::new,
                 155,
@@ -1116,7 +1118,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
                 org.opensearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
                 156,
@@ -1124,7 +1126,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.ingest.IngestProcessorException.class,
                 org.opensearch.ingest.IngestProcessorException::new,
                 157,
@@ -1132,7 +1134,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.recovery.PeerRecoveryNotFound.class,
                 org.opensearch.indices.recovery.PeerRecoveryNotFound::new,
                 158,
@@ -1140,7 +1142,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.coordination.NodeHealthCheckFailureException.class,
                 org.opensearch.cluster.coordination.NodeHealthCheckFailureException::new,
                 159,
@@ -1148,7 +1150,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.transport.NoSeedNodeLeftException.class,
                 org.opensearch.transport.NoSeedNodeLeftException::new,
                 160,
@@ -1156,7 +1158,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.indices.replication.common.ReplicationFailedException.class,
                 org.opensearch.indices.replication.common.ReplicationFailedException::new,
                 161,
@@ -1164,7 +1166,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.index.shard.PrimaryShardClosedException.class,
                 org.opensearch.index.shard.PrimaryShardClosedException::new,
                 162,
@@ -1172,7 +1174,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.decommission.DecommissioningFailedException.class,
                 org.opensearch.cluster.decommission.DecommissioningFailedException::new,
                 163,
@@ -1180,7 +1182,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.decommission.NodeDecommissionedException.class,
                 org.opensearch.cluster.decommission.NodeDecommissionedException::new,
                 164,
@@ -1188,7 +1190,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 ClusterManagerThrottlingException.class,
                 ClusterManagerThrottlingException::new,
                 165,
@@ -1196,7 +1198,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 SnapshotInUseDeletionException.class,
                 SnapshotInUseDeletionException::new,
                 166,
@@ -1204,7 +1206,7 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 UnsupportedWeightedRoutingStateException.class,
                 UnsupportedWeightedRoutingStateException::new,
                 167,
@@ -1212,19 +1214,21 @@ public class OpenSearchException extends BaseOpenSearchException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 PreferenceBasedSearchNotAllowedException.class,
                 PreferenceBasedSearchNotAllowedException::new,
                 168,
                 V_2_6_0
             )
         );
-        registerExceptionHandle(new OpenSearchExceptionHandle(NodeWeighedAwayException.class, NodeWeighedAwayException::new, 169, V_2_6_0));
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(SearchPipelineProcessingException.class, SearchPipelineProcessingException::new, 170, V_2_7_0)
+            new BaseOpenSearchExceptionHandle(NodeWeighedAwayException.class, NodeWeighedAwayException::new, 169, V_2_6_0)
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
+            new BaseOpenSearchExceptionHandle(SearchPipelineProcessingException.class, SearchPipelineProcessingException::new, 170, V_2_7_0)
+        );
+        registerExceptionHandle(
+            new BaseOpenSearchExceptionHandle(
                 org.opensearch.cluster.block.IndexCreateBlockException.class,
                 org.opensearch.cluster.block.IndexCreateBlockException::new,
                 CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 1,
@@ -1276,24 +1280,4 @@ public class OpenSearchException extends BaseOpenSearchException {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
     }
-
-    /**
-     * This is the list of Exceptions OpenSearch can throw over the wire or save into a corruption marker. Each value in the enum is a
-     * single exception tying the Class to an id for use of the encode side and the id back to a constructor for use on the decode side. As
-     * such its ok if the exceptions to change names so long as their constructor can still read the exception. Each exception is listed
-     * in id order below. If you want to remove an exception leave a tombstone comment and mark the id as null in
-     * ExceptionSerializationTests.testIds.ids.
-     */
-    protected static class OpenSearchExceptionHandle extends BaseOpenSearchExceptionHandle {
-        <E extends BaseOpenSearchException> OpenSearchExceptionHandle(
-            final Class<E> exceptionClass,
-            final CheckedFunction<StreamInput, E, IOException> constructor,
-            final int id,
-            final Version versionAdded
-        ) {
-            super(exceptionClass, constructor, id, versionAdded);
-            OpenSearchExceptionHandleRegistry.registerExceptionHandle(this);
-        }
-    }
-
 }
