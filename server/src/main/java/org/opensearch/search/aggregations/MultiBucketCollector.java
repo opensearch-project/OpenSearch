@@ -121,6 +121,10 @@ public class MultiBucketCollector extends BucketCollector {
         this.cacheScores = numNeedsScores >= 2;
     }
 
+    public BucketCollector[] getCollectors() {
+        return collectors;
+    }
+
     @Override
     public ScoreMode scoreMode() {
         ScoreMode scoreMode = null;

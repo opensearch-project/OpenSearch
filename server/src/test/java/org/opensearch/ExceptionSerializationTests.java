@@ -893,7 +893,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
             }
         }
 
-        for (final Tuple<Integer, Class<? extends OpenSearchException>> tuple : OpenSearchException.classes()) {
+        for (final Tuple<Integer, Class<? extends BaseOpenSearchException>> tuple : OpenSearchException.classes()) {
             assertNotNull(tuple.v1());
             assertNotNull(
                 tuple.v2().getName() + " not found in ExceptionSerializationTests.testIds. Please add it.",

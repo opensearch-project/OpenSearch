@@ -40,6 +40,7 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
@@ -56,6 +57,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
@@ -82,8 +84,6 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.metrics.CounterMetric;
@@ -100,6 +100,8 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.core.common.lease.Releasables;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
@@ -159,6 +161,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.Translog;
@@ -195,7 +198,9 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -223,8 +228,8 @@ import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 import static org.opensearch.index.translog.Translog.Durability;
+import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
 /**
  * An OpenSearch index shard
@@ -4477,7 +4482,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
         // are uploaded to the remote segment store.
         assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of RemoteSegmentStoreDirectory";
-        ((RemoteSegmentStoreDirectory) remoteDirectory).init();
+        RemoteSegmentMetadata remoteSegmentMetadata = ((RemoteSegmentStoreDirectory) remoteDirectory).init();
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory)
             .getSegmentsUploadedToRemoteStore();
         store.incRef();
@@ -4499,7 +4504,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
-            String segmentInfosSnapshotFilename = null;
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
@@ -4509,26 +4513,44 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                     storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                     downloadedSegments.add(file);
-                    if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
-                        assert segmentInfosSnapshotFilename == null : "There should be only one SegmentInfosSnapshot file";
-                        segmentInfosSnapshotFilename = file;
-                    }
                 } else {
                     skippedSegments.add(file);
                 }
             }
-            if (refreshLevelSegmentSync && segmentInfosSnapshotFilename != null) {
+
+            if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)
-                    )
+                        new ByteArrayIndexInput("Snapshot of SegmentInfos", remoteSegmentMetadata.getSegmentInfosBytes())
+                    );
                 ) {
                     SegmentInfos infosSnapshot = SegmentInfos.readCommit(
                         store.directory(),
                         indexInput,
-                        Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
+                        remoteSegmentMetadata.getGeneration()
                     );
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                    // Following code block makes sure to use SegmentInfosSnapshot in the remote store if generation differs
+                    // with local filesystem. If local filesystem already has segments_N+2 and infosSnapshot has generation N,
+                    // after commit, there would be 2 files that would be created segments_N+1 and segments_N+2. With the
+                    // policy of preserving only the latest commit, we will delete segments_N+1 which in fact is the part of the latest
+                    // commit.
+                    Optional<String> localMaxSegmentInfos = localSegmentFiles.stream()
+                        .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
+                        .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
+                    if (localMaxSegmentInfos.isPresent()
+                        && infosSnapshot.getGeneration() < SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get()) - 1) {
+                        // If remote translog is not enabled, local translog will be created with different UUID.
+                        // This fails in Store.trimUnsafeCommits() as translog UUID of checkpoint and SegmentInfos needs
+                        // to be same. Following code block make sure to have the same UUID.
+                        if (indexSettings.isRemoteTranslogStoreEnabled() == false) {
+                            SegmentInfos localSegmentInfos = store.readLastCommittedSegmentsInfo();
+                            Map<String, String> userData = new HashMap<>(infosSnapshot.getUserData());
+                            userData.put(TRANSLOG_UUID_KEY, localSegmentInfos.userData.get(TRANSLOG_UUID_KEY));
+                            infosSnapshot.setUserData(userData, false);
+                        }
+                        storeDirectory.deleteFile(localMaxSegmentInfos.get());
+                    }
                     store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                 }
             }
