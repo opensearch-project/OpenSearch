@@ -41,7 +41,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.internal.AliasFilter;
-import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.transport.Transport;
 
 import java.util.List;
@@ -71,14 +71,13 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final SearchPhaseController searchPhaseController,
         final Executor executor,
         final QueryPhaseResultConsumer queryPhaseResultConsumer,
-        final SearchRequest request,
+        final PipelinedRequest request,
         final ActionListener<SearchResponse> listener,
         final GroupShardsIterator<SearchShardIterator> shardsIts,
         final TransportSearchAction.SearchTimeProvider timeProvider,
         final ClusterState clusterState,
         final SearchTask task,
-        SearchResponse.Clusters clusters,
-        SearchPipelineService searchPipelineService
+        SearchResponse.Clusters clusters
     ) {
         super(
             "dfs",
@@ -96,14 +95,13 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             clusterState,
             task,
             new ArraySearchPhaseResults<>(shardsIts.size()),
-            request.getMaxConcurrentShardRequests(),
-            clusters,
-            searchPipelineService
+            request.transformedRequest().getMaxConcurrentShardRequests(),
+            clusters
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         this.searchPhaseController = searchPhaseController;
         SearchProgressListener progressListener = task.getProgressListener();
-        SearchSourceBuilder sourceBuilder = request.source();
+        SearchSourceBuilder sourceBuilder = request.transformedRequest().source();
         progressListener.notifyListShards(
             SearchProgressListener.buildSearchShards(this.shardsIts),
             SearchProgressListener.buildSearchShards(toSkipShardsIts),

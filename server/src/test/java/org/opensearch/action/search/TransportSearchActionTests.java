@@ -74,6 +74,7 @@ import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -458,14 +459,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.preference("null_target");
             final CountDownLatch latch = new CountDownLatch(1);
-            SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+            SetOnce<Tuple<PipelinedRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
             AtomicReference<Exception> failure = new AtomicReference<>();
             LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                 ActionListener.wrap(r -> fail("no response expected"), failure::set),
                 latch
             );
             TransportSearchAction.ccsRemoteReduce(
-                searchRequest,
+                PipelinedRequest.wrapSearchRequest(searchRequest),
                 localIndices,
                 remoteIndicesByCluster,
                 timeProvider,
@@ -478,8 +479,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             if (localIndices == null) {
                 assertNull(setOnce.get());
             } else {
-                Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
-                assertEquals("", tuple.v1().getLocalClusterAlias());
+                Tuple<PipelinedRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                assertEquals("", tuple.v1().transformedRequest().getLocalClusterAlias());
                 assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
                 tuple.v2().onResponse(emptySearchResponse());
             }
@@ -514,14 +515,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             {
                 SearchRequest searchRequest = new SearchRequest();
                 final CountDownLatch latch = new CountDownLatch(1);
-                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                SetOnce<Tuple<PipelinedRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
-                    searchRequest,
+                    PipelinedRequest.wrapSearchRequest(searchRequest),
                     localIndices,
                     remoteIndicesByCluster,
                     timeProvider,
@@ -534,8 +535,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
-                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
-                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    Tuple<PipelinedRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().transformedRequest().getLocalClusterAlias());
                     assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
                     tuple.v2().onResponse(emptySearchResponse());
                 }
@@ -551,14 +552,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 SearchRequest searchRequest = new SearchRequest();
                 searchRequest.preference("index_not_found");
                 final CountDownLatch latch = new CountDownLatch(1);
-                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                SetOnce<Tuple<PipelinedRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
-                    searchRequest,
+                    PipelinedRequest.wrapSearchRequest(searchRequest),
                     localIndices,
                     remoteIndicesByCluster,
                     timeProvider,
@@ -571,8 +572,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
-                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
-                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    Tuple<PipelinedRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().transformedRequest().getLocalClusterAlias());
                     assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
                     tuple.v2().onResponse(emptySearchResponse());
                 }
@@ -609,14 +610,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             {
                 SearchRequest searchRequest = new SearchRequest();
                 final CountDownLatch latch = new CountDownLatch(1);
-                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                SetOnce<Tuple<PipelinedRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
-                    searchRequest,
+                    PipelinedRequest.wrapSearchRequest(searchRequest),
                     localIndices,
                     remoteIndicesByCluster,
                     timeProvider,
@@ -629,8 +630,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
-                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
-                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    Tuple<PipelinedRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().transformedRequest().getLocalClusterAlias());
                     assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
                     tuple.v2().onResponse(emptySearchResponse());
                 }
@@ -649,14 +650,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             {
                 SearchRequest searchRequest = new SearchRequest();
                 final CountDownLatch latch = new CountDownLatch(1);
-                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                SetOnce<Tuple<PipelinedRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
-                    searchRequest,
+                    PipelinedRequest.wrapSearchRequest(searchRequest),
                     localIndices,
                     remoteIndicesByCluster,
                     timeProvider,
@@ -669,8 +670,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
-                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
-                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    Tuple<PipelinedRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().transformedRequest().getLocalClusterAlias());
                     assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
                     tuple.v2().onResponse(emptySearchResponse());
                 }
@@ -700,14 +701,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             {
                 SearchRequest searchRequest = new SearchRequest();
                 final CountDownLatch latch = new CountDownLatch(1);
-                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                SetOnce<Tuple<PipelinedRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
-                    searchRequest,
+                    PipelinedRequest.wrapSearchRequest(searchRequest),
                     localIndices,
                     remoteIndicesByCluster,
                     timeProvider,
@@ -720,8 +721,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
-                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
-                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    Tuple<PipelinedRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().transformedRequest().getLocalClusterAlias());
                     assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
                     tuple.v2().onResponse(emptySearchResponse());
                 }

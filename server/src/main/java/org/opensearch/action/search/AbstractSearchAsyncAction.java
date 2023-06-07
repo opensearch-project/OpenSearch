@@ -53,12 +53,12 @@ import org.opensearch.core.common.lease.Releasables;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.pipeline.PipelinedRequest;
-import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -90,7 +90,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SearchTransportService searchTransportService;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
-    private final SearchRequest request;
+    private final PipelinedRequest request;
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
@@ -118,7 +118,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final boolean throttleConcurrentRequests;
 
     private final List<Releasable> releasables = new ArrayList<>();
-    private final SearchPipelineService searchPipelineService;
 
     AbstractSearchAsyncAction(
         String name,
@@ -129,7 +128,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         Map<String, Float> concreteIndexBoosts,
         Map<String, Set<String>> indexRoutings,
         Executor executor,
-        SearchRequest request,
+        PipelinedRequest request,
         ActionListener<SearchResponse> listener,
         GroupShardsIterator<SearchShardIterator> shardsIts,
         TransportSearchAction.SearchTimeProvider timeProvider,
@@ -137,8 +136,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters,
-        SearchPipelineService searchPipelineService
+        SearchResponse.Clusters clusters
     ) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -174,7 +172,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
-        this.searchPipelineService = searchPipelineService;
     }
 
     @Override
@@ -200,9 +197,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (getNumShards() == 0) {
             // no search shards to search on, bail with empty response
             // (it happens with search across _all with no indices around and consistent with broadcast operations)
-            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo();
+            SearchSourceBuilder source = request.transformedRequest().source();
+            int trackTotalHitsUpTo = source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+                : source.trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+                : source.trackTotalHitsUpTo();
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             listener.onResponse(
@@ -229,9 +227,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             assert iterator.skip();
             skipShard(iterator);
         }
+        SearchRequest searchRequest = request.transformedRequest();
         if (shardsIts.size() > 0) {
-            assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
-            if (request.allowPartialSearchResults() == false) {
+            assert searchRequest.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
+            if (searchRequest.allowPartialSearchResults() == false) {
                 final StringBuilder missingShards = new StringBuilder();
                 // Fail-fast verification of all shards being available
                 for (int index = 0; index < shardsIts.size(); index++) {
@@ -376,7 +375,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
         } else {
-            Boolean allowPartialResults = request.allowPartialSearchResults();
+            Boolean allowPartialResults = request.transformedRequest().allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
             if (allowPartialResults == false && successfulOps.get() != getNumShards()) {
                 // check if there are actual failures in the atomic array since
@@ -612,7 +611,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final SearchRequest getRequest() {
-        return request;
+        return request.transformedRequest();
     }
 
     protected final SearchResponse buildSearchResponse(
@@ -643,19 +642,22 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         ShardSearchFailure[] failures = buildShardFailures();
-        Boolean allowPartialResults = request.allowPartialSearchResults();
+        Boolean allowPartialResults = request.transformedRequest().allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
             final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
-            final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, minNodeVersion) : null;
+            final String scrollId = request.transformedRequest().scroll() != null
+                ? TransportSearchHelper.buildScrollId(queryResults, minNodeVersion)
+                : null;
             final String searchContextId;
             if (buildPointInTimeFromSearchResults()) {
                 searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion);
             } else {
-                if (request.source() != null && request.source().pointInTimeBuilder() != null) {
-                    searchContextId = request.source().pointInTimeBuilder().getId();
+                SearchSourceBuilder source = request.transformedRequest().source();
+                if (source != null && source.pointInTimeBuilder() != null) {
+                    searchContextId = source.pointInTimeBuilder().getId();
                 } else {
                     searchContextId = null;
                 }
@@ -677,7 +679,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     private void raisePhaseFailure(SearchPhaseExecutionException exception) {
         // we don't release persistent readers (point in time).
-        if (request.pointInTimeBuilder() == null) {
+        if (request.transformedRequest().pointInTimeBuilder() == null) {
             results.getSuccessfulResults().forEach((entry) -> {
                 if (entry.getContextId() != null) {
                     try {
@@ -705,9 +707,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // From src files the next phase is never null, but from tests this is a possibility. Hence, making sure that
         // tests pass, we need to do null check on next phase.
         if (nextPhase != null) {
-
-            final PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(this.getRequest());
-            pipelinedRequest.transformSearchPhase(results, this, this.getName(), nextPhase.getName());
+            request.transformSearchPhase(results, this, this.getName(), nextPhase.getName());
         }
         executeNextPhase(this, nextPhase);
     }
@@ -741,7 +741,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         final String[] routings = indexRoutings.getOrDefault(indexName, Collections.emptySet()).toArray(new String[0]);
         ShardSearchRequest shardRequest = new ShardSearchRequest(
             shardIt.getOriginalIndices(),
-            request,
+            request.transformedRequest(),
             shardIt.shardId(),
             getNumShards(),
             filter,

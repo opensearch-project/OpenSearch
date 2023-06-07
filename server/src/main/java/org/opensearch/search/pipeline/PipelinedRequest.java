@@ -49,4 +49,21 @@ public final class PipelinedRequest {
     Pipeline getPipeline() {
         return pipeline;
     }
+
+    /**
+     * Wraps a search request with a no-op pipeline. Useful for testing.
+     *
+     * @param searchRequest the original search request
+     * @return a search request associated with a pipeline that does nothing
+     */
+    public static PipelinedRequest wrapSearchRequest(SearchRequest searchRequest) {
+        return new PipelinedRequest(Pipeline.NO_OP_PIPELINE, searchRequest);
+    }
+
+    /**
+     * Wraps the given search request with this request's pipeline.
+     */
+    public PipelinedRequest replaceRequest(SearchRequest searchRequest) {
+        return new PipelinedRequest(pipeline, searchRequest);
+    }
 }

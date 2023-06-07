@@ -37,7 +37,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
-import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -57,7 +56,7 @@ import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.test.OpenSearchTestCase;
@@ -77,7 +76,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
-    private final SearchPipelineService searchPipelineService = Mockito.mock(SearchPipelineService.class);
 
     public void testBottomFieldSort() throws Exception {
         testCase(false, false);
@@ -212,14 +210,13 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
             controller,
             executor,
             resultConsumer,
-            searchRequest,
+            PipelinedRequest.wrapSearchRequest(searchRequest),
             null,
             shardsIter,
             timeProvider,
             null,
             task,
-            SearchResponse.Clusters.EMPTY,
-            searchPipelineService
+            SearchResponse.Clusters.EMPTY
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
