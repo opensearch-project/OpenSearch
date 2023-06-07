@@ -16,6 +16,9 @@ import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.XContentParser;
+
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * This class handles the dependent extensions information
@@ -52,6 +55,25 @@ public class ExtensionDependency implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uniqueId);
         out.writeVersion(version);
+    }
+
+    public static ExtensionDependency parse(XContentParser parser) throws IOException {
+        String uniqueId = null;
+        Version version = null;
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            String fieldName = parser.currentName();
+            parser.nextToken();
+
+            if ("uniqueId".equals(fieldName)) {
+                uniqueId = parser.text();
+            } else if ("version".equals(fieldName)) {
+                version = Version.fromString(parser.text());
+            }
+
+        }
+        return new ExtensionDependency(uniqueId, version);
+
     }
 
     /**

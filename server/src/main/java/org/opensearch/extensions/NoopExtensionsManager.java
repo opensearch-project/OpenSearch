@@ -60,11 +60,6 @@ public class NoopExtensionsManager extends ExtensionsManager {
     }
 
     @Override
-    protected void discover() throws IOException {
-        // no-op
-    }
-
-    @Override
     public void initialize() {
         // no-op
     }

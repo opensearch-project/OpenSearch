@@ -803,7 +803,8 @@ public class Node implements Closeable {
                 circuitBreakerService,
                 usageService,
                 systemIndices,
-                identityService
+                identityService,
+                extensionsManager
             );
             modules.add(actionModule);
 
@@ -1306,7 +1307,6 @@ public class Node implements Closeable {
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
-        extensionsManager.initialize();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);

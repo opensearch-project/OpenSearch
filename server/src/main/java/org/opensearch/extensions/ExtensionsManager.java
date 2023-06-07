@@ -9,12 +9,10 @@
 package org.opensearch.extensions;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.nio.file.Files;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -26,7 +24,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-import java.util.Arrays;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,6 +38,7 @@ import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
@@ -65,7 +63,6 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
-import org.yaml.snakeyaml.Yaml;
 import org.opensearch.env.EnvironmentSettingsResponse;
 
 /**
@@ -137,12 +134,6 @@ public class ExtensionsManager {
         }
         this.client = null;
         this.extensionTransportActionsHandler = null;
-
-        /*
-         * Now Discover extensions
-         */
-        discover();
-
     }
 
     /**
@@ -306,40 +297,13 @@ public class ExtensionsManager {
         );
     }
 
-    /*
-     * Load and populate all extensions
-     */
-    protected void discover() throws IOException {
-        logger.info("Loading extensions : {}", extensionsPath);
-        if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
-            return;
-        }
-
-        List<Extension> extensions = new ArrayList<Extension>();
-        if (Files.exists(extensionsPath.resolve("extensions.yml"))) {
-            try {
-                extensions = readFromExtensionsYml(extensionsPath.resolve("extensions.yml")).getExtensions();
-            } catch (IOException e) {
-                throw new IOException("Could not read from extensions.yml", e);
-            }
-            for (Extension extension : extensions) {
-                loadExtension(extension);
-            }
-            if (!extensionIdMap.isEmpty()) {
-                logger.info("Loaded all extensions");
-            }
-        } else {
-            logger.warn("Extensions.yml file is not present.  No extensions will be loaded.");
-        }
-    }
-
     /**
      * Loads a single extension
      * @param extension The extension to be loaded
      */
-    private void loadExtension(Extension extension) throws IOException {
+    public void loadExtension(Extension extension) throws IOException {
         if (extensionIdMap.containsKey(extension.getUniqueId())) {
-            logger.info("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
+            throw new IOException("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
         } else {
             try {
                 DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
@@ -351,12 +315,11 @@ public class ExtensionsManager {
                     Version.fromString(extension.getMinimumCompatibleVersion()),
                     extension.getDependencies()
                 );
-
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
                 extensionSettingsMap.put(extension.getUniqueId(), extension);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
             } catch (OpenSearchException e) {
-                logger.error("Could not load extension with uniqueId " + extension.getUniqueId() + " due to " + e);
+                throw new OpenSearchException("Could not load extension with uniqueId " + extension.getUniqueId() + " due to " + e);
             } catch (IllegalArgumentException e) {
                 throw e;
             }
@@ -407,27 +370,34 @@ public class ExtensionsManager {
                 return ThreadPool.Names.GENERIC;
             }
         };
-        try {
-            logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
-            transportService.connectToExtensionNode(extension);
-            transportService.sendRequest(
-                extension,
-                REQUEST_EXTENSION_ACTION_NAME,
-                new InitializeExtensionRequest(transportService.getLocalNode(), extension),
-                initializeExtensionResponseHandler
-            );
-            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
-        } catch (CompletionException | ConnectTransportException e) {
-            if (e.getCause() instanceof TimeoutException || e instanceof ConnectTransportException) {
-                logger.info("No response from extension to request.", e);
-            } else if (e.getCause() instanceof RuntimeException) {
-                throw (RuntimeException) e.getCause();
-            } else if (e.getCause() instanceof Error) {
-                throw (Error) e.getCause();
-            } else {
-                throw new RuntimeException(e.getCause());
+
+        logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
+        transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                if (e.getCause() instanceof TimeoutException || e instanceof ConnectTransportException) {
+                    logger.info("No response from extension to request.", e);
+                } else if (e.getCause() instanceof RuntimeException) {
+                    throw (RuntimeException) e.getCause();
+                } else if (e.getCause() instanceof Error) {
+                    throw (Error) e.getCause();
+                } else {
+                    throw new RuntimeException(e.getCause());
+                }
             }
-        }
+
+            @Override
+            protected void doRun() throws Exception {
+                transportService.connectToExtensionNode(extension);
+                transportService.sendRequest(
+                    extension,
+                    REQUEST_EXTENSION_ACTION_NAME,
+                    new InitializeExtensionRequest(transportService.getLocalNode(), extension),
+                    initializeExtensionResponseHandler
+                );
+                inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+            }
+        });
     }
 
     /**
@@ -463,84 +433,6 @@ public class ExtensionsManager {
                 }
             default:
                 throw new IllegalArgumentException("Handler not present for the provided request");
-        }
-    }
-
-    private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
-        Yaml yaml = new Yaml();
-        try (InputStream inputStream = Files.newInputStream(filePath)) {
-            Map<String, Object> obj = yaml.load(inputStream);
-            if (obj == null) {
-                inputStream.close();
-                throw new IOException("extensions.yml is empty");
-            }
-            List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
-            List<Extension> readExtensions = new ArrayList<Extension>();
-            Set<String> additionalSettingsKeys = additionalSettings.stream().map(s -> s.getKey()).collect(Collectors.toSet());
-            for (HashMap<String, ?> extensionMap : unreadExtensions) {
-                try {
-                    // checking to see whether any required fields are missing from extension.yml file or not
-                    String[] requiredFields = {
-                        "name",
-                        "uniqueId",
-                        "hostAddress",
-                        "port",
-                        "version",
-                        "opensearchVersion",
-                        "minimumCompatibleVersion" };
-                    List<String> missingFields = Arrays.stream(requiredFields)
-                        .filter(field -> !extensionMap.containsKey(field))
-                        .collect(Collectors.toList());
-                    if (!missingFields.isEmpty()) {
-                        throw new IOException("Extension is missing these required fields : " + missingFields);
-                    }
-
-                    // Parse extension dependencies
-                    List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
-                    if (extensionMap.get("dependencies") != null) {
-                        List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
-                            (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
-                        );
-                        for (HashMap<String, ?> dependency : extensionDependencies) {
-                            extensionDependencyList.add(
-                                new ExtensionDependency(
-                                    dependency.get("uniqueId").toString(),
-                                    Version.fromString(dependency.get("version").toString())
-                                )
-                            );
-                        }
-                    }
-
-                    ExtensionScopedSettings extAdditionalSettings = new ExtensionScopedSettings(additionalSettings);
-                    Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
-                        .stream()
-                        .filter(kv -> additionalSettingsKeys.contains(kv.getKey()))
-                        .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
-
-                    Settings.Builder output = Settings.builder();
-                    output.loadFromMap(additionalSettingsMap);
-                    extAdditionalSettings.applySettings(output.build());
-
-                    // Create extension read from yml config
-                    readExtensions.add(
-                        new Extension(
-                            extensionMap.get("name").toString(),
-                            extensionMap.get("uniqueId").toString(),
-                            extensionMap.get("hostAddress").toString(),
-                            extensionMap.get("port").toString(),
-                            extensionMap.get("version").toString(),
-                            extensionMap.get("opensearchVersion").toString(),
-                            extensionMap.get("minimumCompatibleVersion").toString(),
-                            extensionDependencyList,
-                            extAdditionalSettings
-                        )
-                    );
-                } catch (IOException e) {
-                    logger.warn("loading extension has been failed because of exception : " + e.getMessage());
-                }
-            }
-            inputStream.close();
-            return new ExtensionsSettings(readExtensions);
         }
     }
 
