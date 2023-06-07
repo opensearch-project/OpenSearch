@@ -68,7 +68,7 @@ public class TranslogTransferManager {
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
-        this.remoteBaseTransferPath = remoteBaseTransferPath;
+        this.remoteBaseTransferPath = remoteBaseTransferPath.add("data");
         this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferTracker = fileTransferTracker;
     }
@@ -110,7 +110,7 @@ public class TranslogTransferManager {
                 fileSnapshot -> transferService.uploadBlobAsync(
                     ThreadPool.Names.TRANSLOG_TRANSFER,
                     fileSnapshot,
-                    remoteBaseTransferPath.add("data").add(String.valueOf(fileSnapshot.getPrimaryTerm())),
+                    remoteBaseTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
                     latchedActionListener
                 )
             );

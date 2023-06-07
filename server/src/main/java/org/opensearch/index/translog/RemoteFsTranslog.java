@@ -65,7 +65,7 @@ public class RemoteFsTranslog extends Translog {
     private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
 
     private static final int REMOTE_DELETION_PERMITS = 2;
-    private static final String TRANSLOG = "translog";
+    public static final String TRANSLOG = "translog";
 
     // Semaphore used to allow only single remote generation to happen at a time
     private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
