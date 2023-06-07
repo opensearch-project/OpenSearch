@@ -1113,11 +1113,12 @@ public class ActionModule extends AbstractModule {
             Optional<String> routeName = Optional.empty();
             Optional<String> legacyActionName = Optional.empty();
             if (route instanceof NamedRoute) {
-                routeName = Optional.of(((NamedRoute) route).name());
+                NamedRoute nr = (NamedRoute) route;
+                routeName = Optional.of(nr.name());
                 if (isActionRegistered(routeName.get()) || registeredActionNames.contains(routeName.get())) {
                     throw new IllegalArgumentException("route [" + route + "] already registered");
                 }
-                legacyActionName = Optional.of(((NamedRoute) route).legacyName());
+                legacyActionName = Optional.of(nr.legacyName());
                 if (!legacyActionName.get().isEmpty()) {
                     if (isActionRegistered(legacyActionName.get()) || registeredActionNames.contains(legacyActionName.get())) {
                         throw new IllegalArgumentException("action [" + legacyActionName + "] already registered");

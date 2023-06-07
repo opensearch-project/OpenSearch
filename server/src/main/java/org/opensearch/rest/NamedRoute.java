@@ -26,7 +26,7 @@ public class NamedRoute extends RestHandler.Route {
 
     private String name;
 
-    private String legacyName;
+    private String legacyActionName;
 
     public boolean isValidRouteName(String routeName) {
         if (routeName == null || routeName.isBlank() || routeName.length() > MAX_LENGTH_OF_ACTION_NAME) {
@@ -50,17 +50,17 @@ public class NamedRoute extends RestHandler.Route {
 
     /**
      * Allows registering a legacyName to match against transport action
-     * @param method
-     * @param path
-     * @param name
-     * @param legacyName
+     * @param method - The REST method for this route
+     * @param path - the URL for this route
+     * @param name - the shortname for this route
+     * @param legacyActionName - name of the transport action this route will be matched against
      */
-    public NamedRoute(RestRequest.Method method, String path, String name, String legacyName) {
+    public NamedRoute(RestRequest.Method method, String path, String name, String legacyActionName) {
         this(method, path, name);
-        if (!TransportService.isValidActionName(legacyName)) {
-            logger.warn("invalid action name [" + legacyName + "] must start with one of: " + TransportService.VALID_ACTION_PREFIXES);
+        if (!TransportService.isValidActionName(legacyActionName)) {
+            logger.warn("invalid action name [" + legacyActionName + "] must start with one of: " + TransportService.VALID_ACTION_PREFIXES);
         }
-        this.legacyName = legacyName;
+        this.legacyActionName = legacyActionName;
     }
 
     /**
@@ -70,12 +70,19 @@ public class NamedRoute extends RestHandler.Route {
         return this.name;
     }
 
+    /**
+     * The legacy transport Action name to match against this route to support authorization in REST layer.
+     * MUST be unique across all Routes
+     */
     public String legacyName() {
-        return this.legacyName;
+        return this.legacyActionName;
     }
 
     @Override
     public String toString() {
-        return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + "]";
+        if(legacyActionName == null) {
+            return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + "]";
+        }
+        return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + ", legacyActionName=" + legacyActionName + "]";
     }
 }
