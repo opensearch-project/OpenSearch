@@ -36,7 +36,7 @@
       },
       "refresh":{
         "type":"enum",
-         "options":[
+        "options":[
           "true",
           "false",
           "wait_for"
