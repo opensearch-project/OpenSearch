@@ -1118,7 +1118,7 @@ public class ActionModule extends AbstractModule {
                 if (isActionRegistered(routeName.get()) || registeredActionNames.contains(routeName.get())) {
                     throw new IllegalArgumentException("route [" + route + "] already registered");
                 }
-                legacyActionName = Optional.of(nr.legacyName());
+                legacyActionName = Optional.of(nr.legacyActionName());
                 if (!legacyActionName.get().isEmpty()) {
                     if (isActionRegistered(legacyActionName.get()) || registeredActionNames.contains(legacyActionName.get())) {
                         throw new IllegalArgumentException("action [" + legacyActionName + "] already registered");

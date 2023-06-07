@@ -230,8 +230,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         List<Method> methods = routes.stream().map(Route::getMethod).collect(Collectors.toList());
         List<String> expectedNames = expected.stream().map(NamedRoute::name).collect(Collectors.toList());
         List<String> names = routes.stream().map(r -> ((NamedRoute) r).name()).collect(Collectors.toList());
-        List<String> expectedLegacyActionNames = expected.stream().map(NamedRoute::legacyName).collect(Collectors.toList());
-        List<String> legacyActionNames = routes.stream().map(r -> ((NamedRoute) r).legacyName()).collect(Collectors.toList());
+        List<String> expectedLegacyActionNames = expected.stream().map(NamedRoute::legacyActionName).collect(Collectors.toList());
+        List<String> legacyActionNames = routes.stream().map(r -> ((NamedRoute) r).legacyActionName()).collect(Collectors.toList());
         assertTrue(paths.containsAll(expectedPaths));
         assertTrue(expectedPaths.containsAll(paths));
         assertTrue(methods.containsAll(expectedMethods));

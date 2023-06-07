@@ -74,7 +74,7 @@ public class NamedRoute extends RestHandler.Route {
      * The legacy transport Action name to match against this route to support authorization in REST layer.
      * MUST be unique across all Routes
      */
-    public String legacyName() {
+    public String legacyActionName() {
         return this.legacyActionName;
     }
 
