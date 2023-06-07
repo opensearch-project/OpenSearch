@@ -45,11 +45,11 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusReque
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.SnapshotsInProgress;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -379,6 +379,17 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(1, getSnapshotsResponse.getSnapshots().size());
         assertEquals("snap-on-empty-repo", getSnapshotsResponse.getSnapshots().get(0).snapshotId().getName());
+
+        // there is an in-progress snapshot, make sure we return empty result when getting a non-existing snapshot with setting
+        // ignore_unavailable to true
+        getSnapshotsResponse = client.admin()
+            .cluster()
+            .prepareGetSnapshots("test-repo")
+            .setIgnoreUnavailable(true)
+            .addSnapshots("non-existent-snapshot")
+            .get();
+        assertEquals(0, getSnapshotsResponse.getSnapshots().size());
+
         unblockNode(repositoryName, initialBlockedNode); // unblock node
         admin().cluster().prepareDeleteSnapshot(repositoryName, "snap-on-empty-repo").get();
 

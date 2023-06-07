@@ -31,8 +31,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -50,7 +48,6 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.bytes.BytesReference;
@@ -62,10 +59,11 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -170,8 +168,7 @@ public class MetadataIndexTemplateService {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = new HashSet<>();
-                for (ObjectCursor<String> cursor : currentState.metadata().templates().keys()) {
-                    String templateName = cursor.value;
+                for (final String templateName : currentState.metadata().templates().keySet()) {
                     if (Regex.simpleMatch(request.name, templateName)) {
                         templateNames.add(templateName);
                     }
@@ -305,7 +302,7 @@ public class MetadataIndexTemplateService {
         if (stringMappings != null) {
             Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, stringMappings);
             if (parsedMappings.size() > 0) {
-                stringMappings = Strings.toString(
+                stringMappings = org.opensearch.common.Strings.toString(
                     XContentFactory.jsonBuilder().startObject().field(MapperService.SINGLE_MAPPING_NAME, parsedMappings).endObject()
                 );
             }
@@ -594,7 +591,7 @@ public class MetadataIndexTemplateService {
             if (stringMappings != null) {
                 Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, stringMappings);
                 if (parsedMappings.size() > 0) {
-                    stringMappings = Strings.toString(
+                    stringMappings = org.opensearch.common.Strings.toString(
                         XContentFactory.jsonBuilder().startObject().field(MapperService.SINGLE_MAPPING_NAME, parsedMappings).endObject()
                     );
                 }
@@ -713,9 +710,9 @@ public class MetadataIndexTemplateService {
     ) {
         Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> cursor : state.metadata().templates()) {
-            String name = cursor.key;
-            IndexTemplateMetadata template = cursor.value;
+        for (final Map.Entry<String, IndexTemplateMetadata> cursor : state.metadata().templates().entrySet()) {
+            String name = cursor.getKey();
+            IndexTemplateMetadata template = cursor.getValue();
             Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
                 logger.debug(
@@ -1014,8 +1011,7 @@ public class MetadataIndexTemplateService {
     public static List<IndexTemplateMetadata> findV1Templates(Metadata metadata, String indexName, @Nullable Boolean isHidden) {
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
         final List<IndexTemplateMetadata> matchedTemplates = new ArrayList<>();
-        for (ObjectCursor<IndexTemplateMetadata> cursor : metadata.templates().values()) {
-            final IndexTemplateMetadata template = cursor.value;
+        for (final IndexTemplateMetadata template : metadata.templates().values()) {
             if (isHidden == null || isHidden == Boolean.FALSE) {
                 final boolean matched = template.patterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {
@@ -1238,8 +1234,8 @@ public class MetadataIndexTemplateService {
         templates.forEach(template -> {
             if (template.aliases() != null) {
                 Map<String, AliasMetadata> aliasMeta = new HashMap<>();
-                for (ObjectObjectCursor<String, AliasMetadata> cursor : template.aliases()) {
-                    aliasMeta.put(cursor.key, cursor.value);
+                for (final Map.Entry<String, AliasMetadata> cursor : template.aliases().entrySet()) {
+                    aliasMeta.put(cursor.getKey(), cursor.getValue());
                 }
                 resolvedAliases.add(aliasMeta);
             }
@@ -1506,9 +1502,12 @@ public class MetadataIndexTemplateService {
             if (indexPattern.startsWith("_")) {
                 validationErrors.add("index_pattern [" + indexPattern + "] must not start with '_'");
             }
-            if (Strings.validFileNameExcludingAstrix(indexPattern) == false) {
+            if (org.opensearch.common.Strings.validFileNameExcludingAstrix(indexPattern) == false) {
                 validationErrors.add(
-                    "index_pattern [" + indexPattern + "] must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
+                    "index_pattern ["
+                        + indexPattern
+                        + "] must not contain the following characters "
+                        + org.opensearch.common.Strings.INVALID_FILENAME_CHARS
                 );
             }
         }

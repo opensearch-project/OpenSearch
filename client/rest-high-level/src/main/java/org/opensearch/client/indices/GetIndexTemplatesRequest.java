@@ -35,8 +35,8 @@ package org.opensearch.client.indices;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.Validatable;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 
 import java.util.Arrays;
 import java.util.List;

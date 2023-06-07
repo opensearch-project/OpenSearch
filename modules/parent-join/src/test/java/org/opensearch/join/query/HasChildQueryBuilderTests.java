@@ -33,10 +33,10 @@
 package org.opensearch.join.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -50,9 +50,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.InnerHitContextBuilder;
@@ -306,17 +304,9 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
         assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
         TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).getQuery();
-        Query rewrittenTermsQuery = termsQuery.rewrite(null);
-        assertThat(rewrittenTermsQuery, instanceOf(ConstantScoreQuery.class));
-        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) rewrittenTermsQuery;
-        assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
-        BooleanQuery booleanTermsQuery = (BooleanQuery) constantScoreQuery.getQuery();
-        assertThat(booleanTermsQuery.clauses().toString(), booleanTermsQuery.clauses().size(), equalTo(1));
-        assertThat(booleanTermsQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanTermsQuery.clauses().get(0).getQuery(), instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) booleanTermsQuery.clauses().get(0).getQuery();
-        assertThat(termQuery.getTerm().field(), equalTo(IdFieldMapper.NAME));
-        assertThat(termQuery.getTerm().bytes(), equalTo(Uid.encodeId(id)));
+        // The query is of type MultiTermQueryConstantScoreBlendedWrapper and is sealed inside Apache Lucene,
+        // no access to inner queries without using the reflection, falling back to stringified query comparison
+        assertThat(termsQuery.toString(), equalTo("_id:([ff 69 64])"));
         // check the type filter
         assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
         assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).getQuery());

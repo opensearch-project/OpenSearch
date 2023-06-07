@@ -47,7 +47,14 @@ import java.util.Objects;
  */
 public class CompressorFactory {
 
-    public static final Compressor COMPRESSOR = new DeflateCompressor();
+    public static final Compressor DEFLATE_COMPRESSOR = new DeflateCompressor();
+
+    @Deprecated
+    public static final Compressor COMPRESSOR = DEFLATE_COMPRESSOR;
+
+    public static final Compressor ZSTD_COMPRESSOR = new ZstdCompressor();
+
+    public static final Compressor NONE_COMPRESSOR = new NoneCompressor();
 
     public static boolean isCompressed(BytesReference bytes) {
         return compressor(bytes) != null;
@@ -61,6 +68,9 @@ public class CompressorFactory {
             // as a xcontent, we have a problem
             assert XContentHelper.xContentType(bytes) == null;
             return COMPRESSOR;
+        } else if (ZSTD_COMPRESSOR.isCompressed(bytes)) {
+            assert XContentHelper.xContentType(bytes) == null;
+            return ZSTD_COMPRESSOR;
         }
 
         XContentType contentType = XContentHelper.xContentType(bytes);
@@ -81,7 +91,6 @@ public class CompressorFactory {
 
     /**
      * Uncompress the provided data, data can be detected as compressed using {@link #isCompressed(BytesReference)}.
-     * @throws NullPointerException a NullPointerException will be thrown when bytes is null
      */
     public static BytesReference uncompressIfNeeded(BytesReference bytes) throws IOException {
         Compressor compressor = compressor(Objects.requireNonNull(bytes, "the BytesReference must not be null"));

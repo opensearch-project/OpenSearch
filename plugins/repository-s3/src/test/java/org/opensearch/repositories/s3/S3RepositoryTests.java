@@ -32,7 +32,7 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.services.s3.AbstractAmazonS3;
+import org.hamcrest.Matchers;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -43,7 +43,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
-import org.hamcrest.Matchers;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -55,14 +55,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathSupport {
 
-    private static class DummyS3Client extends AbstractAmazonS3 {
-
-        @Override
-        public void shutdown() {
-            // TODO check is closed
-        }
-    }
-
     private static class DummyS3Service extends S3Service {
         DummyS3Service(final Path configPath) {
             super(configPath);
@@ -70,7 +62,7 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
 
         @Override
         public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
-            return new AmazonS3Reference(new DummyS3Client());
+            return new AmazonS3Reference(S3Client.create());
         }
 
         @Override

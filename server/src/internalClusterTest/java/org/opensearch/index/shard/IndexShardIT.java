@@ -62,7 +62,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
@@ -701,6 +701,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             cbs,
             (indexSettings, shardRouting) -> new InternalTranslogFactory(),
             SegmentReplicationCheckpointPublisher.EMPTY,
+            null,
             null
         );
     }

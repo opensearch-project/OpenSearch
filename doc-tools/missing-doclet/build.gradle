@@ -5,10 +5,6 @@ plugins {
 group 'org.opensearch'
 version '1.0.0-SNAPSHOT'
 
-repositories {
-    mavenCentral()
-}
-
 tasks.withType(JavaCompile) {
   options.compilerArgs += ["--release", targetCompatibility.toString()]
   options.encoding = "UTF-8"

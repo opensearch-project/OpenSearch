@@ -43,7 +43,7 @@ import org.opensearch.Version;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
@@ -131,7 +131,7 @@ public class ReadOnlyEngine extends Engine {
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
                 if (isExtendedCompatibility()) {
-                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfosExtendedCompatibility(directory, this.minimumSupportedVersion);
+                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory, this.minimumSupportedVersion);
                 } else {
                     this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 }

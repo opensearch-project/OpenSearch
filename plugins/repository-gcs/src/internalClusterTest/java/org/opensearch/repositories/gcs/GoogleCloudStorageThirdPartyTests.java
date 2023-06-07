@@ -33,10 +33,10 @@
 package org.opensearch.repositories.gcs;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 

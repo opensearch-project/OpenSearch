@@ -56,7 +56,9 @@ import org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.opensearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
+import org.opensearch.action.admin.cluster.remotestore.stats.TransportRemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
@@ -252,8 +254,14 @@ import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.action.search.ClearScrollAction;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.DeletePitAction;
+import org.opensearch.action.search.DeleteSearchPipelineAction;
+import org.opensearch.action.search.DeleteSearchPipelineTransportAction;
+import org.opensearch.action.search.GetSearchPipelineAction;
+import org.opensearch.action.search.GetSearchPipelineTransportAction;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.GetAllPitsAction;
+import org.opensearch.action.search.PutSearchPipelineAction;
+import org.opensearch.action.search.PutSearchPipelineTransportAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.TransportClearScrollAction;
@@ -289,6 +297,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.extensions.action.ExtensionProxyAction;
 import org.opensearch.extensions.action.ExtensionProxyTransportAction;
 import org.opensearch.index.seqno.RetentionLeaseActions;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
@@ -297,6 +306,7 @@ import org.opensearch.persistent.StartPersistentTaskAction;
 import org.opensearch.persistent.UpdatePersistentTaskStatusAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
+import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
@@ -341,6 +351,7 @@ import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
+import org.opensearch.rest.action.admin.cluster.RestRemoteStoreStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreRemoteStoreAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
@@ -434,11 +445,15 @@ import org.opensearch.rest.action.search.RestClearScrollAction;
 import org.opensearch.rest.action.search.RestCountAction;
 import org.opensearch.rest.action.search.RestCreatePitAction;
 import org.opensearch.rest.action.search.RestDeletePitAction;
+import org.opensearch.rest.action.search.RestDeleteSearchPipelineAction;
 import org.opensearch.rest.action.search.RestExplainAction;
 import org.opensearch.rest.action.search.RestGetAllPitsAction;
+import org.opensearch.rest.action.search.RestGetSearchPipelineAction;
 import org.opensearch.rest.action.search.RestMultiSearchAction;
+import org.opensearch.rest.action.search.RestPutSearchPipelineAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
+import org.opensearch.rest.extensions.RestSendToExtensionAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
@@ -447,8 +462,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -503,7 +520,8 @@ public class ActionModule extends AbstractModule {
         NodeClient nodeClient,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        IdentityService identityService
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -539,7 +557,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList())
         );
 
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, identityService);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -571,6 +589,7 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         actions.register(RemoteInfoAction.INSTANCE, TransportRemoteInfoAction.class);
         actions.register(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
+        actions.register(RemoteStoreStatsAction.INSTANCE, TransportRemoteStoreStatsAction.class);
         actions.register(NodesUsageAction.INSTANCE, TransportNodesUsageAction.class);
         actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
         actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
@@ -731,6 +750,11 @@ public class ActionModule extends AbstractModule {
         actions.register(DecommissionAction.INSTANCE, TransportDecommissionAction.class);
         actions.register(GetDecommissionStateAction.INSTANCE, TransportGetDecommissionStateAction.class);
         actions.register(DeleteDecommissionStateAction.INSTANCE, TransportDeleteDecommissionStateAction.class);
+
+        // Search Pipelines
+        actions.register(PutSearchPipelineAction.INSTANCE, PutSearchPipelineTransportAction.class);
+        actions.register(GetSearchPipelineAction.INSTANCE, GetSearchPipelineTransportAction.class);
+        actions.register(DeleteSearchPipelineAction.INSTANCE, DeleteSearchPipelineTransportAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }
@@ -916,6 +940,13 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPitSegmentsAction(nodesInCluster));
         registerHandler.accept(new RestDeleteDecommissionStateAction());
 
+        // Search pipelines API
+        if (FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE)) {
+            registerHandler.accept(new RestPutSearchPipelineAction());
+            registerHandler.accept(new RestGetSearchPipelineAction());
+            registerHandler.accept(new RestDeleteSearchPipelineAction());
+        }
+
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(
                 settings,
@@ -935,6 +966,7 @@ public class ActionModule extends AbstractModule {
 
         // Remote Store APIs
         if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
+            registerHandler.accept(new RestRemoteStoreStatsAction());
             registerHandler.accept(new RestRestoreRemoteStoreAction());
         }
     }
@@ -1000,6 +1032,12 @@ public class ActionModule extends AbstractModule {
         // at times other than node bootstrap.
         private final Map<ActionType<?>, TransportAction<?, ?>> registry = new ConcurrentHashMap<>();
 
+        // A dynamic registry to add or remove Route / RestSendToExtensionAction pairs
+        // at times other than node bootstrap.
+        private final Map<RestHandler.Route, RestSendToExtensionAction> routeRegistry = new ConcurrentHashMap<>();
+
+        private final Set<String> registeredActionNames = new ConcurrentSkipListSet<>();
+
         /**
          * Register the immutable actions in the registry.
          *
@@ -1007,6 +1045,9 @@ public class ActionModule extends AbstractModule {
          */
         public void registerUnmodifiableActionMap(Map<ActionType, TransportAction> actions) {
             this.actions = actions;
+            for (ActionType action : actions.keySet()) {
+                registeredActionNames.add(action.name());
+            }
         }
 
         /**
@@ -1021,6 +1062,7 @@ public class ActionModule extends AbstractModule {
             if (actions.containsKey(action) || registry.putIfAbsent(action, transportAction) != null) {
                 throw new IllegalArgumentException("action [" + action.name() + "] already registered");
             }
+            registeredActionNames.add(action.name());
         }
 
         /**
@@ -1033,6 +1075,16 @@ public class ActionModule extends AbstractModule {
             if (registry.remove(action) == null) {
                 throw new IllegalArgumentException("action [" + action.name() + "] was not registered");
             }
+            registeredActionNames.remove(action.name());
+        }
+
+        /**
+         * Checks to see if an action is registered provided an action name
+         *
+         * @param actionName The name of the action to check
+         */
+        public boolean isActionRegistered(String actionName) {
+            return registeredActionNames.contains(actionName);
         }
 
         /**
@@ -1047,6 +1099,55 @@ public class ActionModule extends AbstractModule {
                 return actions.get(action);
             }
             return registry.get(action);
+        }
+
+        /**
+         * Add a dynamic action to the registry.
+         *
+         * @param route The route instance to add
+         * @param action The corresponding instance of RestSendToExtensionAction to execute
+         */
+        public void registerDynamicRoute(RestHandler.Route route, RestSendToExtensionAction action) {
+            requireNonNull(route, "route is required");
+            requireNonNull(action, "action is required");
+            Optional<String> routeName = Optional.empty();
+            if (route instanceof NamedRoute) {
+                routeName = Optional.of(((NamedRoute) route).name());
+                if (isActionRegistered(routeName.get()) || registeredActionNames.contains(routeName.get())) {
+                    throw new IllegalArgumentException("route [" + route + "] already registered");
+                }
+            }
+            if (routeRegistry.containsKey(route)) {
+                throw new IllegalArgumentException("route [" + route + "] already registered");
+            }
+            routeRegistry.put(route, action);
+            routeName.ifPresent(registeredActionNames::add);
+        }
+
+        /**
+         * Remove a dynamic route from the registry.
+         *
+         * @param route The route to remove
+         */
+        public void unregisterDynamicRoute(RestHandler.Route route) {
+            requireNonNull(route, "route is required");
+            if (routeRegistry.remove(route) == null) {
+                throw new IllegalArgumentException("action [" + route + "] was not registered");
+            }
+            if (route instanceof NamedRoute) {
+                registeredActionNames.remove(((NamedRoute) route).name());
+            }
+        }
+
+        /**
+         * Gets the {@link RestSendToExtensionAction} instance corresponding to the {@link RestHandler.Route} instance.
+         *
+         * @param route The {@link RestHandler.Route}.
+         * @return the corresponding {@link RestSendToExtensionAction} if it is registered, null otherwise.
+         */
+        @SuppressWarnings("unchecked")
+        public RestSendToExtensionAction get(RestHandler.Route route) {
+            return routeRegistry.get(route);
         }
     }
 }

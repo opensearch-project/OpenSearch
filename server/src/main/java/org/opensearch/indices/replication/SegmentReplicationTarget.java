@@ -51,18 +51,15 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private final SegmentReplicationState state;
     protected final MultiFileWriter multiFileWriter;
 
+    public final static String REPLICATION_PREFIX = "replication.";
+
     public ReplicationCheckpoint getCheckpoint() {
         return this.checkpoint;
     }
 
-    public SegmentReplicationTarget(
-        ReplicationCheckpoint checkpoint,
-        IndexShard indexShard,
-        SegmentReplicationSource source,
-        ReplicationListener listener
-    ) {
+    public SegmentReplicationTarget(IndexShard indexShard, SegmentReplicationSource source, ReplicationListener listener) {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
-        this.checkpoint = checkpoint;
+        this.checkpoint = indexShard.getLatestReplicationCheckpoint();
         this.source = source;
         this.state = new SegmentReplicationState(
             indexShard.routingEntry(),
@@ -85,7 +82,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     protected String getPrefix() {
-        return "replication." + UUIDs.randomBase64UUID() + ".";
+        return REPLICATION_PREFIX + UUIDs.randomBase64UUID() + ".";
     }
 
     @Override
@@ -99,7 +96,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     public SegmentReplicationTarget retryCopy() {
-        return new SegmentReplicationTarget(checkpoint, indexShard, source, listener);
+        return new SegmentReplicationTarget(indexShard, source, listener);
     }
 
     @Override
@@ -228,7 +225,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 );
                 cancellableThreads.checkForCancel();
                 indexShard.finalizeReplication(infos);
-                store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infos);
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are
@@ -290,5 +286,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     protected void onCancel(String reason) {
         cancellableThreads.cancel(reason);
         source.cancel();
+        multiFileWriter.close();
     }
 }

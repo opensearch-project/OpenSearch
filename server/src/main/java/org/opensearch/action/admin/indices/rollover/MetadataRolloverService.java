@@ -48,9 +48,9 @@ import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -374,7 +374,7 @@ public class MetadataRolloverService {
                         Locale.ROOT,
                         "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
                         rolloverRequestAlias,
-                        template.aliases().keys(),
+                        template.aliases().keySet(),
                         template.name()
                     )
                 );

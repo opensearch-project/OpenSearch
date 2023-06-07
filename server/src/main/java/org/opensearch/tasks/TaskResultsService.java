@@ -34,7 +34,7 @@ package org.opensearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionListener;
@@ -53,12 +53,12 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.Streams;
+import org.opensearch.common.util.io.Streams;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
@@ -126,7 +126,7 @@ public class TaskResultsService {
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                    if (BaseExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         // we have the index, do it
                         try {
                             doStoreResult(taskResult, listener);

@@ -32,10 +32,11 @@
 
 package org.opensearch.action.admin.indices.cache.clear;
 
+import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 
@@ -49,6 +50,7 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
     private boolean queryCache = false;
     private boolean fieldDataCache = false;
     private boolean requestCache = false;
+    private boolean fileCache = false;
     private String[] fields = Strings.EMPTY_ARRAY;
 
     public ClearIndicesCacheRequest(StreamInput in) throws IOException {
@@ -57,6 +59,9 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
         fieldDataCache = in.readBoolean();
         fields = in.readStringArray();
         requestCache = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
+            fileCache = in.readBoolean();
+        }
     }
 
     public ClearIndicesCacheRequest(String... indices) {
@@ -90,6 +95,15 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
         return this;
     }
 
+    public boolean fileCache() {
+        return this.fileCache;
+    }
+
+    public ClearIndicesCacheRequest fileCache(boolean fileCache) {
+        this.fileCache = fileCache;
+        return this;
+    }
+
     public ClearIndicesCacheRequest fields(String... fields) {
         this.fields = fields == null ? Strings.EMPTY_ARRAY : fields;
         return this;
@@ -106,5 +120,8 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
         out.writeBoolean(fieldDataCache);
         out.writeStringArrayNullable(fields);
         out.writeBoolean(requestCache);
+        if (out.getVersion().onOrAfter(Version.V_2_8_0)) {
+            out.writeBoolean(fileCache);
+        }
     }
 }

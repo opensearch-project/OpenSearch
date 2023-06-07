@@ -17,6 +17,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -73,8 +74,11 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
         ShardId testShardId = primary.shardId();
 
+        CodecService codecService = new CodecService(null, null);
+        String defaultCodecName = codecService.codec(CodecService.DEFAULT_CODEC).getName();
+
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
-        testCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L);
+        testCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L, defaultCodecName);
         IndexService mockIndexService = mock(IndexService.class);
         when(mockIndicesService.indexServiceSafe(testShardId.getIndex())).thenReturn(mockIndexService);
         when(mockIndexService.getShard(testShardId.id())).thenReturn(primary);

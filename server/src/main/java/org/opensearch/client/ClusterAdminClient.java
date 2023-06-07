@@ -59,6 +59,9 @@ import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettings
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequest;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequestBuilder;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -150,6 +153,10 @@ import org.opensearch.action.ingest.PutPipelineRequestBuilder;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
+import org.opensearch.action.search.DeleteSearchPipelineRequest;
+import org.opensearch.action.search.GetSearchPipelineRequest;
+import org.opensearch.action.search.GetSearchPipelineResponse;
+import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
@@ -310,6 +317,10 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Nodes stats of the cluster.
      */
     NodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
+
+    void remoteStoreStats(RemoteStoreStatsRequest request, ActionListener<RemoteStoreStatsResponse> listener);
+
+    RemoteStoreStatsRequestBuilder prepareRemoteStoreStats(String index, String shardId);
 
     /**
      * Returns top N hot-threads samples per node. The hot-threads are only
@@ -899,4 +910,34 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Deletes the decommission metadata.
      */
     DeleteDecommissionStateRequestBuilder prepareDeleteDecommissionRequest();
+
+    /**
+     * Stores a search pipeline
+     */
+    void putSearchPipeline(PutSearchPipelineRequest request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Stores a search pipeline
+     */
+    ActionFuture<AcknowledgedResponse> putSearchPipeline(PutSearchPipelineRequest request);
+
+    /**
+     * Returns a stored search pipeline
+     */
+    void getSearchPipeline(GetSearchPipelineRequest request, ActionListener<GetSearchPipelineResponse> listener);
+
+    /**
+     * Returns a stored search pipeline
+     */
+    ActionFuture<GetSearchPipelineResponse> getSearchPipeline(GetSearchPipelineRequest request);
+
+    /**
+     * Deletes a stored search pipeline
+     */
+    void deleteSearchPipeline(DeleteSearchPipelineRequest request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Deletes a stored search pipeline
+     */
+    ActionFuture<AcknowledgedResponse> deleteSearchPipeline(DeleteSearchPipelineRequest request);
 }

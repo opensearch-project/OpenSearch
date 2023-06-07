@@ -65,6 +65,7 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
@@ -72,6 +73,8 @@ import org.opensearch.search.profile.query.ProfileWeight;
 import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.search.profile.query.QueryTimingType;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.MinAndMax;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -97,6 +100,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
+    private SearchContext searchContext;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -106,7 +110,37 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         boolean wrapWithExitableDirectoryReader,
         Executor executor
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, executor);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            wrapWithExitableDirectoryReader,
+            executor,
+            null
+        );
+    }
+
+    public ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        boolean wrapWithExitableDirectoryReader,
+        Executor executor,
+        SearchContext searchContext
+    ) throws IOException {
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            wrapWithExitableDirectoryReader,
+            executor,
+            searchContext
+        );
     }
 
     private ContextIndexSearcher(
@@ -116,13 +150,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         MutableQueryTimeout cancellable,
         boolean wrapWithExitableDirectoryReader,
-        Executor executor
+        Executor executor,
+        SearchContext searchContext
     ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
+        this.searchContext = searchContext;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -258,6 +294,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+
+        // Check if at all we need to call this leaf for collecting results.
+        if (canMatch(ctx) == false) {
+            return;
+        }
+
         cancellable.checkCancelled();
         weight = wrapWeight(weight);
         // See please https://github.com/apache/lucene/pull/964
@@ -432,5 +474,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         public void clear() {
             runnables.clear();
         }
+    }
+
+    private boolean canMatch(LeafReaderContext ctx) throws IOException {
+        // skip segments for search after if min/max of them doesn't qualify competitive
+        return canMatchSearchAfter(ctx);
+    }
+
+    private boolean canMatchSearchAfter(LeafReaderContext ctx) throws IOException {
+        if (searchContext != null && searchContext.request() != null && searchContext.request().source() != null) {
+            // Only applied on primary sort field and primary search_after.
+            FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
+            if (primarySortField != null) {
+                MinAndMax<?> minMax = FieldSortBuilder.getMinMaxOrNullForSegment(
+                    this.searchContext.getQueryShardContext(),
+                    ctx,
+                    primarySortField
+                );
+                return SearchService.canMatchSearchAfter(searchContext.searchAfter(), minMax, primarySortField);
+            }
+        }
+        return true;
     }
 }

@@ -47,10 +47,10 @@
 
 package org.opensearch.http;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
@@ -169,7 +169,7 @@ public class CorsHandler {
 
     private boolean setOrigin(final HttpRequest request, final HttpResponse response) {
         String origin = getOrigin(request);
-        if (!Strings.isNullOrEmpty(origin)) {
+        if (Strings.isNullOrEmpty(origin) == false) {
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
                     setAllowOrigin(response, origin);

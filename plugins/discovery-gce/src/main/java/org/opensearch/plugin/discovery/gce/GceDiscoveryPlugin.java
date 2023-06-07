@@ -46,7 +46,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.gce.GceSeedHostsProvider;
 import org.opensearch.plugins.DiscoveryPlugin;

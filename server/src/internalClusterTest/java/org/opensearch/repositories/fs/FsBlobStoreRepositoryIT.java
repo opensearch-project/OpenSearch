@@ -39,7 +39,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 
 import java.io.IOException;

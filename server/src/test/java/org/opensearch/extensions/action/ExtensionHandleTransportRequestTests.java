@@ -8,28 +8,28 @@
 
 package org.opensearch.extensions.action;
 
+import com.google.protobuf.ByteString;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.nio.charset.StandardCharsets;
-
 public class ExtensionHandleTransportRequestTests extends OpenSearchTestCase {
     public void testExtensionHandleTransportRequest() throws Exception {
         String expectedAction = "test-action";
-        byte[] expectedRequestBytes = "request-bytes".getBytes(StandardCharsets.UTF_8);
+        ByteString expectedRequestBytes = ByteString.copyFromUtf8("request-bytes");
         ExtensionHandleTransportRequest request = new ExtensionHandleTransportRequest(expectedAction, expectedRequestBytes);
 
         assertEquals(expectedAction, request.getAction());
+        logger.info(expectedRequestBytes);
+        logger.info(request.getRequestBytes());
         assertEquals(expectedRequestBytes, request.getRequestBytes());
 
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()));
         request = new ExtensionHandleTransportRequest(in);
-
+        assertEquals(expectedRequestBytes, request.getRequestBytes());
         assertEquals(expectedAction, request.getAction());
-        assertArrayEquals(expectedRequestBytes, request.getRequestBytes());
     }
 }

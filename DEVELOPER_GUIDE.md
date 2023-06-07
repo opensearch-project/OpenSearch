@@ -9,6 +9,7 @@
       - [Windows](#windows)
       - [Docker](#docker)
     - [Build](#build)
+      - [Generated Code](#generated-code)
     - [Run Tests](#run-tests)
     - [Run OpenSearch](#run-opensearch)
   - [Use an Editor](#use-an-editor)
@@ -26,6 +27,7 @@
     - [`server`](#server)
     - [`test`](#test)
   - [Java Language Formatting Guidelines](#java-language-formatting-guidelines)
+  - [Adding Dependencies](#adding-dependencies)
     - [Editor / IDE Support](#editor--ide-support)
     - [Formatting Failures](#formatting-failures)
   - [Gradle Build](#gradle-build)
@@ -39,7 +41,7 @@
       - [Distribution Download Plugin](#distribution-download-plugin)
     - [Creating fat-JAR of a Module](#creating-fat-jar-of-a-module)
   - [Components](#components)
-    - [Build libraries & interfaces](#build-libraries--interfaces)
+    - [Build Libraries & Interfaces](#build-libraries--interfaces)
     - [Clients & Libraries](#clients--libraries)
     - [Plugins](#plugins-1)
     - [Indexing & Search](#indexing--search)
@@ -132,6 +134,17 @@ To build a distribution to run on your local platform, run:
 ```
 
 All distributions built will be under `distributions/archives`.
+
+#### Generated Code
+
+OpenSearch uses code generators like [Protobuf](https://protobuf.dev/).
+OpenSearch build system already takes a dependency of generating code from protobuf, incase you run into compilation errors, run:
+
+```
+./gradlew generateProto
+```
+
+Generated code in OpenSearch is used to establish cross version compatibility communication for API contracts within OpenSearch.
 
 ### Run Tests
 
@@ -328,6 +341,18 @@ Please follow these formatting guidelines:
 * Note that JavaDoc and block comments i.e. `/* ... */` are not formatted, but line comments i.e `// ...` are.
 * There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, if might get called out in PR reviews as something to change.
 
+## Adding Dependencies
+
+When adding a new dependency or removing an existing dependency via any `build.gradle` (that are not in the test scope), update the dependency LICENSE and library SHAs.
+
+For example, after adding `api "org.slf4j:slf4j-api:${versions.slf4j}"` to [plugins/discovery-ec2/build.gradle](plugins/discovery-ec2/build.gradle), copy the library `LICENSE.txt` and `NOTICE.txt` to `plugins/discovery-ec2/licenses/slf4j-api-LICENSE.txt` and `plugins/discovery-ec2/licenses/slf4j-api-NOTICE.txt`, then run the following to generate `plugins/discovery-ec2/licenses/slf4j-api-1.7.36.jar.sha1`.
+
+```
+./gradlew :plugins:discovery-ec2:updateSHAs
+```
+
+Ensure that `./gradlew :plugins:discovery-ec2:check` passes before submitting changes.
+
 ### Editor / IDE Support
 
 IntelliJ IDEs can [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/) the [settings file](buildSrc/formatterConfig.xml), and / or use the [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
@@ -424,7 +449,7 @@ Refer the installed JAR as any other maven artifact, e.g.
 
 As you work in the OpenSearch repo you may notice issues getting labeled with component labels.  It's a housekeeping task to help group together similar pieces of work.  You can pretty much ignore it, but if you're curious, here's what the different labels mean:
 
-### Build libraries & interfaces
+### Build Libraries & Interfaces
 
 Tasks to make sure the build tasks are useful and packaging and distribution are easy.
 
@@ -436,7 +461,6 @@ Includes:
 - Versioning interfaces
 - Compatibility
 - Javadoc enforcement
-
 
 ### Clients & Libraries
 
@@ -499,6 +523,7 @@ Includes:
 Security is our top priority. Avoid checking in credentials.
 
 #### Installation
+
 Install [awslabs/git-secrets](https://github.com/awslabs/git-secrets) by running the following commands.
 ```
 git clone https://github.com/awslabs/git-secrets.git
@@ -507,6 +532,7 @@ make install
 ```
 
 #### Configuration
+
 You can configure git secrets per repository, you need to change the directory to the root of the repository and run the following command.
 ```
 git secrets --install
@@ -533,11 +559,13 @@ OpenSearch addresses backward and forward compatibility at three different level
 to ensure backwards compatibility are provided below.
 
 #### Data
+
 The data level consists of index and application data file formats. OpenSearch guarantees file formats and indexes are compatible only back to the first release of
 the previous major version. If on disk formats or encodings need to be changed (including index data, cluster state, or any other persisted data) developers must
 use Version checks accordingly (e.g., `Version.onOrAfter`, `Version.before`) to guarantee backwards compatibility.
 
 #### Developer API
+
 The Developer API consists of interfaces and foundation software implementations that enable external users to develop new OpenSearch features. This includes
 obvious components such as the Plugin framework and less obvious components such as REST Action Handlers. When developing a new feature of OpenSearch it is important
 to explicitly mark which implementation components may, or may not, be extended by external implementations. For example, all new API classes with `@opensearch.api`
@@ -547,6 +575,7 @@ guarantee backwards compatibility and may change at any time. The `@deprecated` 
 either changed or planned to be removed across minor versions.
 
 #### User API
+
 The User API consists of integration specifications (e.g., [Query Domain Specific Language](https://opensearch.org/docs/latest/opensearch/query-dsl/index/),
 [field mappings](https://opensearch.org/docs/latest/opensearch/mappings/)) and endpoints (e.g., [`_search`](https://opensearch.org/docs/latest/api-reference/search/),
 [`_cat`](https://opensearch.org/docs/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
@@ -556,6 +585,7 @@ users of any changes by adding the `>breaking` label on Pull Requests, adding an
 and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.
 
 #### Experimental Development
+
 Rapidly developing new features often benefit from several release cycles before committing to an official and long term supported (LTS) API. To enable this cycle OpenSearch
 uses an Experimental Development process leveraging [Feature Flags](https://featureflags.io/feature-flags/). This allows a feature to be developed using the same process as
 a LTS feature but with additional guard rails and communication mechanisms to signal to the users and development community the feature is not yet stable, may change in a future
@@ -584,8 +614,9 @@ Pass a list of files or directories to limit your search.
 
 ### Lucene Snapshots
 
-The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a Github worfklow executable by maintainers to build a top-down snapshot build of lucene.
+The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a GitHub workflow executable by maintainers to build a top-down snapshot build of Lucene.
 These snapshots are available to test compatibility with upcoming changes to Lucene by updating the version at [version.properties](buildsrc/version.properties) with the `version-snapshot-sha` version. Example: `lucene = 10.0.0-snapshot-2e941fc`.
+Note that these snapshots do not follow the Maven [naming convention](https://maven.apache.org/guides/getting-started/index.html#what-is-a-snapshot-version) with a (case sensitive) SNAPSHOT suffix, so these artifacts are considered "releases" by build systems such as the `mavenContent` repository filter in Gradle or `releases` artifact policies in Maven.
 
 ### Flaky Tests
 
@@ -596,6 +627,6 @@ If you encounter a build/test failure in CI that is unrelated to the change in y
 1. Follow failed CI links, and locate the failing test(s).
 2. Copy-paste the failure into a comment of your PR.
 3. Search through [issues](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) using the name of the failed test for whether this is a known flaky test.
-5. If an existing issue is found, paste a link to the known issue in a comment to your PR.
-6. If no existing issue is found, open one.
-7. Retry CI via the GitHub UX or by pushing an update to your PR.
+4. If an existing issue is found, paste a link to the known issue in a comment to your PR.
+5. If no existing issue is found, open one.
+6. Retry CI via the GitHub UX or by pushing an update to your PR.

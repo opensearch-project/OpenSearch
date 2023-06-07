@@ -19,7 +19,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.DelayRecoveryException;
@@ -136,7 +136,7 @@ class SegmentReplicationSourceHandler {
                     timer.time()
                 );
             };
-
+            cancellableThreads.checkForCancel();
             final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
             ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
             if (targetShardRouting == null) {

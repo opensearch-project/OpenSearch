@@ -73,7 +73,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.rest.RestStatus;
@@ -1058,10 +1058,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     protected static Map<String, Object> getAlias(final String index, final String alias) throws IOException {
         String endpoint = "/_alias";
-        if (false == Strings.isEmpty(index)) {
+        if (false == org.opensearch.core.common.Strings.isEmpty(index)) {
             endpoint = index + endpoint;
         }
-        if (false == Strings.isEmpty(alias)) {
+        if (false == org.opensearch.core.common.Strings.isEmpty(alias)) {
             endpoint = endpoint + "/" + alias;
         }
         Map<String, Object> getAliasResponse = getAsMap(endpoint);

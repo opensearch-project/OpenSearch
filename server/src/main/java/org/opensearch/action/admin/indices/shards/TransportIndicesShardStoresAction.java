@@ -54,7 +54,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
@@ -69,8 +68,10 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -230,10 +231,8 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
             }
 
             void finish() {
-                ImmutableOpenMap.Builder<
-                    String,
-                    ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>>> indicesStoreStatusesBuilder =
-                        ImmutableOpenMap.builder();
+                final Map<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> indicesStoreStatusesBuilder =
+                    new HashMap<>();
 
                 java.util.List<IndicesShardStoresResponse.Failure> failureBuilder = new ArrayList<>();
                 for (Response fetchResponse : fetchResponses) {
@@ -283,7 +282,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
                     }
                 }
                 listener.onResponse(
-                    new IndicesShardStoresResponse(indicesStoreStatusesBuilder.build(), Collections.unmodifiableList(failureBuilder))
+                    new IndicesShardStoresResponse(indicesStoreStatusesBuilder, Collections.unmodifiableList(failureBuilder))
                 );
             }
 

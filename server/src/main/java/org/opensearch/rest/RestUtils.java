@@ -33,8 +33,8 @@
 package org.opensearch.rest;
 
 import org.opensearch.common.Booleans;
-import org.opensearch.common.Strings;
 import org.opensearch.common.path.PathTrie;
+import org.opensearch.core.common.Strings;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;

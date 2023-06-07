@@ -54,7 +54,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.logging.LoggerMessageFormat;
+import org.opensearch.core.common.logging.LoggerMessageFormat;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;

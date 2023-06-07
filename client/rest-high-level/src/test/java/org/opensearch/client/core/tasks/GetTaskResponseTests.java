@@ -43,6 +43,7 @@ import org.opensearch.tasks.TaskResourceUsage;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskThreadUsage;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -95,6 +96,10 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable == true ? randomBoolean() : false;
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
+        Long cancellationStartTime = null;
+        if (cancelled) {
+            cancellationStartTime = randomNonNegativeLong();
+        }
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
@@ -110,7 +115,8 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
             cancelled,
             parentTaskId,
             headers,
-            randomResourceStats()
+            randomResourceStats(),
+            cancellationStartTime
         );
     }
 
@@ -133,12 +139,12 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
     }
 
     private static TaskResourceStats randomResourceStats() {
-        return randomBoolean() ? null : new TaskResourceStats(new HashMap<String, TaskResourceUsage>() {
+        return randomBoolean() ? null : new TaskResourceStats(new HashMap<>() {
             {
                 for (int i = 0; i < randomInt(5); i++) {
                     put(randomAlphaOfLength(5), new TaskResourceUsage(randomNonNegativeLong(), randomNonNegativeLong()));
                 }
             }
-        });
+        }, new TaskThreadUsage(randomInt(10), randomInt(10)));
     }
 }

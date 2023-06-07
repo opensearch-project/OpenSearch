@@ -13,8 +13,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 
 import java.util.HashSet;
 import java.util.Iterator;
@@ -75,8 +75,8 @@ public class DecommissionHelper {
     ) {
         Set<DiscoveryNode> nodesWithDecommissionAttribute = new HashSet<>();
         Iterator<DiscoveryNode> nodesIter = onlyClusterManagerNodes
-            ? clusterState.nodes().getClusterManagerNodes().valuesIt()
-            : clusterState.nodes().getNodes().valuesIt();
+            ? clusterState.nodes().getClusterManagerNodes().values().iterator()
+            : clusterState.nodes().getNodes().values().iterator();
 
         while (nodesIter.hasNext()) {
             final DiscoveryNode node = nodesIter.next();

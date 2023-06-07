@@ -31,22 +31,24 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.repositories.s3.utils.HttpRangeUtils;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Wrapper around an S3 object that will retry the {@link GetObjectRequest} if the download fails part-way through, resuming from where
@@ -68,7 +70,8 @@ class S3RetryingInputStream extends InputStream {
     private final int maxAttempts;
     private final List<IOException> failures;
 
-    private S3ObjectInputStream currentStream;
+    private ResponseInputStream<GetObjectResponse> currentStream;
+    private final AtomicBoolean isStreamAborted = new AtomicBoolean();
     private long currentStreamLastOffset;
     private int attempt = 1;
     private long currentOffset;
@@ -98,8 +101,10 @@ class S3RetryingInputStream extends InputStream {
 
     private void openStream() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
+            final GetObjectRequest.Builder getObjectRequest = GetObjectRequest.builder()
+                .bucket(blobStore.bucket())
+                .key(blobKey)
+                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().getObjectMetricPublisher));
             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                 assert start + currentOffset <= end : "requesting beyond end, start = "
                     + start
@@ -107,14 +112,20 @@ class S3RetryingInputStream extends InputStream {
                     + currentOffset
                     + " end="
                     + end;
-                getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
+                getObjectRequest.range(HttpRangeUtils.toHttpRangeHeader(Math.addExact(start, currentOffset), end));
             }
-            final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.get().getObject(getObjectRequest));
-            this.currentStreamLastOffset = Math.addExact(Math.addExact(start, currentOffset), getStreamLength(s3Object));
-            this.currentStream = s3Object.getObjectContent();
-        } catch (final AmazonClientException e) {
-            if (e instanceof AmazonS3Exception) {
-                if (404 == ((AmazonS3Exception) e).getStatusCode()) {
+            final ResponseInputStream<GetObjectResponse> getObjectResponseInputStream = SocketAccess.doPrivileged(
+                () -> clientReference.get().getObject(getObjectRequest.build())
+            );
+            this.currentStreamLastOffset = Math.addExact(
+                Math.addExact(start, currentOffset),
+                getStreamLength(getObjectResponseInputStream.response())
+            );
+            this.currentStream = getObjectResponseInputStream;
+            this.isStreamAborted.set(false);
+        } catch (final SdkException e) {
+            if (e instanceof S3Exception) {
+                if (404 == ((S3Exception) e).statusCode()) {
                     throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));
                 }
             }
@@ -122,24 +133,23 @@ class S3RetryingInputStream extends InputStream {
         }
     }
 
-    private long getStreamLength(final S3Object object) {
-        final ObjectMetadata metadata = object.getObjectMetadata();
+    private long getStreamLength(final GetObjectResponse getObjectResponse) {
         try {
             // Returns the content range of the object if response contains the Content-Range header.
-            final Long[] range = metadata.getContentRange();
-            if (range != null) {
-                assert range[1] >= range[0] : range[1] + " vs " + range[0];
-                assert range[0] == start + currentOffset : "Content-Range start value ["
-                    + range[0]
+            if (getObjectResponse.contentRange() != null) {
+                final Tuple<Long, Long> s3ResponseRange = HttpRangeUtils.fromHttpRangeHeader(getObjectResponse.contentRange());
+                assert s3ResponseRange.v2() >= s3ResponseRange.v1() : s3ResponseRange.v2() + " vs " + s3ResponseRange.v1();
+                assert s3ResponseRange.v1() == start + currentOffset : "Content-Range start value ["
+                    + s3ResponseRange.v1()
                     + "] exceeds start ["
                     + start
                     + "] + current offset ["
                     + currentOffset
                     + ']';
-                assert range[1] == end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
-                return range[1] - range[0] + 1L;
+                assert s3ResponseRange.v2() == end : "Content-Range end value [" + s3ResponseRange.v2() + "] exceeds end [" + end + ']';
+                return s3ResponseRange.v2() - s3ResponseRange.v1() + 1L;
             }
-            return metadata.getContentLength();
+            return getObjectResponse.contentLength();
         } catch (Exception e) {
             assert false : e;
             return Long.MAX_VALUE - 1L; // assume a large stream so that the underlying stream is aborted on closing, unless eof is reached
@@ -235,16 +245,17 @@ class S3RetryingInputStream extends InputStream {
     }
 
     /**
-     * Abort the {@link S3ObjectInputStream} if it wasn't read completely at the time this method is called,
+     * Abort the {@link ResponseInputStream} if it wasn't read completely at the time this method is called,
      * suppressing all thrown exceptions.
      */
-    private void maybeAbort(S3ObjectInputStream stream) {
-        if (isEof()) {
+    private void maybeAbort(ResponseInputStream<GetObjectResponse> stream) {
+        if (isEof() || isAborted()) {
             return;
         }
         try {
             if (start + currentOffset < currentStreamLastOffset) {
                 stream.abort();
+                isStreamAborted.compareAndSet(false, true);
             }
         } catch (Exception e) {
             logger.warn("Failed to abort stream before closing", e);
@@ -275,9 +286,6 @@ class S3RetryingInputStream extends InputStream {
 
     // package-private for tests
     boolean isAborted() {
-        if (currentStream == null || currentStream.getHttpRequest() == null) {
-            return false;
-        }
-        return currentStream.getHttpRequest().isAborted();
+        return isStreamAborted.get();
     }
 }

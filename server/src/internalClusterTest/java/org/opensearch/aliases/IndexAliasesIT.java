@@ -32,7 +32,6 @@
 
 package org.opensearch.aliases;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -87,7 +86,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
-import static org.opensearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -96,6 +94,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -1044,8 +1043,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         assertAcked(admin().indices().prepareAliases().removeAlias("foobar", "foo"));
 
         getResponse = admin().indices().prepareGetAliases("foo").addIndices("foobar").get();
-        for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : getResponse.getAliases()) {
-            assertTrue(entry.value.isEmpty());
+        for (final List<AliasMetadata> entry : getResponse.getAliases().values()) {
+            assertTrue(entry.isEmpty());
         }
         assertTrue(admin().indices().prepareGetAliases("foo").addIndices("foobar").get().getAliases().isEmpty());
     }

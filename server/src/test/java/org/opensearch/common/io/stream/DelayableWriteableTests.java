@@ -118,12 +118,12 @@ public class DelayableWriteableTests extends OpenSearchTestCase {
         }
 
         SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
-            version = Version.readVersion(in);
+            version = in.readVersion();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            Version.writeVersion(out.getVersion(), out);
+            out.writeVersion(out.getVersion());
         }
     }
 

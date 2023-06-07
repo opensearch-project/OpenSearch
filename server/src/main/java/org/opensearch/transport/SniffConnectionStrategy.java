@@ -44,7 +44,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -53,8 +52,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -397,7 +397,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public void handleResponse(ClusterStateResponse response) {
-            handleNodes(response.getState().nodes().getNodes().valuesIt());
+            handleNodes(response.getState().nodes().getNodes().values().iterator());
         }
 
         private void handleNodes(Iterator<DiscoveryNode> nodesIter) {

@@ -56,11 +56,11 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
-import static org.opensearch.common.Strings.EMPTY_ARRAY;
 import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.opensearch.core.common.Strings.EMPTY_ARRAY;
 
 /**
  * Create snapshot request
@@ -71,7 +71,7 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
  * <li>must not contain whitespace (tabs or spaces)</li>
  * <li>must not contain comma (',')</li>
  * <li>must not contain hash sign ('#')</li>
- * <li>must not start with underscore ('-')</li>
+ * <li>must not start with underscore ('_')</li>
  * <li>must be lowercase</li>
  * <li>must not contain invalid file name characters {@link org.opensearch.common.Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
@@ -446,7 +446,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
-                    indices(Strings.splitStringByCommaToArray((String) entry.getValue()));
+                    indices(org.opensearch.core.common.Strings.splitStringByCommaToArray((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     indices((List<String>) entry.getValue());
                 } else {

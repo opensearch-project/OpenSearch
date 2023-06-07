@@ -203,6 +203,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         longFilter = includeExclude.convertToDoubleFilter();
                     }
                     resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
+                } else if (numericValuesSource.isBigInteger()) {
+                    if (includeExclude != null) {
+                        longFilter = includeExclude.convertToDoubleFilter();
+                    }
+                    resultStrategy = agg -> agg.new UnsignedLongTermsResults(showTermDocCountError);
                 } else {
                     if (includeExclude != null) {
                         longFilter = includeExclude.convertToLongFilter(format);

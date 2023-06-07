@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.state;
 
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
@@ -462,7 +462,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         List<String> dataNodes = randomSubsetOf(
             2,
-            Sets.newHashSet(clusterService().state().nodes().getDataNodes().valuesIt())
+            Sets.newHashSet(clusterService().state().nodes().getDataNodes().values().iterator())
                 .stream()
                 .map(DiscoveryNode::getName)
                 .collect(Collectors.toSet())
@@ -647,7 +647,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
     }
 
     static void assertException(final Throwable throwable, final String indexName) {
-        final Throwable t = ExceptionsHelper.unwrapCause(throwable);
+        final Throwable t = BaseExceptionsHelper.unwrapCause(throwable);
         if (t instanceof ClusterBlockException) {
             ClusterBlockException clusterBlockException = (ClusterBlockException) t;
             assertThat(clusterBlockException.blocks(), hasSize(1));

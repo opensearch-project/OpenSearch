@@ -38,6 +38,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -65,6 +66,7 @@ import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -403,6 +405,9 @@ public class RandomSearchRequestGenerator {
                 pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
             }
             builder.pointInTimeBuilder(pit);
+        }
+        if (FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE) && randomBoolean()) {
+            builder.searchPipelineSource(new HashMap<>());
         }
         return builder;
     }

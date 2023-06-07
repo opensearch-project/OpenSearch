@@ -31,7 +31,6 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -86,7 +85,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.index.Index;
@@ -745,8 +744,7 @@ public class PersistedClusterStateService {
                 }
 
                 final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
-                for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (final IndexMetadata indexMetadata : previouslyWrittenMetadata.indices().values()) {
                     final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(
                         indexMetadata.getIndexUUID(),
                         indexMetadata.getVersion()
@@ -756,8 +754,7 @@ public class PersistedClusterStateService {
 
                 int numIndicesUpdated = 0;
                 int numIndicesUnchanged = 0;
-                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (final IndexMetadata indexMetadata : metadata.indices().values()) {
                     final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
                     if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
                         logger.trace(
@@ -817,8 +814,7 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
                 }
 
-                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (final IndexMetadata indexMetadata : metadata.indices().values()) {
                     final Document indexMetadataDocument = makeIndexMetadataDocument(indexMetadata, documentBuffer);
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument, indexMetadata.getIndex());

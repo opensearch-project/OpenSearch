@@ -36,7 +36,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
@@ -74,11 +74,12 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
             false,
             new TaskId("node1", 0),
             Collections.singletonMap("foo", "bar"),
-            new TaskResourceStats(new HashMap<String, TaskResourceUsage>() {
+            new TaskResourceStats(new HashMap<>() {
                 {
                     put("dummy-type1", new TaskResourceUsage(100, 100));
                 }
-            })
+            }, new TaskThreadUsage(10, 10)),
+            0L
         );
         ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
         assertEquals(
@@ -104,8 +105,14 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 + "        \"dummy-type1\" : {\n"
                 + "          \"cpu_time_in_nanos\" : 100,\n"
                 + "          \"memory_in_bytes\" : 100\n"
+                + "        },\n"
+                + "        \"thread_info\" : {\n"
+                + "          \"thread_executions\" : 10,\n"
+                + "          \"active_threads\" : 10\n"
                 + "        }\n"
-                + "      }\n"
+                + "      },\n"
+                + "      \"cancellation_time\" : \"0s\",\n"
+                + "      \"cancellation_time_millis\" : 0\n"
                 + "    }\n"
                 + "  ]\n"
                 + "}",

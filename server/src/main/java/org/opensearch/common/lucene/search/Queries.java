@@ -47,7 +47,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 
@@ -83,7 +83,7 @@ public class Queries {
     }
 
     public static Query newLenientFieldQuery(String field, RuntimeException e) {
-        String message = OpenSearchException.getExceptionName(e) + ":[" + e.getMessage() + "]";
+        String message = BaseExceptionsHelper.getExceptionName(e) + ":[" + e.getMessage() + "]";
         return Queries.newMatchNoDocsQuery("failed [" + field + "] query, caused by " + message);
     }
 

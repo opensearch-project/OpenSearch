@@ -40,7 +40,7 @@ import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.shard.ShardId;
@@ -114,9 +114,9 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
     }
 
     public void testSummaryMessage() {
-        assertThat(ExceptionsHelper.summaryMessage(new IllegalArgumentException("illegal")), equalTo("Invalid argument"));
-        assertThat(ExceptionsHelper.summaryMessage(new JsonParseException(null, "illegal")), equalTo("Failed to parse JSON"));
-        assertThat(ExceptionsHelper.summaryMessage(new OpenSearchRejectedExecutionException("rejected")), equalTo("Too many requests"));
+        assertThat(BaseExceptionsHelper.summaryMessage(new IllegalArgumentException("illegal")), equalTo("Invalid argument"));
+        assertThat(BaseExceptionsHelper.summaryMessage(new JsonParseException(null, "illegal")), equalTo("Failed to parse JSON"));
+        assertThat(BaseExceptionsHelper.summaryMessage(new OpenSearchRejectedExecutionException("rejected")), equalTo("Too many requests"));
     }
 
     public void testGroupBy() {

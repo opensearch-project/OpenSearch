@@ -66,12 +66,6 @@ thirdPartyAudit {
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 
-    // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
-    'com.google.protobuf.ExtensionRegistry',
-    'com.google.protobuf.MessageLite$Builder',
-    'com.google.protobuf.MessageLite',
-    'com.google.protobuf.Parser',
-
     // from io.netty.logging.CommonsLoggerFactory (netty)
     'org.apache.commons.logging.Log',
     'org.apache.commons.logging.LogFactory',
@@ -117,9 +111,6 @@ thirdPartyAudit {
     'org.slf4j.LoggerFactory',
     'org.slf4j.spi.LocationAwareLogger',
 
-    'com.github.luben.zstd.Zstd',
-    'com.google.protobuf.ExtensionRegistryLite',
-    'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
     'com.jcraft.jzlib.Deflater',
@@ -193,6 +184,11 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
 
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5'
   )
 }

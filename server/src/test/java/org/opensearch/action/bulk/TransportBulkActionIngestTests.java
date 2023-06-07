@@ -57,7 +57,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -82,6 +81,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -235,42 +235,37 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         remoteNode1 = mock(DiscoveryNode.class);
         remoteNode2 = mock(DiscoveryNode.class);
         nodes = mock(DiscoveryNodes.class);
-        ImmutableOpenMap<String, DiscoveryNode> ingestNodes = ImmutableOpenMap.<String, DiscoveryNode>builder(2)
-            .fPut("node1", remoteNode1)
-            .fPut("node2", remoteNode2)
-            .build();
+        final Map<String, DiscoveryNode> ingestNodes = Map.of("node1", remoteNode1, "node2", remoteNode2);
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
         when(nodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder()
             .indices(
-                ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .putAll(
-                        MapBuilder.<String, IndexMetadata>newMapBuilder()
-                            .put(
-                                WITH_DEFAULT_PIPELINE,
-                                IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
-                                    .settings(
-                                        settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build()
-                                    )
-                                    .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
-                                    .numberOfShards(1)
-                                    .numberOfReplicas(1)
-                                    .build()
-                            )
-                            .put(
-                                ".system",
-                                IndexMetadata.builder(".system")
-                                    .settings(settings(Version.CURRENT))
-                                    .system(true)
-                                    .numberOfShards(1)
-                                    .numberOfReplicas(0)
-                                    .build()
-                            )
-                            .map()
-                    )
-                    .build()
+                new HashMap<>(
+                    MapBuilder.<String, IndexMetadata>newMapBuilder()
+                        .put(
+                            WITH_DEFAULT_PIPELINE,
+                            IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
+                                .settings(
+                                    settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build()
+                                )
+                                .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
+                                .numberOfShards(1)
+                                .numberOfReplicas(1)
+                                .build()
+                        )
+                        .put(
+                            ".system",
+                            IndexMetadata.builder(".system")
+                                .settings(settings(Version.CURRENT))
+                                .system(true)
+                                .numberOfShards(1)
+                                .numberOfReplicas(0)
+                                .build()
+                        )
+                        .map()
+                )
             )
             .build();
         when(state.getMetadata()).thenReturn(metadata);
@@ -659,7 +654,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         Exception exception = new Exception("fake exception");
         ClusterState state = clusterService.state();
 
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMetadataBuilder = ImmutableOpenMap.builder();
+        final Map<String, IndexTemplateMetadata> templateMetadataBuilder = new HashMap<>();
         templateMetadataBuilder.put(
             "template1",
             IndexTemplateMetadata.builder("template1")
@@ -692,9 +687,9 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         Metadata metadata = mock(Metadata.class);
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
-        when(metadata.templates()).thenReturn(templateMetadataBuilder.build());
-        when(metadata.getTemplates()).thenReturn(templateMetadataBuilder.build());
-        when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
+        when(metadata.templates()).thenReturn(templateMetadataBuilder);
+        when(metadata.getTemplates()).thenReturn(templateMetadataBuilder);
+        when(metadata.indices()).thenReturn(Map.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(emptyMap());

@@ -1,0 +1,148 @@
+---
+teardown:
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test filter_query processor":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "request_processors": [
+              {
+                "filter_query" : {
+                  "query" : {
+                    "term" : {
+                      "field" : "value"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          "field": "foo"
+        }
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {
+          "field": "value"
+        }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        body: { }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: { }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  # Should also work with no search body specified
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  # Should also work with existing query
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: {
+          "query": {
+            "term": {
+              "field": "value"
+            }
+          }
+        }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  # Should work with inline query
+  - do:
+      search:
+        index: test
+        body: {
+          "search_pipeline" : {
+            "request_processors" : [
+              "filter_query": {
+                "query": {
+                  "term": {
+                    "field": "foo"
+                  }
+                }
+              }
+            ]
+          }
+        }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # Make it the default for the index
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.search.default_pipeline: my_pipeline
+
+  - do:
+      search:
+        index: test
+        body: { }
+  - match: { hits.total.value: 1 }
+
+  # Explicitly bypass the pipeline to match both docs
+  - do:
+      search:
+        search_pipeline: _none
+        index: test
+        body: { }
+  - match: { hits.total.value: 2 }
+---
+"Test invalid inline query":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body: {
+          search_pipeline: {
+            "request_processors": [
+              {
+                "filter_query": {
+                  "query": {
+                    "woozlewuzzle": {
+                      "field": "foo"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+  - match: { status: 400 }
+  - match: { error.type: "parsing_exception"}
+  - match: { error.reason: "unknown query [woozlewuzzle]"}
