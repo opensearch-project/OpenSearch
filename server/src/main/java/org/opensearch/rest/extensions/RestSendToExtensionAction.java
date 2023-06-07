@@ -94,6 +94,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         List<Route> restActionsAsRoutes = new ArrayList<>();
         for (String restAction : restActionsRequest.getRestActions()) {
             Optional<String> name = Optional.empty();
+            Optional<String> legacyActionName = Optional.empty();
             String[] parts = restAction.split(" ");
             if (parts.length < 2) {
                 throw new IllegalArgumentException("REST action must contain at least a REST method and route");
@@ -104,12 +105,20 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 if (parts.length > 2) {
                     name = Optional.of(parts[2].trim());
                 }
+                if (parts.length > 3) {
+                    legacyActionName = Optional.of(parts[3].trim());
+                }
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
             }
             logger.info("Registering: " + method + " " + path);
             if (name.isPresent()) {
-                NamedRoute nr = new NamedRoute(method, path, name.get());
+                NamedRoute nr;
+                if (legacyActionName.isPresent()) {
+                    nr = new NamedRoute(method, path, name.get(), legacyActionName.get());
+                } else {
+                    nr = new NamedRoute(method, path, name.get());
+                }
                 restActionsAsRoutes.add(nr);
                 dynamicActionRegistry.registerDynamicRoute(nr, this);
             } else {
