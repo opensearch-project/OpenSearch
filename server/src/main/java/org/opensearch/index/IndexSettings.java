@@ -62,6 +62,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import static org.opensearch.common.util.FeatureFlags.CONCURRENT_SEGMENT_SEARCH;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.common.util.FeatureFlags.SEARCH_PIPELINE;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
@@ -588,6 +589,13 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
+        "index.search.concurrent_segment_search.enabled",
+        false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -665,6 +673,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
+    private volatile boolean indexConcurrentSegmentSearchEnabled;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -829,6 +838,7 @@ public final class IndexSettings {
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
+        indexConcurrentSegmentSearchEnabled = scopedSettings.get(INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -903,6 +913,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_POLICY, this::setMergeOnFlushPolicy);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_PIPELINE, this::setDefaultSearchPipeline);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING, this::setIndexConcurrentSegmentSearchEnabled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1592,5 +1603,17 @@ public final class IndexSettings {
         } else {
             throw new SettingsException("Unsupported setting: " + DEFAULT_SEARCH_PIPELINE.getKey());
         }
+    }
+
+    public void setIndexConcurrentSegmentSearchEnabled(boolean indexConcurrentSegmentSearchEnabled) {
+        if (FeatureFlags.isEnabled(CONCURRENT_SEGMENT_SEARCH)) {
+            this.indexConcurrentSegmentSearchEnabled = indexConcurrentSegmentSearchEnabled;
+        } else {
+            throw new SettingsException("Unsupported setting: " + INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey());
+        }
+    }
+
+    public boolean isIndexConcurrentSegmentSearchEnabled() {
+        return indexConcurrentSegmentSearchEnabled;
     }
 }

@@ -61,9 +61,11 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.io.IOUtils;
@@ -157,6 +159,7 @@ import java.util.function.LongSupplier;
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
+import static org.opensearch.common.util.FeatureFlags.CONCURRENT_SEGMENT_SEARCH;
 
 /**
  * The main search service
@@ -247,6 +250,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
+        "search.concurrent_segment_search.enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
@@ -283,6 +293,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile int maxOpenScrollContext;
 
     private volatile int maxOpenPitContext;
+    private volatile boolean clusterConcurrentSegmentSearchEnabled;
 
     private final Cancellable keepAliveReaper;
 
@@ -355,6 +366,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
+
+        clusterConcurrentSegmentSearchEnabled = CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING, this::setClusterConcurrentSegmentSearchEnabled);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -429,6 +444,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    private void setClusterConcurrentSegmentSearchEnabled(boolean clusterConcurrentSegmentSearchEnabled) {
+        if (FeatureFlags.isEnabled(CONCURRENT_SEGMENT_SEARCH)) {
+            this.clusterConcurrentSegmentSearchEnabled = clusterConcurrentSegmentSearchEnabled;
+        } else {
+            throw new SettingsException("Unsupported setting: " + CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey());
+        }
     }
 
     @Override
@@ -1038,7 +1061,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 clusterService.state().nodes().getMinNodeVersion(),
                 validate,
                 indexSearcherExecutor,
-                this::aggReduceContextBuilder
+                this::aggReduceContextBuilder,
+                reader.indexService()
+                    .getIndexSettings()
+                    .getSettings()
+                    .getAsBoolean("index.search.concurrent_segment_search.enabled", clusterConcurrentSegmentSearchEnabled)
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services

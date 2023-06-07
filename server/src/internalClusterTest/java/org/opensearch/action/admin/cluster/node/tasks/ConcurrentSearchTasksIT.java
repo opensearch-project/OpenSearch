@@ -44,6 +44,7 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             .put(super.nodeSettings(nodeOrdinal))
             .put("thread_pool.index_searcher.size", INDEX_SEARCHER_THREADS)
             .put("thread_pool.index_searcher.queue_size", INDEX_SEARCHER_THREADS)
+            .put("search.concurrent_segment_search.enabled", true)
             .build();
     }
 

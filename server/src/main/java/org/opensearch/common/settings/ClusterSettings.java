@@ -360,6 +360,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
+                SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
