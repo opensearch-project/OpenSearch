@@ -90,19 +90,19 @@ public class InternalProfileCollectorManager
         return time;
     }
 
-    public Long getReduceTime() {
+    public long getReduceTime() {
         return reduceTime;
     }
 
-    public Long getMaxSliceTime() {
+    public long getMaxSliceTime() {
         return maxSliceTime;
     }
 
-    public Long getMinSliceTime() {
+    public long getMinSliceTime() {
         return minSliceTime;
     }
 
-    public Long getAvgSliceTime() {
+    public long getAvgSliceTime() {
         return avgSliceTime;
     }
 

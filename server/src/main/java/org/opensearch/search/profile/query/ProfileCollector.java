@@ -51,6 +51,7 @@ final class ProfileCollector extends FilterCollector {
 
     private long time;
     private long sliceStartTime;
+    private boolean isStarted;
 
     /** Sole constructor. */
     ProfileCollector(Collector in) {
@@ -68,7 +69,10 @@ final class ProfileCollector extends FilterCollector {
         try {
             return super.scoreMode();
         } finally {
-            sliceStartTime = sliceStartTime == 0 ? start : sliceStartTime;
+            if (isStarted == false) {
+                sliceStartTime = start;
+                isStarted = true;
+            }
             time += Math.max(1, System.nanoTime() - start);
         }
     }
@@ -80,7 +84,10 @@ final class ProfileCollector extends FilterCollector {
         try {
             inLeafCollector = super.getLeafCollector(context);
         } finally {
-            sliceStartTime = sliceStartTime == 0 ? start : sliceStartTime;
+            if (isStarted == false) {
+                sliceStartTime = start;
+                isStarted = true;
+            }
             time += Math.max(1, System.nanoTime() - start);
         }
         return new FilterLeafCollector(inLeafCollector) {

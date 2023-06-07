@@ -98,22 +98,22 @@ public class CollectorResult implements ToXContentObject, Writeable {
     /**
      * The total elapsed time in reduce phase for this CollectorManager
      */
-    private final Long reduceTime;
+    private final long reduceTime;
 
     /**
      * The maximum slice time for this CollectorManager
      */
-    private final Long maxSliceTime;
+    private final long maxSliceTime;
 
     /**
      * The minimum slice time for this CollectorManager
      */
-    private final Long minSliceTime;
+    private final long minSliceTime;
 
     /**
      * The average slice time for this CollectorManager
      */
-    private final Long avgSliceTime;
+    private final long avgSliceTime;
 
     /**
      * The segment slice count for this CollectorManager
@@ -125,18 +125,18 @@ public class CollectorResult implements ToXContentObject, Writeable {
      */
     private List<CollectorResult> children;
 
-    public CollectorResult(String collectorName, String reason, Long time, List<CollectorResult> children) {
+    public CollectorResult(String collectorName, String reason, long time, List<CollectorResult> children) {
         this(collectorName, reason, time, 0L, time, time, time, 1, children);
     }
 
     public CollectorResult(
         String collectorName,
         String reason,
-        Long time,
-        Long reduceTime,
-        Long maxSliceTime,
-        Long minSliceTime,
-        Long avgSliceTime,
+        long time,
+        long reduceTime,
+        long maxSliceTime,
+        long minSliceTime,
+        long avgSliceTime,
         int sliceCount,
         List<CollectorResult> children
     ) {
@@ -235,7 +235,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
     /**
      * @return the profiled segment slice count for this collector manager (inclusive of children)
      */
-    public long getSliceCount() {
+    public int getSliceCount() {
         return this.sliceCount;
     }
 

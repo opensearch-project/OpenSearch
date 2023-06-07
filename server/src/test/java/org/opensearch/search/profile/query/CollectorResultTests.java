@@ -207,7 +207,7 @@ public class CollectorResultTests extends OpenSearchTestCase {
             123456789L,
             123456789L,
             123456789L,
-            5,
+            3,
             Collections.emptyList()
         );
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
@@ -222,7 +222,7 @@ public class CollectorResultTests extends OpenSearchTestCase {
                 + "  \"max_slice_time_in_nanos\" : 123456789,\n"
                 + "  \"min_slice_time_in_nanos\" : 123456789,\n"
                 + "  \"avg_slice_time_in_nanos\" : 123456789,\n"
-                + "  \"slice_count\" : 5\n"
+                + "  \"slice_count\" : 3\n"
                 + "}",
             Strings.toString(builder)
         );
