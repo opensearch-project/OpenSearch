@@ -80,7 +80,7 @@ public class NamedRoute extends RestHandler.Route {
 
     @Override
     public String toString() {
-        if(legacyActionName == null) {
+        if (legacyActionName == null) {
             return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + "]";
         }
         return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + ", legacyActionName=" + legacyActionName + "]";
