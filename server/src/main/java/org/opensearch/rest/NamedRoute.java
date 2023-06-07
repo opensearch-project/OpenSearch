@@ -8,10 +8,7 @@
 
 package org.opensearch.rest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
-import org.opensearch.transport.TransportService;
 
 /**
  * A named Route
@@ -19,14 +16,10 @@ import org.opensearch.transport.TransportService;
  * @opensearch.internal
  */
 public class NamedRoute extends RestHandler.Route {
-
-    private static final Logger logger = LogManager.getLogger(NamedRoute.class);
     private static final String VALID_ACTION_NAME_PATTERN = "^[a-zA-Z0-9:/*_]*$";
     static final int MAX_LENGTH_OF_ACTION_NAME = 250;
 
-    private String name;
-
-    private String legacyName;
+    private final String name;
 
     public boolean isValidRouteName(String routeName) {
         if (routeName == null || routeName.isBlank() || routeName.length() > MAX_LENGTH_OF_ACTION_NAME) {
@@ -49,29 +42,10 @@ public class NamedRoute extends RestHandler.Route {
     }
 
     /**
-     * Allows registering a legacyName to match against transport action
-     * @param method
-     * @param path
-     * @param name
-     * @param legacyName
-     */
-    public NamedRoute(RestRequest.Method method, String path, String name, String legacyName) {
-        this(method, path, name);
-        if (!TransportService.isValidActionName(legacyName)) {
-            logger.warn("invalid action name [" + legacyName + "] must start with one of: " + TransportService.VALID_ACTION_PREFIXES);
-        }
-        this.legacyName = legacyName;
-    }
-
-    /**
      * The name of the Route. Must be unique across Route.
      */
     public String name() {
         return this.name;
-    }
-
-    public String legacyName() {
-        return this.legacyName;
     }
 
     @Override

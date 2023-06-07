@@ -1111,17 +1111,10 @@ public class ActionModule extends AbstractModule {
             requireNonNull(route, "route is required");
             requireNonNull(action, "action is required");
             Optional<String> routeName = Optional.empty();
-            Optional<String> legacyActionName = Optional.empty();
             if (route instanceof NamedRoute) {
                 routeName = Optional.of(((NamedRoute) route).name());
                 if (isActionRegistered(routeName.get()) || registeredActionNames.contains(routeName.get())) {
                     throw new IllegalArgumentException("route [" + route + "] already registered");
-                }
-                legacyActionName = Optional.of(((NamedRoute) route).legacyName());
-                if (!legacyActionName.get().isEmpty()) {
-                    if (isActionRegistered(legacyActionName.get()) || registeredActionNames.contains(legacyActionName.get())) {
-                        throw new IllegalArgumentException("action [" + legacyActionName + "] already registered");
-                    }
                 }
             }
             if (routeRegistry.containsKey(route)) {
@@ -1129,7 +1122,6 @@ public class ActionModule extends AbstractModule {
             }
             routeRegistry.put(route, action);
             routeName.ifPresent(registeredActionNames::add);
-            legacyActionName.ifPresent(registeredActionNames::add);
         }
 
         /**
