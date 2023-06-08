@@ -50,7 +50,7 @@ public class TranslogTransferManager {
 
     private final ShardId shardId;
     private final TransferService transferService;
-    private final BlobPath remoteBaseTransferPath;
+    private final BlobPath remoteDataTransferPath;
     private final BlobPath remoteMetadataTransferPath;
     private final FileTransferTracker fileTransferTracker;
 
@@ -64,13 +64,13 @@ public class TranslogTransferManager {
     public TranslogTransferManager(
         ShardId shardId,
         TransferService transferService,
-        BlobPath remoteBaseTransferPath,
+        BlobPath remoteDataTransferPath,
         FileTransferTracker fileTransferTracker
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
-        this.remoteBaseTransferPath = remoteBaseTransferPath.add(DATA_DIR);
-        this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
+        this.remoteDataTransferPath = remoteDataTransferPath.add(DATA_DIR);
+        this.remoteMetadataTransferPath = remoteDataTransferPath.add(METADATA_DIR);
         this.fileTransferTracker = fileTransferTracker;
     }
 
@@ -111,7 +111,7 @@ public class TranslogTransferManager {
                 fileSnapshot -> transferService.uploadBlobAsync(
                     ThreadPool.Names.TRANSLOG_TRANSFER,
                     fileSnapshot,
-                    remoteBaseTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
+                    remoteDataTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
                     latchedActionListener
                 )
             );
@@ -165,7 +165,7 @@ public class TranslogTransferManager {
         if (Files.exists(filePath)) {
             Files.delete(filePath);
         }
-        try (InputStream inputStream = transferService.downloadBlob(remoteBaseTransferPath.add(primaryTerm), fileName)) {
+        try (InputStream inputStream = transferService.downloadBlob(remoteDataTransferPath.add(primaryTerm), fileName)) {
             Files.copy(inputStream, filePath);
         }
         // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
@@ -239,7 +239,7 @@ public class TranslogTransferManager {
      */
     public void deletePrimaryTermsAsync(long minPrimaryTermToKeep) {
         logger.info("Deleting primary terms from remote store lesser than {} for {}", minPrimaryTermToKeep, shardId);
-        transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteBaseTransferPath, new ActionListener<>() {
+        transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteDataTransferPath, new ActionListener<>() {
             @Override
             public void onResponse(Set<String> folders) {
                 Set<Long> primaryTermsInRemote = folders.stream().filter(folderName -> {
@@ -272,7 +272,7 @@ public class TranslogTransferManager {
     private void deletePrimaryTermAsync(long primaryTerm) {
         transferService.deleteAsync(
             ThreadPool.Names.REMOTE_PURGE,
-            remoteBaseTransferPath.add(String.valueOf(primaryTerm)),
+            remoteDataTransferPath.add(String.valueOf(primaryTerm)),
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -318,7 +318,7 @@ public class TranslogTransferManager {
         try {
             transferService.deleteBlobsAsync(
                 ThreadPool.Names.REMOTE_PURGE,
-                remoteBaseTransferPath.add(String.valueOf(primaryTerm)),
+                remoteDataTransferPath.add(String.valueOf(primaryTerm)),
                 files,
                 new ActionListener<>() {
                     @Override
