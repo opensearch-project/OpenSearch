@@ -24,11 +24,11 @@ import java.util.Objects;
  */
 public class TranslogTransferMetadata {
 
-    private long primaryTerm;
+    private final long primaryTerm;
 
-    private long generation;
+    private final long generation;
 
-    private long minTranslogGeneration;
+    private final long minTranslogGeneration;
 
     private int count;
 
