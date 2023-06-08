@@ -16,6 +16,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Handler for {@link TranslogTransferMetadata}
+ *
+ * @opensearch.internal
+ */
 public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<TranslogTransferMetadata> {
 
     /**
@@ -54,7 +59,5 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
         } else {
             indexOutput.writeMapOfStrings(new HashMap<>());
         }
-
-        indexOutput.close();
     }
 }

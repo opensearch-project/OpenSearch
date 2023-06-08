@@ -207,27 +207,39 @@ public class TranslogTransferManager {
             );
         TranslogTransferMetadata translogTransferMetadata = transferSnapshot.getTranslogTransferMetadata();
         translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
+
+        return new TransferFileSnapshot(
+            getFileName(translogTransferMetadata.getPrimaryTerm(), translogTransferMetadata.getGeneration()),
+            getMetadataBytes(translogTransferMetadata),
+            translogTransferMetadata.getPrimaryTerm()
+        );
+    }
+
+    /**
+     * Get the metadata bytes for a {@link TranslogTransferMetadata} object
+     *
+     * @param metadata The object to be parsed
+     * @return Byte representation for the given metadata
+     * @throws IOException
+     */
+    public byte[] getMetadataBytes(TranslogTransferMetadata metadata) throws IOException {
         byte[] metadataBytes;
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             try (
                 OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
-                    "translog transfer metadata " + translogTransferMetadata.getPrimaryTerm(),
-                    getFileName(translogTransferMetadata.getPrimaryTerm(), translogTransferMetadata.getGeneration()),
+                    "translog transfer metadata " + metadata.getPrimaryTerm(),
+                    getFileName(metadata.getPrimaryTerm(), metadata.getGeneration()),
                     output,
                     TranslogTransferMetadata.BUFFER_SIZE
                 )
             ) {
-                metadataStreamWrapper.writeStream(indexOutput, translogTransferMetadata);
+                metadataStreamWrapper.writeStream(indexOutput, metadata);
             }
             metadataBytes = BytesReference.toBytes(output.bytes());
         }
 
-        return new TransferFileSnapshot(
-            getFileName(translogTransferMetadata.getPrimaryTerm(), translogTransferMetadata.getGeneration()),
-            metadataBytes,
-            translogTransferMetadata.getPrimaryTerm()
-        );
+        return metadataBytes;
     }
 
     /**
