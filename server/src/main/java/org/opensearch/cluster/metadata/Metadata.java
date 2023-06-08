@@ -1160,7 +1160,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.indicesPreviousState = new HashMap<>(metadata.indices); // required for comparing with updated indices
             this.templates = new HashMap<>(metadata.templates);
             this.customs = new HashMap<>(metadata.customs);
-            dataStreamPreviousMetadata = (DataStreamMetadata) metadata.customs.get(DataStreamMetadata.TYPE);
+            this.dataStreamPreviousMetadata = (DataStreamMetadata) metadata.customs.get(DataStreamMetadata.TYPE);
             this.indicesLookup = new TreeMap<>(metadata.indicesLookup);
             this.allIndices = Arrays.copyOf(metadata.allIndices, metadata.allIndices.length);
             this.visibleIndices = Arrays.copyOf(metadata.visibleIndices, metadata.visibleIndices.length);
@@ -1453,7 +1453,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Metadata build() {
             TimeValue buildStartTime = TimeValue.timeValueMillis(System.nanoTime());
-            boolean recomputeRequired = indices.equals(indicesPreviousState) == false || dataStreamPreviousMetadata.equals(this.customs.get(DataStreamMetadata.TYPE)) == false;
+            boolean recomputeRequired = indices.equals(indicesPreviousState) == false
+                || dataStreamPreviousMetadata.equals(this.customs.get(DataStreamMetadata.TYPE)) == false;
             TimeValue recomputeEndTime = TimeValue.timeValueMillis(System.nanoTime());
             logger.info(
                 "Recompute required: {}, time taken for comparing indices: {} ms",
