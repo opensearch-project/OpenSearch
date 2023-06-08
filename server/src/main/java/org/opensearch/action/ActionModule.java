@@ -1145,6 +1145,7 @@ public class ActionModule extends AbstractModule {
             }
             if (route instanceof NamedRoute) {
                 registeredActionNames.remove(((NamedRoute) route).name());
+                registeredActionNames.remove(((NamedRoute) route).legacyActionName());
             }
         }
 
