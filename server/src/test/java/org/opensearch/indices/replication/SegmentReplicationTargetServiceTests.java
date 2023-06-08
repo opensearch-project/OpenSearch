@@ -22,7 +22,6 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.ForceSyncRequest;
@@ -181,7 +180,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 Assert.fail("Should not be called");

@@ -2760,6 +2760,13 @@ public class InternalEngine extends Engine {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
     }
 
+    /**
+     * Returns the current local checkpoint getting refreshed internally.
+     */
+    public final long currentOngoingRefreshCheckpoint() {
+        return lastRefreshedCheckpointListener.pendingCheckpoint;
+    }
+
     private final Object refreshIfNeededMutex = new Object();
 
     /**
@@ -2777,10 +2784,11 @@ public class InternalEngine extends Engine {
 
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
         final AtomicLong refreshedCheckpoint;
-        private long pendingCheckpoint;
+        volatile long pendingCheckpoint;
 
         LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
             this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
+            this.pendingCheckpoint = initialLocalCheckpoint;
         }
 
         @Override

@@ -484,7 +484,8 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
             randomNonNegativeLong(),
             shards,
             Collections.emptyMap(),
-            Version.CURRENT
+            Version.CURRENT,
+            false
         );
     }
 
