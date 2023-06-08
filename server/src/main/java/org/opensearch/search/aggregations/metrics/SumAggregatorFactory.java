@@ -55,15 +55,19 @@ import java.util.Map;
  */
 class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final String method;
+
     SumAggregatorFactory(
         String name,
         ValuesSourceConfig config,
+        String method,
         QueryShardContext queryShardContext,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        this.method = method;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {

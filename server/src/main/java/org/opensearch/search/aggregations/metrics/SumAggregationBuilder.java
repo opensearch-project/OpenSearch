@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -49,6 +50,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Aggregation Builder for sum agg
@@ -62,14 +64,19 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         MetricAggregatorSupplier.class
     );
 
+    public static final ParseField METHOD_FIELD = new ParseField("method");
+
     public static final ObjectParser<SumAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, SumAggregationBuilder::new);
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
+        PARSER.declareString(SumAggregationBuilder::method, SumAggregationBuilder.METHOD_FIELD);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         SumAggregatorFactory.registerAggregators(builder);
     }
+
+    private String method = null;
 
     public SumAggregationBuilder(String name) {
         super(name);
@@ -81,6 +88,7 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         Map<String, Object> metadata
     ) {
         super(clone, factoriesBuilder, metadata);
+        this.method = clone.method;
     }
 
     @Override
@@ -93,6 +101,7 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
      */
     public SumAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+        method = in.readString();
     }
 
     @Override
@@ -101,8 +110,22 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        boolean hasMethod = method != null;
+        out.writeBoolean(hasMethod);
+        if (hasMethod) {
+            out.writeString(method);
+        }
+    }
+
+    public SumAggregationBuilder method(String method) {
+        if (!Objects.equals(method, "kahan") && !Objects.equals(method, "precise")) {
+            throw new IllegalArgumentException(
+                "[method] must be kahan or precise. Found [" + method + "] in [" + name + "]"
+            );
+        }
+        this.method = method;
+        return this;
     }
 
     @Override
@@ -112,7 +135,7 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        return new SumAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new SumAggregatorFactory(name, config, method, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
