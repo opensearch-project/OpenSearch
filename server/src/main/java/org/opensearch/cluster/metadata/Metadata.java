@@ -1453,7 +1453,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Metadata build() {
             TimeValue buildStartTime = TimeValue.timeValueMillis(System.nanoTime());
-            boolean dataStreamsChanged = dataStreamPreviousMetadata == this.customs.get(DataStreamMetadata.TYPE);
             boolean recomputeRequired = indices.equals(indicesPreviousState) == false || dataStreamPreviousMetadata.equals(this.customs.get(DataStreamMetadata.TYPE)) == false;
             TimeValue recomputeEndTime = TimeValue.timeValueMillis(System.nanoTime());
             logger.info(
