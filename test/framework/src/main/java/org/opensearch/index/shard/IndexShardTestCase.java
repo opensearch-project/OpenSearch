@@ -68,7 +68,6 @@ import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -674,7 +673,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         return new RemoteDirectory(getBlobContainer(f));
     }
 
-    private BlobContainer getBlobContainer(Path f) throws IOException {
+    protected BlobContainer getBlobContainer(Path f) throws IOException {
         FsBlobStore fsBlobStore = new FsBlobStore(1024, f, false);
         BlobPath blobPath = new BlobPath();
         return new FsBlobContainer(fsBlobStore, blobPath, f);

@@ -39,7 +39,6 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -60,7 +59,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -181,7 +179,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         String restoredIndexName2 = indexName2 + "-restored";
         String expectedValue = "expected";
 
-        createRepository(snapshotRepoName, "fs", absolutePath1);
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
         createRepository(remoteStoreRepoName, "fs", absolutePath2);
 
         Client client = client();
@@ -214,7 +212,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .cluster()
             .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
             .setWaitForCompletion(true)
-            .setRemoteStoreIndexShallowCopy(true)
             .setIndices(indexName1, indexName2)
             .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
@@ -224,6 +221,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
 
+        updateRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, false));
         CreateSnapshotResponse createSnapshotResponse2 = client.admin()
             .cluster()
             .prepareCreateSnapshot(snapshotRepoName, snapshotName2)

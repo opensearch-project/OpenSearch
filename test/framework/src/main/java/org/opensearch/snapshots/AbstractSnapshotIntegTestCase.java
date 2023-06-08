@@ -373,8 +373,21 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
     }
 
+    protected void updateRepository(String repoName, String type, Settings.Builder settings) {
+        logger.info("--> updating repository [{}] [{}]", repoName, type);
+        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
+    }
+
     protected void createRepository(String repoName, String type, Path location) {
         createRepository(repoName, type, Settings.builder().put("location", location));
+    }
+
+    protected Settings.Builder getRepositorySettings(Path location, boolean shallowCopyEnabled) {
+        Settings.Builder settingsBuilder = randomRepositorySettings();
+        settingsBuilder.put("location", location);
+        settingsBuilder.put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), shallowCopyEnabled);
+
+        return settingsBuilder;
     }
 
     protected void createRepository(String repoName, String type) {

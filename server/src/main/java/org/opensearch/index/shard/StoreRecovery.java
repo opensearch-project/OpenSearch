@@ -377,14 +377,18 @@ final class StoreRecovery {
                 long commitGeneration = shallowCopyShardMetadata.getCommitGeneration();
                 String indexUUID = shallowCopyShardMetadata.getIndexUUID();
                 String remoteStoreRepository = shallowCopyShardMetadata.getRemoteStoreRepository();
-                String basePath = shallowCopyShardMetadata.getRemoteStoreRepositoryBasePath();
+                String basePath = shallowCopyShardMetadata.getRepositoryBasePath();
                 try {
                     Repository remoteStoreRepo = repositoriesService.repository(remoteStoreRepository);
                     if (!((BlobStoreRepository) remoteStoreRepo).basePath().toString().equals(basePath)) {
-                        throw new IndexShardRecoveryException(shardId, "Remote Store repository settings were modified after storing the shallow copy snapshot.", null);
+                        throw new IndexShardRecoveryException(
+                            shardId,
+                            "Remote Store repository settings were modified after storing the shallow copy snapshot.",
+                            null
+                        );
                     }
 
-                } catch(RepositoryMissingException e) {
+                } catch (RepositoryMissingException e) {
                     throw new IndexShardRecoveryException(shardId, "Remote Store Repository for shard is not found.", null);
                 }
 
