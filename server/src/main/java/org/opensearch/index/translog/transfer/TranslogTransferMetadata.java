@@ -8,14 +8,8 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.VersionedCodecStreamWrapper;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
@@ -42,29 +36,19 @@ public class TranslogTransferMetadata {
 
     public static final String METADATA_SEPARATOR = "__";
 
-    private static final int BUFFER_SIZE = 4096;
+    public static final int BUFFER_SIZE = 4096;
 
-    private static final int CURRENT_VERSION = 1;
+    public static final int CURRENT_VERSION = 1;
 
-    private static final String METADATA_CODEC = "md";
+    public static final String METADATA_CODEC = "md";
 
     public static final Comparator<String> METADATA_FILENAME_COMPARATOR = new MetadataFilenameComparator();
-
-    private static final VersionedCodecStreamWrapper<TranslogTransferMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
-        new TranslogTransferMetadataHandler(),
-        TranslogTransferMetadata.CURRENT_VERSION,
-        TranslogTransferMetadata.METADATA_CODEC
-    );
 
     public TranslogTransferMetadata(long primaryTerm, long generation, long minTranslogGeneration, int count) {
         this.primaryTerm = primaryTerm;
         this.generation = generation;
         this.minTranslogGeneration = minTranslogGeneration;
         this.count = count;
-    }
-
-    public TranslogTransferMetadata(IndexInput indexInput) throws IOException {
-        metadataStreamWrapper.readStream(indexInput);
     }
 
     public long getPrimaryTerm() {
@@ -93,22 +77,6 @@ public class TranslogTransferMetadata {
 
     public static String getFileName(long primaryTerm, long generation) {
         return String.join(METADATA_SEPARATOR, Arrays.asList(String.valueOf(primaryTerm), String.valueOf(generation)));
-    }
-
-    public byte[] createMetadataBytes() throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (
-                OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
-                    "translog transfer metadata " + primaryTerm,
-                    getFileName(primaryTerm, generation),
-                    output,
-                    BUFFER_SIZE
-                )
-            ) {
-                metadataStreamWrapper.writeStream(indexOutput, this);
-            }
-            return BytesReference.toBytes(output.bytes());
-        }
     }
 
     @Override

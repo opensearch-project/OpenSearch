@@ -12,9 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
@@ -60,6 +64,12 @@ public class TranslogTransferManager {
 
     private final static String METADATA_DIR = "metadata";
     private final static String DATA_DIR = "data";
+
+    private static final VersionedCodecStreamWrapper<TranslogTransferMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
+        new TranslogTransferMetadataHandler(),
+        TranslogTransferMetadata.CURRENT_VERSION,
+        TranslogTransferMetadata.METADATA_CODEC
+    );
 
     public TranslogTransferManager(
         ShardId shardId,
@@ -174,9 +184,9 @@ public class TranslogTransferManager {
 
     public TranslogTransferMetadata readMetadata() throws IOException {
         return transferService.listAll(remoteMetadataTransferPath).stream().max(METADATA_FILENAME_COMPARATOR).map(filename -> {
-            try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename);) {
+            try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename)) {
                 IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
-                return new TranslogTransferMetadata(indexInput);
+                return metadataStreamWrapper.readStream(indexInput);
             } catch (IOException e) {
                 logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
                 return null;
@@ -197,9 +207,25 @@ public class TranslogTransferManager {
             );
         TranslogTransferMetadata translogTransferMetadata = transferSnapshot.getTranslogTransferMetadata();
         translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
+        byte[] metadataBytes;
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            try (
+                OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
+                    "translog transfer metadata " + translogTransferMetadata.getPrimaryTerm(),
+                    getFileName(translogTransferMetadata.getPrimaryTerm(), translogTransferMetadata.getGeneration()),
+                    output,
+                    TranslogTransferMetadata.BUFFER_SIZE
+                )
+            ) {
+                metadataStreamWrapper.writeStream(indexOutput, translogTransferMetadata);
+            }
+            metadataBytes = BytesReference.toBytes(output.bytes());
+        }
+
         return new TransferFileSnapshot(
             getFileName(translogTransferMetadata.getPrimaryTerm(), translogTransferMetadata.getGeneration()),
-            translogTransferMetadata.createMetadataBytes(),
+            metadataBytes,
             translogTransferMetadata.getPrimaryTerm()
         );
     }

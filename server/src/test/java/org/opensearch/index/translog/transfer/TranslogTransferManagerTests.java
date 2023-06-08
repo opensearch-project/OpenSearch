@@ -8,12 +8,15 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.mockito.Mockito;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
@@ -31,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,6 +46,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.getFileName;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class TranslogTransferManagerTests extends OpenSearchTestCase {
@@ -204,7 +209,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
         when(transferService.downloadBlob(any(BlobPath.class), eq("12__234"))).thenReturn(
-            new ByteArrayInputStream(metadata.createMetadataBytes())
+            new ByteArrayInputStream(getMetadataBytes(metadata))
         );
 
         assertEquals(metadata, translogTransferManager.readMetadata());
@@ -222,7 +227,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
         when(transferService.downloadBlob(any(BlobPath.class), eq("12__235"))).thenReturn(
-            new ByteArrayInputStream(metadata.createMetadataBytes())
+            new ByteArrayInputStream(getMetadataBytes(metadata))
         );
 
         assertEquals(metadata, translogTransferManager.readMetadata());
@@ -380,5 +385,32 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertEquals(2, tracker.allUploaded().size());
+    }
+
+    private byte[] getMetadataBytes(TranslogTransferMetadata metadata) throws IOException {
+        byte[] metadataBytes;
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            try (
+                OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
+                    "translog transfer metadata " + metadata.getPrimaryTerm(),
+                    getFileName(metadata.getPrimaryTerm(), metadata.getGeneration()),
+                    output,
+                    TranslogTransferMetadata.BUFFER_SIZE
+                )
+            ) {
+                indexOutput.writeLong(metadata.getPrimaryTerm());
+                indexOutput.writeLong(metadata.getGeneration());
+                indexOutput.writeLong(metadata.getMinTranslogGeneration());
+                if (metadata.getGenerationToPrimaryTermMapper() != null) {
+                    indexOutput.writeMapOfStrings(metadata.getGenerationToPrimaryTermMapper());
+                } else {
+                    indexOutput.writeMapOfStrings(new HashMap<>());
+                }
+            }
+            metadataBytes = BytesReference.toBytes(output.bytes());
+        }
+
+        return metadataBytes;
     }
 }
