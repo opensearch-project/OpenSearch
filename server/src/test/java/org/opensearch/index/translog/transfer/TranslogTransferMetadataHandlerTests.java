@@ -47,6 +47,7 @@ public class TranslogTransferMetadataHandlerTests extends OpenSearchTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput actualMetadataStream = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096);
         handler.writeContent(actualMetadataStream, expectedMetadata);
+        actualMetadataStream.close();
 
         // Verification: Compare actual metadata written to the target output stream.
         IndexInput indexInput = new ByteArrayIndexInput("metadata file", BytesReference.toBytes(output.bytes()));
