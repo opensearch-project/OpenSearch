@@ -52,6 +52,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.dfs.DfsSearchResult;
@@ -117,6 +118,8 @@ public class TestSearchContext extends SearchContext {
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
+    private ShardSearchRequest request;
+
     public TestSearchContext(BigArrays bigArrays, IndexService indexService) {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
@@ -176,7 +179,11 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public ShardSearchRequest request() {
-        return null;
+        return request;
+    }
+
+    public void setShardSearchRequest(ShardSearchRequest request) {
+        this.request = request;
     }
 
     @Override
@@ -637,6 +644,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public InternalAggregation.ReduceContext partial() {
+        return InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction();
     }
 
     /**
