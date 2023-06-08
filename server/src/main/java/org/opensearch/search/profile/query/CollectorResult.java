@@ -188,7 +188,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
         for (CollectorResult child : children) {
             child.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeLong(reduceTime);
             out.writeLong(maxSliceTime);
             out.writeLong(minSliceTime);
