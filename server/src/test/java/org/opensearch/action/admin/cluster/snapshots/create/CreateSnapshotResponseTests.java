@@ -94,7 +94,8 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
                 totalShards,
                 shardFailures,
                 globalState,
-                SnapshotInfoTests.randomUserMetadata()
+                SnapshotInfoTests.randomUserMetadata(),
+                false
             )
         );
     }
