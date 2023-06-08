@@ -78,11 +78,6 @@ public class RemoteRefreshSegmentTracker {
     private volatile long timeMsLag;
 
     /**
-     * Keeps the clock time (ms) lag computed so that we do not compute it for every request.
-     */
-    private volatile long clockTimeMsLag;
-
-    /**
      * Keeps track of the total bytes of segment files which were uploaded to remote store during last successful remote refresh
      */
     private volatile long lastSuccessfulRemoteRefreshBytes;
@@ -232,13 +227,7 @@ public class RemoteRefreshSegmentTracker {
     }
 
     public void updateLocalRefreshClockTimeMs(long localRefreshClockTimeMs) {
-        assert localRefreshClockTimeMs >= this.localRefreshClockTimeMs : "newLocalRefreshClockTimeMs="
-            + localRefreshClockTimeMs
-            + " < "
-            + "currentLocalRefreshClockTimeMs="
-            + this.localRefreshClockTimeMs;
         this.localRefreshClockTimeMs = localRefreshClockTimeMs;
-        computeClockTimeMsLag();
     }
 
     long getRemoteRefreshSeqNo() {
@@ -274,13 +263,7 @@ public class RemoteRefreshSegmentTracker {
     }
 
     public void updateRemoteRefreshClockTimeMs(long remoteRefreshClockTimeMs) {
-        assert remoteRefreshClockTimeMs >= this.remoteRefreshClockTimeMs : "newRemoteRefreshClockTimeMs="
-            + remoteRefreshClockTimeMs
-            + " < "
-            + "currentRemoteRefreshClockTimeMs="
-            + this.remoteRefreshClockTimeMs;
         this.remoteRefreshClockTimeMs = remoteRefreshClockTimeMs;
-        computeClockTimeMsLag();
     }
 
     private void computeRefreshSeqNoLag() {
@@ -293,10 +276,6 @@ public class RemoteRefreshSegmentTracker {
 
     private void computeTimeMsLag() {
         timeMsLag = localRefreshTimeMs - remoteRefreshTimeMs;
-    }
-
-    private void computeClockTimeMsLag() {
-        clockTimeMsLag = localRefreshClockTimeMs - remoteRefreshClockTimeMs;
     }
 
     public long getTimeMsLag() {
