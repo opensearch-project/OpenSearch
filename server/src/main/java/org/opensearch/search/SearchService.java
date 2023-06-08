@@ -45,7 +45,6 @@ import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.ListPitInfo;
 import org.opensearch.action.search.PitSearchContextIdForNode;
-import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.UpdatePitContextRequest;
@@ -1039,7 +1038,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 lowLevelCancellation,
                 clusterService.state().nodes().getMinNodeVersion(),
                 validate,
-                indexSearcherExecutor
+                indexSearcherExecutor,
+                this::aggReduceContextBuilder
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1621,22 +1621,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Returns a builder for {@link InternalAggregation.ReduceContext}. This
-     * builder retains a reference to the provided {@link SearchRequest}.
+     * builder retains a reference to the provided {@link SearchSourceBuilder}.
      */
-    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchRequest request) {
+    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchSourceBuilder searchSourceBuilder) {
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
                 return InternalAggregation.ReduceContext.forPartialReduction(
                     bigArrays,
                     scriptService,
-                    () -> requestToPipelineTree(request)
+                    () -> requestToPipelineTree(searchSourceBuilder)
                 );
             }
 
             @Override
             public ReduceContext forFinalReduction() {
-                PipelineTree pipelineTree = requestToPipelineTree(request);
+                PipelineTree pipelineTree = requestToPipelineTree(searchSourceBuilder);
                 return InternalAggregation.ReduceContext.forFinalReduction(
                     bigArrays,
                     scriptService,
@@ -1647,11 +1647,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         };
     }
 
-    private static PipelineTree requestToPipelineTree(SearchRequest request) {
-        if (request.source() == null || request.source().aggregations() == null) {
+    private static PipelineTree requestToPipelineTree(SearchSourceBuilder searchSourceBuilder) {
+        if (searchSourceBuilder == null || searchSourceBuilder.aggregations() == null) {
             return PipelineTree.EMPTY;
         }
-        return request.source().aggregations().buildPipelineTree();
+        return searchSourceBuilder.aggregations().buildPipelineTree();
     }
 
     /**

@@ -101,6 +101,18 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         this.pipelineTreeForBwcSerialization = pipelineTreeSource;
     }
 
+    /**
+     * Constructs a node in the aggregation tree. This constructor is used to add pipelineTreeSource in new InternalAggregations object with
+     * provided list of InternalAggregation from passed in InternalAggregations.
+     *
+     * @param pipelineTreeSource must be null inside the tree or after final reduction. Should reference the
+     *                           search request otherwise so we can properly serialize the response to
+     *                           versions of OpenSearch that require the pipelines to be serialized.
+     */
+    public InternalAggregations(InternalAggregations aggregations, Supplier<PipelineAggregator.PipelineTree> pipelineTreeSource) {
+        this(aggregations.getInternalAggregations(), pipelineTreeSource);
+    }
+
     public static InternalAggregations from(List<InternalAggregation> aggregations) {
         if (aggregations.isEmpty()) {
             return EMPTY;
@@ -302,6 +314,15 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             // should never happen
             throw new RuntimeException(exc);
         }
+    }
+
+    public static InternalAggregations merge(InternalAggregations first, InternalAggregations second) {
+        final List<InternalAggregation> fromFirst = first.getInternalAggregations();
+        final List<InternalAggregation> fromSecond = second.getInternalAggregations();
+        final List<InternalAggregation> mergedAggregation = new ArrayList<>(fromFirst.size() + fromSecond.size());
+        mergedAggregation.addAll(fromFirst);
+        mergedAggregation.addAll(fromSecond);
+        return new InternalAggregations(mergedAggregation, first.getPipelineTreeForBwcSerialization());
     }
 
     /**
