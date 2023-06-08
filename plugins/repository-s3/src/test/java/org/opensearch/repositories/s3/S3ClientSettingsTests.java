@@ -286,7 +286,7 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
             Settings.builder().put("s3.client.other.region", region).build(),
             configPath()
         );
-        assertThat(settings.get("default").region, is("us-west-2"));
+        assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
         try (
             S3Service s3Service = new S3Service(configPath());
@@ -303,7 +303,7 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
             Settings.builder().put("s3.client.other.signer_override", signerOverride).build(),
             configPath()
         );
-        assertThat(settings.get("default").region, is("us-west-2"));
+        assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").signerOverride, is(signerOverride));
 
         ClientOverrideConfiguration defaultConfiguration = SocketAccess.doPrivileged(
