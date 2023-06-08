@@ -489,7 +489,9 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         assertEquals(2, mdFiles.size());
         logger.info("All md files {}", mdFiles);
 
-        Set<String> tlogFiles = blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get())));
+        Set<String> tlogFiles = blobStoreTransferService.listAll(
+            getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))
+        );
         logger.info("All data files {}", tlogFiles);
 
         // assert content of ckp and tlog files
