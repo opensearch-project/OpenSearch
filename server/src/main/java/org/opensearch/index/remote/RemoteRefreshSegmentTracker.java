@@ -274,8 +274,8 @@ public class RemoteRefreshSegmentTracker {
     }
 
     public void updateRemoteRefreshClockTimeMs(long remoteRefreshClockTimeMs) {
-        assert remoteRefreshTimeMs >= this.remoteRefreshClockTimeMs : "newRemoteRefreshClockTimeMs="
-            + remoteRefreshTimeMs
+        assert remoteRefreshClockTimeMs >= this.remoteRefreshClockTimeMs : "newRemoteRefreshClockTimeMs="
+            + remoteRefreshClockTimeMs
             + " < "
             + "currentRemoteRefreshClockTimeMs="
             + this.remoteRefreshClockTimeMs;
