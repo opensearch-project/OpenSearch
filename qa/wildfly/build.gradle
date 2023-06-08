@@ -39,6 +39,7 @@ apply plugin: 'opensearch.internal-distribution-download'
 testFixtures.useFixture()
 
 dependencies {
+  api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
   providedCompile 'javax.enterprise:cdi-api:2.0'
   providedCompile 'org.jboss.spec.javax.ws.rs:jboss-jaxrs-api_2.0_spec:1.0.1.Final'
   providedCompile('com.fasterxml.jackson.jakarta.rs:jackson-jakarta-rs-json-provider:2.15.2') {
