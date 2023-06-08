@@ -19,7 +19,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -37,7 +36,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -85,7 +83,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
     // Visible for testing
     static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
-    static final String SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX = "segment_infos_snapshot_filename";
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;
@@ -167,14 +164,13 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     @Override
     public void afterRefresh(boolean didRefresh) {
 
-        if (didRefresh) {
+        if (didRefresh || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
             updateLocalRefreshTimeAndSeqNo();
-        }
-
-        try {
-            indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
-        } catch (InterruptedException | ExecutionException e) {
-            logger.info("Exception occurred while scheduling syncSegments", e);
+            try {
+                indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
+            } catch (InterruptedException | ExecutionException e) {
+                logger.info("Exception occurred while scheduling syncSegments", e);
+            }
         }
     }
 
@@ -201,7 +197,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                     deleteStaleCommits();
                 }
 
-                String segmentInfoSnapshotFilename = null;
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
@@ -233,20 +228,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         // Start the segments files upload
                         boolean newSegmentsUploadStatus = uploadNewSegments(localSegmentsPostRefresh);
                         if (newSegmentsUploadStatus) {
-                            segmentInfoSnapshotFilename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
-                            localSegmentsPostRefresh.add(segmentInfoSnapshotFilename);
-
                             // Start metadata file upload
-                            remoteDirectory.uploadMetadata(
-                                localSegmentsPostRefresh,
-                                storeDirectory,
-                                indexShard.getOperationPrimaryTerm(),
-                                segmentInfos.getGeneration()
-                            );
+                            uploadMetadata(localSegmentsPostRefresh, segmentInfos);
                             clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
-                            onSuccessfulSegmentsSync(refreshTimeMs, refreshSeqNo);
-                            indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
-                            checkpointPublisher.publish(indexShard, checkpoint);
+                            onSuccessfulSegmentsSync(refreshTimeMs, refreshSeqNo, lastRefreshedCheckpoint, checkpoint);
                             // At this point since we have uploaded new segments, segment infos and segment metadata file,
                             // along with marking minSeqNoToKeep, upload has succeeded completely.
                             shouldRetry = false;
@@ -254,14 +239,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                     }
                 } catch (EngineException e) {
                     logger.warn("Exception while reading SegmentInfosSnapshot", e);
-                } finally {
-                    try {
-                        if (segmentInfoSnapshotFilename != null) {
-                            storeDirectory.deleteFile(segmentInfoSnapshotFilename);
-                        }
-                    } catch (IOException e) {
-                        logger.warn("Exception while deleting: " + segmentInfoSnapshotFilename, e);
-                    }
                 }
             } catch (IOException e) {
                 // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
@@ -298,7 +275,12 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         segmentTracker.incrementTotalUploadsStarted();
     }
 
-    private void onSuccessfulSegmentsSync(long refreshTimeMs, long refreshSeqNo) {
+    private void onSuccessfulSegmentsSync(
+        long refreshTimeMs,
+        long refreshSeqNo,
+        long lastRefreshedCheckpoint,
+        ReplicationCheckpoint checkpoint
+    ) {
         // Update latest uploaded segment files name in segment tracker
         segmentTracker.setLatestUploadedFiles(latestFileNameSizeOnLocalMap.keySet());
         // Update the remote refresh time and refresh seq no
@@ -307,6 +289,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         resetBackOffDelayIterator();
         // Cancel the scheduled cancellable retry if possible and set it to null
         cancelAndResetScheduledCancellableRetry();
+        // Set the minimum sequence number for keeping translog
+        indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        // Publishing the new checkpoint which is used for remote store + segrep indexes
+        checkpointPublisher.publish(indexShard, checkpoint);
     }
 
     /**
@@ -347,22 +333,20 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             && !remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)));
     }
 
-    String uploadSegmentInfosSnapshot(String latestSegmentsNFilename, SegmentInfos segmentInfosSnapshot) throws IOException {
-        final long maxSeqNoFromSegmentInfos = indexShard.getEngine().getMaxSeqNoFromSegmentInfos(segmentInfosSnapshot);
-
+    void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos) throws IOException {
+        final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
+        SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
-        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNoFromSegmentInfos));
-        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNoFromSegmentInfos));
+        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         segmentInfosSnapshot.setUserData(userData, false);
 
-        long commitGeneration = SegmentInfos.generationFromSegmentsFileName(latestSegmentsNFilename);
-        String segmentInfoSnapshotFilename = SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + commitGeneration;
-        try (IndexOutput indexOutput = storeDirectory.createOutput(segmentInfoSnapshotFilename, IOContext.DEFAULT)) {
-            segmentInfosSnapshot.write(indexOutput);
-        }
-        storeDirectory.sync(Collections.singleton(segmentInfoSnapshotFilename));
-        remoteDirectory.copyFrom(storeDirectory, segmentInfoSnapshotFilename, segmentInfoSnapshotFilename, IOContext.DEFAULT, true);
-        return segmentInfoSnapshotFilename;
+        remoteDirectory.uploadMetadata(
+            localSegmentsPostRefresh,
+            segmentInfosSnapshot,
+            storeDirectory,
+            indexShard.getOperationPrimaryTerm()
+        );
     }
 
     private boolean uploadNewSegments(Collection<String> localSegmentsPostRefresh) throws IOException {

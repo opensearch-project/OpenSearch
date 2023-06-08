@@ -11,11 +11,11 @@ package org.opensearch.index.translog;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SetOnce;
-import org.opensearch.core.util.FileSystemUtils;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.core.common.lease.Releasables;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
@@ -65,6 +65,7 @@ public class RemoteFsTranslog extends Translog {
     private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
 
     private static final int REMOTE_DELETION_PERMITS = 2;
+    public static final String TRANSLOG = "translog";
 
     // Semaphore used to allow only single remote generation to happen at a time
     private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
@@ -167,7 +168,7 @@ public class RemoteFsTranslog extends Translog {
         return new TranslogTransferManager(
             shardId,
             new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
-            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
+            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(TRANSLOG),
             fileTransferTracker
         );
     }

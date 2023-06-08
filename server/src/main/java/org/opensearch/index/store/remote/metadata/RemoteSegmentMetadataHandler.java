@@ -27,7 +27,7 @@ public class RemoteSegmentMetadataHandler implements IndexIOStreamHandler<Remote
      */
     @Override
     public RemoteSegmentMetadata readContent(IndexInput indexInput) throws IOException {
-        return RemoteSegmentMetadata.fromMapOfStrings(indexInput.readMapOfStrings());
+        return RemoteSegmentMetadata.read(indexInput);
     }
 
     /**
@@ -37,6 +37,6 @@ public class RemoteSegmentMetadataHandler implements IndexIOStreamHandler<Remote
      */
     @Override
     public void writeContent(IndexOutput indexOutput, RemoteSegmentMetadata content) throws IOException {
-        indexOutput.writeMapOfStrings(content.toMapOfStrings());
+        content.write(indexOutput);
     }
 }
