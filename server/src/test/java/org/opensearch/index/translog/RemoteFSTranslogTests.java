@@ -112,6 +112,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
     private ThreadPool threadPool;
     private final static String METADATA_DIR = "metadata";
+    private final static String DATA_DIR = "data";
     BlobStoreRepository repository;
 
     BlobStoreTransferService blobStoreTransferService;
@@ -484,20 +485,15 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         translog.rollGeneration();
         assertEquals(6, translog.allUploaded().size());
 
-        Set<String> mdFiles = blobStoreTransferService.listAll(getTranslogDirectory().add("metadata"));
+        Set<String> mdFiles = blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR));
         assertEquals(2, mdFiles.size());
         logger.info("All md files {}", mdFiles);
 
-        Set<String> tlogFiles = blobStoreTransferService.listAll(getTranslogDirectory().add("data").add(String.valueOf(primaryTerm.get())));
+        Set<String> tlogFiles = blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get())));
         logger.info("All data files {}", tlogFiles);
 
         // assert content of ckp and tlog files
-        BlobPath path = repository.basePath()
-            .add(shardId.getIndex().getUUID())
-            .add(String.valueOf(shardId.id()))
-            .add(TRANSLOG)
-            .add("data")
-            .add(String.valueOf(primaryTerm.get()));
+        BlobPath path = getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()));
         for (TranslogReader reader : translog.readers) {
             final long readerGeneration = reader.getGeneration();
             logger.error("Asserting content of {}", readerGeneration);
@@ -532,14 +528,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertEquals(4, translog.allUploaded().size());
             assertEquals(
                 4,
-                blobStoreTransferService.listAll(
-                    repository.basePath()
-                        .add(shardId.getIndex().getUUID())
-                        .add(String.valueOf(shardId.id()))
-                        .add(TRANSLOG)
-                        .add("data")
-                        .add(String.valueOf(primaryTerm.get()))
-                ).size()
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
 
@@ -552,14 +541,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertEquals(4, translog.allUploaded().size());
             assertEquals(
                 4,
-                blobStoreTransferService.listAll(
-                    repository.basePath()
-                        .add(shardId.getIndex().getUUID())
-                        .add(String.valueOf(shardId.id()))
-                        .add(TRANSLOG)
-                        .add("data")
-                        .add(String.valueOf(primaryTerm.get()))
-                ).size()
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
 

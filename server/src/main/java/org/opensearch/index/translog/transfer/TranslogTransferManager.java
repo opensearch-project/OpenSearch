@@ -59,6 +59,7 @@ public class TranslogTransferManager {
     private static final Logger logger = LogManager.getLogger(TranslogTransferManager.class);
 
     private final static String METADATA_DIR = "metadata";
+    private final static String DATA_DIR = "data";
 
     public TranslogTransferManager(
         ShardId shardId,
@@ -68,7 +69,7 @@ public class TranslogTransferManager {
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
-        this.remoteBaseTransferPath = remoteBaseTransferPath.add("data");
+        this.remoteBaseTransferPath = remoteBaseTransferPath.add(DATA_DIR);
         this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferTracker = fileTransferTracker;
     }
