@@ -52,6 +52,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.RemoveCorruptedShardDataCommandIT;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.CompositeStore;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
@@ -153,7 +154,7 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
         });
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
-        try (Store store = new Store(shardId, indexSettings, new NIOFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try (Store store = new CompositeStore(shardId, indexSettings, new NIOFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.removeCorruptionMarker();
         }
         node1 = internalCluster().startNode(node1DataPathSettings);
@@ -232,7 +233,7 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
     }
 
     private void putFakeCorruptionMarker(IndexSettings indexSettings, ShardId shardId, Path indexPath) throws IOException {
-        try (Store store = new Store(shardId, indexSettings, new NIOFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try (Store store = new CompositeStore(shardId, indexSettings, new NIOFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.markStoreCorrupted(new IOException("fake ioexception"));
         }
     }

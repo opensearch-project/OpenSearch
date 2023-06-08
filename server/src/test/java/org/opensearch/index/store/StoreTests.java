@@ -143,7 +143,7 @@ public class StoreTests extends OpenSearchTestCase {
     public void testRefCount() {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         IndexSettings indexSettings = INDEX_SETTINGS;
-        Store store = new Store(shardId, indexSettings, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        Store store = new CompositeStore(shardId, indexSettings, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         int incs = randomIntBetween(1, 100);
         for (int i = 0; i < incs; i++) {
             if (randomBoolean()) {
@@ -337,7 +337,7 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testNewChecksums() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        Store store = new CompositeStore(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         // set default codec - all segments need checksums
         IndexWriter writer = new IndexWriter(
             store.directory(),
@@ -555,7 +555,7 @@ public class StoreTests extends OpenSearchTestCase {
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             final ShardId shardId = new ShardId("index", "_na_", 1);
-            Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+            Store store = new CompositeStore(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
             IndexWriter writer = new IndexWriter(store.directory(), iwc);
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
@@ -584,7 +584,7 @@ public class StoreTests extends OpenSearchTestCase {
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             final ShardId shardId = new ShardId("index", "_na_", 1);
-            store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+            store = new CompositeStore(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
             IndexWriter writer = new IndexWriter(store.directory(), iwc);
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
@@ -683,7 +683,7 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testCleanupFromSnapshot() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        Store store = new CompositeStore(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         // this time random codec....
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(
             TestUtil.getDefaultCodec()
@@ -793,7 +793,7 @@ public class StoreTests extends OpenSearchTestCase {
         final AtomicInteger count = new AtomicInteger(0);
         final ShardLock lock = new DummyShardLock(shardId);
 
-        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), lock, theLock -> {
+        Store store = new CompositeStore(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), lock, theLock -> {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
@@ -814,7 +814,7 @@ public class StoreTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
             .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0))
             .build();
-        Store store = new Store(
+        Store store = new CompositeStore(
             shardId,
             IndexSettingsModule.newIndexSettings("index", settings),
             StoreTests.newDirectory(random()),
@@ -920,7 +920,7 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testUserDataRead() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        Store store = new CompositeStore(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         IndexWriterConfig config = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
         SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
         config.setIndexDeletionPolicy(deletionPolicy);
@@ -985,7 +985,7 @@ public class StoreTests extends OpenSearchTestCase {
     public void testMarkCorruptedOnTruncatedSegmentsFile() throws IOException {
         IndexWriterConfig iwc = newIndexWriterConfig();
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        Store store = new CompositeStore(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         IndexWriter writer = new IndexWriter(store.directory(), iwc);
 
         int numDocs = 1 + random().nextInt(10);
@@ -1043,7 +1043,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
         assertTrue(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l, d) -> new DummyShardLock(id)));
-        Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
+        Store store = new CompositeStore(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
         store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
         assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l, d) -> new DummyShardLock(id)));
         store.close();
@@ -1052,7 +1052,7 @@ public class StoreTests extends OpenSearchTestCase {
     public void testDeserializeCorruptionException() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         final Directory dir = new ByteBuffersDirectory(); // I use ram dir to prevent that virusscanner being a PITA
-        Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
+        Store store = new CompositeStore(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
         CorruptIndexException ex = new CorruptIndexException("foo", "bar");
         store.markStoreCorrupted(ex);
         try {
@@ -1082,7 +1082,7 @@ public class StoreTests extends OpenSearchTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         final Directory dir = new ByteBuffersDirectory(); // I use ram dir to prevent that virusscanner being a PITA
 
-        try (Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId))) {
+        try (Store store = new CompositeStore(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId))) {
             final String corruptionMarkerName = Store.CORRUPTED_MARKER_NAME_PREFIX + UUIDs.randomBase64UUID();
             try (IndexOutput output = dir.createOutput(corruptionMarkerName, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, Store.CODEC, Store.CORRUPTED_MARKER_CODEC_VERSION + randomFrom(1, 2, -1, -2, -3));
@@ -1096,7 +1096,7 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testEnsureIndexHasHistoryUUID() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
+        try (Store store = new CompositeStore(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
 
             store.createEmpty(Version.LATEST);
 
@@ -1127,7 +1127,7 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testHistoryUUIDCanBeForced() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
+        try (Store store = new CompositeStore(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
 
             store.createEmpty(Version.LATEST);
 
@@ -1146,7 +1146,7 @@ public class StoreTests extends OpenSearchTestCase {
     public void testGetPendingFiles() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         final String testfile = "testfile";
-        try (Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId))) {
+        try (Store store = new CompositeStore(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId))) {
             store.directory().createOutput(testfile, IOContext.DEFAULT).close();
             try (IndexInput input = store.directory().openInput(testfile, IOContext.DEFAULT)) {
                 store.directory().deleteFile(testfile);
@@ -1157,7 +1157,7 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testGetMetadataWithSegmentInfos() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        Store store = new CompositeStore(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
         store.createEmpty(Version.LATEST);
         SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
         Store.MetadataSnapshot metadataSnapshot = store.getMetadata(segmentInfos);
@@ -1168,7 +1168,7 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testCleanupAndPreserveLatestCommitPoint() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(
+        Store store = new CompositeStore(
             shardId,
             SEGMENT_REPLICATION_INDEX_SETTINGS,
             StoreTests.newDirectory(random()),
@@ -1207,7 +1207,7 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testGetSegmentMetadataMap() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(
+        Store store = new CompositeStore(
             shardId,
             SEGMENT_REPLICATION_INDEX_SETTINGS,
             new NIOFSDirectory(createTempDir()),
@@ -1282,7 +1282,7 @@ public class StoreTests extends OpenSearchTestCase {
                     .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
                     .build()
             );
-            store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
+            store = new CompositeStore(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
             assertEquals(expectedIndexCreatedVersionMajor, store.readLastCommittedSegmentsInfo().getIndexCreatedVersionMajor());
         } finally {
             if (store != null) {
@@ -1303,14 +1303,14 @@ public class StoreTests extends OpenSearchTestCase {
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
                 .build()
         );
-        Store store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
+        Store store = new CompositeStore(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
         assertThrows(IndexFormatTooOldException.class, store::readLastCommittedSegmentsInfo);
         store.close();
     }
 
     public void testCommitSegmentInfos() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(
+        Store store = new CompositeStore(
             shardId,
             SEGMENT_REPLICATION_INDEX_SETTINGS,
             StoreTests.newDirectory(random()),

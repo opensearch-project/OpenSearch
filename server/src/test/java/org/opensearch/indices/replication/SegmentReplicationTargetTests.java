@@ -36,6 +36,7 @@ import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.CompositeStore;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreTests;
@@ -454,7 +455,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setUseCompoundFile(true);
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        Store store = new CompositeStore(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         IndexWriter writer = new IndexWriter(store.directory(), iwc);
         for (Document d : docList) {
             writer.addDocument(d);

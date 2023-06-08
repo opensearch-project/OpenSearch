@@ -97,6 +97,7 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.store.CompositeStore;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
@@ -208,6 +209,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     protected ThreadPool threadPool;
     protected long primaryTerm;
     protected ClusterService clusterService;
+    protected Path remoteStorePath;
 
     @Override
     public void setUp() throws Exception {
@@ -216,6 +218,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         clusterService = createClusterService(threadPool);
         failOnShardFailures();
+        remoteStorePath = createTempDir();
     }
 
     protected ThreadPool setUpThreadPool() {
@@ -253,12 +256,44 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         return Settings.EMPTY;
     }
 
-    protected Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+    protected CompositeStore createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
         return createStore(shardPath.getShardId(), indexSettings, newFSDirectory(shardPath.resolveIndex()));
     }
 
-    protected Store createStore(ShardId shardId, IndexSettings indexSettings, Directory directory) throws IOException {
-        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
+    protected CompositeStore createStore(ShardId shardId, IndexSettings indexSettings, Directory directory) throws IOException {
+        return new CompositeStore(shardId, indexSettings, directory, new DummyShardLock(shardId));
+    }
+
+    protected CompositeStore createStoreWithRemoteDirectory(
+        Path path,
+        ShardRouting shardRouting,
+        IndexMetadata metadata,
+        ShardPath shardPath
+    ) throws IOException {
+        Settings nodeSettings = Settings.builder().put("node.name", shardRouting.currentNodeId()).build();
+        ShardId shardId = shardPath.getShardId();
+        NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(path);
+        ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
+        RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+        RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+
+        RemoteSegmentStoreDirectory remoteDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, null);
+
+        return new CompositeStore(
+            shardId,
+            new IndexSettings(metadata, nodeSettings),
+            newFSDirectory(shardPath.resolveIndex()),
+            remoteDirectory,
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY
+        );
+    }
+
+    private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
+        FsBlobStore fsBlobStore = new FsBlobStore(1024, f, false);
+        BlobPath blobPath = new BlobPath();
+        BlobContainer fsBlobContainer = new FsBlobContainer(fsBlobStore, blobPath, f);
+        return new RemoteDirectory(fsBlobContainer);
     }
 
     protected Releasable acquirePrimaryOperationPermitBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {
@@ -344,7 +379,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
             .putMapping("{ \"properties\": {} }");
-        return newShard(shardRouting, metadata.build(), null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, null, listeners);
+        return newShard(shardRouting, metadata.build(), null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
     /**
@@ -413,8 +448,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             readerWrapper,
             new InternalEngineFactory(),
             globalCheckpointSyncer,
-            RetentionLeaseSyncer.EMPTY,
-            null
+            RetentionLeaseSyncer.EMPTY
         );
     }
 
@@ -433,7 +467,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         EngineFactory engineFactory,
         IndexingOperationListener... listeners
     ) throws IOException {
-        return newShard(routing, indexMetadata, indexReaderWrapper, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, null, listeners);
+        return newShard(routing, indexMetadata, indexReaderWrapper, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
     /**
@@ -452,7 +486,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         @Nullable EngineFactory engineFactory,
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
-        Store remoteStore,
         IndexingOperationListener... listeners
     ) throws IOException {
         // add node id as name to settings for proper logging
@@ -470,7 +503,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             globalCheckpointSyncer,
             retentionLeaseSyncer,
             EMPTY_EVENT_LISTENER,
-            remoteStore,
             listeners
         );
     }
@@ -491,14 +523,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ShardRouting routing,
         ShardPath shardPath,
         IndexMetadata indexMetadata,
-        @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
+        @Nullable CheckedFunction<IndexSettings, CompositeStore, IOException> storeProvider,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         @Nullable EngineFactory engineFactory,
         @Nullable EngineConfigFactory engineConfigFactory,
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
-        Store remoteStore,
         IndexingOperationListener... listeners
     ) throws IOException {
         return newShard(
@@ -513,7 +544,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             retentionLeaseSyncer,
             indexEventListener,
             SegmentReplicationCheckpointPublisher.EMPTY,
-            remoteStore,
             listeners
         );
     }
@@ -534,7 +564,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ShardRouting routing,
         ShardPath shardPath,
         IndexMetadata indexMetadata,
-        @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
+        @Nullable CheckedFunction<IndexSettings, CompositeStore, IOException> storeProvider,
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         @Nullable EngineFactory engineFactory,
         @Nullable EngineConfigFactory engineConfigFactory,
@@ -542,16 +572,19 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable Store remoteStore,
         IndexingOperationListener... listeners
     ) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, nodeSettings);
         final IndexShard indexShard;
         if (storeProvider == null) {
-            storeProvider = is -> createStore(is, shardPath);
+            if (indexSettings.isRemoteStoreEnabled()) {
+                storeProvider = __ -> createStoreWithRemoteDirectory(remoteStorePath, routing, indexMetadata, shardPath);
+            } else {
+                storeProvider = is -> createStore(is, shardPath);
+            }
         }
-        final Store store = storeProvider.apply(indexSettings);
+        final CompositeStore store = storeProvider.apply(indexSettings);
         boolean success = false;
         try {
             IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
@@ -573,9 +606,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
             RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService = null;
             if (indexSettings.isRemoteStoreEnabled()) {
-                if (remoteStore == null) {
-                    remoteStore = createRemoteStore(createTempDir(), routing, indexMetadata);
-                }
                 remoteRefreshSegmentPressureService = new RemoteRefreshSegmentPressureService(clusterService, indexSettings.getSettings());
             }
 
@@ -612,7 +642,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 breakerService,
                 translogFactorySupplier,
                 checkpointPublisher,
-                remoteStore,
                 remoteRefreshSegmentPressureService
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
@@ -638,25 +667,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         when(repository.blobStore()).thenReturn(blobStore);
         when(repositoriesService.repository(any(String.class))).thenReturn(repository);
         return repositoriesService;
-    }
-
-    protected Store createRemoteStore(Path path, ShardRouting shardRouting, IndexMetadata metadata) throws IOException {
-        Settings nodeSettings = Settings.builder().put("node.name", shardRouting.currentNodeId()).build();
-
-        ShardId shardId = new ShardId("index", "_na_", 0);
-        NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(path);
-        ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
-        RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-        RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, null);
-        return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory);
-    }
-
-    private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
-        FsBlobStore fsBlobStore = new FsBlobStore(1024, f, false);
-        BlobPath blobPath = new BlobPath();
-        BlobContainer fsBlobContainer = new FsBlobContainer(fsBlobStore, blobPath, f);
-        return new RemoteDirectory(fsBlobContainer);
     }
 
     /**
@@ -689,7 +699,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             current.indexSettings.getIndexMetadata(),
             current.engineFactory,
             current.engineConfigFactory,
-            current.remoteStore(),
             listeners
         );
     }
@@ -708,7 +717,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexMetadata indexMetadata,
         EngineFactory engineFactory,
         EngineConfigFactory engineConfigFactory,
-        Store remoteStore,
         IndexingOperationListener... listeners
     ) throws IOException {
         closeShards(current);
@@ -723,7 +731,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             current.getGlobalCheckpointSyncer(),
             current.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER,
-            remoteStore,
             listeners
         );
     }

@@ -156,6 +156,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.CompositeStore;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
@@ -241,7 +242,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ThreadPool threadPool;
     private final MapperService mapperService;
     private final IndexCache indexCache;
-    private final Store store;
+    private final CompositeStore store;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchStats = new ShardSearchStats();
     private final ShardGetService getService;
@@ -331,7 +332,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
-    private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
 
@@ -339,7 +339,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
         final ShardPath path,
-        final Store store,
+        final CompositeStore store,
         final Supplier<Sort> indexSortSupplier,
         final IndexCache indexCache,
         final MapperService mapperService,
@@ -358,7 +358,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final Store remoteStore,
         final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
@@ -449,7 +448,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.checkpointPublisher = checkpointPublisher;
-        this.remoteStore = remoteStore;
         this.translogFactorySupplier = translogFactorySupplier;
         this.remoteRefreshSegmentPressureService = remoteRefreshSegmentPressureService;
     }
@@ -463,7 +461,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Store remoteStore() {
-        return this.remoteStore;
+        return this.store.remoteStore();
     }
 
     /**
@@ -3632,7 +3630,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private boolean isRemoteStoreEnabled() {
-        return (remoteStore != null && shardRouting.primary());
+        return (remoteStore() != null && shardRouting.primary());
     }
 
     public boolean isRemoteTranslogEnabled() {
@@ -4505,6 +4503,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
+        Store remoteStore = remoteStore();
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
         FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
         assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory

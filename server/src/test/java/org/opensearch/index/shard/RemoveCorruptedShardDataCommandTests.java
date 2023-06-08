@@ -61,7 +61,7 @@ import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
-import org.opensearch.index.store.Store;
+import org.opensearch.index.store.CompositeStore;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogException;
@@ -174,8 +174,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 new EngineConfigFactory(new IndexSettings(indexMetadata, settings)),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER,
-                null
+                EMPTY_EVENT_LISTENER
             ),
             true
         );
@@ -533,12 +532,12 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             )
             .build();
 
-        CheckedFunction<IndexSettings, Store, IOException> storeProvider = corrupted == false ? null : indexSettings -> {
+        CheckedFunction<IndexSettings, CompositeStore, IOException> storeProvider = corrupted == false ? null : indexSettings -> {
             final ShardId shardId = shardPath.getShardId();
             final BaseDirectoryWrapper baseDirectoryWrapper = newFSDirectory(shardPath.resolveIndex());
             // index is corrupted - don't even try to check index on close - it fails
             baseDirectoryWrapper.setCheckIndexOnClose(false);
-            return new Store(shardId, indexSettings, baseDirectoryWrapper, new DummyShardLock(shardId));
+            return new CompositeStore(shardId, indexSettings, baseDirectoryWrapper, new DummyShardLock(shardId));
         };
 
         return newShard(
@@ -551,8 +550,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             indexShard.getEngineConfigFactory(),
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER,
-            null
+            EMPTY_EVENT_LISTENER
         );
     }
 

@@ -78,6 +78,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.CompositeStore;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
@@ -682,7 +683,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             initializingShardRouting,
             indexService.getIndexSettings(),
             shard.shardPath(),
-            shard.store(),
+            (CompositeStore) shard.store(),
             indexService.getIndexSortSupplier(),
             indexService.cache(),
             indexService.mapperService(),
@@ -701,7 +702,6 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             cbs,
             (indexSettings, shardRouting) -> new InternalTranslogFactory(),
             SegmentReplicationCheckpointPublisher.EMPTY,
-            null,
             null
         );
     }

@@ -91,6 +91,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardRelocatedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.CompositeStore;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
@@ -1074,7 +1075,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
         if (checkIndex == false) {
             baseDirectoryWrapper.setCheckIndexOnClose(false); // don't run checkindex we might corrupt the index in these tests
         }
-        return new Store(shardId, INDEX_SETTINGS, baseDirectoryWrapper, new DummyShardLock(shardId));
+        return new CompositeStore(shardId, INDEX_SETTINGS, baseDirectoryWrapper, new DummyShardLock(shardId));
     }
 
     static final class FileChunkResponse {

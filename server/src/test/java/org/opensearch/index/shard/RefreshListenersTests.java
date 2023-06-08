@@ -66,6 +66,7 @@ import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.CompositeStore;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
@@ -125,7 +126,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
         String allocationId = UUIDs.randomBase64UUID(random());
         Directory directory = newDirectory();
-        store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
+        store = new CompositeStore(shardId, indexSettings, directory, new DummyShardLock(shardId));
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(
             shardId,

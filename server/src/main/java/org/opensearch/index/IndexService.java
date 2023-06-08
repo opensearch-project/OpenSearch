@@ -88,6 +88,7 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.CompositeStore;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
@@ -454,7 +455,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final Settings indexSettings = this.indexSettings.getSettings();
         final ShardId shardId = routing.shardId();
         boolean success = false;
-        Store store = null;
+        CompositeStore store = null;
         IndexShard indexShard = null;
         ShardLock lock = null;
         try {
@@ -470,20 +471,27 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             };
 
-            Store remoteStore = null;
-            if (this.indexSettings.isRemoteStoreEnabled()) {
-                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
-                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
-            }
-
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
-            store = new Store(
+            store = new CompositeStore(
                 shardId,
                 this.indexSettings,
                 directory,
                 lock,
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
             );
+
+            if (this.indexSettings.isRemoteStoreEnabled()) {
+                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
+                store = new CompositeStore(
+                    shardId,
+                    this.indexSettings,
+                    directory,
+                    remoteDirectory,
+                    lock,
+                    new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
+                );
+            }
+
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
                 routing,
@@ -508,7 +516,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 translogFactorySupplier,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
-                remoteStore,
                 remoteRefreshSegmentPressureService
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");

@@ -65,6 +65,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.store.CompositeStore;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -120,7 +121,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
             final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "myindexUUID").build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
             ShardId shardId = new ShardId(idxSettings.getIndex(), 1);
-            Store store = new Store(shardId, idxSettings, directory, new DummyShardLock(shardId));
+            Store store = new CompositeStore(shardId, idxSettings, directory, new DummyShardLock(shardId));
             SnapshotId snapshotId = new SnapshotId("test", "test");
             IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
 
