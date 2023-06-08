@@ -172,7 +172,7 @@ public class RemoteTransferContainer implements Closeable {
         return isRemoteDataIntegritySupported;
     }
 
-    private void finalizeUpload(boolean uploadSuccessful) {
+    private void finalizeUpload(boolean uploadSuccessful) throws IOException {
         if (isRemoteDataIntegrityCheckPossible()) {
             return;
         }
@@ -180,16 +180,14 @@ public class RemoteTransferContainer implements Closeable {
         if (uploadSuccessful) {
             long actualChecksum = getActualChecksum();
             if (actualChecksum != expectedChecksum) {
-                throw new RuntimeException(
-                    new CorruptIndexException(
-                        "Data integrity check done after upload for file "
-                            + fileName
-                            + " failed, actual checksum: "
-                            + actualChecksum
-                            + ", expected checksum: "
-                            + expectedChecksum,
-                        fileName
-                    )
+                throw new CorruptIndexException(
+                    "Data integrity check done after upload for file "
+                        + fileName
+                        + " failed, actual checksum: "
+                        + actualChecksum
+                        + ", expected checksum: "
+                        + expectedChecksum,
+                    fileName
                 );
             }
         }

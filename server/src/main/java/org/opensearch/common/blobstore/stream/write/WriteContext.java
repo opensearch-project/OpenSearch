@@ -8,10 +8,11 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
 
-import java.util.function.Consumer;
+import java.io.IOException;
 
 /**
  * WriteContext is used to encapsulate all data needed by <code>BlobContainer#writeStreams</code>
@@ -25,7 +26,7 @@ public class WriteContext {
     private final long fileSize;
     private final boolean failIfAlreadyExists;
     private final WritePriority writePriority;
-    private final Consumer<Boolean> uploadFinalizer;
+    private final CheckedConsumer<Boolean, IOException> uploadFinalizer;
     private final boolean doRemoteDataIntegrityCheck;
     private final Long expectedChecksum;
 
@@ -46,7 +47,7 @@ public class WriteContext {
         long fileSize,
         boolean failIfAlreadyExists,
         WritePriority writePriority,
-        Consumer<Boolean> uploadFinalizer,
+        CheckedConsumer<Boolean, IOException> uploadFinalizer,
         boolean doRemoteDataIntegrityCheck,
         @Nullable Long expectedChecksum
     ) {
@@ -99,7 +100,7 @@ public class WriteContext {
     /**
      * @return The <code>UploadFinalizer</code> for this upload
      */
-    public Consumer<Boolean> getUploadFinalizer() {
+    public CheckedConsumer<Boolean, IOException> getUploadFinalizer() {
         return uploadFinalizer;
     }
 
