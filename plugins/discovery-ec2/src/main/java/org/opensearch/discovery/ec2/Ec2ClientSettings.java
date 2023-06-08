@@ -46,7 +46,6 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.core.Protocol;
-import software.amazon.awssdk.regions.Region;
 
 import java.util.Locale;
 
@@ -79,10 +78,10 @@ final class Ec2ClientSettings {
     );
 
     /** An override for the scoping region for authentication. */
-    static final Setting<Region> REGION_SETTING = new Setting<>(
+    static final Setting<String> REGION_SETTING = new Setting<>(
         "discovery.ec2.region",
-        "us-west-2",
-        s -> Region.of(s.toLowerCase(Locale.ROOT)),
+        "",
+        s -> s.toLowerCase(Locale.ROOT),
         Property.NodeScope
     );
 
@@ -124,7 +123,7 @@ final class Ec2ClientSettings {
     /**
      * The ec2 signing region.
      */
-    final Region region;
+    final String region;
 
     /** The protocol to use to talk to ec2. Defaults to https. */
     final Protocol protocol;
@@ -150,7 +149,7 @@ final class Ec2ClientSettings {
     protected Ec2ClientSettings(
         AwsCredentials credentials,
         String endpoint,
-        Region region,
+        String region,
         Protocol protocol,
         String proxyHost,
         int proxyPort,
