@@ -3633,7 +3633,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isReadOnlyReplica,
             replicationTracker::isPrimaryMode,
             translogFactorySupplier.apply(indexSettings, shardRouting),
-            isTimeSeriesIndex ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for timeseries
+            isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
+                                                                                                 // timeseries
         );
     }
 
@@ -3643,6 +3644,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public boolean isRemoteTranslogEnabled() {
         return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
+    }
+
+    /**
+     * @return true if segment reverse search optimization is enabled for time series based workload.
+     */
+    public boolean isTimeSeriesDescSortOptimizationEnabled() {
+        // Do not change segment order in case of index sort.
+        return isTimeSeriesIndex && getIndexSort() == null;
     }
 
     /**
@@ -4675,13 +4684,5 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         return getEngine().getSegmentInfosSnapshot();
-    }
-
-    /**
-     * If index is time series (if it contains @timestamp field)
-     * @return true or false based on above condition
-     */
-    public boolean isTimeSeriesIndex() {
-        return this.isTimeSeriesIndex;
     }
 }
