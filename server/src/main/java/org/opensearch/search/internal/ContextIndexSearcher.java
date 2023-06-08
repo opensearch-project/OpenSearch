@@ -75,6 +75,7 @@ import org.opensearch.search.profile.query.QueryTimingType;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -282,8 +283,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        for (LeafReaderContext ctx : leaves) { // search each subreader
-            searchLeaf(ctx, weight, collector);
+        if (shouldReverseLeafReaderContexts()) {
+            // reverse the segment search order if this flag is true.
+            // Certain queries can benefit if we reverse the segment read order,
+            // for example time series based queries if searched for desc sort order.
+            for (int i = leaves.size() - 1; i >= 0; i--) {
+                searchLeaf(leaves.get(i), weight, collector);
+            }
+        } else {
+            for (int i = 0; i < leaves.size(); i++) {
+                searchLeaf(leaves.get(i), weight, collector);
+            }
         }
     }
 
@@ -495,5 +505,23 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
         return true;
+    }
+
+    private boolean shouldReverseLeafReaderContexts() {
+        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
+        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
+        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
+        // reader order here.
+        if (searchContext != null && searchContext.indexShard().isTimeSeriesIndex()) {
+            // Only reverse order for asc order sort queries
+            if (searchContext.request() != null
+                && searchContext.request().source() != null
+                && searchContext.request().source().sorts() != null
+                && searchContext.request().source().sorts().size() > 0
+                && searchContext.request().source().sorts().get(0).order() == SortOrder.ASC) {
+                return true;
+            }
+        }
+        return false;
     }
 }
