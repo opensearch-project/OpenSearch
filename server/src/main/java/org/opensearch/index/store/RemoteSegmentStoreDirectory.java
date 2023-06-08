@@ -13,6 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
@@ -22,6 +24,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.UUIDs;
@@ -32,6 +35,7 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.util.ByteUtils;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -216,6 +220,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         private final String uploadedFilename;
         private final String checksum;
         private final long length;
+        private Version writtenBy;
 
         UploadedSegmentMetadata(String originalFilename, String uploadedFilename, String checksum, long length) {
             this.originalFilename = originalFilename;
@@ -226,7 +231,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         @Override
         public String toString() {
-            return String.join(SEPARATOR, originalFilename, uploadedFilename, checksum, String.valueOf(length));
+            String metadataStr = String.join(SEPARATOR, originalFilename, uploadedFilename, checksum, String.valueOf(length));
+            if (writtenBy != null) {
+                metadataStr += SEPARATOR + writtenBy;
+            }
+
+            return metadataStr;
         }
 
         public String getChecksum() {
@@ -239,11 +249,24 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         public static UploadedSegmentMetadata fromString(String uploadedFilename) {
             String[] values = uploadedFilename.split(SEPARATOR);
-            return new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
+            UploadedSegmentMetadata metadata = new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
+            if (values.length == 5) {
+                metadata.setWrittenBy(values[4]);
+            }
+
+            return metadata;
         }
 
         public String getOriginalFilename() {
             return originalFilename;
+        }
+
+        public void setWrittenBy(String writtenBy) {
+            this.writtenBy = Lucene.parseVersionLenient(writtenBy, Version.LATEST);
+        }
+
+        public void setWrittenBy(Version writtenBy) {
+            this.writtenBy = writtenBy;
         }
     }
 
