@@ -238,14 +238,19 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         TotalHitCountCollector collector = new TotalHitCountCollector();
         ProfileCollector profileCollector = new ProfileCollector(collector);
         assertEquals(0, profileCollector.getTime());
+        assertEquals(0, profileCollector.getSliceStartTime());
         final LeafCollector leafCollector = profileCollector.getLeafCollector(reader.leaves().get(0));
         assertThat(profileCollector.getTime(), greaterThan(0L));
+        assertThat(profileCollector.getSliceStartTime(), greaterThan(0L));
         long time = profileCollector.getTime();
+        long sliceStartTime = profileCollector.getSliceStartTime();
         leafCollector.setScorer(null);
         assertThat(profileCollector.getTime(), greaterThan(time));
+        assertEquals(sliceStartTime, profileCollector.getSliceStartTime());
         time = profileCollector.getTime();
         leafCollector.collect(0);
         assertThat(profileCollector.getTime(), greaterThan(time));
+        assertEquals(sliceStartTime, profileCollector.getSliceStartTime());
     }
 
     private static class DummyQuery extends Query {
