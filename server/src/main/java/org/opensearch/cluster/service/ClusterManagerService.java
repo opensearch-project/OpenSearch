@@ -12,6 +12,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.function.LongSupplier;
+
 /**
  * Main Cluster Manager Node Service
  *
@@ -20,5 +22,9 @@ import org.opensearch.threadpool.ThreadPool;
 public class ClusterManagerService extends MasterService {
     public ClusterManagerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         super(settings, clusterSettings, threadPool);
+    }
+
+    public ClusterManagerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, LongSupplier nanoTimeSupplier) {
+        super(settings, clusterSettings, threadPool, nanoTimeSupplier);
     }
 }

@@ -85,6 +85,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -97,16 +98,15 @@ import static org.hamcrest.Matchers.is;
 public class MasterServiceTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
-    private static long relativeTimeInMillis;
+    private static Long relativeTimeInMillis;
+
+    private static LongSupplier nanoTimeSupplier() {
+        return () -> relativeTimeInMillis * 1000000L;
+    }
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new TestThreadPool(MasterServiceTests.class.getName()) {
-            @Override
-            public long relativeTimeInMillis() {
-                return relativeTimeInMillis;
-            }
-        };
+        threadPool = new TestThreadPool(MasterServiceTests.class.getName());
     }
 
     @AfterClass
@@ -119,7 +119,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
     @Before
     public void randomizeCurrentTime() {
-        relativeTimeInMillis = randomLongBetween(0L, 1L << 62);
+        relativeTimeInMillis = randomLongBetween(0L, 1L << 50);
     }
 
     private ClusterManagerService createClusterManagerService(boolean makeClusterManager) {
@@ -130,7 +130,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            nanoTimeSupplier()
         );
         final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
             .nodes(
@@ -1062,7 +1063,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
                         .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                         .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    threadPool
+                    threadPool,
+                    nanoTimeSupplier()
                 )
             ) {
 
