@@ -75,6 +75,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.REGION;
 import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 
@@ -133,6 +134,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final InetSocketAddress address = httpServer.getAddress();
         final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
+        clientSettings.put(REGION.getConcreteSettingForNamespace(clientName).getKey(), "region");
 
         if (maxRetries != null) {
             clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
