@@ -48,7 +48,6 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
         long threshold = thresholdSupplier.getAsLong();
 
         if (usage < threshold) {
-
             return Optional.empty();
         }
 
