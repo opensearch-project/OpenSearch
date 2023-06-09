@@ -43,11 +43,7 @@ public class SegmentReplicationUsingRemoteStoreIT extends SegmentReplicationIT {
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
-            .build();
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
     }
 
     @Before

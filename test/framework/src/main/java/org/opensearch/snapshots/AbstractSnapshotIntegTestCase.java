@@ -385,8 +385,21 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     protected Settings.Builder getRepositorySettings(Path location, boolean shallowCopyEnabled) {
         Settings.Builder settingsBuilder = randomRepositorySettings();
         settingsBuilder.put("location", location);
-        settingsBuilder.put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), shallowCopyEnabled);
+        if (shallowCopyEnabled) {
+            settingsBuilder.put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true);
+        }
+        return settingsBuilder;
+    }
 
+    protected Settings.Builder getRepositorySettings(Path location, String basePath, boolean shallowCopyEnabled) {
+        Settings.Builder settingsBuilder = randomRepositorySettings();
+        settingsBuilder.put("location", location);
+        if (shallowCopyEnabled) {
+            settingsBuilder.put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true);
+        }
+        if (basePath != null) {
+            settingsBuilder.put("base_path", basePath);
+        }
         return settingsBuilder;
     }
 

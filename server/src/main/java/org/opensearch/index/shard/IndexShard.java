@@ -3441,7 +3441,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final String repo = recoverySource.snapshot().getRepository();
 
                     executeRecovery(
-                        "from snapshot",
+                        "from snapshot and remote store",
                         recoveryState,
                         recoveryListener,
                         l -> restoreFromSnapshotAndRemoteStore(repositoriesService.repository(repo), repositoriesService, l)
@@ -4707,7 +4707,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IOException {
         List<String> downloadedSegments = new ArrayList<>();
         List<String> skippedSegments = new ArrayList<>();
-
         try {
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             for (String file : uploadedSegments.keySet()) {
@@ -4718,15 +4717,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         storeDirectory.deleteFile(file);
                     }
                     if (targetRemoteDirectory != null) {
-                        String uploadedFileName = uploadedSegments.get(file).toString().split("::")[1];
-                        logger.debug(
-                            "local file is "
-                                + file
-                                + "uploaded file name is "
-                                + uploadedFileName
-                                + " and file is "
-                                + uploadedSegments.get(file).toString()
-                        );
+                        logger.info("we came here and we are copying file to remote" + file);
                         targetRemoteDirectory.copyFrom(
                             sourceRemoteDirectory,
                             file,
@@ -4736,6 +4727,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             uploadedSegments.get(file).getChecksum()
                         );
                     }
+                    logger.info("we came here are we are copying file " + file);
                     storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
                     downloadedSegments.add(file);
                 } else {
@@ -4743,8 +4735,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
         } finally {
-            logger.info("Downloaded segments: {}", downloadedSegments);
-            logger.info("Skipped download for segments: {}", skippedSegments);
+            logger.info("Downloaded segments here: {}", downloadedSegments);
+            logger.info("Skipped download for segments here: {}", skippedSegments);
         }
     }
 

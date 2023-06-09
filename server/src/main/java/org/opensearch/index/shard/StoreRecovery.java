@@ -387,24 +387,25 @@ final class StoreRecovery {
                             null
                         );
                     }
-
                 } catch (RepositoryMissingException e) {
                     throw new IndexShardRecoveryException(shardId, "Remote Store Repository for shard is not found.", null);
                 }
 
                 RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService);
-                RemoteSegmentStoreDirectory tempRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
+                RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
                     indexUUID,
                     String.valueOf(shardId.id())
                 );
-                indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, tempRemoteDirectory, primaryTerm, commitGeneration);
+                indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, sourceRemoteDirectory, primaryTerm, commitGeneration);
                 bootstrap(indexShard, indexShard.store());
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
                 indexShard.openEngineAndRecoverFromTranslog();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("restore done");
+                indexShard.getEngine().refresh("refreshing shard at the end of restore");
+
                 listener.onResponse(true);
             } else {
                 listener.onResponse(false);
