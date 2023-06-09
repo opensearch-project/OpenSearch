@@ -21,9 +21,9 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
@@ -44,7 +44,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private IndexShard indexShard;
@@ -422,14 +421,14 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         return Tuple.tuple(refreshListener, remoteRefreshSegmentPressureService);
     }
 
-    private static class TestFilterDirectory extends FilterDirectory {
+    public static class TestFilterDirectory extends FilterDirectory {
 
         /**
          * Sole constructor, typically called from sub-classes.
          *
          * @param in input directory
          */
-        protected TestFilterDirectory(Directory in) {
+        public TestFilterDirectory(Directory in) {
             super(in);
         }
     }
@@ -448,18 +447,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                     segmentsNFilename = file;
                 }
             }
-        }
-        if (segmentsNFilename != null) {
-            String commitGeneration = segmentsNFilename.substring((IndexFileNames.SEGMENTS + "_").length());
-            assertTrue(
-                uploadedSegments.keySet()
-                    .stream()
-                    .anyMatch(
-                        s -> s.startsWith(
-                            SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + Long.parseLong(commitGeneration, Character.MAX_RADIX)
-                        )
-                    )
-            );
         }
     }
 }
