@@ -163,7 +163,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         verifyCancellationDuringFetchPhase(MultiSearchAction.NAME, restRequest);
     }
 
-    void    verifyCancellationDuringFetchPhase(String searchAction, Request searchRequest) throws Exception {
+    void verifyCancellationDuringFetchPhase(String searchAction, Request searchRequest) throws Exception {
         Map<String, String> nodeIdToName = readNodesInfo();
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
