@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.translog.checked;
+package org.opensearch.index.translog;
 
 import org.opensearch.common.io.Channels;
 import org.opensearch.common.util.concurrent.ReleasableLock;

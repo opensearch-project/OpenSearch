@@ -21,7 +21,7 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
 import org.opensearch.index.translog.ChannelFactory;
-import org.opensearch.index.translog.checked.TranslogCheckedContainer;
+import org.opensearch.index.translog.TranslogCheckedContainer;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.threadpool.ThreadPool;
 
