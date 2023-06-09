@@ -55,6 +55,7 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.AggregationProcessor;
+import org.opensearch.search.aggregations.DefaultAggregationProcessor;
 import org.opensearch.search.aggregations.GlobalAggCollectorManager;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
@@ -93,7 +94,6 @@ public class QueryPhase {
     public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("opensearch.search.rewrite_sort", "true"));
     public static final QueryPhaseSearcher DEFAULT_QUERY_PHASE_SEARCHER = new DefaultQueryPhaseSearcher();
     private final QueryPhaseSearcher queryPhaseSearcher;
-    private final AggregationProcessor aggregationProcessor;
     private final SuggestPhase suggestPhase;
     private final RescorePhase rescorePhase;
 
@@ -103,10 +103,6 @@ public class QueryPhase {
 
     public QueryPhase(QueryPhaseSearcher queryPhaseSearcher) {
         this.queryPhaseSearcher = Objects.requireNonNull(queryPhaseSearcher, "QueryPhaseSearcher is required");
-        this.aggregationProcessor = Objects.requireNonNull(
-            queryPhaseSearcher.newAggregationProcessor(),
-            "AggregationProcessor is required"
-        );
         this.suggestPhase = new SuggestPhase();
         this.rescorePhase = new RescorePhase();
     }
@@ -147,6 +143,7 @@ public class QueryPhase {
             LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
 
+        final AggregationProcessor aggregationProcessor = queryPhaseSearcher.aggregationProcessor(searchContext);
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
@@ -171,11 +168,6 @@ public class QueryPhase {
     // making public for testing
     public QueryPhaseSearcher getQueryPhaseSearcher() {
         return queryPhaseSearcher;
-    }
-
-    // making public for testing
-    public AggregationProcessor getAggregationProcessor() {
-        return aggregationProcessor;
     }
 
     /**
@@ -410,10 +402,14 @@ public class QueryPhase {
      * @opensearch.internal
      */
     public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
+        private final AggregationProcessor aggregationProcessor;
+
         /**
          * Please use {@link QueryPhase#DEFAULT_QUERY_PHASE_SEARCHER}
          */
-        protected DefaultQueryPhaseSearcher() {}
+        protected DefaultQueryPhaseSearcher() {
+            aggregationProcessor = new DefaultAggregationProcessor();
+        }
 
         @Override
         public boolean searchWith(
@@ -425,6 +421,11 @@ public class QueryPhase {
             boolean hasTimeout
         ) throws IOException {
             return searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        }
+
+        @Override
+        public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
+            return aggregationProcessor;
         }
 
         protected boolean searchWithCollector(
