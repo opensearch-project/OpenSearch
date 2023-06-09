@@ -184,7 +184,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
             }
         });
 
-        latch.await(5, TimeUnit.SECONDS);
+        latch.await(2, TimeUnit.SECONDS);
         awaitForBlock(plugins);
         cancellable.cancel();
         ensureSearchTaskIsCancelled(searchAction, nodeIdToName::get);
