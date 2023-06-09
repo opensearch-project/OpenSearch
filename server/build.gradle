@@ -33,9 +33,9 @@ import org.opensearch.gradle.info.BuildParams
 plugins {
   id('com.google.protobuf') version 'latest.release'
   id('opensearch.build')
-  id('com.netflix.nebula.optional-base')
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')
+  id('opensearch.optional-dependencies')
 }
 
 publishing {
