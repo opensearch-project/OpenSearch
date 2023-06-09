@@ -34,10 +34,19 @@ tasks.withType(JacocoReport).configureEach {
   }
 }
 
+tasks.withType(JacocoReport).configureEach {
+  afterEvaluate {
+    classDirectories = files(classDirectories.files.collect {
+      fileTree(dir: it,
+        exclude: ['**/buildSrc/main/groovy/**'])
+    })
+  }
+}
+
 if (System.getProperty("tests.coverage")) {
   reporting {
     reports {
-      testCodeCoverageReport(JacocoCoverageReport) { 
+      testCodeCoverageReport(JacocoCoverageReport) {
         testType = TestSuiteType.UNIT_TEST
       }
     }
@@ -45,6 +54,6 @@ if (System.getProperty("tests.coverage")) {
 
   // Attach code coverage report task to Gradle check task
   project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
-    dependsOn tasks.named('testCodeCoverageReport', JacocoReport) 
+    dependsOn tasks.named('testCodeCoverageReport', JacocoReport)
   }
 }
