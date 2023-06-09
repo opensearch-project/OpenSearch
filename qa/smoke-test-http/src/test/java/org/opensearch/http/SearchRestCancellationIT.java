@@ -183,6 +183,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
                 latch.countDown();
             }
         });
+
         latch.await(5, TimeUnit.SECONDS);
         awaitForBlock(plugins);
         cancellable.cancel();
