@@ -10,17 +10,12 @@ package org.opensearch.extensions;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.nio.file.Files;
-import java.net.UnknownHostException;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
@@ -28,7 +23,6 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
@@ -37,7 +31,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.core.common.Strings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -97,7 +91,6 @@ public class ExtensionsManager {
         REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY
     }
 
-    private final Path extensionsPath;
     private ExtensionTransportActionsHandler extensionTransportActionsHandler;
     private Map<String, Extension> extensionSettingsMap;
     private Map<String, DiscoveryExtensionNode> initializedExtensions;
@@ -114,13 +107,11 @@ public class ExtensionsManager {
     /**
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
      *
-     * @param extensionsPath  Path to a directory containing extensions.
      * @param additionalSettings  Additional settings to read in from extensions.yml
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
-    public ExtensionsManager(Path extensionsPath, Set<Setting<?>> additionalSettings) throws IOException {
+    public ExtensionsManager(Set<Setting<?>> additionalSettings) throws IOException {
         logger.info("ExtensionsManager initialized");
-        this.extensionsPath = extensionsPath;
         this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
         this.extensionSettingsMap = new HashMap<String, Extension>();
@@ -302,28 +293,47 @@ public class ExtensionsManager {
      * @param extension The extension to be loaded
      */
     public void loadExtension(Extension extension) throws IOException {
-        if (extensionIdMap.containsKey(extension.getUniqueId())) {
-            throw new IOException("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
-        } else {
-            try {
-                DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
-                    extension.getName(),
-                    extension.getUniqueId(),
-                    new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                    new HashMap<String, String>(),
-                    Version.fromString(extension.getOpensearchVersion()),
-                    Version.fromString(extension.getMinimumCompatibleVersion()),
-                    extension.getDependencies()
-                );
-                extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
-                extensionSettingsMap.put(extension.getUniqueId(), extension);
-                logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
-            } catch (OpenSearchException e) {
-                throw new OpenSearchException("Could not load extension with uniqueId " + extension.getUniqueId() + " due to " + e);
-            } catch (IllegalArgumentException e) {
-                throw e;
-            }
+        try {
+            validateExtension(extension);
+            DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
+                extension.getName(),
+                extension.getUniqueId(),
+                new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
+                new HashMap<String, String>(),
+                Version.fromString(extension.getOpensearchVersion()),
+                Version.fromString(extension.getMinimumCompatibleVersion()),
+                extension.getDependencies()
+            );
+            extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
+            extensionSettingsMap.put(extension.getUniqueId(), extension);
+            logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+        } catch (IOException e) {
+            throw e;
+        } catch (IllegalArgumentException e) {
+            throw e;
         }
+
+    }
+
+    private boolean validateExtension(Extension extension) throws IOException {
+        if (Strings.isNullOrEmpty(extension.getName())) {
+            throw new IOException("Required field [name] is missing in the request");
+        } else if (Strings.isNullOrEmpty(extension.getUniqueId())) {
+            throw new IOException("Required field [uniqueId] is missing in the request");
+        } else if (Strings.isNullOrEmpty(extension.getHostAddress())) {
+            throw new IOException("Required field [extension host address] is missing in the request");
+        } else if (Strings.isNullOrEmpty(extension.getPort())) {
+            throw new IOException("Required field [extension port] is missing in the request");
+        } else if (Strings.isNullOrEmpty(extension.getVersion())) {
+            throw new IOException("Required field [extension version] is missing in the request");
+        } else if (Strings.isNullOrEmpty(extension.getOpensearchVersion())) {
+            throw new IOException("Required field [opensearch version] is missing in the request");
+        } else if (Strings.isNullOrEmpty(extension.getMinimumCompatibleVersion())) {
+            throw new IOException("Required field [minimum opensearch version] is missing in the request");
+        } else if (extensionIdMap.containsKey(extension.getUniqueId())) {
+            throw new IOException("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
+        }
+        return true;
     }
 
     /**
@@ -450,10 +460,6 @@ public class ExtensionsManager {
 
     static Logger getLogger() {
         return logger;
-    }
-
-    Path getExtensionsPath() {
-        return extensionsPath;
     }
 
     TransportService getTransportService() {

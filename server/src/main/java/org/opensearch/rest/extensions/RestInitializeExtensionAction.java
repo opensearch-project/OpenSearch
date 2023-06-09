@@ -28,6 +28,9 @@ import java.util.List;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * An action that initializes an extension
+ */
 public class RestInitializeExtensionAction extends BaseRestHandler {
 
     private final ExtensionsManager extensionsManager;
@@ -98,7 +101,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
             openSearchVersion,
             minimumCompatibleVersion,
             dependencies,
-            //TODO create parser for additionalSettings
+            // TODO create parser for additionalSettings
             null
         );
         try {

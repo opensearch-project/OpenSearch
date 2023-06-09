@@ -42,6 +42,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.extensions.DiscoveryExtensionNode;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.action.ExtensionAction;
 import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.identity.IdentityService;
@@ -118,7 +119,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(Settings.EMPTY, new ArrayList<>())
+            new IdentityService(Settings.EMPTY, new ArrayList<>()),
+            new ExtensionsManager(Set.of())
         );
         dynamicActionRegistry = actionModule.getDynamicActionRegistry();
     }
