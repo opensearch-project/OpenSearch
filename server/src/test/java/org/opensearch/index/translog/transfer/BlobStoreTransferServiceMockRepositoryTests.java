@@ -53,7 +53,11 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
     public void testUploadBlobs() throws Exception {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            testFile,
+            randomNonNegativeLong(),
+            0L
+        );
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
@@ -95,7 +99,11 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
     public void testUploadBlobsIOException() throws Exception {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            testFile,
+            randomNonNegativeLong(),
+            0L
+        );
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
@@ -131,7 +139,11 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
     public void testUploadBlobsUploadFutureCompletedExceptionally() throws Exception {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            testFile,
+            randomNonNegativeLong(),
+            0L
+        );
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);

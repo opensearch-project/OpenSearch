@@ -50,7 +50,11 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
     public void testUploadBlob() throws IOException {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            testFile,
+            randomNonNegativeLong(),
+            null
+        );
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
         transferService.uploadBlob(transferFileSnapshot, repository.basePath(), WritePriority.HIGH);
     }
@@ -69,7 +73,11 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
         AtomicBoolean succeeded = new AtomicBoolean(false);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            testFile,
+            randomNonNegativeLong(),
+            null
+        );
         CountDownLatch latch = new CountDownLatch(1);
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
         transferService.uploadBlobByThreadPool(
