@@ -51,7 +51,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String name = "";
         String uniqueId = "";
         String hostAddress = "";
@@ -113,6 +113,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
 
         }
 
+        logger.info("Extension has been initialized");
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
