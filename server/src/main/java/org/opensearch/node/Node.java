@@ -61,6 +61,8 @@ import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.tasks.TaskCancellationMonitoringService;
+import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
@@ -974,6 +976,15 @@ public class Node implements Closeable {
                 client,
                 FeatureFlags.isEnabled(SEARCH_PIPELINE)
             );
+            final TaskCancellationMonitoringSettings taskCancellationMonitoringSettings = new TaskCancellationMonitoringSettings(
+                settings,
+                clusterService.getClusterSettings()
+            );
+            final TaskCancellationMonitoringService taskCancellationMonitoringService = new TaskCancellationMonitoringService(
+                threadPool,
+                transportService.getTaskManager(),
+                taskCancellationMonitoringSettings
+            );
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -994,7 +1005,8 @@ public class Node implements Closeable {
                 searchModule.getValuesSourceRegistry().getUsageService(),
                 searchBackpressureService,
                 searchPipelineService,
-                fileCache
+                fileCache,
+                taskCancellationMonitoringService
             );
 
             final SearchService searchService = newSearchService(
@@ -1224,6 +1236,7 @@ public class Node implements Closeable {
         injector.getInstance(FsHealthService.class).start();
         nodeService.getMonitorService().start();
         nodeService.getSearchBackpressureService().start();
+        nodeService.getTaskCancellationMonitoringService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
@@ -1382,6 +1395,7 @@ public class Node implements Closeable {
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
+        nodeService.getTaskCancellationMonitoringService().stop();
 
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released
@@ -1445,6 +1459,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
+        toClose.add(nodeService.getTaskCancellationMonitoringService());
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
