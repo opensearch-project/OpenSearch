@@ -233,6 +233,8 @@ testClusters.yamlRestTest {
   keystore 's3.client.integration_test_temporary.secret_key', s3TemporarySecretKey
   keystore 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
 
+  setting 's3.client.integration_test_temporary.region', { "us-west-2" }, IGNORE_VALUE
+
   if (useFixture) {
     testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture')
     testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-session-token')
