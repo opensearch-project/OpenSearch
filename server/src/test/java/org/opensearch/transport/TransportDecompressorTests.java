@@ -53,7 +53,10 @@ public class TransportDecompressorTests extends OpenSearchTestCase {
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             byte randomByte = randomByte();
-            try (OutputStream deflateStream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))) {
+            try (
+                OutputStream deflateStream = CompressorFactory.defaultCompressor()
+                    .threadLocalOutputStream(Streams.flushOnCloseStream(output))
+            ) {
                 deflateStream.write(randomByte);
             }
 
@@ -74,7 +77,7 @@ public class TransportDecompressorTests extends OpenSearchTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             try (
                 StreamOutput deflateStream = new OutputStreamStreamOutput(
-                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))
+                    CompressorFactory.defaultCompressor().threadLocalOutputStream(Streams.flushOnCloseStream(output))
                 )
             ) {
                 for (int i = 0; i < 10000; ++i) {
@@ -106,7 +109,7 @@ public class TransportDecompressorTests extends OpenSearchTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             try (
                 StreamOutput deflateStream = new OutputStreamStreamOutput(
-                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))
+                    CompressorFactory.defaultCompressor().threadLocalOutputStream(Streams.flushOnCloseStream(output))
                 )
             ) {
                 for (int i = 0; i < 10000; ++i) {
