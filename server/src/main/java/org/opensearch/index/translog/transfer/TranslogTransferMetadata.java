@@ -36,11 +36,11 @@ public class TranslogTransferMetadata {
 
     public static final String METADATA_SEPARATOR = "__";
 
-    public static final int BUFFER_SIZE = 4096;
+    static final int BUFFER_SIZE = 4096;
 
-    public static final int CURRENT_VERSION = 1;
+    static final int CURRENT_VERSION = 1;
 
-    public static final String METADATA_CODEC = "md";
+    static final String METADATA_CODEC = "md";
 
     public static final Comparator<String> METADATA_FILENAME_COMPARATOR = new MetadataFilenameComparator();
 
