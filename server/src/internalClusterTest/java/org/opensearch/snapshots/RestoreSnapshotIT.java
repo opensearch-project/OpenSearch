@@ -36,6 +36,8 @@ import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.indices.get.GetIndexRequest;
+import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -68,6 +70,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -82,6 +85,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
 import static org.opensearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
@@ -168,7 +173,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(client.prepareGet(restoredIndexName2, docId2).get().isExists(), equalTo(true));
     }
 
-    public void testParallelRestoreOperationsShallowCopyEnabled() throws IOException {
+    public void testParallelRestoreOperationsShallowCopyEnabled() throws IOException, ExecutionException, InterruptedException {
         internalCluster().startNodes(3);
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -181,8 +186,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("Snapshot Path [{}]", absolutePath1);
         logger.info("Remote Store Repo Path [{}]", absolutePath2);
         String restoredIndexName1 = indexName1 + "-restored";
+        String restoredIndexName1Doc = indexName1 + "-restored-doc";
         String restoredIndexName2 = indexName2 + "-restored";
-        String expectedValue = "expected";
 
         createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
         createRepository(remoteStoreRepoName, "fs", absolutePath2);
@@ -263,14 +268,36 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client, restoredIndexName2, numDocsInIndex2);
 
         // deleting data for restoredIndexName1 and restoring from remote store.
-        refresh(restoredIndexName1);
         stopNodeWithPrimaryShard(restoredIndexName1);
         assertAcked(client().admin().indices().prepareClose(restoredIndexName1));
         client().admin()
             .cluster()
             .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(restoredIndexName1), PlainActionFuture.newFuture());
+        ensureYellowAndNoInitializingShards(restoredIndexName1);
         ensureGreen(restoredIndexName1);
-        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
+        assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
+
+        // restore index as doc rep based from shallow copy snapshot
+        RestoreSnapshotResponse restoreSnapshotResponse3 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(false)
+            .setIgnoreIndexSettings(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY)
+            .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1Doc)
+            .get();
+        assertEquals(restoreSnapshotResponse3.status(), RestStatus.ACCEPTED);
+        ensureGreen(restoredIndexName1Doc);
+
+        GetIndexResponse getIndexResponse = client().admin()
+            .indices()
+            .getIndex(new GetIndexRequest().indices(restoredIndexName1Doc).includeDefaults(true))
+            .get();
+        indexSettings = getIndexResponse.settings().get(restoredIndexName1Doc);
+        assertEquals(null, indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertEquals(null, indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY, null));
+        assertDocsPresentInIndex(client, restoredIndexName1Doc, numDocsInIndex1);
     }
 
     public void testRestoreShallowSnapshotRepositoryCorrupted() {

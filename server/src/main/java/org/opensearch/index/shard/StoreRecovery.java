@@ -404,7 +404,6 @@ final class StoreRecovery {
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("restore done");
-                indexShard.getEngine().refresh("refreshing shard at the end of restore");
 
                 listener.onResponse(true);
             } else {

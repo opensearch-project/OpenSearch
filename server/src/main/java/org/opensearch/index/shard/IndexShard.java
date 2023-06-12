@@ -159,7 +159,6 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
-import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -3437,7 +3436,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (recoverySource.isSearchableSnapshot()) {
                     executeRecovery("from snapshot (remote)", recoveryState, recoveryListener, this::recoverFromStore);
                 } else if (recoverySource.remoteStoreIndexShallowCopy()) {
-                    RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService);
                     final String repo = recoverySource.snapshot().getRepository();
 
                     executeRecovery(
@@ -4687,7 +4685,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         store.incRef();
 
         try {
-            copySegmentFiles(storeDirectory, sourceRemoteSegmentDirectory, remoteSegmentStoreDirectory, uploadedSegments, overrideLocal);
+            String segmentsNFileName = copySegmentFiles(
+                storeDirectory,
+                sourceRemoteSegmentDirectory,
+                remoteSegmentStoreDirectory,
+                uploadedSegments,
+                overrideLocal
+            );
+            if (segmentsNFileName != null && remoteStore != null) {
+                try (
+                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
+                        storeDirectory.openInput(segmentsNFileName, IOContext.DEFAULT)
+                    )
+                ) {
+                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(store.directory(), indexInput, commitGeneration);
+                    remoteSegmentStoreDirectory.uploadMetadata(uploadedSegments.keySet(), infosSnapshot, storeDirectory, primaryTerm);
+                }
+            }
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
@@ -4698,7 +4712,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private void copySegmentFiles(
+    private String copySegmentFiles(
         Directory storeDirectory,
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
@@ -4707,6 +4721,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IOException {
         List<String> downloadedSegments = new ArrayList<>();
         List<String> skippedSegments = new ArrayList<>();
+        String segmentsNFileName = null;
         try {
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             for (String file : uploadedSegments.keySet()) {
@@ -4717,7 +4732,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         storeDirectory.deleteFile(file);
                     }
                     if (targetRemoteDirectory != null) {
-                        logger.info("we came here and we are copying file to remote" + file);
                         targetRemoteDirectory.copyFrom(
                             sourceRemoteDirectory,
                             file,
@@ -4727,9 +4741,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             uploadedSegments.get(file).getChecksum()
                         );
                     }
-                    logger.info("we came here are we are copying file " + file);
                     storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
                     downloadedSegments.add(file);
+                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                        assert segmentsNFileName == null : "There should be only one SegmentInfosSnapshot file";
+                        segmentsNFileName = file;
+                    }
                 } else {
                     skippedSegments.add(file);
                 }
@@ -4738,6 +4755,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.info("Downloaded segments here: {}", downloadedSegments);
             logger.info("Skipped download for segments here: {}", skippedSegments);
         }
+        return segmentsNFileName;
     }
 
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {

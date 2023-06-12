@@ -290,7 +290,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             } else {
                 isSearchableSnapshot = false;
             }
-            if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
                 remoteStoreIndexShallowCopy = in.readBoolean();
             } else {
                 remoteStoreIndexShallowCopy = false;
@@ -336,7 +336,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
                 out.writeBoolean(isSearchableSnapshot);
             }
-            if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
                 out.writeBoolean(remoteStoreIndexShallowCopy);
             }
         }
