@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.AggregationProcessor;
-import org.opensearch.search.aggregations.ConcurrentAggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.apache.lucene.search.CollectorManager;
@@ -59,7 +58,7 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
         boolean hasTimeout
     ) throws IOException {
         if (searchContext.isConcurrentSegmentSearchEnabled()) {
-            LOGGER.debug("Using concurrent search over segments (experimental)");
+            LOGGER.info("Using concurrent search over segments (experimental)");
             return concurrentQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
         } else {
             return defaultQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
@@ -74,8 +73,8 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
     @Override
     public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
         if (searchContext.isConcurrentSegmentSearchEnabled()) {
-            LOGGER.debug("Using concurrent search over segments (experimental)");
-            return new ConcurrentAggregationProcessor();
+            LOGGER.info("Using concurrent search over segments (experimental)");
+            return concurrentQueryPhaseSearcher.aggregationProcessor(searchContext);
         } else {
             return defaultQueryPhaseSearcher.aggregationProcessor(searchContext);
         }

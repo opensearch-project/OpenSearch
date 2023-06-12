@@ -48,6 +48,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.lease.Releasables;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
@@ -876,11 +877,13 @@ final class DefaultSearchContext extends SearchContext {
      */
     @Override
     public boolean isConcurrentSegmentSearchEnabled() {
-        if (clusterService != null) {
+        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)
+            && (clusterService != null)
+            && (searcher().getExecutor() != null)) {
             return indexService.getIndexSettings()
                 .getSettings()
                 .getAsBoolean(
-                    "index.search.concurrent_segment_search.enabled",
+                    IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(),
                     clusterService.getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
                 );
         } else {
