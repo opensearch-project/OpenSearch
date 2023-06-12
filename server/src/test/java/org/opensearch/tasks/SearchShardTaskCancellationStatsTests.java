@@ -8,7 +8,7 @@
 
 package org.opensearch.tasks;
 
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 public class SearchShardTaskCancellationStatsTests extends AbstractWireSerializingTestCase<SearchShardTaskCancellationStats> {
