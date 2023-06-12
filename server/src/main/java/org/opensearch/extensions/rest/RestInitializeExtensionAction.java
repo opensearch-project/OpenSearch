@@ -98,7 +98,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
             openSearchVersion,
             minimumCompatibleVersion,
             dependencies,
-            // TODO create parser for additionalSettings
+            // TODO create parser for additionalSettings https://github.com/opensearch-project/OpenSearch/issues/8032
             null
         );
         try {
