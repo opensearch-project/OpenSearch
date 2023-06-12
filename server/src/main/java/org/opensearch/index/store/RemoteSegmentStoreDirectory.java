@@ -137,8 +137,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @return Map of segment filename to uploaded filename with checksum
      * @throws IOException if there were any failures in reading the metadata file
      */
-    private RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
-        Map<String, UploadedSegmentMetadata> segmentMetadataMap = new HashMap<>();
+    public RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
         RemoteSegmentMetadata remoteSegmentMetadata = null;
 
         Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
@@ -198,6 +197,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         public static UploadedSegmentMetadata fromString(String uploadedFilename) {
             String[] values = uploadedFilename.split(SEPARATOR);
             return new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
+        }
+
+        public String getOriginalFilename() {
+            return originalFilename;
         }
     }
 

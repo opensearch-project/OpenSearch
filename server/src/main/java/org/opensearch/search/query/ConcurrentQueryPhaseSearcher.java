@@ -32,6 +32,7 @@ import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsC
  */
 public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     private static final Logger LOGGER = LogManager.getLogger(ConcurrentQueryPhaseSearcher.class);
+    private final AggregationProcessor aggregationProcessor = new ConcurrentAggregationProcessor();
 
     /**
      * Default constructor
@@ -104,8 +105,8 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     }
 
     @Override
-    public AggregationProcessor newAggregationProcessor() {
-        return new ConcurrentAggregationProcessor();
+    public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
+        return aggregationProcessor;
     }
 
     private static boolean allowConcurrentSegmentSearch(final ContextIndexSearcher searcher) {

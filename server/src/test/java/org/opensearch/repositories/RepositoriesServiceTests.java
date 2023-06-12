@@ -316,6 +316,21 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
+        public void snapshotRemoteStoreIndexShard(
+            Store store,
+            SnapshotId snapshotId,
+            IndexId indexId,
+            IndexCommit snapshotIndexCommit,
+            String shardStateIdentifier,
+            IndexShardSnapshotStatus snapshotStatus,
+            long primaryTerm,
+            long startTime,
+            ActionListener<String> listener
+        ) {
+
+        }
+
+        @Override
         public void restoreShard(
             Store store,
             SnapshotId snapshotId,
