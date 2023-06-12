@@ -220,7 +220,6 @@ public class TranslogTransferManager {
      *
      * @param metadata The object to be parsed
      * @return Byte representation for the given metadata
-     * @throws IOException
      */
     public byte[] getMetadataBytes(TranslogTransferMetadata metadata) throws IOException {
         byte[] metadataBytes;
