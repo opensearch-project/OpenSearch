@@ -45,6 +45,8 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -394,6 +396,16 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 assertEquals(expectedVersion, dependency.getVersion());
             }
         }
+    }
+
+    public void testParseExtensionDependency() throws Exception {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"uniqueId\": \"test1\", \"version\": \"2.0.0\"}");
+
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        ExtensionDependency dependency = ExtensionDependency.parse(parser);
+
+        assertEquals("test1", dependency.getUniqueId());
+        assertEquals(Version.fromString("2.0.0"), dependency.getVersion());
     }
 
     public void testInitialize() throws Exception {
