@@ -56,7 +56,7 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
     }
 
     public Lucene95CustomCodec(Mode mode, int compressionLevel, MapperService mapperService, Logger logger) {
-        super("Lucene95CustomCodec", new PerFieldMappingPostingFormatCodec(mapperService, logger));
+        super("Lucene95CustomCodec", new PerFieldMappingPostingFormatCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, logger));
         this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);
     }
 

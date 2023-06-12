@@ -69,12 +69,6 @@ public class PerFieldMappingPostingFormatCodec extends Lucene95Codec {
         this.logger = logger;
     }
 
-    public PerFieldMappingPostingFormatCodec(MapperService mapperService, Logger logger) {
-        super();
-        this.mapperService = mapperService;
-        this.logger = logger;
-    }
-
     @Override
     public PostingsFormat getPostingsFormatForField(String field) {
         final MappedFieldType fieldType = mapperService.fieldType(field);
