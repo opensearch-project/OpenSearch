@@ -78,6 +78,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -796,10 +797,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPressureServiceStats() throws Exception {
-        assumeFalse(
-            "Skipping the test as pressure service is not compatible with SegRep and Remote store yet.",
-            segmentReplicationWithRemoteEnabled()
-        );
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
         final String replicaNode = internalCluster().startNode();
@@ -880,7 +877,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 assertEquals(1, shardStatsSet.size());
                 final SegmentReplicationShardStats stats = shardStatsSet.stream().findFirst().get();
                 assertEquals(0, stats.getCheckpointsBehindCount());
-            });
+            }, 30, TimeUnit.SECONDS);
         }
     }
 

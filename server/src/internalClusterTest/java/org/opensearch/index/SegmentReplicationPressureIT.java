@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -123,9 +124,9 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             assertEquals(perGroupStats.getRejectedRequestCount(), 2L);
         }
         refresh(INDEX_NAME);
-        // wait for the replicas to catch up after block is released.
-        waitForSearchableDocs(totalDocs.get(), replicaNodes.toArray(new String[] {}));
 
+        // wait for the replicas to catch up after block is released.
+        assertReplicaCheckpointUpdated(primaryShard);
         // index another doc showing there is no pressure enforced.
         indexDoc();
         refresh(INDEX_NAME);
@@ -179,7 +180,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         }
         refresh(INDEX_NAME);
         // wait for the replicas to catch up after block is released.
-        waitForSearchableDocs(totalDocs.get(), replicaNodes.toArray(new String[] {}));
+        assertReplicaCheckpointUpdated(primaryShard);
 
         // index another doc showing there is no pressure enforced.
         indexDoc();
@@ -258,6 +259,10 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
     }
 
     public void testWithDocumentReplicationEnabledIndex() throws Exception {
+        assumeTrue(
+            "Can't create DocRep index with remote store enabled. Skipping.",
+            indexSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false) == false
+        );
         Settings settings = Settings.builder().put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build();
         // Starts a primary and replica node.
         final String primaryNode = internalCluster().startNode(settings);
@@ -313,12 +318,21 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         }
         refresh(INDEX_NAME);
         // wait for the replicas to catch up after block is released.
-        waitForSearchableDocs(totalDocs, replicaNodes.toArray(new String[] {}));
+        assertReplicaCheckpointUpdated(primaryShard);
 
         // index another doc showing there is no pressure enforced.
         executeBulkRequest(nodes, totalDocs);
         waitForSearchableDocs(totalDocs * 2L, replicaNodes.toArray(new String[] {}));
         verifyStoreContent();
+    }
+
+    private void assertReplicaCheckpointUpdated(IndexShard primaryShard) throws Exception {
+        assertBusy(() -> {
+            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStats();
+            for (SegmentReplicationShardStats shardStat : groupStats) {
+                assertEquals(0, shardStat.getCheckpointsBehindCount());
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 
     private BulkResponse executeBulkRequest(List<String> nodes, int docsPerBatch) {

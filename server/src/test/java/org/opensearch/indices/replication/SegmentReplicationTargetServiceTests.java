@@ -13,8 +13,12 @@ import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
@@ -75,6 +79,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     private DiscoveryNode localNode;
 
     private IndicesService indicesService;
+    private ClusterService clusterService;
 
     private static long TRANSPORT_TIMEOUT = 30000;// 30sec
 
@@ -115,8 +120,15 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         transportService.acceptIncomingRequests();
 
         indicesService = mock(IndicesService.class);
+        clusterService = mock(ClusterService.class);
+        ClusterState clusterState = mock(ClusterState.class);
+        RoutingTable mockRoutingTable = mock(RoutingTable.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.routingTable()).thenReturn(mockRoutingTable);
+        when(mockRoutingTable.shardRoutingTable(any())).thenReturn(primaryShard.getReplicationGroup().getRoutingTable());
 
-        sut = prepareForReplication(primaryShard, null, transportService, indicesService);
+        when(clusterState.nodes()).thenReturn(DiscoveryNodes.builder().add(localNode).build());
+        sut = prepareForReplication(primaryShard, replicaShard, transportService, indicesService, clusterService);
         initialCheckpoint = replicaShard.getLatestReplicationCheckpoint();
         aheadCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),
@@ -345,6 +357,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     public void testBeforeIndexShardClosed_DoesNothingForDocRepIndex() throws IOException {
         final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
         final IndicesService indicesService = mock(IndicesService.class);
+        final ClusterService clusterService = mock(ClusterService.class);
         final ReplicationCollection<SegmentReplicationTarget> ongoingReplications = mock(ReplicationCollection.class);
         final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
             threadPool,
@@ -352,6 +365,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             mock(TransportService.class),
             sourceFactory,
             indicesService,
+            clusterService,
             ongoingReplications
         );
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build();
@@ -364,6 +378,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     public void testShardRoutingChanged_DoesNothingForDocRepIndex() throws IOException {
         final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
         final IndicesService indicesService = mock(IndicesService.class);
+        final ClusterService clusterService = mock(ClusterService.class);
         final ReplicationCollection<SegmentReplicationTarget> ongoingReplications = mock(ReplicationCollection.class);
         final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
             threadPool,
@@ -371,6 +386,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             mock(TransportService.class),
             sourceFactory,
             indicesService,
+            clusterService,
             ongoingReplications
         );
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build();

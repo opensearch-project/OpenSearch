@@ -19,6 +19,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.ClusterSettings;
@@ -295,7 +296,13 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testRejectCheckpointOnShardRoutingPrimary() throws IOException {
         IndexShard primaryShard = newStartedShard(true);
         SegmentReplicationTargetService sut;
-        sut = prepareForReplication(primaryShard, null, mock(TransportService.class), mock(IndicesService.class));
+        sut = prepareForReplication(
+            primaryShard,
+            null,
+            mock(TransportService.class),
+            mock(IndicesService.class),
+            mock(ClusterService.class)
+        );
         SegmentReplicationTargetService spy = spy(sut);
 
         // Starting a new shard in PrimaryMode and shard routing primary.
@@ -1011,6 +1018,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(TransportService.class),
             sourceFactory,
+            null,
             null
         );
     }

@@ -204,7 +204,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                 node
             ));
             mockTargetTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES)) {
+                if (action.equals(SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT)) {
                     try {
                         latch.countDown();
                         pauseReplicationLatch.await();
