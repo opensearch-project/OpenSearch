@@ -16,8 +16,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.mockito.Mockito.mock;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
@@ -31,7 +29,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -89,41 +86,18 @@ public class RestInitializeExtensionTests extends OpenSearchTestCase {
     public void testRestInitializeExtensionActionResponse() throws Exception {
         ExtensionsManager extensionsManager = mock(ExtensionsManager.class);
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
-
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST).build();
-        FakeRestChannel channel = new FakeRestChannel(request, false, 0);
-        restInitializeExtensionAction.handleRequest(request, channel, null);
-
-        assertEquals(1, channel.responses().get());
-        assertEquals(0, channel.errors().get());
-        assertTrue(channel.capturedResponse().content().utf8ToString().contains("Extension has been initialized"));
-
-    }
-
-    public void testRestInitializeExtensionAction() throws Exception {
-        ExtensionsManager extensionsManager = mock(ExtensionsManager.class);
-        RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
         final String content =
             "{\"name\":\"ad-extension\",\"uniqueId\":\"ad-extension\",\"hostAddress\":\"127.0.0.1\",\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\"3.0.0\",\"minimumCompatibleVersion\":\"3.0.0\"}";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
 
-        try (
-            MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(RestInitializeExtensionAction.class))
-        ) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "Extension has been initialized",
-                    "org.opensearch.extensions.rest.RestInitializeExtensionAction",
-                    Level.INFO,
-                    "Extension has been initialized"
-                )
-            );
-            restInitializeExtensionAction.prepareRequest(request, null);
-            mockLogAppender.assertAllExpectationsMatched();
+        FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+        restInitializeExtensionAction.handleRequest(request, channel, null);
 
-        }
+        assertEquals(1, channel.responses().get());
+        assertEquals(0, channel.errors().get());
+        assertTrue(channel.capturedResponse().content().utf8ToString().contains("Extension has been initialized"));
 
     }
 
@@ -137,22 +111,11 @@ public class RestInitializeExtensionTests extends OpenSearchTestCase {
             .withMethod(RestRequest.Method.POST)
             .build();
 
-        try (
-            MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(RestInitializeExtensionAction.class))
-        ) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "Required field is missing in the request",
-                    "org.opensearch.extensions.rest.RestInitializeExtensionAction",
-                    Level.ERROR,
-                    "Required field [uniqueId] is missing in the request"
-                )
-            );
-            restInitializeExtensionAction.prepareRequest(request, null);
-            mockLogAppender.assertAllExpectationsMatched();
+        FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+        restInitializeExtensionAction.handleRequest(request, channel, null);
 
-        }
-
+        assertEquals(1, channel.errors().get());
+        assertTrue(channel.capturedResponse().content().utf8ToString().contains("Required field [uniqueId] is missing in the request"));
     }
 
 }

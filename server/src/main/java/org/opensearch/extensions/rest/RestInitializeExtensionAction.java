@@ -8,8 +8,6 @@
 
 package org.opensearch.extensions.rest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -34,7 +32,6 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 public class RestInitializeExtensionAction extends BaseRestHandler {
 
     private final ExtensionsManager extensionsManager;
-    private static final Logger logger = LogManager.getLogger(RestInitializeExtensionAction.class);
 
     @Override
     public String getName() {
@@ -108,12 +105,10 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
             extensionsManager.loadExtension(extension);
             extensionsManager.initialize();
         } catch (IOException e) {
-            logger.error(e);
             return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
 
         }
 
-        logger.info("Extension has been initialized");
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
