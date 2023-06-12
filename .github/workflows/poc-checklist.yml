@@ -1,0 +1,43 @@
+name: Add comment
+on:
+  issues:
+    types:
+      - labeled
+jobs:
+  add-comment:
+    if: github.event.label.name == 'poc'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Add comment
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            ### Please go through this checklist for your POC feature before you proceed:
+            - [ ] Supports safe upgrade paths from all supported BWC versions to the current version
+            - [ ] Supports compatibility with all plugins
+                - [ ] opensearch-alerting
+                - [ ] opensearch-anomaly-detection
+                - [ ] opensearch-asynchronous-search
+                - [ ] opensearch-cross-cluster-replication
+                - [ ] opensearch-geospatial
+                - [ ] opensearch-index-management
+                - [ ] opensearch-job-scheduler
+                - [ ] opensearch-knn
+                - [ ] opensearch-ml
+                - [ ] opensearch-notifications
+                - [ ] opensearch-notifications-core
+                - [ ] opensearch-observability
+                - [ ] opensearch-performance-analyzer
+                - [ ] opensearch-reports-scheduler
+                - [ ] opensearch-security
+                - [ ] opensearch-sql
+            - [ ] Supports lucene upgrades across minor lucene versions
+            - [ ] Supports lucene upgrades across major lucene versions
+            - [ ] Supports lucene upgrades across lucene codec bumps (Eg: Lucene95Codec -> Lucene95Codec)
+            - [ ] Supports wire compatibility of OpenSearch
+            - [ ] Plan to measure performance degradation/improvement (if any)
+            :sparkles: Thank you for your contribution! :sparkles:
+
