@@ -1271,4 +1271,13 @@ public class OpenSearchException extends BaseOpenSearchException {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
     }
+
+    /**
+     * Returns <code>true</code> iff the given class is a registered for an exception to be read.
+     *
+     * note: this "override" method is provided to ensure static registration of the exceptions above
+     */
+    public static boolean isRegistered(final Class<? extends Throwable> exception, Version version) {
+        return BaseOpenSearchException.isRegistered(exception, version);
+    }
 }
