@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.extensions;
+package org.opensearch.extensions.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,9 +17,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
-import org.opensearch.extensions.rest.ExtensionRestRequest;
-import org.opensearch.extensions.rest.RegisterRestActionsRequest;
-import org.opensearch.extensions.rest.RestExecuteOnExtensionResponse;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;

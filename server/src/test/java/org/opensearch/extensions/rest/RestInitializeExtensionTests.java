@@ -31,7 +31,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.extensions.RestInitializeExtensionAction;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
@@ -116,7 +115,7 @@ public class RestInitializeExtensionTests extends OpenSearchTestCase {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "Extension has been initialized",
-                    "org.opensearch.rest.extensions.RestInitializeExtensionAction",
+                    "org.opensearch.extensions.rest.RestInitializeExtensionAction",
                     Level.INFO,
                     "Extension has been initialized"
                 )
@@ -144,7 +143,7 @@ public class RestInitializeExtensionTests extends OpenSearchTestCase {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "Required field is missing in the request",
-                    "org.opensearch.rest.extensions.RestInitializeExtensionAction",
+                    "org.opensearch.extensions.rest.RestInitializeExtensionAction",
                     Level.ERROR,
                     "Required field [uniqueId] is missing in the request"
                 )

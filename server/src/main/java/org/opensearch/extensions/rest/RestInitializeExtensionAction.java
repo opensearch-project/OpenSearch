@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.extensions;
+package org.opensearch.extensions.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
