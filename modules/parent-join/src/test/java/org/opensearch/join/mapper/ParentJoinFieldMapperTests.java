@@ -33,8 +33,8 @@
 package org.opensearch.join.mapper;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
@@ -80,7 +80,12 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
         // Doc without join
         ParsedDocument doc = docMapper.parse(
-            new SourceToParse("test", "0", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON)
+            new SourceToParse(
+                "test",
+                "0",
+                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().endObject()),
+                XContentType.JSON
+            )
         );
         assertNull(doc.rootDoc().getBinaryValue("join_field"));
 
@@ -89,7 +94,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "parent").endObject()),
+                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "parent").endObject()),
                 XContentType.JSON
             )
         );
@@ -101,7 +106,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "2",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("join_field")
@@ -124,7 +129,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "1",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "unknown").endObject()),
+                    BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "unknown").endObject()),
                     XContentType.JSON
                 )
             )
@@ -153,7 +158,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "2",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("join_field")
@@ -172,7 +177,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "2",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("join_field")
@@ -211,7 +216,12 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
         // Doc without join
         ParsedDocument doc = docMapper.parse(
-            new SourceToParse("test", "0", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON)
+            new SourceToParse(
+                "test",
+                "0",
+                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().endObject()),
+                XContentType.JSON
+            )
         );
         assertNull(doc.rootDoc().getBinaryValue("join_field"));
 
@@ -220,7 +230,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "parent").endObject()),
+                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "parent").endObject()),
                 XContentType.JSON
             )
         );
@@ -232,7 +242,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "2",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("join_field")
@@ -256,7 +266,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "2",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "child").endObject()),
+                    BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "child").endObject()),
                     XContentType.JSON,
                     "1"
                 )
@@ -271,7 +281,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "2",
-                    BytesReference.bytes(
+                    BytesReferenceUtil.bytes(
                         XContentFactory.jsonBuilder()
                             .startObject()
                             .startObject("join_field")
@@ -291,7 +301,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "3",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("join_field")
@@ -314,7 +324,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "1",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "unknown").endObject()),
+                    BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "unknown").endObject()),
                     XContentType.JSON
                 )
             )

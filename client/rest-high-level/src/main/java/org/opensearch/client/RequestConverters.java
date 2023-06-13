@@ -76,6 +76,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -236,7 +237,7 @@ final class RequestConverters {
                 }
                 metadata.endObject();
 
-                BytesRef metadataSource = BytesReference.bytes(metadata).toBytesRef();
+                BytesRef metadataSource = BytesReferenceUtil.bytes(metadata).toBytesRef();
                 content.write(metadataSource.bytes, metadataSource.offset, metadataSource.length);
                 content.write(separator);
             }
@@ -262,7 +263,7 @@ final class RequestConverters {
                 ) {
                     try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
                         builder.copyCurrentStructure(parser);
-                        source = BytesReference.bytes(builder).toBytesRef();
+                        source = BytesReferenceUtil.bytes(builder).toBytesRef();
                     }
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {

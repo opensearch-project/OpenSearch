@@ -37,6 +37,7 @@ import org.opensearch.Version;
 import org.opensearch.action.main.MainResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -106,7 +107,7 @@ public class RestMainActionTests extends OpenSearchTestCase {
             responseBuilder.prettyPrint().lfAtEnd();
         }
         mainResponse.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
-        BytesReference xcontentBytes = BytesReference.bytes(responseBuilder);
+        BytesReference xcontentBytes = BytesReferenceUtil.bytes(responseBuilder);
         assertEquals(xcontentBytes, response.content());
     }
 }

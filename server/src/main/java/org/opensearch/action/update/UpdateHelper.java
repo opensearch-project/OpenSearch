@@ -44,6 +44,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -369,7 +370,7 @@ public class UpdateHelper {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
                 try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
                     builder.value(value);
-                    sourceFilteredAsBytes = BytesReference.bytes(builder);
+                    sourceFilteredAsBytes = BytesReferenceUtil.bytes(builder);
                 }
             } catch (IOException e) {
                 throw new OpenSearchException("Error filtering source", e);

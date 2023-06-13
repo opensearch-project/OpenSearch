@@ -32,7 +32,7 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -62,7 +62,7 @@ public class RestCreateIndexActionTests extends OpenSearchTestCase {
             .endObject()
             .endObject();
 
-        Map<String, Object> contentAsMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, content.contentType()).v2();
+        Map<String, Object> contentAsMap = XContentHelper.convertToMap(BytesReferenceUtil.bytes(content), true, content.contentType()).v2();
         Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap);
 
         XContentBuilder expectedContent = XContentFactory.jsonBuilder()
@@ -85,7 +85,7 @@ public class RestCreateIndexActionTests extends OpenSearchTestCase {
             .endObject()
             .endObject();
         Map<String, Object> expectedContentAsMap = XContentHelper.convertToMap(
-            BytesReference.bytes(expectedContent),
+            BytesReferenceUtil.bytes(expectedContent),
             true,
             expectedContent.contentType()
         ).v2();
@@ -103,7 +103,7 @@ public class RestCreateIndexActionTests extends OpenSearchTestCase {
             .endObject()
             .endObject();
 
-        Map<String, Object> contentAsMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, content.contentType()).v2();
+        Map<String, Object> contentAsMap = XContentHelper.convertToMap(BytesReferenceUtil.bytes(content), true, content.contentType()).v2();
 
         Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap);
         assertEquals(contentAsMap, source);

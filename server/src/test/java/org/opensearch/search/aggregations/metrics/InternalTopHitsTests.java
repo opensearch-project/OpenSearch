@@ -41,10 +41,10 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -327,8 +327,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             expectedJson.endObject();
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(
-                XContentHelper.convertToMap(BytesReference.bytes(actualJson), false).v2(),
-                XContentHelper.convertToMap(BytesReference.bytes(expectedJson), false).v2()
+                XContentHelper.convertToMap(BytesReferenceUtil.bytes(actualJson), false).v2(),
+                XContentHelper.convertToMap(BytesReferenceUtil.bytes(expectedJson), false).v2()
             );
             throw new AssertionError("Didn't match expected value:\n" + message);
         } catch (IOException e) {

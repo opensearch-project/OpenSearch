@@ -33,8 +33,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -94,7 +93,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
             shardTarget == null ? null : shardTarget.getFullyQualifiedIndexName(),
             shardTarget == null ? -1 : shardTarget.getShardId().getId(),
             BaseExceptionsHelper.detailedMessage(e),
-            ExceptionsHelper.status(unwrappedCause),
+            BaseExceptionsHelper.status(unwrappedCause),
             unwrappedCause
         );
 
@@ -163,7 +162,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         String indexName = null;
         String clusterAlias = null;
         String nodeId = null;
-        OpenSearchException exception = null;
+        BaseOpenSearchException exception = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -184,7 +183,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (REASON_FIELD.equals(currentFieldName)) {
-                    exception = OpenSearchException.fromXContent(parser);
+                    exception = BaseOpenSearchException.fromXContent(parser);
                 } else {
                     parser.skipChildren();
                 }

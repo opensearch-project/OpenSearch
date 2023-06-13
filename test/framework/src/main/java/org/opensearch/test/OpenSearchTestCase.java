@@ -90,6 +90,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.time.FormatNames;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -1286,7 +1287,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
         try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
-                return BytesReference.bytes(builder);
+                return BytesReferenceUtil.bytes(builder);
             }
         }
     }
@@ -1306,7 +1307,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         BytesReference bytes = XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
         try (XContentParser parser = createParser(mediaType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
-                return BytesReference.bytes(builder);
+                return BytesReferenceUtil.bytes(builder);
             }
         }
     }
@@ -1463,7 +1464,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContentBuilder builder) throws IOException {
-        return createParser(builder.contentType().xContent(), BytesReference.bytes(builder));
+        return createParser(builder.contentType().xContent(), BytesReferenceUtil.bytes(builder));
     }
 
     /**

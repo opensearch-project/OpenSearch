@@ -35,13 +35,10 @@ package org.opensearch.common.bytes;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.opensearch.common.io.stream.BytesStream;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.util.ByteArray;
 import org.opensearch.core.xcontent.ToXContentFragment;
-import org.opensearch.core.xcontent.XContentBuilder;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -53,20 +50,6 @@ import java.util.ArrayList;
  * @opensearch.internal
  */
 public interface BytesReference extends Comparable<BytesReference>, ToXContentFragment {
-
-    /**
-     * Convert an {@link XContentBuilder} into a BytesReference. This method closes the builder,
-     * so no further fields may be added.
-     */
-    static BytesReference bytes(XContentBuilder xContentBuilder) {
-        xContentBuilder.close();
-        OutputStream stream = xContentBuilder.getOutputStream();
-        if (stream instanceof ByteArrayOutputStream) {
-            return new BytesArray(((ByteArrayOutputStream) stream).toByteArray());
-        } else {
-            return ((BytesStream) stream).bytes();
-        }
-    }
 
     /**
      * Returns a compact array from the given BytesReference. The returned array won't be copied unless necessary. If you need

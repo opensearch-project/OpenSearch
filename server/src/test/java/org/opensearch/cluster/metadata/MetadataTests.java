@@ -46,6 +46,7 @@ import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -478,7 +479,7 @@ public class MetadataTests extends OpenSearchTestCase {
     }
 
     public void testUnknownFieldClusterMetadata() throws IOException {
-        BytesReference metadata = BytesReference.bytes(
+        BytesReference metadata = BytesReferenceUtil.bytes(
             JsonXContent.contentBuilder().startObject().startObject("meta-data").field("random", "value").endObject().endObject()
         );
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
@@ -490,7 +491,7 @@ public class MetadataTests extends OpenSearchTestCase {
     }
 
     public void testUnknownFieldIndexMetadata() throws IOException {
-        BytesReference metadata = BytesReference.bytes(
+        BytesReference metadata = BytesReferenceUtil.bytes(
             JsonXContent.contentBuilder().startObject().startObject("index_name").field("random", "value").endObject().endObject()
         );
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
@@ -520,7 +521,7 @@ public class MetadataTests extends OpenSearchTestCase {
         builder.startObject();
         Metadata.FORMAT.toXContent(builder, originalMeta);
         builder.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
             final Metadata fromXContentMeta = Metadata.fromXContent(parser);
             assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
         }
@@ -535,7 +536,7 @@ public class MetadataTests extends OpenSearchTestCase {
         builder.startObject();
         Metadata.FORMAT.toXContent(builder, originalMeta);
         builder.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
             final Metadata fromXContentMeta = Metadata.fromXContent(parser);
             assertThat(fromXContentMeta.clusterUUID(), equalTo(originalMeta.clusterUUID()));
             assertThat(fromXContentMeta.clusterUUIDCommitted(), equalTo(originalMeta.clusterUUIDCommitted()));
@@ -595,7 +596,7 @@ public class MetadataTests extends OpenSearchTestCase {
         Metadata.FORMAT.toXContent(builder, metadata);
         builder.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
             final CoordinationMetadata fromXContentMeta = Metadata.fromXContent(parser).coordinationMetadata();
             assertThat(fromXContentMeta, equalTo(originalMeta));
         }

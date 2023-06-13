@@ -36,6 +36,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -77,7 +78,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
                 builder,
                 ToXContent.EMPTY_PARAMS
             );
-            bytes = BytesReference.bytes(builder);
+            bytes = BytesReferenceUtil.bytes(builder);
         }
 
         XContentParser xContentParser = xContentType.xContent()

@@ -31,7 +31,7 @@
 
 package org.opensearch.script.mustache;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.script.ScriptEngine;
@@ -276,7 +276,7 @@ public class MustacheTests extends OpenSearchTestCase {
 
         Map<String, Object> ctx = singletonMap(
             "ctx",
-            XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2()
+            XContentHelper.convertToMap(BytesReferenceUtil.bytes(builder), false, builder.contentType()).v2()
         );
 
         assertScript(
@@ -322,7 +322,7 @@ public class MustacheTests extends OpenSearchTestCase {
 
         Map<String, Object> ctx = singletonMap(
             "ctx",
-            XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2()
+            XContentHelper.convertToMap(BytesReferenceUtil.bytes(builder), false, builder.contentType()).v2()
         );
 
         assertScript("{{#join}}ctx.people.0.emails{{/join}}", ctx, equalTo("john@smith.com,john.smith@email.com,jsmith@email.com"));

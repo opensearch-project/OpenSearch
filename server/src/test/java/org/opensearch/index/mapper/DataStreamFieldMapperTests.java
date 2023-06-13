@@ -9,8 +9,8 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -77,7 +77,7 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("event")
@@ -97,7 +97,7 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "3",
-                    BytesReference.bytes(
+                    BytesReferenceUtil.bytes(
                         XContentFactory.jsonBuilder()
                             .startObject()
                             .startObject("event")
@@ -126,7 +126,7 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder().startObject().field(timestampFieldName, "2020-12-06T11:04:05.000Z").endObject()
                 ),
                 XContentType.JSON
@@ -144,7 +144,7 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "2",
-                    BytesReference.bytes(
+                    BytesReferenceUtil.bytes(
                         XContentFactory.jsonBuilder().startObject().field("invalid-field-name", "2020-12-06T11:04:05.000Z").endObject()
                     ),
                     XContentType.JSON
@@ -162,7 +162,7 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "3",
-                    BytesReference.bytes(
+                    BytesReferenceUtil.bytes(
                         XContentFactory.jsonBuilder()
                             .startObject()
                             .array(timestampFieldName, "2020-12-06T11:04:05.000Z", "2020-12-07T11:04:05.000Z")

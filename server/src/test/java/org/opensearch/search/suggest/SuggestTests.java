@@ -33,6 +33,7 @@
 package org.opensearch.search.suggest;
 
 import org.opensearch.Version;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesReference;
@@ -234,7 +235,7 @@ public class SuggestTests extends OpenSearchTestCase {
             builder.endArray();
         }
         builder.endObject();
-        BytesReference originalBytes = BytesReference.bytes(builder);
+        BytesReference originalBytes = BytesReferenceUtil.bytes(builder);
         try (XContentParser parser = createParser(builder.contentType().xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             ParsingException ex = expectThrows(ParsingException.class, () -> Suggest.fromXContent(parser));

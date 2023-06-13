@@ -11,7 +11,7 @@ package org.opensearch.search.pipeline.common;
 import org.opensearch.action.search.SearchRequest;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -157,7 +157,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
         ) throws Exception {
             try (
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
-                InputStream stream = BytesReference.bytes(builder).streamInput();
+                InputStream stream = BytesReferenceUtil.bytes(builder).streamInput();
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
             ) {

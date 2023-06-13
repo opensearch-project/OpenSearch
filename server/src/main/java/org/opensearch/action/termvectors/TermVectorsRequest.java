@@ -40,6 +40,7 @@ import org.opensearch.action.ValidateActions;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -293,7 +294,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Sets an artificial document from which term vectors are requested for.
      */
     public TermVectorsRequest doc(XContentBuilder documentBuilder) {
-        return this.doc(BytesReference.bytes(documentBuilder), true, documentBuilder.contentType());
+        return this.doc(BytesReferenceUtil.bytes(documentBuilder), true, documentBuilder.contentType());
     }
 
     /**

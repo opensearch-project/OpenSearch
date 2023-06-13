@@ -43,6 +43,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
@@ -365,7 +366,7 @@ public class ScriptServiceTests extends OpenSearchTestCase {
     }
 
     public void testStoreScript() throws Exception {
-        BytesReference script = BytesReference.bytes(
+        BytesReference script = BytesReferenceUtil.bytes(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .field("script")

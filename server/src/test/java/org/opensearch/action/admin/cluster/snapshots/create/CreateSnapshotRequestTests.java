@@ -36,8 +36,8 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.IndicesOptions.Option;
 import org.opensearch.action.support.IndicesOptions.WildcardStates;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent.MapParams;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -125,7 +125,7 @@ public class CreateSnapshotRequestTests extends OpenSearchTestCase {
 
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
         XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
+            .createParser(NamedXContentRegistry.EMPTY, null, BytesReferenceUtil.bytes(builder).streamInput());
         Map<String, Object> map = parser.mapOrdered();
         CreateSnapshotRequest processed = new CreateSnapshotRequest((String) map.get("repository"), (String) map.get("snapshot"));
         processed.waitForCompletion(original.waitForCompletion());

@@ -47,6 +47,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexingSlowLog.IndexingSlowLogMessage;
@@ -218,7 +219,7 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
     }
 
     public void testSlowLogMessageHasJsonFields() throws IOException {
-        BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
+        BytesReference source = BytesReferenceUtil.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(
             new NumericDocValuesField("version", 1),
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
@@ -246,7 +247,7 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
     }
 
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
-        BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
+        BytesReference source = BytesReferenceUtil.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(
             new NumericDocValuesField("version", 1),
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(),

@@ -36,9 +36,9 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
@@ -73,7 +73,7 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "1",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_id", "1").endObject()),
+                    BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("_id", "1").endObject()),
                     XContentType.JSON
                 )
             );

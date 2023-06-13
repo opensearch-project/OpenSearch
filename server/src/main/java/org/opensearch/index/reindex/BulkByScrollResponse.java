@@ -32,7 +32,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
@@ -246,8 +246,8 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         Integer status = null;
         Integer shardId = null;
         String nodeId = null;
-        OpenSearchException bulkExc = null;
-        OpenSearchException searchExc = null;
+        BaseOpenSearchException bulkExc = null;
+        BaseOpenSearchException searchExc = null;
         while ((token = parser.nextToken()) != Token.END_OBJECT) {
             ensureExpectedToken(Token.FIELD_NAME, token, parser);
             String name = parser.currentName();
@@ -257,10 +257,10 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
             } else if (token == Token.START_OBJECT) {
                 switch (name) {
                     case SearchFailure.REASON_FIELD:
-                        searchExc = OpenSearchException.fromXContent(parser);
+                        searchExc = BaseOpenSearchException.fromXContent(parser);
                         break;
                     case Failure.CAUSE_FIELD:
-                        bulkExc = OpenSearchException.fromXContent(parser);
+                        bulkExc = BaseOpenSearchException.fromXContent(parser);
                         break;
                     default:
                         parser.skipChildren();

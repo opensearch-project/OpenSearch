@@ -34,8 +34,8 @@ package org.opensearch.search.suggest.completion;
 
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -84,7 +84,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "1",
-                    BytesReference.bytes(
+                    BytesReferenceUtil.bytes(
                         jsonBuilder().startObject()
                             .startArray("completion")
                             .startObject()
@@ -131,7 +131,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "1",
-                    BytesReference.bytes(
+                    BytesReferenceUtil.bytes(
                         jsonBuilder().startObject()
                             .startArray("completion")
                             .startObject()
@@ -176,7 +176,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
                 new SourceToParse(
                     "test",
                     "1",
-                    BytesReference.bytes(
+                    BytesReferenceUtil.bytes(
                         jsonBuilder().startObject()
                             .startObject("completion")
                             .array("input", "suggestion5", "suggestion6", "suggestion7")
@@ -237,7 +237,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endArray()
             .endObject();
         ParsedDocument parsedDocument = mapperService.documentMapper()
-            .parse(new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON));
+            .parse(new SourceToParse("test", "1", BytesReferenceUtil.bytes(builder), XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
@@ -308,7 +308,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testParsingQueryContextBasic() throws Exception {
         XContentBuilder builder = jsonBuilder().value("ezs42e44yx96");
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder));
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
         List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
         assertThat(internalQueryContexts.size(), equalTo(1 + 8));
@@ -324,7 +324,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testParsingQueryContextGeoPoint() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("lat", 23.654242).field("lon", 90.047153).endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder));
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
         List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
         assertThat(internalQueryContexts.size(), equalTo(1 + 8));
@@ -347,7 +347,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .field("boost", 10)
             .array("neighbours", 1, 2, 3)
             .endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder));
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
         List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
         assertThat(internalQueryContexts.size(), equalTo(1 + 1 + 8 + 1 + 8 + 1 + 8));
@@ -385,7 +385,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .array("neighbours", 5)
             .endObject()
             .endArray();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder));
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
         List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
         assertThat(internalQueryContexts.size(), equalTo(1 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 1 + 8));
@@ -428,7 +428,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .field("lon", 92.112583)
             .endObject()
             .endArray();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder));
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
         List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
         assertThat(internalQueryContexts.size(), equalTo(1 + 1 + 8 + 1 + 8 + 1 + 8));

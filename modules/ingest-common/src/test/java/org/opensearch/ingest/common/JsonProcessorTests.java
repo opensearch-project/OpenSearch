@@ -32,7 +32,7 @@
 
 package org.opensearch.ingest.common;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -61,7 +61,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
 
         Map<String, Object> randomJsonMap = RandomDocumentPicks.randomSource(random());
         XContentBuilder builder = JsonXContent.contentBuilder().map(randomJsonMap);
-        String randomJson = XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
+        String randomJson = XContentHelper.convertToJson(BytesReferenceUtil.bytes(builder), false, XContentType.JSON);
         document.put(randomField, randomJson);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);

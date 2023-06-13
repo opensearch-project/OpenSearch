@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.cluster.node.tasks;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
@@ -769,7 +769,7 @@ public class TasksIT extends AbstractTasksIT {
             .get();
 
         // It should finish quickly and without complaint and list the list tasks themselves
-        assertThat(response.getNodeFailures(), emptyCollectionOf(OpenSearchException.class));
+        assertThat(response.getNodeFailures(), emptyCollectionOf(BaseOpenSearchException.class));
         assertThat(response.getTaskFailures(), emptyCollectionOf(TaskOperationFailure.class));
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
     }

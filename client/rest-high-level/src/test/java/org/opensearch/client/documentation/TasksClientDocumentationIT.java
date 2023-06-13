@@ -32,7 +32,7 @@
 
 package org.opensearch.client.documentation;
 
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.TaskOperationFailure;
@@ -124,7 +124,7 @@ public class TasksClientDocumentationIT extends OpenSearchRestHighLevelClientTes
         // end::list-tasks-response-calc
 
         // tag::list-tasks-response-failures
-        List<OpenSearchException> nodeFailures = response.getNodeFailures(); // <1>
+        List<BaseOpenSearchException> nodeFailures = response.getNodeFailures(); // <1>
         List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
         // end::list-tasks-response-failures
 

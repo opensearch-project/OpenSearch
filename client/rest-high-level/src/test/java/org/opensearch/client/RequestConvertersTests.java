@@ -72,6 +72,7 @@ import org.opensearch.common.io.Streams;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -424,7 +425,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
                 "remote-host",
                 9200,
                 null,
-                BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS)),
+                BytesReferenceUtil.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS)),
                 "user",
                 "pass",
                 emptyMap(),
@@ -1703,7 +1704,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             builder.startObject("script").field("lang", "painless").field("source", "Math.log(_score * 2) + params.multiplier").endObject();
             builder.endObject();
 
-            putStoredScriptRequest.content(BytesReference.bytes(builder), xContentType);
+            putStoredScriptRequest.content(BytesReferenceUtil.bytes(builder), xContentType);
         }
 
         Map<String, String> expectedParams = new HashMap<>();

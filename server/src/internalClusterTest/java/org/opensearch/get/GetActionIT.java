@@ -49,6 +49,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -606,7 +607,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                 )
         );
 
-        BytesReference source = BytesReference.bytes(
+        BytesReference source = BytesReferenceUtil.bytes(
             jsonBuilder().startObject()
                 .startArray("field1")
                 .startObject()

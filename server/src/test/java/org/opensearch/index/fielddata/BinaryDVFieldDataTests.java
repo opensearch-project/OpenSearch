@@ -35,8 +35,8 @@ package org.opensearch.index.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -81,16 +81,16 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             doc.endArray();
         }
         doc.endObject();
-        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(doc), XContentType.JSON));
+        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReferenceUtil.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         BytesRef bytes1 = randomBytes();
         doc = XContentFactory.jsonBuilder().startObject().field("field", bytes1.bytes, bytes1.offset, bytes1.length).endObject();
-        d = mapper.parse(new SourceToParse("test", "2", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("test", "2", BytesReferenceUtil.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         doc = XContentFactory.jsonBuilder().startObject().endObject();
-        d = mapper.parse(new SourceToParse("test", "3", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("test", "3", BytesReferenceUtil.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         // test remove duplicate value
@@ -106,7 +106,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             doc.endArray();
         }
         doc.endObject();
-        d = mapper.parse(new SourceToParse("test", "4", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("test", "4", BytesReferenceUtil.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         IndexFieldData<?> indexFieldData = getForField("field");

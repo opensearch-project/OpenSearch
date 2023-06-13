@@ -33,7 +33,7 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -98,11 +98,11 @@ public class MapXContentParserTests extends OpenSearchTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             consumer.accept(builder);
             final Map<String, Object> map;
-            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReferenceUtil.bytes(builder))) {
                 map = parser.mapOrdered();
             }
 
-            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReferenceUtil.bytes(builder))) {
                 try (
                     XContentParser mapParser = new MapXContentParser(
                         xContentRegistry(),

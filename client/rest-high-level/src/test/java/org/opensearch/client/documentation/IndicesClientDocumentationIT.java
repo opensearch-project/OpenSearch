@@ -32,6 +32,7 @@
 
 package org.opensearch.client.documentation;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
@@ -1925,7 +1926,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
 
             // tag::get-alias-response-error
             RestStatus status = response.status(); // <1>
-            OpenSearchException exception = response.getException(); // <2>
+            BaseOpenSearchException exception = response.getException(); // <2>
             String error = response.getError(); // <3>
             // end::get-alias-response-error
 

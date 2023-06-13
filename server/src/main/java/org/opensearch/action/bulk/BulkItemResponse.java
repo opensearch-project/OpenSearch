@@ -33,7 +33,7 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest.OpType;
@@ -144,7 +144,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         }
 
         RestStatus status = null;
-        OpenSearchException exception = null;
+        BaseOpenSearchException exception = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -152,7 +152,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
             if (ERROR.equals(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
-                    exception = OpenSearchException.fromXContent(parser);
+                    exception = BaseOpenSearchException.fromXContent(parser);
                 }
             } else if (STATUS.equals(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -219,7 +219,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 index,
                 id,
                 cause,
-                ExceptionsHelper.status(cause),
+                BaseExceptionsHelper.status(cause),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                 false
@@ -231,7 +231,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 index,
                 id,
                 cause,
-                ExceptionsHelper.status(cause),
+                BaseExceptionsHelper.status(cause),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                 aborted
@@ -244,7 +244,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
         /** For write failures after operation was assigned a sequence number. */
         public Failure(String index, String id, Exception cause, long seqNo, long term) {
-            this(index, id, cause, ExceptionsHelper.status(cause), seqNo, term, false);
+            this(index, id, cause, BaseExceptionsHelper.status(cause), seqNo, term, false);
         }
 
         private Failure(String index, String id, Exception cause, RestStatus status, long seqNo, long term, boolean aborted) {
@@ -269,7 +269,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             }
             id = in.readOptionalString();
             cause = in.readException();
-            status = ExceptionsHelper.status(cause);
+            status = BaseExceptionsHelper.status(cause);
             seqNo = in.readZLong();
             term = in.readVLong();
             aborted = in.readBoolean();

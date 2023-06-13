@@ -108,9 +108,12 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
     }
 
     public void testStatus() {
-        assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new JsonParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new OpenSearchRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(BaseExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(BaseExceptionsHelper.status(new JsonParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            BaseExceptionsHelper.status(new OpenSearchRejectedExecutionException("rejected")),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
     }
 
     public void testSummaryMessage() {

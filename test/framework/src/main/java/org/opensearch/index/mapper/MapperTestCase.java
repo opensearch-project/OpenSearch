@@ -45,7 +45,7 @@ import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -235,14 +235,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
         MapperService mapperService = createMapperService(mapping);
         assertEquals(
-            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(BytesReferenceUtil.bytes(mapping), false, mapping.contentType()).v2(),
             XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
 
         mapping = fieldMapping(this::metaMapping);
         merge(mapperService, mapping);
         assertEquals(
-            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(BytesReferenceUtil.bytes(mapping), false, mapping.contentType()).v2(),
             XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
 
@@ -252,7 +252,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
         merge(mapperService, mapping);
         assertEquals(
-            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(BytesReferenceUtil.bytes(mapping), false, mapping.contentType()).v2(),
             XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
     }

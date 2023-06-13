@@ -32,8 +32,8 @@
 
 package org.opensearch.common.geo;
 
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -150,7 +150,7 @@ public class GeoJsonSerializationTests extends OpenSearchTestCase {
             Geometry geometry = GeometryTestUtils.randomGeometry(randomBoolean());
             XContentBuilder builder = XContentFactory.jsonBuilder();
             GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);
-            StreamInput input = BytesReference.bytes(builder).streamInput();
+            StreamInput input = BytesReferenceUtil.bytes(builder).streamInput();
 
             try (
                 XContentParser parser = XContentType.JSON.xContent()

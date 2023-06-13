@@ -41,6 +41,7 @@ import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -378,7 +379,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
                         // the original document gets slightly modified: whitespaces or pretty printing are not preserved,
                         // it all depends on the current builder settings
                         builder.copyCurrentStructure(parser);
-                        source = BytesReference.bytes(builder);
+                        source = BytesReferenceUtil.bytes(builder);
                     }
                 } else if (FIELDS.equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {

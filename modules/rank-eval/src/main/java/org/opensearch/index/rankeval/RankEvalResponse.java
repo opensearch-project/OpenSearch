@@ -33,7 +33,6 @@
 package org.opensearch.index.rankeval;
 
 import org.opensearch.BaseOpenSearchException;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
@@ -167,7 +166,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
-            Tuple<String, OpenSearchException> tuple = new Tuple<>(n, OpenSearchException.failureFromXContent(p));
+            Tuple<String, BaseOpenSearchException> tuple = new Tuple<>(n, BaseOpenSearchException.failureFromXContent(p));
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
             return tuple;
         }, FAILURES_FIELD);

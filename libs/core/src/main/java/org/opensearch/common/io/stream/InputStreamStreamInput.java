@@ -32,7 +32,7 @@
 
 package org.opensearch.common.io.stream;
 
-import org.opensearch.common.io.Streams;
+import org.opensearch.core.common.io.StreamsUtil;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -80,7 +80,7 @@ public class InputStreamStreamInput extends StreamInput {
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         if (len < 0) throw new IndexOutOfBoundsException();
-        final int read = Streams.readFully(is, b, offset, len);
+        final int read = StreamsUtil.readFully(is, b, offset, len);
         if (read != len) {
             throw new EOFException();
         }
@@ -132,7 +132,7 @@ public class InputStreamStreamInput extends StreamInput {
     }
 
     @Override
-    protected void ensureCanReadBytes(int length) throws EOFException {
+    public void ensureCanReadBytes(int length) throws EOFException {
         if (length > sizeLimit) {
             throw new EOFException("tried to read: " + length + " bytes but this stream is limited to: " + sizeLimit);
         }

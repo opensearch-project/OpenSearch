@@ -38,7 +38,7 @@ import com.fasterxml.jackson.dataformat.yaml.JacksonYAMLParseException;
 
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
@@ -110,7 +110,7 @@ public class XContentParserTests extends OpenSearchTestCase {
             }
             builder.endObject();
 
-            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReferenceUtil.bytes(builder))) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertEquals(field, parser.currentName());
@@ -140,7 +140,7 @@ public class XContentParserTests extends OpenSearchTestCase {
             builder.endObject();
 
             final String text;
-            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReferenceUtil.bytes(builder))) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertEquals(field, parser.currentName());
@@ -172,7 +172,7 @@ public class XContentParserTests extends OpenSearchTestCase {
             builder.endObject();
 
             final Number number;
-            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReferenceUtil.bytes(builder))) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertEquals(field, parser.currentName());

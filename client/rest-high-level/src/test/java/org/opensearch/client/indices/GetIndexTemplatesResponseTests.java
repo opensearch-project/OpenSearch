@@ -38,6 +38,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -97,7 +98,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
                     );
                 esIMD.patterns(Arrays.asList(generateRandomStringArray(32, 4, false, false)));
                 esIMD.settings(randomIndexSettings());
-                esIMD.putMapping("_doc", new CompressedXContent(BytesReference.bytes(randomMapping("_doc", xContentType))));
+                esIMD.putMapping("_doc", new CompressedXContent(BytesReferenceUtil.bytes(randomMapping("_doc", xContentType))));
                 int numAliases = randomIntBetween(0, 8);
                 for (int j = 0; j < numAliases; j++) {
                     esIMD.putAlias(randomAliasMetadata(String.format(Locale.ROOT, "%02d ", j) + randomAlphaOfLength(4)));
@@ -114,7 +115,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
                 XContentParser parser = XContentHelper.createParser(
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(xContentBuilder),
+                    BytesReferenceUtil.bytes(xContentBuilder),
                     xContentType
                 )
             ) {

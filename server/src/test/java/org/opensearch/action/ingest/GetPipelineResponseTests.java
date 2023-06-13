@@ -32,8 +32,8 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -68,7 +68,7 @@ public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPip
         builder.field("value", value);
         builder.endObject();
         builder.endObject();
-        return new PipelineConfiguration(pipelineId, BytesReference.bytes(builder), builder.contentType());
+        return new PipelineConfiguration(pipelineId, BytesReferenceUtil.bytes(builder), builder.contentType());
     }
 
     private Map<String, PipelineConfiguration> createPipelineConfigMap() throws IOException {
@@ -88,7 +88,7 @@ public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPip
         XContentParser parser = builder.generator()
             .contentType()
             .xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReferenceUtil.bytes(builder).streamInput());
         GetPipelineResponse parsedResponse = GetPipelineResponse.fromXContent(parser);
         List<PipelineConfiguration> actualPipelines = response.pipelines();
         List<PipelineConfiguration> parsedPipelines = parsedResponse.pipelines();

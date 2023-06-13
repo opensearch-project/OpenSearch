@@ -35,6 +35,7 @@ package org.opensearch.search.aggregations;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -69,7 +70,7 @@ public class FiltersAggsRewriteIT extends OpenSearchSingleNodeTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            bytesReference = BytesReference.bytes(builder);
+            bytesReference = BytesReferenceUtil.bytes(builder);
         }
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder(
             "titles",

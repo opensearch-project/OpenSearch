@@ -48,8 +48,8 @@ import org.opensearch.client.cluster.RemoteInfoResponse;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedRunnable;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -223,12 +223,12 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
             .endArray()
             .endObject();
 
-        createPipeline(new PutPipelineRequest(id, BytesReference.bytes(pipeline), XContentType.JSON));
+        createPipeline(new PutPipelineRequest(id, BytesReferenceUtil.bytes(pipeline), XContentType.JSON));
     }
 
     protected static void createPipeline(String pipelineId) throws IOException {
         XContentBuilder builder = buildRandomXContentPipeline();
-        createPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(builder), builder.contentType()));
+        createPipeline(new PutPipelineRequest(pipelineId, BytesReferenceUtil.bytes(builder), builder.contentType()));
     }
 
     protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
@@ -266,7 +266,7 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
             .endObject();
         final PutPipelineRequest putPipelineRequest = new PutPipelineRequest(
             CONFLICT_PIPELINE_ID,
-            BytesReference.bytes(pipelineBuilder),
+            BytesReferenceUtil.bytes(pipelineBuilder),
             pipelineBuilder.contentType()
         );
         assertTrue(highLevelClient().ingest().putPipeline(putPipelineRequest, RequestOptions.DEFAULT).isAcknowledged());

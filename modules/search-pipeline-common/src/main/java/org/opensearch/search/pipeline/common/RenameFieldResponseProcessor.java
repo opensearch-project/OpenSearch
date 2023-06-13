@@ -13,6 +13,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -113,7 +114,7 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
 
                     XContentBuilder builder = XContentBuilder.builder(typeAndSourceMap.v1().xContent());
                     builder.map(sourceAsMap);
-                    hit.sourceRef(BytesReference.bytes(builder));
+                    hit.sourceRef(BytesReferenceUtil.bytes(builder));
                 }
             }
 

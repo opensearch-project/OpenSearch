@@ -32,7 +32,7 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.TimestampParsingException;
 import org.opensearch.common.ParsingException;
@@ -136,10 +136,10 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
 
         BytesReference exceptionBytes = toShuffledXContent(actual, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
-        OpenSearchException parsedException;
+        BaseOpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, exceptionBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsedException = OpenSearchException.fromXContent(parser);
+            parsedException = BaseOpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }

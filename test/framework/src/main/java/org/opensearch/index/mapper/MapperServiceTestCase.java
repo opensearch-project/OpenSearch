@@ -41,9 +41,9 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -185,7 +185,7 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON);
+        return new SourceToParse("test", "1", BytesReferenceUtil.bytes(builder), XContentType.JSON);
     }
 
     protected final SourceToParse source(String source) {
@@ -210,7 +210,7 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
      * Merge a new mapping into the one in the provided {@link MapperService} with a specific {@code MergeReason}
      */
     protected final void merge(MapperService mapperService, MapperService.MergeReason reason, XContentBuilder mapping) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(BytesReference.bytes(mapping)), reason);
+        mapperService.merge("_doc", new CompressedXContent(BytesReferenceUtil.bytes(mapping)), reason);
     }
 
     protected final XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {

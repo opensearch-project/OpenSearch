@@ -34,10 +34,13 @@ package org.opensearch;
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.compress.NotXContentException;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -107,7 +110,7 @@ public abstract class BaseExceptionsHelper {
         if (t.getCause() != null) {
             StringBuilder sb = new StringBuilder();
             while (t != null) {
-                sb.append(t.getClass().getSimpleName());
+                sb.append(getExceptionSimpleClassName(t));
                 if (t.getMessage() != null) {
                     sb.append("[");
                     sb.append(t.getMessage());
@@ -121,7 +124,7 @@ public abstract class BaseExceptionsHelper {
             }
             return sb.toString();
         } else {
-            return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+            return getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
         }
     }
 
@@ -135,7 +138,7 @@ public abstract class BaseExceptionsHelper {
     public static String summaryMessage(Throwable t) {
         if (t != null) {
             if (t instanceof BaseOpenSearchException) {
-                return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+                return getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
             } else if (t instanceof IllegalArgumentException) {
                 return "Invalid argument";
             } else if (t instanceof JsonParseException) {
@@ -224,12 +227,24 @@ public abstract class BaseExceptionsHelper {
      * Returns an underscore case name for the given exception. This method strips {@code OpenSearch} prefixes from exception names.
      */
     public static String getExceptionName(Throwable ex) {
-        String simpleName = ex.getClass().getSimpleName();
+        String simpleName = getExceptionSimpleClassName(ex);
         if (simpleName.startsWith("OpenSearch")) {
             simpleName = simpleName.substring("OpenSearch".length());
         }
         // TODO: do we really need to make the exception name in underscore casing?
         return toUnderscoreCase(simpleName);
+    }
+
+    private static String getExceptionSimpleClassName(final Throwable ex) {
+        String simpleName = ex.getClass().getSimpleName();
+        if (Strings.isEmpty(simpleName) && ex instanceof BaseOpenSearchException) {
+            simpleName = "OpenSearchException";
+        }
+
+        if (simpleName.startsWith("BaseOpenSearch")) {
+            simpleName = simpleName.substring("Base".length());
+        }
+        return simpleName;
     }
 
     // lower cases and adds underscores to transitions in a name
@@ -279,5 +294,22 @@ public abstract class BaseExceptionsHelper {
                 builder.endArray();
             }
         }
+    }
+
+    public static RestStatus status(Throwable t) {
+        if (t != null) {
+            if (t instanceof BaseOpenSearchException) {
+                return ((BaseOpenSearchException) t).status();
+            } else if (t instanceof IllegalArgumentException) {
+                return RestStatus.BAD_REQUEST;
+            } else if (t instanceof JsonParseException) {
+                return RestStatus.BAD_REQUEST;
+            } else if (t instanceof OpenSearchRejectedExecutionException) {
+                return RestStatus.TOO_MANY_REQUESTS;
+            } else if (t instanceof NotXContentException) {
+                return RestStatus.BAD_REQUEST;
+            }
+        }
+        return RestStatus.INTERNAL_SERVER_ERROR;
     }
 }

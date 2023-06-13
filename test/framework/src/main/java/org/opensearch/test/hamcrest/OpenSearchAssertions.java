@@ -34,6 +34,7 @@ package org.opensearch.test.hamcrest;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionFuture;
@@ -626,7 +627,7 @@ public class OpenSearchAssertions {
         }
 
         if (status != null) {
-            assertThat(extraInfo, ExceptionsHelper.status(expected), equalTo(status));
+            assertThat(extraInfo, BaseExceptionsHelper.status(expected), equalTo(status));
         }
     }
 
@@ -647,7 +648,7 @@ public class OpenSearchAssertions {
         extraInfo += "expected a " + status + " status exception to be thrown";
 
         Exception e = expectThrows(Exception.class, future::actionGet);
-        assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
+        assertThat(extraInfo, BaseExceptionsHelper.status(e), equalTo(status));
     }
 
     /**

@@ -31,6 +31,7 @@
 
 package org.opensearch.client.tasks;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.TaskOperationFailure;
@@ -142,7 +143,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<
         }
 
         // checking failures
-        List<OpenSearchException> serverNodeFailures = serverTestInstance.getNodeFailures();
+        List<BaseOpenSearchException> serverNodeFailures = serverTestInstance.getNodeFailures();
         List<org.opensearch.client.tasks.OpenSearchException> cNodeFailures = clientInstance.getNodeFailures();
         List<String> sExceptionsMessages = serverNodeFailures.stream()
             .map(x -> org.opensearch.client.tasks.OpenSearchException.buildMessage("exception", x.getMessage(), null))

@@ -41,8 +41,8 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -130,7 +130,7 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
         String text = response.content().utf8ToString();
         assertThat(text, containsString("\"type\":\"unknown_exception\",\"reason\":\"an error occurred reading data\""));
         assertThat(text, containsString("{\"type\":\"file_not_found_exception\""));
-        assertThat(text, containsString("\"stack_trace\":\"[an error occurred reading data]"));
+        assertThat(text, containsString("\"stack_trace\":\"OpenSearchException[an error occurred reading data]"));
     }
 
     public void testGuessRootCause() throws IOException {
@@ -348,7 +348,7 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
                 builder.field("status", randomFrom(RestStatus.values()).getStatus());
                 builder.endObject();
 
-                try (XContentParser parser = createParser(builder.contentType().xContent(), BytesReference.bytes(builder))) {
+                try (XContentParser parser = createParser(builder.contentType().xContent(), BytesReferenceUtil.bytes(builder))) {
                     BytesRestResponse.errorFromXContent(parser);
                 }
             }

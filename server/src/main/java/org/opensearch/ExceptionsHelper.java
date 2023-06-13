@@ -32,7 +32,6 @@
 
 package org.opensearch;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -40,10 +39,7 @@ import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.compress.NotXContentException;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
-import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,23 +75,6 @@ public final class ExceptionsHelper extends BaseExceptionsHelper {
             return (OpenSearchException) e;
         }
         return new OpenSearchException(e);
-    }
-
-    public static RestStatus status(Throwable t) {
-        if (t != null) {
-            if (t instanceof OpenSearchException) {
-                return ((OpenSearchException) t).status();
-            } else if (t instanceof IllegalArgumentException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof JsonParseException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof OpenSearchRejectedExecutionException) {
-                return RestStatus.TOO_MANY_REQUESTS;
-            } else if (t instanceof NotXContentException) {
-                return RestStatus.BAD_REQUEST;
-            }
-        }
-        return RestStatus.INTERNAL_SERVER_ERROR;
     }
 
     public static String formatStackTrace(final StackTraceElement[] stackTrace) {

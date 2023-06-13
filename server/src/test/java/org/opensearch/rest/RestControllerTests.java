@@ -42,6 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentType;
@@ -477,7 +478,7 @@ public class RestControllerTests extends OpenSearchTestCase {
 
     public void testNonStreamingXContentCausesErrorResponse() throws IOException {
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            BytesReference.bytes(YamlXContent.contentBuilder().startObject().endObject()),
+            BytesReferenceUtil.bytes(YamlXContent.contentBuilder().startObject().endObject()),
             XContentType.YAML
         ).withPath("/foo").build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);

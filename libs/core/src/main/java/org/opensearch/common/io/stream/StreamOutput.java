@@ -40,26 +40,24 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.Build;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.Writeable.WriteableRegistry;
 import org.opensearch.common.io.stream.Writeable.Writer;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.io.stream.BaseStreamOutput;
-import org.opensearch.core.common.io.stream.BaseWriteable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigInteger;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -100,15 +98,30 @@ import java.util.function.IntFunction;
  *
  * @opensearch.internal
  */
-public abstract class StreamOutput extends BaseStreamOutput {
+public abstract class StreamOutput extends OutputStream {
 
     private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
 
+    private Version version = Version.CURRENT;
     private Set<String> features = Collections.emptySet();
 
     /**
-     * Test if the stream has the specified feature. Features are used when serializing {@link ClusterState.Custom} or
-     * {@link Metadata.Custom}; see also {@link ClusterState.FeatureAware}.
+     * The version of the node on the other side of this stream.
+     */
+    public Version getVersion() {
+        return this.version;
+    }
+
+    /**
+     * Set the version of the node on the other side of this stream.
+     */
+    public void setVersion(Version version) {
+        this.version = version;
+    }
+
+    /**
+     * Test if the stream has the specified feature. Features are used when serializing {@code ClusterState.Custom} or
+     * {@code Metadata.Custom}; see also {@code ClusterState.FeatureAware}.
      *
      * @param feature the feature to test
      * @return true if the stream has the specified feature
@@ -140,6 +153,11 @@ public abstract class StreamOutput extends BaseStreamOutput {
     }
 
     /**
+     * Writes a single byte.
+     */
+    public abstract void writeByte(byte b) throws IOException;
+
+    /**
      * Writes an array of bytes.
      *
      * @param b the bytes to write
@@ -157,6 +175,15 @@ public abstract class StreamOutput extends BaseStreamOutput {
     public void writeBytes(byte[] b, int length) throws IOException {
         writeBytes(b, 0, length);
     }
+
+    /**
+     * Writes an array of bytes.
+     *
+     * @param b      the bytes to write
+     * @param offset the offset in the byte array
+     * @param length the number of bytes to write
+     */
+    public abstract void writeBytes(byte[] b, int offset, int length) throws IOException;
 
     /**
      * Writes an array of bytes.
@@ -202,11 +229,56 @@ public abstract class StreamOutput extends BaseStreamOutput {
         write(bytes.bytes, bytes.offset, bytes.length);
     }
 
+    private static final ThreadLocal<byte[]> scratch = ThreadLocal.withInitial(() -> new byte[1024]);
+
     public final void writeShort(short v) throws IOException {
         final byte[] buffer = scratch.get();
         buffer[0] = (byte) (v >> 8);
         buffer[1] = (byte) v;
         writeBytes(buffer, 0, 2);
+    }
+
+    /**
+     * Writes an int as four bytes.
+     */
+    public void writeInt(int i) throws IOException {
+        final byte[] buffer = scratch.get();
+        buffer[0] = (byte) (i >> 24);
+        buffer[1] = (byte) (i >> 16);
+        buffer[2] = (byte) (i >> 8);
+        buffer[3] = (byte) i;
+        writeBytes(buffer, 0, 4);
+    }
+
+    /**
+     * Writes an int in a variable-length format.  Writes between one and
+     * five bytes.  Smaller values take fewer bytes.  Negative numbers
+     * will always use all 5 bytes and are therefore better serialized
+     * using {@link #writeInt}
+     */
+    public void writeVInt(int i) throws IOException {
+        /*
+         * Shortcut writing single byte because it is very, very common and
+         * can skip grabbing the scratch buffer. This is marginally slower
+         * than hand unrolling the entire encoding loop but hand unrolling
+         * the encoding loop blows out the method size so it can't be inlined.
+         * In that case benchmarks of the method itself are faster but
+         * benchmarks of methods that use this method are slower.
+         * This is philosophically in line with vint in general - it biases
+         * twoards being simple and fast for smaller numbers.
+         */
+        if (Integer.numberOfLeadingZeros(i) >= 25) {
+            writeByte((byte) i);
+            return;
+        }
+        byte[] buffer = scratch.get();
+        int index = 0;
+        do {
+            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
+            i >>>= 7;
+        } while ((i & ~0x7F) != 0);
+        buffer[index++] = ((byte) i);
+        writeBytes(buffer, 0, index);
     }
 
     /**
@@ -250,7 +322,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
      * Writes a long in a variable-length format without first checking if it is negative. Package private for testing. Use
      * {@link #writeVLong(long)} instead.
      */
-    void writeVLongNoCheck(long i) throws IOException {
+    public void writeVLongNoCheck(long i) throws IOException {
         final byte[] buffer = scratch.get();
         int index = 0;
         while ((i & ~0x7F) != 0) {
@@ -309,6 +381,27 @@ public abstract class StreamOutput extends BaseStreamOutput {
             } finally {
                 Arrays.fill(secureStrBytes, (byte) 0);
             }
+        }
+    }
+
+    /**
+     * Writes an optional {@link Integer}.
+     */
+    public void writeOptionalInt(@Nullable Integer integer) throws IOException {
+        if (integer == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeInt(integer);
+        }
+    }
+
+    public void writeOptionalVInt(@Nullable Integer integer) throws IOException {
+        if (integer == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeVInt(integer);
         }
     }
 
@@ -401,6 +494,39 @@ public abstract class StreamOutput extends BaseStreamOutput {
     public final void writeBigInteger(BigInteger v) throws IOException {
         writeString(v.toString());
     }
+
+    private static byte ZERO = 0;
+    private static byte ONE = 1;
+    private static byte TWO = 2;
+
+    /**
+     * Writes a boolean.
+     */
+    public void writeBoolean(boolean b) throws IOException {
+        writeByte(b ? ONE : ZERO);
+    }
+
+    public void writeOptionalBoolean(@Nullable Boolean b) throws IOException {
+        if (b == null) {
+            writeByte(TWO);
+        } else {
+            writeBoolean(b);
+        }
+    }
+
+    /**
+     * Forces any buffered output to be written.
+     */
+    @Override
+    public abstract void flush() throws IOException;
+
+    /**
+     * Closes this stream to further operations.
+     */
+    @Override
+    public abstract void close() throws IOException;
+
+    public abstract void reset() throws IOException;
 
     @Override
     public void write(int b) throws IOException {
@@ -532,10 +658,10 @@ public abstract class StreamOutput extends BaseStreamOutput {
         }
     }
 
-    private static final Map<Class<?>, BaseWriteable.Writer<StreamOutput, Object>> WRITERS;
+    private static final Map<Class<?>, Writer<Object>> WRITERS;
 
     static {
-        Map<Class<?>, BaseWriteable.Writer<StreamOutput, Object>> writers = new HashMap<>();
+        Map<Class<?>, Writer<Object>> writers = new HashMap<>();
         writers.put(String.class, (o, v) -> {
             o.writeByte((byte) 0);
             o.writeString((String) v);
@@ -568,6 +694,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
         });
         writers.put(List.class, (o, v) -> {
             o.writeByte((byte) 7);
+            @SuppressWarnings("rawtypes")
             final List list = (List) v;
             o.writeVInt(list.size());
             for (Object item : list) {
@@ -659,7 +786,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
     }
 
     private static Class<?> getGenericType(Object value) {
-        Class<?> registeredClass = Writeable.WriteableRegistry.getCustomClassFromInstance(value);
+        Class<?> registeredClass = WriteableRegistry.getCustomClassFromInstance(value);
         if (registeredClass != null) {
             return registeredClass;
         } else if (value instanceof List) {
@@ -689,7 +816,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
             return;
         }
         final Class<?> type = getGenericType(value);
-        BaseWriteable.Writer<StreamOutput, Object> writer = BaseWriteable.WriteableRegistry.getWriter(type);
+        Writer<Object> writer = WriteableRegistry.getWriter(type);
         if (writer == null) {
             // fallback to this local hashmap
             // todo: move all writers to the registry
@@ -938,14 +1065,14 @@ public abstract class StreamOutput extends BaseStreamOutput {
                 writeBoolean(((OpenSearchRejectedExecutionException) throwable).isExecutorShutdown());
                 writeCause = false;
             } else {
-                final OpenSearchException ex;
-                if (throwable instanceof OpenSearchException && OpenSearchException.isRegistered(throwable.getClass(), version)) {
-                    ex = (OpenSearchException) throwable;
+                final BaseOpenSearchException ex;
+                if (throwable instanceof BaseOpenSearchException && BaseOpenSearchException.isRegistered(throwable.getClass(), version)) {
+                    ex = (BaseOpenSearchException) throwable;
                 } else {
                     ex = new NotSerializableExceptionWrapper(throwable);
                 }
                 writeVInt(0);
-                writeVInt(OpenSearchException.getId(ex.getClass()));
+                writeVInt(BaseOpenSearchException.getId(ex.getClass()));
                 ex.writeTo(this);
                 return;
             }
@@ -955,7 +1082,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
             if (writeCause) {
                 writeException(rootException, throwable.getCause(), nestedLevel + 1);
             }
-            OpenSearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
+            BaseOpenSearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
         }
     }
 
@@ -977,7 +1104,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
         writeString(build.getQualifiedVersion());
     }
 
-    boolean failOnTooManyNestedExceptions(Throwable throwable) {
+    protected boolean failOnTooManyNestedExceptions(Throwable throwable) {
         throw new AssertionError("too many nested exceptions", throwable);
     }
 
@@ -1022,7 +1149,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
 
     /**
      * Writes a collection to this stream. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(BaseWriteable.Reader)}.
+     * {@link StreamInput#readList(Writeable.Reader)}.
      *
      * @param collection the collection to write to this stream
      * @throws IOException if an I/O exception occurs writing the collection
@@ -1053,7 +1180,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
 
     /**
      * Writes a collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(BaseWriteable.Reader)}.
+     * {@link StreamInput#readList(Writeable.Reader)}.
      *
      * @param collection the collection of strings
      * @throws IOException if an I/O exception occurs writing the collection
@@ -1064,7 +1191,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
 
     /**
      * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(BaseWriteable.Reader)}.
+     * {@link StreamInput#readList(Writeable.Reader)}.
      *
      * @param collection the collection of strings
      * @throws IOException if an I/O exception occurs writing the collection

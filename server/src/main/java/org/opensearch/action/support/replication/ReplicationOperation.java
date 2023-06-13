@@ -36,7 +36,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.core.Assertions;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.UnavailableShardsException;
@@ -285,7 +284,7 @@ public class ReplicationOperation<
                 // Only report "critical" exceptions
                 // TODO: Reach out to the cluster-manager node to get the latest shard state then report.
                 if (TransportActions.isShardNotAvailableException(replicaException) == false) {
-                    RestStatus restStatus = ExceptionsHelper.status(replicaException);
+                    RestStatus restStatus = BaseExceptionsHelper.status(replicaException);
                     shardReplicaFailures.add(
                         new ReplicationResponse.ShardInfo.Failure(
                             shard.shardId(),

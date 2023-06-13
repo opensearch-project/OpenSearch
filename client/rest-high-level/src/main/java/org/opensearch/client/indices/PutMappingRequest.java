@@ -38,6 +38,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.MediaType;
@@ -160,7 +161,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
      * Note that the definition should *not* be nested under a type name.
      */
     public PutMappingRequest source(XContentBuilder builder) {
-        this.source = BytesReference.bytes(builder);
+        this.source = BytesReferenceUtil.bytes(builder);
         this.mediaType = builder.contentType();
         return this;
     }

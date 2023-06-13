@@ -46,8 +46,8 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.client.core.MainRequest;
 import org.opensearch.client.core.MainResponse;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -340,7 +340,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             builder.startObject();
             builder.field("field", "value");
             builder.endObject();
-            return new ByteArrayEntity(BytesReference.bytes(builder).toBytesRef().bytes, contentType);
+            return new ByteArrayEntity(BytesReferenceUtil.bytes(builder).toBytesRef().bytes, contentType);
         }
     }
 

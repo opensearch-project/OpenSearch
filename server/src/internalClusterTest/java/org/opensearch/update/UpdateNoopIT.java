@@ -34,7 +34,7 @@ package org.opensearch.update;
 
 import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -323,7 +323,7 @@ public class UpdateNoopIT extends OpenSearchIntegTestCase {
 
     private void updateAndCheckSource(long expectedSeqNo, long expectedVersion, Boolean detectNoop, XContentBuilder xContentBuilder) {
         UpdateResponse updateResponse = update(detectNoop, expectedSeqNo, expectedVersion, xContentBuilder);
-        assertEquals(updateResponse.getGetResult().sourceRef().utf8ToString(), BytesReference.bytes(xContentBuilder).utf8ToString());
+        assertEquals(updateResponse.getGetResult().sourceRef().utf8ToString(), BytesReferenceUtil.bytes(xContentBuilder).utf8ToString());
     }
 
     private UpdateResponse update(Boolean detectNoop, long expectedSeqNo, long expectedVersion, XContentBuilder xContentBuilder) {

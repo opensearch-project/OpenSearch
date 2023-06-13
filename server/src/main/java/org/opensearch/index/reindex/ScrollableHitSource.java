@@ -34,7 +34,6 @@ package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -409,7 +408,7 @@ public abstract class ScrollableHitSource {
         public static final String STATUS_FIELD = BulkItemResponse.Failure.STATUS_FIELD;
 
         public SearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId) {
-            this(reason, index, shardId, nodeId, ExceptionsHelper.status(reason));
+            this(reason, index, shardId, nodeId, BaseExceptionsHelper.status(reason));
         }
 
         public SearchFailure(
@@ -441,7 +440,7 @@ public abstract class ScrollableHitSource {
             index = in.readOptionalString();
             shardId = in.readOptionalVInt();
             nodeId = in.readOptionalString();
-            status = ExceptionsHelper.status(reason);
+            status = BaseExceptionsHelper.status(reason);
         }
 
         @Override

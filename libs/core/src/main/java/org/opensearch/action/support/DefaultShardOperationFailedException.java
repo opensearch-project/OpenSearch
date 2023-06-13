@@ -33,8 +33,8 @@
 package org.opensearch.action.support;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.OpenSearchException;
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseOpenSearchException;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -47,7 +47,7 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.opensearch.ExceptionsHelper.detailedMessage;
+import static org.opensearch.BaseExceptionsHelper.detailedMessage;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
@@ -70,7 +70,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     protected static <T extends DefaultShardOperationFailedException> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
         objectParser.declareString(constructorArg(), new ParseField(INDEX));
         objectParser.declareInt(constructorArg(), new ParseField(SHARD_ID));
-        objectParser.declareObject(constructorArg(), (p, c) -> OpenSearchException.fromXContent(p), new ParseField(REASON));
+        objectParser.declareObject(constructorArg(), (p, c) -> BaseOpenSearchException.fromXContent(p), new ParseField(REASON));
     }
 
     static {
@@ -83,7 +83,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         readFrom(in, this);
     }
 
-    public DefaultShardOperationFailedException(OpenSearchException e) {
+    public DefaultShardOperationFailedException(BaseOpenSearchException e) {
         super(
             e.getIndex() == null ? null : e.getIndex().getName(),
             e.getShardId() == null ? -1 : e.getShardId().getId(),
@@ -94,7 +94,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     }
 
     public DefaultShardOperationFailedException(String index, int shardId, Throwable cause) {
-        super(index, shardId, detailedMessage(cause), ExceptionsHelper.status(cause), cause);
+        super(index, shardId, BaseExceptionsHelper.detailedMessage(cause), BaseExceptionsHelper.status(cause), cause);
     }
 
     public static DefaultShardOperationFailedException readShardOperationFailed(StreamInput in) throws IOException {

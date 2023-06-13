@@ -37,6 +37,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -249,7 +250,7 @@ public class AggregatorFactoriesTests extends OpenSearchTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            bytesReference = BytesReference.bytes(builder);
+            bytesReference = BytesReferenceUtil.bytes(builder);
         }
         FilterAggregationBuilder filterAggBuilder = new FilterAggregationBuilder("titles", new WrapperQueryBuilder(bytesReference));
         BucketScriptPipelineAggregationBuilder pipelineAgg = new BucketScriptPipelineAggregationBuilder("const", new Script("1"));

@@ -35,8 +35,8 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
@@ -70,7 +70,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
+                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON
             )
         );
@@ -82,7 +82,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(XContentFactory.smileBuilder().startObject().field("field", "value").endObject()),
+                BytesReferenceUtil.bytes(XContentFactory.smileBuilder().startObject().field("field", "value").endObject()),
                 XContentType.SMILE
             )
         );
@@ -110,7 +110,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("path1")
@@ -154,7 +154,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReference.bytes(
+                BytesReferenceUtil.bytes(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("path1")

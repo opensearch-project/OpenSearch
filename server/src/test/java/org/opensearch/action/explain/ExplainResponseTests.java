@@ -34,9 +34,9 @@ package org.opensearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -117,7 +117,7 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        String generatedResponse = BytesReference.bytes(builder).utf8ToString().replaceAll("\\s+", "");
+        String generatedResponse = BytesReferenceUtil.bytes(builder).utf8ToString().replaceAll("\\s+", "");
 
         String expectedResponse = ("{\n"
             + "    \"_index\":\"index\",\n"

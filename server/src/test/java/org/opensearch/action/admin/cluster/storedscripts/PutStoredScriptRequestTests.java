@@ -36,6 +36,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -76,7 +77,7 @@ public class PutStoredScriptRequestTests extends OpenSearchTestCase {
         builder.startObject("script").field("lang", "painless").field("source", "Math.log(_score * 2) + params.multiplier").endObject();
         builder.endObject();
 
-        BytesReference expectedRequestBody = BytesReference.bytes(builder);
+        BytesReference expectedRequestBody = BytesReferenceUtil.bytes(builder);
 
         PutStoredScriptRequest request = new PutStoredScriptRequest();
         request.id("test1");
@@ -87,7 +88,7 @@ public class PutStoredScriptRequestTests extends OpenSearchTestCase {
         request.toXContent(requestBuilder, ToXContent.EMPTY_PARAMS);
         requestBuilder.endObject();
 
-        BytesReference actualRequestBody = BytesReference.bytes(requestBuilder);
+        BytesReference actualRequestBody = BytesReferenceUtil.bytes(requestBuilder);
 
         assertEquals(expectedRequestBody, actualRequestBody);
     }

@@ -13,7 +13,7 @@ import org.opensearch.action.search.GetSearchPipelineRequest;
 import org.opensearch.action.search.GetSearchPipelineResponse;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -26,7 +26,7 @@ public class SearchPipelineClientIT extends OpenSearchRestHighLevelClientTestCas
         XContentBuilder pipelineBuilder = buildSearchPipeline();
         PutSearchPipelineRequest request = new PutSearchPipelineRequest(
             id,
-            BytesReference.bytes(pipelineBuilder),
+            BytesReferenceUtil.bytes(pipelineBuilder),
             pipelineBuilder.contentType()
         );
         createPipeline(request);
@@ -46,7 +46,7 @@ public class SearchPipelineClientIT extends OpenSearchRestHighLevelClientTestCas
         XContentBuilder pipelineBuilder = buildSearchPipeline();
         PutSearchPipelineRequest request = new PutSearchPipelineRequest(
             id,
-            BytesReference.bytes(pipelineBuilder),
+            BytesReferenceUtil.bytes(pipelineBuilder),
             pipelineBuilder.contentType()
         );
         createPipeline(request);
@@ -67,7 +67,7 @@ public class SearchPipelineClientIT extends OpenSearchRestHighLevelClientTestCas
         XContentBuilder pipelineBuilder = buildSearchPipeline();
         PutSearchPipelineRequest request = new PutSearchPipelineRequest(
             id,
-            BytesReference.bytes(pipelineBuilder),
+            BytesReferenceUtil.bytes(pipelineBuilder),
             pipelineBuilder.contentType()
         );
         createPipeline(request);

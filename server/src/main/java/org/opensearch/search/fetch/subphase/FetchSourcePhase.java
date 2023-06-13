@@ -34,8 +34,8 @@ package org.opensearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.FetchContext;
@@ -117,7 +117,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 builder.startObject();
                 builder.endObject();
             }
-            hitContext.hit().sourceRef(BytesReference.bytes(builder));
+            hitContext.hit().sourceRef(BytesReferenceUtil.bytes(builder));
         } catch (IOException e) {
             throw new OpenSearchException("Error filtering source", e);
         }

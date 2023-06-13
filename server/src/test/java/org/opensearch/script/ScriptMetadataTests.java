@@ -33,8 +33,8 @@ package org.opensearch.script;
 
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -57,7 +57,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput()
+                BytesReferenceUtil.bytes(builder).streamInput()
             );
         expectThrows(IllegalArgumentException.class, () -> ScriptMetadata.fromXContent(parser0));
 
@@ -74,7 +74,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput()
+                BytesReferenceUtil.bytes(builder).streamInput()
             );
         expectThrows(IllegalArgumentException.class, () -> ScriptMetadata.fromXContent(parser1));
 
@@ -96,7 +96,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput()
+                BytesReferenceUtil.bytes(builder).streamInput()
             );
         expectThrows(IllegalArgumentException.class, () -> ScriptMetadata.fromXContent(parser2));
 
@@ -113,7 +113,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput()
+                BytesReferenceUtil.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser3);
     }
@@ -131,12 +131,12 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .endObject()
             .endObject();
         XContentType xContentType = XContentType.fromMediaType(sourceBuilder.contentType());
-        builder.storeScript("source_template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), xContentType));
+        builder.storeScript("source_template", StoredScriptSource.parse(BytesReferenceUtil.bytes(sourceBuilder), xContentType));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         xContentType = XContentType.fromMediaType(sourceBuilder.contentType());
         sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
-        builder.storeScript("script", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), xContentType));
+        builder.storeScript("script", StoredScriptSource.parse(BytesReferenceUtil.bytes(sourceBuilder), xContentType));
 
         ScriptMetadata scriptMetadata = builder.build();
         assertEquals("_source", scriptMetadata.getStoredScript("script").getSource());
@@ -206,7 +206,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput()
+                BytesReferenceUtil.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser);
         assertWarnings("empty templates should no longer be used");
@@ -217,7 +217,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput()
+                BytesReferenceUtil.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser);
         assertWarnings("empty scripts should no longer be used");
@@ -228,7 +228,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput()
+                BytesReferenceUtil.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser);
         assertNoDeprecationWarnings();
@@ -239,7 +239,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput()
+                BytesReferenceUtil.bytes(builder).streamInput()
             );
         ScriptMetadata.fromXContent(parser);
         assertNoDeprecationWarnings();
@@ -275,7 +275,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput()
+                BytesReferenceUtil.bytes(builder).streamInput()
             );
         ScriptMetadata smd = ScriptMetadata.fromXContent(parser);
         assertNull(smd.getStoredScript("painless#test"));
@@ -303,7 +303,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 .endObject();
             builder.storeScript(
                 randomAlphaOfLength(i + 1),
-                StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), XContentType.fromMediaType(sourceBuilder.contentType()))
+                StoredScriptSource.parse(BytesReferenceUtil.bytes(sourceBuilder), XContentType.fromMediaType(sourceBuilder.contentType()))
             );
         }
         return builder.build();

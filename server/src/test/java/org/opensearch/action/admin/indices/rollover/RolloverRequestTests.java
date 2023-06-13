@@ -43,6 +43,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -187,7 +188,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
             builder.endObject();
         }
         builder.endObject();
-        BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
+        BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReferenceUtil.bytes(builder), null, random());
         expectThrows(XContentParseException.class, () -> request.fromXContent(createParser(xContentType.xContent(), mutated)));
     }
 

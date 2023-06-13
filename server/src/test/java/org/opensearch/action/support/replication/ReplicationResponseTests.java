@@ -32,6 +32,7 @@
 
 package org.opensearch.action.support.replication;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.opensearch.common.Strings;
@@ -39,6 +40,7 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -112,7 +114,7 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
         // Shuffle the XContent fields
         if (randomBoolean()) {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                originalBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
+                originalBytes = BytesReferenceUtil.bytes(shuffleXContent(parser, randomBoolean()));
             }
         }
 
@@ -152,7 +154,7 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
                 assertEquals(expectedFailure.primary(), actualFailure.primary());
 
                 OpenSearchException expectedCause = (OpenSearchException) expectedFailure.getCause();
-                OpenSearchException actualCause = (OpenSearchException) actualFailure.getCause();
+                BaseOpenSearchException actualCause = (BaseOpenSearchException) actualFailure.getCause();
                 assertDeepEquals(expectedCause, actualCause);
             }
         }

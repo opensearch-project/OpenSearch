@@ -147,7 +147,7 @@ public class ByteBufferStreamInput extends StreamInput {
     }
 
     @Override
-    protected void ensureCanReadBytes(int length) throws EOFException {
+    public void ensureCanReadBytes(int length) throws EOFException {
         if (buffer.remaining() < length) {
             throw new EOFException("tried to read: " + length + " bytes but only " + buffer.remaining() + " remaining");
         }

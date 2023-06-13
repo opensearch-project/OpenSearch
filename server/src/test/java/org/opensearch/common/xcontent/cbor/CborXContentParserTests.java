@@ -33,6 +33,7 @@
 package org.opensearch.common.xcontent.cbor;
 
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
@@ -41,7 +42,7 @@ import java.io.IOException;
 
 public class CborXContentParserTests extends OpenSearchTestCase {
     public void testEmptyValue() throws IOException {
-        BytesReference ref = BytesReference.bytes(XContentFactory.cborBuilder().startObject().field("field", "").endObject());
+        BytesReference ref = BytesReferenceUtil.bytes(XContentFactory.cborBuilder().startObject().field("field", "").endObject());
 
         for (int i = 0; i < 2; i++) {
             // Running this part twice triggers the issue.

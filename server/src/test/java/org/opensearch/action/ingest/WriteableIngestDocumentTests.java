@@ -35,6 +35,7 @@ package org.opensearch.action.ingest;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -152,7 +153,8 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         builder.startObject();
         writeableIngestDocument.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        Map<String, Object> toXContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        Map<String, Object> toXContentMap = XContentHelper.convertToMap(BytesReferenceUtil.bytes(builder), false, builder.contentType())
+            .v2();
 
         Map<String, Object> toXContentDoc = (Map<String, Object>) toXContentMap.get("doc");
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");

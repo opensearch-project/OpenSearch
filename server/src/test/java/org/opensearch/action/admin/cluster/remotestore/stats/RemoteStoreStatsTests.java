@@ -8,9 +8,9 @@
 
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -50,7 +50,7 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         stats.toXContent(builder, EMPTY_PARAMS);
-        Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReferenceUtil.bytes(builder), false, builder.contentType()).v2();
         compareStatsResponse(jsonObject, pressureTrackerStats);
     }
 

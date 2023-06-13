@@ -42,6 +42,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -328,7 +329,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         for (SearchRequest request : multiSearchRequest.requests()) {
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
                 writeSearchRequestParams(request, xContentBuilder);
-                BytesReference.bytes(xContentBuilder).writeTo(output);
+                BytesReferenceUtil.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
@@ -338,7 +339,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     xContentBuilder.startObject();
                     xContentBuilder.endObject();
                 }
-                BytesReference.bytes(xContentBuilder).writeTo(output);
+                BytesReferenceUtil.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
         }

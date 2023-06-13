@@ -32,8 +32,9 @@
 
 package org.opensearch.action.bulk;
 
+import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
@@ -43,6 +44,7 @@ import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.action.update.UpdateResponseTests;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -109,14 +111,14 @@ public class BulkItemResponseTests extends OpenSearchTestCase {
         Exception bulkItemCause = (Exception) exceptions.v1();
         Failure bulkItemFailure = new Failure(index, id, bulkItemCause);
         BulkItemResponse bulkItemResponse = new BulkItemResponse(itemId, opType, bulkItemFailure);
-        Failure expectedBulkItemFailure = new Failure(index, id, exceptions.v2(), ExceptionsHelper.status(bulkItemCause));
+        Failure expectedBulkItemFailure = new Failure(index, id, exceptions.v2(), BaseExceptionsHelper.status(bulkItemCause));
         BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(itemId, opType, expectedBulkItemFailure);
         BytesReference originalBytes = toShuffledXContent(bulkItemResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
         // Shuffle the XContent fields
         if (randomBoolean()) {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                originalBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
+                originalBytes = BytesReferenceUtil.bytes(shuffleXContent(parser, randomBoolean()));
             }
         }
 
@@ -146,7 +148,7 @@ public class BulkItemResponseTests extends OpenSearchTestCase {
             assertEquals(expectedFailure.getMessage(), actualFailure.getMessage());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
 
-            assertDeepEquals((OpenSearchException) expectedFailure.getCause(), (OpenSearchException) actualFailure.getCause());
+            assertDeepEquals((BaseOpenSearchException) expectedFailure.getCause(), (BaseOpenSearchException) actualFailure.getCause());
         } else {
             DocWriteResponse expectedDocResponse = expected.getResponse();
             DocWriteResponse actualDocResponse = expected.getResponse();

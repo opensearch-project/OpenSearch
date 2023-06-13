@@ -32,6 +32,7 @@
 
 package org.opensearch.client.indices;
 
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
@@ -129,7 +130,7 @@ public class GetFieldMappingsResponse {
             PARSER.declareField(optionalConstructorArg(), (p, c) -> p.text(), FULL_NAME, ObjectParser.ValueType.STRING);
             PARSER.declareField(optionalConstructorArg(), (p, c) -> {
                 final XContentBuilder jsonBuilder = jsonBuilder().copyCurrentStructure(p);
-                final BytesReference bytes = BytesReference.bytes(jsonBuilder);
+                final BytesReference bytes = BytesReferenceUtil.bytes(jsonBuilder);
                 return bytes;
             }, MAPPING, ObjectParser.ValueType.OBJECT);
         }

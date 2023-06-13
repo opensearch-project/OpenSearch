@@ -40,6 +40,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -198,7 +199,7 @@ public class LongBoundsTests extends OpenSearchTestCase {
             orig.toXContent(out, ToXContent.EMPTY_PARAMS);
             out.endObject();
 
-            try (XContentParser in = createParser(JsonXContent.jsonXContent, BytesReference.bytes(out))) {
+            try (XContentParser in = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(out))) {
                 XContentParser.Token token = in.currentToken();
                 assertNull(token);
 
@@ -208,7 +209,7 @@ public class LongBoundsTests extends OpenSearchTestCase {
                 LongBounds read = LongBounds.PARSER.apply(in, null);
                 assertEquals(orig, read);
             } catch (Exception e) {
-                throw new Exception("Error parsing [" + BytesReference.bytes(out).utf8ToString() + "]", e);
+                throw new Exception("Error parsing [" + BytesReferenceUtil.bytes(out).utf8ToString() + "]", e);
             }
         }
     }

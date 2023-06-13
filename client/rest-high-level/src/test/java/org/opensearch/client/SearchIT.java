@@ -32,6 +32,7 @@
 
 package org.opensearch.client;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.explain.ExplainRequest;
@@ -55,6 +56,7 @@ import org.opensearch.client.core.CountResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -827,8 +829,8 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
                 () -> execute(scrollRequest, highLevelClient()::scroll, highLevelClient()::scrollAsync)
             );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertThat(exception.getRootCause(), instanceOf(OpenSearchException.class));
-            OpenSearchException rootCause = (OpenSearchException) exception.getRootCause();
+            assertThat(exception.getRootCause(), instanceOf(BaseOpenSearchException.class));
+            BaseOpenSearchException rootCause = (BaseOpenSearchException) exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("No search context found for"));
         }
     }
@@ -1187,7 +1189,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         );
         assertNull(searchTemplateResponse.getResponse());
 
-        BytesReference expectedSource = BytesReference.bytes(
+        BytesReference expectedSource = BytesReferenceUtil.bytes(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("query")

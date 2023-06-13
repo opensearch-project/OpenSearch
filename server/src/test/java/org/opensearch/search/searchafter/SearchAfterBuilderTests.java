@@ -37,11 +37,11 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
@@ -158,7 +158,7 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
         }
         jsonBuilder.endArray();
         jsonBuilder.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(jsonBuilder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(jsonBuilder))) {
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();

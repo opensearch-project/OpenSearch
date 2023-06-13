@@ -106,7 +106,7 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    protected void ensureCanReadBytes(int length) throws EOFException {
+    public void ensureCanReadBytes(int length) throws EOFException {
         delegate.ensureCanReadBytes(length);
     }
 

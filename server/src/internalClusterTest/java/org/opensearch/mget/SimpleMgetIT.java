@@ -41,6 +41,7 @@ import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -148,7 +149,7 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testThatSourceFilteringIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
-        BytesReference sourceBytesRef = BytesReference.bytes(
+        BytesReference sourceBytesRef = BytesReferenceUtil.bytes(
             jsonBuilder().startObject()
                 .array("field", "1", "2")
                 .startObject("included")
