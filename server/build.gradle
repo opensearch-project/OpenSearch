@@ -33,9 +33,9 @@ import org.opensearch.gradle.info.BuildParams
 plugins {
   id('com.google.protobuf') version 'latest.release'
   id('opensearch.build')
-  id('com.netflix.nebula.optional-base')
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')
+  id('opensearch.optional-dependencies')
 }
 
 publishing {
@@ -146,6 +146,9 @@ dependencies {
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
+  // jcraft
+  api "com.jcraft:jzlib:${versions.jzlib}"
+
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
@@ -244,6 +247,7 @@ tasks.named("processResources").configure {
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
+        *[
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -337,6 +341,15 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2Point',
             'com.google.common.geometry.S2$Metric',
             'com.google.common.geometry.S2LatLng'
+        ] + (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_20) ? [] : [
+            'jdk.incubator.vector.ByteVector',
+            'jdk.incubator.vector.FloatVector',
+            'jdk.incubator.vector.IntVector',
+            'jdk.incubator.vector.ShortVector',
+            'jdk.incubator.vector.Vector',
+            'jdk.incubator.vector.VectorOperators',
+            'jdk.incubator.vector.VectorSpecies'
+        ]
     )
     ignoreViolations(
             'com.google.protobuf.MessageSchema',

@@ -21,9 +21,9 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
@@ -421,14 +421,14 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         return Tuple.tuple(refreshListener, remoteRefreshSegmentPressureService);
     }
 
-    private static class TestFilterDirectory extends FilterDirectory {
+    public static class TestFilterDirectory extends FilterDirectory {
 
         /**
          * Sole constructor, typically called from sub-classes.
          *
          * @param in input directory
          */
-        protected TestFilterDirectory(Directory in) {
+        public TestFilterDirectory(Directory in) {
             super(in);
         }
     }

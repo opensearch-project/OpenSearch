@@ -411,6 +411,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        if (this.executor != null) {
+            context.setConcurrentSegmentSearchEnabled(true);
+        }
 
         context.terminateAfter(numDocs);
         {
@@ -1274,15 +1277,15 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         @Override
         public ReduceableSearchResult reduce(Collection<TotalHitCountCollector> collectors) throws IOException {
-            final ReduceableSearchResult result = super.reduce(collectors);
             totalHits = collectors.stream().mapToInt(TotalHitCountCollector::getTotalHits).sum();
 
             if (teminateAfter != null) {
                 assertThat(totalHits, greaterThanOrEqualTo(teminateAfter));
                 totalHits = Math.min(totalHits, teminateAfter);
             }
-
-            return result;
+            // this collector should not participate in reduce as it is added for test purposes to capture the totalHits count
+            // returning a ReduceableSearchResult modifies the QueryResult which is not expected
+            return (result) -> {};
         }
 
         public int getTotalHits() {

@@ -54,7 +54,9 @@ import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.SearchService;
-import org.opensearch.search.aggregations.AggregationPhase;
+import org.opensearch.search.aggregations.AggregationProcessor;
+import org.opensearch.search.aggregations.DefaultAggregationProcessor;
+import org.opensearch.search.aggregations.GlobalAggCollectorManager;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
@@ -69,8 +71,10 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 import static org.opensearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
@@ -89,9 +93,7 @@ public class QueryPhase {
     // TODO: remove this property
     public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("opensearch.search.rewrite_sort", "true"));
     public static final QueryPhaseSearcher DEFAULT_QUERY_PHASE_SEARCHER = new DefaultQueryPhaseSearcher();
-
     private final QueryPhaseSearcher queryPhaseSearcher;
-    private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
     private final RescorePhase rescorePhase;
 
@@ -101,7 +103,6 @@ public class QueryPhase {
 
     public QueryPhase(QueryPhaseSearcher queryPhaseSearcher) {
         this.queryPhaseSearcher = Objects.requireNonNull(queryPhaseSearcher, "QueryPhaseSearcher is required");
-        this.aggregationPhase = new AggregationPhase();
         this.suggestPhase = new SuggestPhase();
         this.rescorePhase = new RescorePhase();
     }
@@ -142,17 +143,18 @@ public class QueryPhase {
             LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
 
+        final AggregationProcessor aggregationProcessor = queryPhaseSearcher.aggregationProcessor(searchContext);
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
-        aggregationPhase.preProcess(searchContext);
+        aggregationProcessor.preProcess(searchContext);
         boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
 
         if (rescore) { // only if we do a regular search
             rescorePhase.execute(searchContext);
         }
         suggestPhase.execute(searchContext);
-        aggregationPhase.execute(searchContext);
+        aggregationProcessor.postProcess(searchContext);
 
         if (searchContext.getProfilers() != null) {
             ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(
@@ -161,6 +163,11 @@ public class QueryPhase {
             );
             searchContext.queryResult().profileResults(shardResults);
         }
+    }
+
+    // making public for testing
+    public QueryPhaseSearcher getQueryPhaseSearcher() {
+        return queryPhaseSearcher;
     }
 
     /**
@@ -228,8 +235,17 @@ public class QueryPhase {
                 hasFilterCollector = true;
             }
             if (searchContext.queryCollectorManagers().isEmpty() == false) {
-                // plug in additional collectors, like aggregations
-                collectors.add(createMultiCollectorContext(searchContext.queryCollectorManagers().values()));
+                // plug in additional collectors, like aggregations except global aggregations
+                collectors.add(
+                    createMultiCollectorContext(
+                        searchContext.queryCollectorManagers()
+                            .entrySet()
+                            .stream()
+                            .filter(entry -> !(entry.getKey().equals(GlobalAggCollectorManager.class)))
+                            .map(Map.Entry::getValue)
+                            .collect(Collectors.toList())
+                    )
+                );
             }
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
@@ -386,10 +402,14 @@ public class QueryPhase {
      * @opensearch.internal
      */
     public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
+        private final AggregationProcessor aggregationProcessor;
+
         /**
          * Please use {@link QueryPhase#DEFAULT_QUERY_PHASE_SEARCHER}
          */
-        protected DefaultQueryPhaseSearcher() {}
+        protected DefaultQueryPhaseSearcher() {
+            aggregationProcessor = new DefaultAggregationProcessor();
+        }
 
         @Override
         public boolean searchWith(
@@ -401,6 +421,11 @@ public class QueryPhase {
             boolean hasTimeout
         ) throws IOException {
             return searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        }
+
+        @Override
+        public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
+            return aggregationProcessor;
         }
 
         protected boolean searchWithCollector(

@@ -212,7 +212,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                         6,
                         Collections.emptyList(),
                         true,
-                        Collections.emptyMap()
+                        Collections.emptyMap(),
+                        false
                     ),
                     Version.CURRENT,
                     Function.identity(),
