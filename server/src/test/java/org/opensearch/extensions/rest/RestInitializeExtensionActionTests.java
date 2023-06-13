@@ -38,11 +38,11 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 
-public class RestInitializeExtensionTests extends OpenSearchTestCase {
+public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private MockNioTransport transport;
-    private final ThreadPool threadPool = new TestThreadPool(RestInitializeExtensionTests.class.getSimpleName());
+    private final ThreadPool threadPool = new TestThreadPool(RestInitializeExtensionActionTests.class.getSimpleName());
 
     @Before
     public void setup() throws Exception {

@@ -16,6 +16,7 @@ import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -28,6 +29,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 public class ExtensionDependency implements Writeable {
     private String uniqueId;
     private Version version;
+    private static final String UNIQUE_ID = "uniqueId";
+    private static final String VERSION = "version";
 
     public ExtensionDependency(String uniqueId, Version version) {
         this.uniqueId = uniqueId;
@@ -65,12 +68,26 @@ public class ExtensionDependency implements Writeable {
             String fieldName = parser.currentName();
             parser.nextToken();
 
-            if ("uniqueId".equals(fieldName)) {
-                uniqueId = parser.text();
-            } else if ("version".equals(fieldName)) {
-                version = Version.fromString(parser.text());
+            switch (fieldName) {
+                case UNIQUE_ID:
+                    uniqueId = parser.text();
+                    break;
+                case VERSION:
+                    try {
+                        version = Version.fromString(parser.text());
+                    } catch (IllegalArgumentException e) {
+                        throw e;
+                    }
+                    break;
+                default:
+                    parser.skipChildren();
+                    break;
             }
-
+        }
+        if (Strings.isNullOrEmpty(uniqueId)) {
+            throw new IOException("Required field [uniqueId] is missing in the request for the dependent extension");
+        } else if (version == null) {
+            throw new IOException("Required field [version] is missing in the request for the dependent extension");
         }
         return new ExtensionDependency(uniqueId, version);
 

@@ -17,7 +17,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -385,8 +384,9 @@ public class ExtensionsManager {
         transportService.getThreadPool().generic().execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                if (e.getCause() instanceof TimeoutException || e instanceof ConnectTransportException) {
+                if (e.getCause() instanceof ConnectTransportException) {
                     logger.info("No response from extension to request.", e);
+                    throw (ConnectTransportException) e.getCause();
                 } else if (e.getCause() instanceof RuntimeException) {
                     throw (RuntimeException) e.getCause();
                 } else if (e.getCause() instanceof Error) {

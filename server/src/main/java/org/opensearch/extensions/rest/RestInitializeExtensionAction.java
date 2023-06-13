@@ -12,16 +12,21 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.extensions.ExtensionDependency;
+import org.opensearch.extensions.ExtensionScopedSettings;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
+import org.opensearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeoutException;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.rest.RestRequest.Method.POST;
@@ -49,40 +54,42 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String name = "";
-        String uniqueId = "";
-        String hostAddress = "";
-        String port = "";
-        String version = "";
-        String openSearchVersion = "";
-        String minimumCompatibleVersion = "";
+        String name = null;
+        String uniqueId = null;
+        String hostAddress = null;
+        String port = null;
+        String version = null;
+        String openSearchVersion = null;
+        String minimumCompatibleVersion = null;
         List<ExtensionDependency> dependencies = new ArrayList<>();
 
-        if (request.hasContent()) {
-            try (XContentParser parser = request.contentParser()) {
+        try (XContentParser parser = request.contentParser()) {
+            parser.nextToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String currentFieldName = parser.currentName();
                 parser.nextToken();
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                    String currentFieldName = parser.currentName();
-                    parser.nextToken();
-                    if ("name".equals(currentFieldName)) {
-                        name = parser.text();
-                    } else if ("uniqueId".equals(currentFieldName)) {
-                        uniqueId = parser.text();
-                    } else if ("hostAddress".equals(currentFieldName)) {
-                        hostAddress = parser.text();
-                    } else if ("port".equals(currentFieldName)) {
-                        port = parser.text();
-                    } else if ("version".equals(currentFieldName)) {
-                        version = parser.text();
-                    } else if ("opensearchVersion".equals(currentFieldName)) {
-                        openSearchVersion = parser.text();
-                    } else if ("minimumCompatibleVersion".equals(currentFieldName)) {
-                        minimumCompatibleVersion = parser.text();
-                    } else if ("dependencies".equals(currentFieldName)) {
-                        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                if ("name".equals(currentFieldName)) {
+                    name = parser.text();
+                } else if ("uniqueId".equals(currentFieldName)) {
+                    uniqueId = parser.text();
+                } else if ("hostAddress".equals(currentFieldName)) {
+                    hostAddress = parser.text();
+                } else if ("port".equals(currentFieldName)) {
+                    port = parser.text();
+                } else if ("version".equals(currentFieldName)) {
+                    version = parser.text();
+                } else if ("opensearchVersion".equals(currentFieldName)) {
+                    openSearchVersion = parser.text();
+                } else if ("minimumCompatibleVersion".equals(currentFieldName)) {
+                    minimumCompatibleVersion = parser.text();
+                } else if ("dependencies".equals(currentFieldName)) {
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        try {
                             dependencies.add(ExtensionDependency.parse(parser));
+                        } catch (IOException e) {
+                            throw e;
                         }
                     }
                 }
@@ -98,13 +105,27 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
             openSearchVersion,
             minimumCompatibleVersion,
             dependencies,
-            // TODO create parser for additionalSettings https://github.com/opensearch-project/OpenSearch/issues/8032
-            null
+            // TODO add this to the API (https://github.com/opensearch-project/OpenSearch/issues/8032)
+            new ExtensionScopedSettings(Collections.emptySet())
         );
         try {
             extensionsManager.loadExtension(extension);
             extensionsManager.initialize();
-        } catch (IOException e) {
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof TimeoutException) {
+                return channel -> channel.sendResponse(
+                    new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")
+                );
+            } else if (cause instanceof ConnectTransportException || cause instanceof RuntimeException) {
+                return channel -> channel.sendResponse(
+                    new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "Connection failed with the extension.")
+                );
+            }
+            if (e.getCause() instanceof Error) {
+                throw (Error) e.getCause();
+            }
+        } catch (Exception e) {
             return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
 
         }
@@ -112,7 +133,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
-                builder.field("Extension has been initialized");
+                builder.field("success", "Extension has been initialized");
                 builder.endObject();
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
             }
