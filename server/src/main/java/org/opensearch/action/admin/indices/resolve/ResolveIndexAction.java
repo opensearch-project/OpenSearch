@@ -61,7 +61,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;

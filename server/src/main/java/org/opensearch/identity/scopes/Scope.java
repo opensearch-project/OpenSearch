@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity;
+package org.opensearch.identity.scopes;
 
 /**
  * Limitation for the scope of an application in OpenSearch
@@ -14,13 +14,13 @@ package org.opensearch.identity;
  * @opensearch.experimental
  */
 public interface Scope {
-    String getNamespace();
+    ScopeEnums.ScopeNamespace getNamespace();
 
-    String getArea();
+    ScopeEnums.ScopeArea getArea();
 
     String getAction();
 
     default String asPermissionString() {
-        return getNamespace() + "." + getArea() + "." + getAction();
+        return getNamespace() + "." + getArea().toString() + "." + getAction();
     }
 }

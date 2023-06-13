@@ -12,7 +12,7 @@ import java.security.Principal;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 

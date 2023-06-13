@@ -36,7 +36,7 @@ import org.opensearch.action.ActionScope;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;

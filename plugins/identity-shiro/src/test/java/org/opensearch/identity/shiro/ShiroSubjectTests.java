@@ -18,7 +18,8 @@ import org.opensearch.action.admin.indices.shrink.ResizeAction;
 import org.opensearch.action.get.GetAction;
 import org.opensearch.action.get.MultiGetAction;
 import org.opensearch.identity.ApplicationAwareSubject;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.scopes.ScopeEnums;
 import org.opensearch.test.OpenSearchTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -80,31 +81,31 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
 
     public void testSetAndGetScopesShouldPass() {
 
-        List<Scope> testScopes = List.of(ActionScope.Index_Read);
+        List<Scope> testScopes = List.of(ActionScope.INDEX_READ);
         // Set scopes for a subject
         subject.setScopes(testScopes);
         assertEquals(subject.getScopes(), testScopes);
 
-        List<Scope> testScopes2 = List.of(ActionScope.Index_Search);
+        List<Scope> testScopes2 = List.of(ActionScope.INDEX_SEARCH);
         subject.setScopes(testScopes2);
         assertEquals(subject.getScopes(), testScopes2);
-        assertFalse(subject.getScopes().contains(ActionScope.Index_Read)); // Verify that setScopes overwrites completely
+        assertFalse(subject.getScopes().contains(ActionScope.INDEX_READ)); // Verify that setScopes overwrites completely
     }
 
     public void testSetScopeGetActionAreaName() {
 
-        assertEquals(ActionScope.Cluster_ALL, ActionScope.ALL.getAction(), "ALL");
-        assertEquals(ActionScope.Cluster_ALL, ActionScope.ALL.getArea(), "Cluster");
-        assertEquals(ActionScope.Cluster_ALL, ActionScope.ALL.getNamespace(), "Action");
+        assertEquals(ActionScope.ALL.getAction(), "ALL");
+        assertEquals(ActionScope.ALL.getArea(), ScopeEnums.ScopeArea.ALL);
+        assertEquals(ActionScope.ALL.getNamespace(), ScopeEnums.ScopeNamespace.ACTION);
 
-        assertEquals(ActionScope.Index_Read.getAction(), "Read");
-        assertEquals(ActionScope.Index_Read.getArea(), "Index");
-        assertEquals(ActionScope.Index_Read.getNamespace(), "Action");
+        assertEquals(ActionScope.INDEX_READ.getAction(), "READ");
+        assertEquals(ActionScope.INDEX_READ.getArea(), ScopeEnums.ScopeArea.INDEX);
+        assertEquals(ActionScope.INDEX_READ.getNamespace(), ScopeEnums.ScopeNamespace.ACTION);
     }
 
     public void testIsAllowedShouldPass() {
 
-        List<Scope> testScopes = List.of(ActionScope.Index_Read);
+        List<Scope> testScopes = List.of(ActionScope.INDEX_READ);
         // Set scopes for a subject
         subject.setScopes(testScopes);
         assertEquals(subject.getScopes(), testScopes);
@@ -117,7 +118,7 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
 
     public void testIsAllowedShouldFail() {
 
-        List<Scope> testScopes = List.of(ActionScope.Index_Read);
+        List<Scope> testScopes = List.of(ActionScope.INDEX_READ);
         // Set scopes for a subject
         subject.setScopes(testScopes);
         assertEquals(subject.getScopes(), testScopes);

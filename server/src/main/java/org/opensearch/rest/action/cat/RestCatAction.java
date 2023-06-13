@@ -34,7 +34,7 @@ package org.opensearch.rest.action.cat;
 
 import org.opensearch.action.ActionScope;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;

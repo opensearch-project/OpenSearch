@@ -7,7 +7,9 @@
  */
 package org.opensearch.action;
 
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
+import org.opensearch.identity.scopes.ScopeEnums.ScopeArea;
 
 /**
  * Scopes associated with actions in OpenSearch
@@ -15,23 +17,29 @@ import org.opensearch.identity.Scope;
  * @opensearch.experimental
  */
 public enum ActionScope implements Scope {
-    ALL,
-    CLUSTER_READ,
-    CLUSTER_ALL,
-    INDEX_READ,
-    INDEX_READWRITE,
-    INDEX_SEARCH,
-    INDEX_ALL;
+    ALL(ScopeArea.ALL, "ALL"),
+    CLUSTER_READ(ScopeArea.CLUSTER, "READ"),
+    CLUSTER_ALL(ScopeArea.ALL, "ALL"),
+    INDEX_READ(ScopeArea.INDEX, "READ"),
+    INDEX_READWRITE(ScopeArea.INDEX, "READWRITE"),
+    INDEX_SEARCH(ScopeArea.INDEX, "SEARCH"),
+    INDEX_ALL(ScopeArea.INDEX, "ALL");
 
-    public String getNamespace() {
-        return "Action";
+    public final ScopeArea area;
+    public final String action;
+
+    ActionScope(ScopeArea area, String action) {
+        this.area = area;
+        this.action = action;
     }
 
-    public String getArea() {
-        return name().split("_")[0];
+    public ScopeNamespace getNamespace() {return ScopeNamespace.ACTION;}
+
+    public ScopeArea getArea() {
+        return this.area;
     }
 
     public String getAction() {
-        return name().split("_")[1];
+        return this.action;
     }
 }

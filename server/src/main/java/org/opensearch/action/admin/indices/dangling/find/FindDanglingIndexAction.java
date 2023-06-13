@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.dangling.find;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 
 /**
  * Represents a request to find a particular dangling index by UUID.

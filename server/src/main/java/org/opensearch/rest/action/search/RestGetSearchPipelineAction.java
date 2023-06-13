@@ -12,7 +12,7 @@ import org.opensearch.action.ActionScope;
 import org.opensearch.action.search.GetSearchPipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.Strings;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;

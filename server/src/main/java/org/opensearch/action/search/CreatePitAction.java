@@ -11,7 +11,7 @@ package org.opensearch.action.search;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 
 /**
  * Action type for creating PIT reader context

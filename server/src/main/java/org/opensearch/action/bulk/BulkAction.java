@@ -36,7 +36,7 @@ import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.transport.TransportRequestOptions;
 
 /**

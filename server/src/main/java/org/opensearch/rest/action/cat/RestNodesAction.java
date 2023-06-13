@@ -52,7 +52,7 @@ import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.http.HttpInfo;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.engine.SegmentsStats;

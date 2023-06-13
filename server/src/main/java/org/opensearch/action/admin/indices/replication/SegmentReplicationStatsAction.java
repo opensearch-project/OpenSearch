@@ -11,7 +11,7 @@ package org.opensearch.action.admin.indices.replication;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 
 /**
  * Segment Replication stats information action

@@ -36,7 +36,7 @@ import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 
 /**
  * An action for putting an index template into the cluster state

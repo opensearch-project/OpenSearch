@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.health;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 
 /**
  * Transport endpoint action for obtaining cluster health

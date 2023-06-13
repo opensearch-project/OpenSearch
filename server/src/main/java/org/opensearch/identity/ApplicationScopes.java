@@ -5,21 +5,25 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.scopes.ScopeEnums.ScopeArea;
+import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
+
 /**
  * Generic Scopes in OpenSearch
  *
  * @opensearch.experimental
  */
 public enum ApplicationScopes implements Scope {
-    
+
     Trusted_Fully();
 
-    public String getNamespace() {
-        return "Application";
+    public ScopeNamespace getNamespace() {
+        return ScopeNamespace.APPLICATION;
     }
 
-    public String getArea() {
-        return name().split("_")[0];
+    public ScopeArea getArea() {
+        return ScopeArea.APPLICATION;
     }
 
     public String getAction() {

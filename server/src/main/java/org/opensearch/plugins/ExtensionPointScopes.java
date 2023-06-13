@@ -9,7 +9,7 @@
 package org.opensearch.plugins;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 
 /**
  * scopes associated with extension points, used by plugins/extensions

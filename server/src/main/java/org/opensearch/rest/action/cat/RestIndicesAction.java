@@ -58,7 +58,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
-import org.opensearch.identity.Scope;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;

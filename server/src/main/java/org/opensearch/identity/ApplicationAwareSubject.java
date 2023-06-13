@@ -10,13 +10,13 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.tokens.AuthToken;
 
 import java.security.Principal;
 import java.util.Set;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
