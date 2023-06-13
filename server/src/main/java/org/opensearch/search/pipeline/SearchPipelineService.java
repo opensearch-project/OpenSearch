@@ -80,6 +80,9 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private final NamedWriteableRegistry namedWriteableRegistry;
     private volatile ClusterState state;
 
+    private final SearchPipelineMetrics totalRequestProcessingMetrics = new SearchPipelineMetrics();
+    private final SearchPipelineMetrics totalResponseProcessingMetrics = new SearchPipelineMetrics();
+
     private final boolean isEnabled;
 
     public SearchPipelineService(
@@ -177,21 +180,21 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                     newConfiguration.getConfigAsMap(),
                     requestProcessorFactories,
                     responseProcessorFactories,
-                    namedWriteableRegistry
+                    namedWriteableRegistry,
+                    totalRequestProcessingMetrics,
+                    totalResponseProcessingMetrics
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
-                if (previous == null) {
-                    continue;
+                if (previous != null) {
+                    newPipeline.copyMetrics(previous.pipeline);
                 }
-                // TODO -- once we add in pipeline metrics (like in ingest pipelines), we will need to deep-copy
-                // the old pipeline's metrics into the new pipeline.
             } catch (Exception e) {
                 OpenSearchParseException parseException = new OpenSearchParseException(
                     "Error updating pipeline with id [" + newConfiguration.getId() + "]",
                     e
                 );
-                // TODO -- replace pipeline with one that throws an exception when we try to use it
+                // TODO -- replace pipeline with one that throws this exception when we try to use it
                 if (exceptions == null) {
                     exceptions = new ArrayList<>();
                 }
@@ -276,7 +279,9 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             pipelineConfig,
             requestProcessorFactories,
             responseProcessorFactories,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            new SearchPipelineMetrics(), // Use ephemeral metrics for validation
+            new SearchPipelineMetrics()
         );
         List<Exception> exceptions = new ArrayList<>();
         for (SearchRequestProcessor processor : pipeline.getSearchRequestProcessors()) {
@@ -372,7 +377,9 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                     searchRequest.source().searchPipelineSource(),
                     requestProcessorFactories,
                     responseProcessorFactories,
-                    namedWriteableRegistry
+                    namedWriteableRegistry,
+                    totalRequestProcessingMetrics,
+                    totalResponseProcessingMetrics
                 );
             } catch (Exception e) {
                 throw new SearchPipelineProcessingException(e);
@@ -400,12 +407,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 pipeline = pipelineHolder.pipeline;
             }
         }
-        try {
-            SearchRequest transformedRequest = pipeline.transformRequest(searchRequest);
-            return new PipelinedRequest(pipeline, transformedRequest);
-        } catch (Exception e) {
-            throw new SearchPipelineProcessingException(e);
-        }
+        SearchRequest transformedRequest = pipeline.transformRequest(searchRequest);
+        return new PipelinedRequest(pipeline, transformedRequest);
     }
 
     Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessorFactories() {
@@ -429,6 +432,16 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return new SearchPipelineInfo(
             Map.of(Pipeline.REQUEST_PROCESSORS_KEY, requestProcessorInfoList, Pipeline.RESPONSE_PROCESSORS_KEY, responseProcessorInfoList)
         );
+    }
+
+    public SearchPipelineStats stats() {
+        SearchPipelineStats.Builder builder = new SearchPipelineStats.Builder();
+        builder.withTotalStats(totalRequestProcessingMetrics, totalResponseProcessingMetrics);
+        for (PipelineHolder pipelineHolder : pipelines.values()) {
+            Pipeline pipeline = pipelineHolder.pipeline;
+            pipeline.populateStats(builder);
+        }
+        return builder.build();
     }
 
     public static List<PipelineConfiguration> getPipelines(ClusterState clusterState, String... ids) {

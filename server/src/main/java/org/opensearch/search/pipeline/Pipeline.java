@@ -21,8 +21,12 @@ import org.opensearch.ingest.ConfigurationUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static org.opensearch.ingest.ConfigurationUtils.TAG_KEY;
 import static org.opensearch.ingest.Pipeline.DESCRIPTION_KEY;
@@ -41,10 +45,24 @@ class Pipeline {
 
     // TODO: Refactor org.opensearch.ingest.CompoundProcessor to implement our generic Processor interface
     // Then these can be CompoundProcessors instead of lists.
-    private final List<SearchRequestProcessor> searchRequestProcessors;
-    private final List<SearchResponseProcessor> searchResponseProcessors;
+    private final List<ProcessorWithMetrics<SearchRequestProcessor>> searchRequestProcessors;
+    private final List<ProcessorWithMetrics<SearchResponseProcessor>> searchResponseProcessors;
 
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final SearchPipelineMetrics totalRequestMetrics;
+    private final SearchPipelineMetrics totalResponseMetrics;
+    private final SearchPipelineMetrics pipelineRequestMetrics = new SearchPipelineMetrics();
+    private final SearchPipelineMetrics pipelineResponseMetrics = new SearchPipelineMetrics();
+    private final LongSupplier relativeTimeSupplier;
+
+    private static class ProcessorWithMetrics<T extends Processor> {
+        private final T processor;
+        private final SearchPipelineMetrics metrics = new SearchPipelineMetrics();
+
+        public ProcessorWithMetrics(T processor) {
+            this.processor = processor;
+        }
+    }
 
     private Pipeline(
         String id,
@@ -52,14 +70,20 @@ class Pipeline {
         @Nullable Integer version,
         List<SearchRequestProcessor> requestProcessors,
         List<SearchResponseProcessor> responseProcessors,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchPipelineMetrics totalRequestMetrics,
+        SearchPipelineMetrics totalResponseMetrics,
+        LongSupplier relativeTimeSupplier
     ) {
         this.id = id;
         this.description = description;
         this.version = version;
-        this.searchRequestProcessors = requestProcessors;
-        this.searchResponseProcessors = responseProcessors;
+        this.searchRequestProcessors = requestProcessors.stream().map(ProcessorWithMetrics::new).collect(Collectors.toList());
+        this.searchResponseProcessors = responseProcessors.stream().map(ProcessorWithMetrics::new).collect(Collectors.toList());
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.totalRequestMetrics = totalRequestMetrics;
+        this.totalResponseMetrics = totalResponseMetrics;
+        this.relativeTimeSupplier = relativeTimeSupplier;
     }
 
     static Pipeline create(
@@ -67,7 +91,9 @@ class Pipeline {
         Map<String, Object> config,
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories,
         Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchPipelineMetrics totalRequestProcessingMetrics,
+        SearchPipelineMetrics totalResponseProcessingMetrics
     ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
@@ -88,7 +114,17 @@ class Pipeline {
                     + Arrays.toString(config.keySet().toArray())
             );
         }
-        return new Pipeline(id, description, version, requestProcessors, responseProcessors, namedWriteableRegistry);
+        return new Pipeline(
+            id,
+            description,
+            version,
+            requestProcessors,
+            responseProcessors,
+            namedWriteableRegistry,
+            totalRequestProcessingMetrics,
+            totalResponseProcessingMetrics,
+            System::nanoTime
+        );
     }
 
     private static <T extends Processor> List<T> readProcessors(
@@ -127,39 +163,83 @@ class Pipeline {
     }
 
     List<SearchRequestProcessor> getSearchRequestProcessors() {
-        return searchRequestProcessors;
+        return searchRequestProcessors.stream().map(p -> p.processor).collect(Collectors.toList());
     }
 
     List<SearchResponseProcessor> getSearchResponseProcessors() {
-        return searchResponseProcessors;
+        return searchResponseProcessors.stream().map(p -> p.processor).collect(Collectors.toList());
     }
 
-    SearchRequest transformRequest(SearchRequest request) throws Exception {
+    SearchRequest transformRequest(SearchRequest request) throws SearchPipelineProcessingException {
         if (searchRequestProcessors.isEmpty() == false) {
-            try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-                request.writeTo(bytesStreamOutput);
-                try (StreamInput in = bytesStreamOutput.bytes().streamInput()) {
-                    try (StreamInput input = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry)) {
-                        request = new SearchRequest(input);
+            long pipelineStart = relativeTimeSupplier.getAsLong();
+            totalRequestMetrics.before();
+            pipelineRequestMetrics.before();
+            try {
+                try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
+                    request.writeTo(bytesStreamOutput);
+                    try (StreamInput in = bytesStreamOutput.bytes().streamInput()) {
+                        try (StreamInput input = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry)) {
+                            request = new SearchRequest(input);
+                        }
                     }
                 }
-            }
-            for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
-                request = searchRequestProcessor.processRequest(request);
+                for (ProcessorWithMetrics<SearchRequestProcessor> processorWithMetrics : searchRequestProcessors) {
+                    processorWithMetrics.metrics.before();
+                    long start = relativeTimeSupplier.getAsLong();
+                    try {
+                        request = processorWithMetrics.processor.processRequest(request);
+                    } catch (Exception e) {
+                        processorWithMetrics.metrics.failed();
+                        throw e;
+                    } finally {
+                        long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
+                        processorWithMetrics.metrics.after(took);
+                    }
+                }
+            } catch (Exception e) {
+                totalRequestMetrics.failed();
+                pipelineRequestMetrics.failed();
+                throw new SearchPipelineProcessingException(e);
+            } finally {
+                long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart);
+                totalRequestMetrics.after(took);
+                pipelineRequestMetrics.after(took);
             }
         }
         return request;
     }
 
     SearchResponse transformResponse(SearchRequest request, SearchResponse response) throws SearchPipelineProcessingException {
-        try {
-            for (SearchResponseProcessor responseProcessor : searchResponseProcessors) {
-                response = responseProcessor.processResponse(request, response);
+        if (searchResponseProcessors.isEmpty() == false) {
+            long pipelineStart = relativeTimeSupplier.getAsLong();
+            totalResponseMetrics.before();
+            pipelineResponseMetrics.before();
+            try {
+                for (ProcessorWithMetrics<SearchResponseProcessor> processorWithMetrics : searchResponseProcessors) {
+                    processorWithMetrics.metrics.before();
+                    long start = relativeTimeSupplier.getAsLong();
+                    try {
+                        response = processorWithMetrics.processor.processResponse(request, response);
+                    } catch (Exception e) {
+                        processorWithMetrics.metrics.failed();
+                        throw e;
+                    } finally {
+                        long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
+                        processorWithMetrics.metrics.after(took);
+                    }
+                }
+            } catch (Exception e) {
+                totalResponseMetrics.failed();
+                pipelineResponseMetrics.failed();
+                throw new SearchPipelineProcessingException(e);
+            } finally {
+                long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart);
+                totalResponseMetrics.after(took);
+                pipelineResponseMetrics.after(took);
             }
-            return response;
-        } catch (Exception e) {
-            throw new SearchPipelineProcessingException(e);
         }
+        return response;
     }
 
     static final Pipeline NO_OP_PIPELINE = new Pipeline(
@@ -168,6 +248,62 @@ class Pipeline {
         0,
         Collections.emptyList(),
         Collections.emptyList(),
-        null
+        null,
+        new SearchPipelineMetrics(),
+        new SearchPipelineMetrics(),
+        () -> 0L
     );
+
+    void copyMetrics(Pipeline oldPipeline) {
+        pipelineRequestMetrics.add(oldPipeline.pipelineRequestMetrics);
+        pipelineResponseMetrics.add(oldPipeline.pipelineResponseMetrics);
+        copyProcessorMetrics(searchRequestProcessors, oldPipeline.searchRequestProcessors);
+        copyProcessorMetrics(searchResponseProcessors, oldPipeline.searchResponseProcessors);
+    }
+
+    private static <T extends Processor> void copyProcessorMetrics(
+        List<ProcessorWithMetrics<T>> newProcessorsWithMetrics,
+        List<ProcessorWithMetrics<T>> oldProcessorsWithMetrics
+    ) {
+        Map<String, ProcessorWithMetrics<T>> requestProcessorsByKey = new HashMap<>();
+        for (ProcessorWithMetrics<T> processorWithMetrics : newProcessorsWithMetrics) {
+            requestProcessorsByKey.putIfAbsent(getProcessorKey(processorWithMetrics.processor), processorWithMetrics);
+        }
+        for (ProcessorWithMetrics<T> oldProcessorWithMetrics : oldProcessorsWithMetrics) {
+            ProcessorWithMetrics<T> newProcessor = requestProcessorsByKey.get(getProcessorKey(oldProcessorWithMetrics.processor));
+            if (newProcessor != null) {
+                newProcessor.metrics.add(oldProcessorWithMetrics.metrics);
+            }
+        }
+    }
+
+    private static String getProcessorKey(Processor processor) {
+        String key = processor.getType();
+        if (processor.getTag() != null) {
+            return key + ":" + processor.getTag();
+        }
+        return key;
+    }
+
+    void populateStats(SearchPipelineStats.Builder statsBuilder) {
+        statsBuilder.addPipelineStats(getId(), pipelineRequestMetrics, pipelineResponseMetrics);
+        for (ProcessorWithMetrics<SearchRequestProcessor> requestProcessorWithMetrics : searchRequestProcessors) {
+            Processor processor = requestProcessorWithMetrics.processor;
+            statsBuilder.addRequestProcessorStats(
+                getId(),
+                getProcessorKey(processor),
+                processor.getType(),
+                requestProcessorWithMetrics.metrics
+            );
+        }
+        for (ProcessorWithMetrics<SearchResponseProcessor> responseProcessorWithMetrics : searchResponseProcessors) {
+            Processor processor = responseProcessorWithMetrics.processor;
+            statsBuilder.addResponseProcessorStats(
+                getId(),
+                getProcessorKey(processor),
+                processor.getType(),
+                responseProcessorWithMetrics.metrics
+            );
+        }
+    }
 }

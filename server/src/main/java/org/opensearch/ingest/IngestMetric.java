@@ -40,9 +40,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * <p>Metrics to measure ingest actions.
  * <p>This counts measure documents and timings for a given scope.
- * The scope is determined by the calling code. For example you can use this class to count all documents across all pipeline,
+ * The scope is determined by the calling code. For example, you can use this class to count all documents across all pipelines,
  * or you can use this class to count documents for a given pipeline or a specific processor.
- * This class does not make assumptions about it's given scope.
+ * This class does not make assumptions about its given scope.
  *
  * @opensearch.internal
  */
@@ -57,10 +57,6 @@ class IngestMetric {
      * Useful when aggregating multiple metrics to see how many things are in flight.
      */
     private final AtomicLong ingestCurrent = new AtomicLong();
-    /**
-     * The ever increasing count of things being measured
-     */
-    private final CounterMetric ingestCount = new CounterMetric();
     /**
      * The only increasing count of failures
      */
@@ -80,7 +76,6 @@ class IngestMetric {
     void postIngest(long ingestTimeInMillis) {
         ingestCurrent.decrementAndGet();
         ingestTime.inc(ingestTimeInMillis);
-        ingestCount.inc();
     }
 
     /**
@@ -98,8 +93,7 @@ class IngestMetric {
      * @param metrics The metric to add.
      */
     void add(IngestMetric metrics) {
-        ingestCount.inc(metrics.ingestCount.count());
-        ingestTime.inc(metrics.ingestTime.sum());
+        ingestTime.add(metrics.ingestTime);
         ingestFailed.inc(metrics.ingestFailed.count());
     }
 
@@ -107,6 +101,6 @@ class IngestMetric {
      * Creates a serializable representation for these metrics.
      */
     IngestStats.Stats createStats() {
-        return new IngestStats.Stats(ingestCount.count(), ingestTime.sum(), ingestCurrent.get(), ingestFailed.count());
+        return new IngestStats.Stats(ingestTime.count(), ingestTime.sum(), ingestCurrent.get(), ingestFailed.count());
     }
 }
