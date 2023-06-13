@@ -184,7 +184,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             fileCacheStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             taskCancellationStats = in.readOptionalWriteable(TaskCancellationStats::new);
         } else {
             taskCancellationStats = null;
@@ -408,7 +408,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalWriteable(fileCacheStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(taskCancellationStats);
         }
     }
