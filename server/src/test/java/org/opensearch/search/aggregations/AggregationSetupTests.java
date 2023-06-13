@@ -61,6 +61,7 @@ public class AggregationSetupTests extends OpenSearchSingleNodeTestCase {
                 Strings.EMPTY_ARRAY
             )
         );
+        ((TestSearchContext) context).setConcurrentSegmentSearchEnabled(true);
     }
 
     protected AggregatorFactories getAggregationFactories(String agg) throws IOException {

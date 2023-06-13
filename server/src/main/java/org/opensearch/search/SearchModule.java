@@ -273,9 +273,9 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
-import org.opensearch.search.query.ConcurrentQueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryPhaseSearcher;
+import org.opensearch.search.query.QueryPhaseSearcherWrapper;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -1294,8 +1294,8 @@ public class SearchModule {
             }
         }
 
-        if (searcher == null && FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-            searcher = new ConcurrentQueryPhaseSearcher();
+        if (searcher == null) {
+            searcher = new QueryPhaseSearcherWrapper();
         }
         return searcher;
     }
@@ -1326,14 +1326,7 @@ public class SearchModule {
     }
 
     public QueryPhase getQueryPhase() {
-        QueryPhase queryPhase;
-        if (queryPhaseSearcher == null) {
-            // use the defaults
-            queryPhase = new QueryPhase();
-        } else {
-            queryPhase = new QueryPhase(queryPhaseSearcher);
-        }
-        return queryPhase;
+        return new QueryPhase(queryPhaseSearcher);
     }
 
     public @Nullable ExecutorService getIndexSearcherExecutor(ThreadPool pool) {

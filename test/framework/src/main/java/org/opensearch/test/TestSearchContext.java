@@ -115,6 +115,14 @@ public class TestSearchContext extends SearchContext {
     private FieldDoc searchAfter;
     private Profilers profilers;
     private CollapseContext collapse;
+    protected boolean concurrentSegmentSearchEnabled;
+
+    /**
+     * Sets the concurrent segment search enabled field
+     */
+    public void setConcurrentSegmentSearchEnabled(boolean concurrentSegmentSearchEnabled) {
+        this.concurrentSegmentSearchEnabled = concurrentSegmentSearchEnabled;
+    }
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
@@ -609,6 +617,14 @@ public class TestSearchContext extends SearchContext {
     @Override
     public Profilers getProfilers() {
         return profilers;
+    }
+
+    /**
+     * Returns concurrent segment search status for the search context
+     */
+    @Override
+    public boolean isConcurrentSegmentSearchEnabled() {
+        return concurrentSegmentSearchEnabled;
     }
 
     @Override
