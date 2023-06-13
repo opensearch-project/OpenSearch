@@ -270,7 +270,12 @@ public final class Grok {
                 grokPart = String.format(Locale.US, "(?<%s>%s)", patternName + "_" + result, pattern);
             }
             String start = new String(grokPatternBytes, 0, result, StandardCharsets.UTF_8);
-            String rest = new String(grokPatternBytes, region.getEnd(0), grokPatternBytes.length - region.getEnd(0), StandardCharsets.UTF_8);
+            String rest = new String(
+                grokPatternBytes,
+                region.getEnd(0),
+                grokPatternBytes.length - region.getEnd(0),
+                StandardCharsets.UTF_8
+            );
             grokPattern = grokPart + rest;
             res.append(start);
         }
