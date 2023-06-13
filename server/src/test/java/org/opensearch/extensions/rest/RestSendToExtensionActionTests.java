@@ -203,7 +203,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             "uniqueid1",
             List.of(
                 "GET /foo foo cluster:admin/opensearch/abc/foo",
-                "PUT /bar bar cluster:admin/opensearch/jkl/bar",
+                "PUT /bar bar cluster:admin/opensearch/jkl/bar cluster:admin/opendistro/mno/bar*",
                 "POST /baz baz cluster:admin/opensearch/xyz/baz"
             ),
             List.of("GET /deprecated/foo foo_deprecated cluster:admin/opensearch/abc/foo_deprecated", "It's deprecated!")
@@ -219,7 +219,14 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         List<NamedRoute> expected = new ArrayList<>();
         String uriPrefix = "/_extensions/_uniqueid1";
         expected.add(new NamedRoute(Method.GET, uriPrefix + "/foo", "foo", Set.of("cluster:admin/opensearch/abc/foo")));
-        expected.add(new NamedRoute(Method.PUT, uriPrefix + "/bar", "bar", Set.of("cluster:admin/opensearch/jkl/bar")));
+        expected.add(
+            new NamedRoute(
+                Method.PUT,
+                uriPrefix + "/bar",
+                "bar",
+                Set.of("cluster:admin/opensearch/jkl/bar", "cluster:admin/opendistro/mno/bar*")
+            )
+        );
         expected.add(new NamedRoute(Method.POST, uriPrefix + "/baz", "baz", Set.of("cluster:admin/opensearch/xyz/baz")));
 
         List<Route> routes = restSendToExtensionAction.routes();

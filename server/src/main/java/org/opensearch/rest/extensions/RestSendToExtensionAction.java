@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -107,8 +106,11 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 if (parts.length > 2) {
                     name = Optional.of(parts[2].trim());
                 }
-                if (parts.length > 3) {
-                    actionNames = Collections.singleton(parts[3].trim());
+                for (int i = 3; i < parts.length; i++) {
+                    String trimmed = parts[i].trim();
+                    if (!trimmed.isEmpty()) {
+                        actionNames.add(trimmed);
+                    }
                 }
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");

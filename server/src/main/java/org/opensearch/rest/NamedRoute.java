@@ -56,7 +56,7 @@ public class NamedRoute extends RestHandler.Route {
      */
     public NamedRoute(RestRequest.Method method, String path, String name, Set<String> legacyActionNames) {
         this(method, path, name);
-        for (String actionName : actionNames) {
+        for (String actionName : legacyActionNames) {
             if (!TransportService.isValidActionName(actionName)) {
                 throw new OpenSearchException(
                     "invalid action name [" + actionName + "] must start with one of: " + TransportService.VALID_ACTION_PREFIXES
