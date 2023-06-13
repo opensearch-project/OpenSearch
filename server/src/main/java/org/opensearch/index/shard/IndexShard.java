@@ -1899,7 +1899,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
                     IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
 
-                    if (deleted && engine != null) {
+                    if (deleted && engine != null && isPrimaryMode()) {
                         // Translog Clean up
                         engine.translogManager().onDelete();
                     }

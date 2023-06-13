@@ -424,6 +424,11 @@ public class RemoteFsTranslog extends Translog {
     }
 
     protected void onDelete() {
+        if (primaryModeSupplier.getAsBoolean() == false) {
+            logger.trace("skipped delete translog");
+            // NO-OP
+            return ;
+        }
         // clean up all remote translog files
         translogTransferManager.delete();
     }

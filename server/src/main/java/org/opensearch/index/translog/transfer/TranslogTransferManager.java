@@ -56,6 +56,7 @@ public class TranslogTransferManager {
     private final TransferService transferService;
     private final BlobPath remoteDataTransferPath;
     private final BlobPath remoteMetadataTransferPath;
+    private final BlobPath remoteBaseTransferPath;
     private final FileTransferTracker fileTransferTracker;
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
@@ -74,13 +75,14 @@ public class TranslogTransferManager {
     public TranslogTransferManager(
         ShardId shardId,
         TransferService transferService,
-        BlobPath remoteDataTransferPath,
+        BlobPath remoteBaseTransferPath,
         FileTransferTracker fileTransferTracker
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
-        this.remoteDataTransferPath = remoteDataTransferPath.add(DATA_DIR);
-        this.remoteMetadataTransferPath = remoteDataTransferPath.add(METADATA_DIR);
+        this.remoteBaseTransferPath = remoteBaseTransferPath;
+        this.remoteDataTransferPath = remoteBaseTransferPath.add(DATA_DIR);
+        this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferTracker = fileTransferTracker;
     }
 
