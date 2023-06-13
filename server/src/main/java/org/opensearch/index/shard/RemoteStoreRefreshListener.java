@@ -387,7 +387,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     private void updateLocalRefreshTimeAndSeqNo() {
         segmentTracker.updateLocalRefreshClockTimeMs(System.currentTimeMillis());
-        segmentTracker.updateLocalRefreshTimeMs(System.nanoTime());
+        segmentTracker.updateLocalRefreshTimeMs(System.nanoTime() / 1_000_000L);
         segmentTracker.updateLocalRefreshSeqNo(segmentTracker.getLocalRefreshSeqNo() + 1);
     }
 
