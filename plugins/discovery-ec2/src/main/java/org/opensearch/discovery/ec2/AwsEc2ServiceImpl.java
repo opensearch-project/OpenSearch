@@ -84,7 +84,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         ProxyConfiguration proxyConfiguration,
         ClientOverrideConfiguration overrideConfiguration,
         String endpoint,
-        Region region,
+        String region,
         long readTimeoutMillis
     ) {
         ApacheHttpClient.Builder clientBuilder = ApacheHttpClient.builder()
@@ -94,12 +94,16 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         Ec2ClientBuilder builder = Ec2Client.builder()
             .overrideConfiguration(overrideConfiguration)
             .httpClientBuilder(clientBuilder)
-            .credentialsProvider(awsCredentialsProvider)
-            .region(region);
+            .credentialsProvider(awsCredentialsProvider);
 
         if (Strings.hasText(endpoint)) {
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
             builder.endpointOverride(URI.create(endpoint));
+        }
+
+        if (Strings.hasText(region)) {
+            logger.debug("using explicit ec2 region [{}]", region);
+            builder.region(Region.of(region));
         }
 
         return SocketAccess.doPrivileged(builder::build);

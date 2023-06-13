@@ -326,7 +326,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     /**
-     * Connects to all remote clusters in a blocking fashion. This should be called on node startup to establish an initial connection
+     * Connects to all remote clusters in a non-blocking fashion. This should be called on node startup to establish an initial connection
      * to all configured seed nodes.
      */
     void initializeRemoteClusters(ActionListener<Void> listener) {
