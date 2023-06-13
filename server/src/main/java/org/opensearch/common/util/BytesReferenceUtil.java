@@ -16,6 +16,11 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 
+/**
+ * Server specific utilities for BytesReference objects
+ *
+ * @opensearch.internal
+ */
 public class BytesReferenceUtil {
     /**
      * Convert an {@link XContentBuilder} into a BytesReference. This method closes the builder,
