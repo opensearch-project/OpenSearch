@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.ParseField;
@@ -76,7 +77,12 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         SumAggregatorFactory.registerAggregators(builder);
     }
 
-    private String method = null;
+    enum methodType {
+        KAHAN,
+        PRECISE
+    }
+
+    private methodType method = methodType.KAHAN;
 
     public SumAggregationBuilder(String name) {
         super(name);
@@ -101,7 +107,9 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
      */
     public SumAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        method = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            method = methodType.valueOf(in.readString());
+        }
     }
 
     @Override
@@ -111,20 +119,18 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        boolean hasMethod = method != null;
-        out.writeBoolean(hasMethod);
-        if (hasMethod) {
-            out.writeString(method);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0) && (method != null)) {
+            out.writeString(String.valueOf(method));
         }
     }
 
     public SumAggregationBuilder method(String method) {
-        if (!Objects.equals(method, "kahan") && !Objects.equals(method, "precise")) {
+        if (!Objects.equals(method.toUpperCase(), methodType.KAHAN.name()) && !Objects.equals(method.toUpperCase(), methodType.PRECISE.name())) {
             throw new IllegalArgumentException(
-                "[method] must be kahan or precise. Found [" + method + "] in [" + name + "]"
+                "[method] must have value [kahan] or [precise]. Found [" + method + "] in [" + name + "]"
             );
         }
-        this.method = method;
+        this.method = methodType.valueOf(method.toUpperCase());
         return this;
     }
 

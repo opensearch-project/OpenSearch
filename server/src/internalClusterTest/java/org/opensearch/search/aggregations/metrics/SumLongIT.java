@@ -7,24 +7,6 @@
  */
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-/*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
@@ -38,35 +20,119 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class SumLongIT extends OpenSearchIntegTestCase {
-    public void testLargeLongValues() throws InterruptedException {
+    void prepareLongTestData() throws InterruptedException {
         prepareCreate("longidx").setMapping("value", "type=long").get();
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("longidx").setSource("value", -922337202685477588L));
-        builders.add(client().prepareIndex("longidx").setSource("value", 922337202685477587L));
-        builders.add(client().prepareIndex("longidx").setSource("value", 1000L));
-        builders.add(client().prepareIndex("longidx").setSource("value", -500L));
+        builders.add(client().prepareIndex("longidx").setSource("value", -9223372026854775808L));
+        builders.add(client().prepareIndex("longidx").setSource("value", 9223372026854775807L));
 
         indexRandom(true, builders);
         ensureSearchable();
+    }
+
+    void prepareDoubleTestData() throws InterruptedException {
+        prepareCreate("doubleidx").setMapping("value", "type=double").get();
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("doubleidx").setSource("value", -9223372026854775808D));
+        builders.add(client().prepareIndex("doubleidx").setSource("value", 9223372026854775807D));
+
+        indexRandom(true, builders);
+        ensureSearchable();
+    }
+
+    public void testLongPreciseValues() throws InterruptedException {
+        prepareLongTestData();
+
+        SearchResponse searchResponse = client().prepareSearch("longidx")
+            .setQuery(matchAllQuery())
+            .addAggregation(sum("sum").field("value").method("precise"))
+            .get();
+
+        assertHitCount(searchResponse, 2);
+
+        Sum sum = searchResponse.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getName(), equalTo("sum"));
+        assertThat(sum.getValue(), equalTo((double) (-9223372026854775808L + 9223372026854775807L)));
+    }
+
+    public void testLongKahanValues() throws InterruptedException {
+        prepareLongTestData();
+
+        SearchResponse searchResponse = client().prepareSearch("longidx")
+            .setQuery(matchAllQuery())
+            .addAggregation(sum("sum").method("kahan").field("value"))
+            .get();
+
+        Sum sum = searchResponse.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getName(), equalTo("sum"));
+        assertThat(sum.getValue(), equalTo(-9223372026854775808D + 9223372026854775807D));
+    }
+
+    public void testLongDefaultValues() throws InterruptedException {
+        prepareLongTestData();
 
         SearchResponse searchResponse = client().prepareSearch("longidx")
             .setQuery(matchAllQuery())
             .addAggregation(sum("sum").field("value"))
             .get();
 
-        assertHitCount(searchResponse, 4);
+        Sum sum = searchResponse.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getName(), equalTo("sum"));
+        assertThat(sum.getValue(), equalTo(-9223372026854775808D + 9223372026854775807D));
+    }
+
+    // Precise option does nothing as passed in doubles have lost precision already
+    public void testDoublePreciseValues() throws InterruptedException {
+        prepareDoubleTestData();
+
+        SearchResponse searchResponse = client().prepareSearch("doubleidx")
+            .setQuery(matchAllQuery())
+            .addAggregation(sum("sum").method("precise").field("value"))
+            .get();
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
-        assertThat(sum.getValue(), equalTo((double) (-9223372026854775808L + 9223372026854775807L + 1000L - 500L)));
+        assertThat(sum.getValue(), equalTo(-9223372026854775808D + 9223372026854775807D));
+    }
+
+    public void testDoubleKahanValues() throws InterruptedException {
+        prepareDoubleTestData();
+
+        SearchResponse searchResponse = client().prepareSearch("doubleidx")
+            .setQuery(matchAllQuery())
+            .addAggregation(sum("sum").method("kahan").field("value"))
+            .get();
+
+        Sum sum = searchResponse.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getName(), equalTo("sum"));
+        assertThat(sum.getValue(), equalTo(-9223372026854775808D + 9223372026854775807D));
+    }
+
+    public void testDoubleDefaultValues() throws InterruptedException {
+        prepareDoubleTestData();
+
+        SearchResponse searchResponse = client().prepareSearch("doubleidx")
+            .setQuery(matchAllQuery())
+            .addAggregation(sum("sum").field("value"))
+            .get();
+
+        Sum sum = searchResponse.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getName(), equalTo("sum"));
+        assertThat(sum.getValue(), equalTo(-9223372026854775808D + 9223372026854775807D));
     }
 }

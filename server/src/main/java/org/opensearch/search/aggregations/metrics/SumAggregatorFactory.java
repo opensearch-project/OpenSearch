@@ -38,7 +38,6 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
-import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -47,6 +46,7 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Aggregation Factory for sum agg
@@ -55,19 +55,19 @@ import java.util.Map;
  */
 class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    private final String method;
+    private static SumAggregationBuilder.methodType method = SumAggregationBuilder.methodType.KAHAN;
 
     SumAggregatorFactory(
         String name,
         ValuesSourceConfig config,
-        String method,
+        SumAggregationBuilder.methodType method,
         QueryShardContext queryShardContext,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
-        this.method = method;
+        SumAggregatorFactory.method = method;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -84,18 +84,18 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
             return new SumNullAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
         }
 
-        // use kahan summation for floating point numbers
-        if (((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint()) {
-            return new SumAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
+        // use precise sum aggregator when optional keyword precise is used
+        if (Objects.equals(method, SumAggregationBuilder.methodType.PRECISE)) {
+            return new SumPreciseAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
         }
 
-        // use long for all integral numbers that fit within the data type
-        return new SumIntegralAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
+        // use kahan summation when keyword kahan keyword is used and by default
+        return new SumAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new SumAggregator(name, config, searchContext, parent, metadata);
+        return new SumNullAggregator(name, config, searchContext, parent, metadata);
     }
 
     @Override
