@@ -8,6 +8,8 @@
 
 package org.opensearch.gradle.testclusters;
 
+import java.util.List;
+
 public class ExtensionsProperties {
     private String name;
     private String uniqueId;
@@ -16,6 +18,8 @@ public class ExtensionsProperties {
     private String version;
     private String opensearchVersion;
     private String minimumCompatibleVersion;
+    private Boolean bwcPluginMode;
+    private List<String> extensionDistinguishedNames;
 
     public ExtensionsProperties(
         String name,
@@ -24,7 +28,9 @@ public class ExtensionsProperties {
         String port,
         String version,
         String opensearchVersion,
-        String minimumCompatibleVersion
+        String minimumCompatibleVersion,
+        String bwcPluginMode,
+        List<String> extensionDistinguishedNames
     ) {
         this.name = name;
         this.uniqueId = uniqueId;
@@ -33,6 +39,8 @@ public class ExtensionsProperties {
         this.version = version;
         this.opensearchVersion = opensearchVersion;
         this.minimumCompatibleVersion = minimumCompatibleVersion;
+        this.bwcPluginMode = Boolean.parseBoolean(bwcPluginMode);
+        this.extensionDistinguishedNames = extensionDistinguishedNames;
     }
 
     public String getName() {
@@ -74,6 +82,14 @@ public class ExtensionsProperties {
     public void setVersion(String version) {
         this.version = version;
     }
+
+    public Boolean getBwcPluginMode() { return bwcPluginMode; }
+
+    public void setBwcPluginMode(Boolean bwcPluginMode) {this.bwcPluginMode = bwcPluginMode; }
+
+    public List<String> getextensionDistinguishedNames() {return extensionDistinguishedNames;}
+
+    public void setextensionDistinguishedNames(List<String> extensionDistinguishedNames) {this.extensionDistinguishedNames = extensionDistinguishedNames; }
 
     public String getOpensearchVersion() {
         return opensearchVersion;

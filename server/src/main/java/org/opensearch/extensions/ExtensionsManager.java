@@ -487,7 +487,9 @@ public class ExtensionsManager {
                         "port",
                         "version",
                         "opensearchVersion",
-                        "minimumCompatibleVersion" };
+                        "minimumCompatibleVersion",
+                        "bwcPluginMode",
+                        "extensionDistinguishedNames" };
                     List<String> missingFields = Arrays.stream(requiredFields)
                         .filter(field -> !extensionMap.containsKey(field))
                         .collect(Collectors.toList());
@@ -511,6 +513,11 @@ public class ExtensionsManager {
                         }
                     }
 
+                    List<String> extensionDistiguishedNamesList = new ArrayList<>();
+                    if (extensionMap.get("extensionDistinguishedNames") != null && extensionMap.get("extensionDistinguishedNames") instanceof List<?>)  {
+                        extensionDistiguishedNamesList = (List<String>) extensionMap.get("extensionDistinguishedNames");
+                    }
+
                     ExtensionScopedSettings extAdditionalSettings = new ExtensionScopedSettings(additionalSettings);
                     Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
                         .stream()
@@ -531,6 +538,8 @@ public class ExtensionsManager {
                             extensionMap.get("version").toString(),
                             extensionMap.get("opensearchVersion").toString(),
                             extensionMap.get("minimumCompatibleVersion").toString(),
+                            extensionMap.get("bwcPluginMode").toString(),
+                            extensionDistiguishedNamesList,
                             extensionDependencyList,
                             extAdditionalSettings
                         )
