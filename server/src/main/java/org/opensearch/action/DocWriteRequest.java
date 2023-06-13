@@ -44,6 +44,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
@@ -246,6 +247,22 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
             throw new IllegalStateException("invalid request type [" + type + " ]");
         }
         return docWriteRequest;
+    }
+
+    /**
+     * Validates whether the doc id length is under the limit.
+     * @param id DocId to verify
+     * @param validationException containing all the validation errors.
+     * @return validationException
+     */
+    static ActionRequestValidationException validateDocIdLength(String id, ActionRequestValidationException validationException) {
+        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
+            validationException = addValidationError(
+                "id [" + id + "] is too long, must be no longer than 512 bytes but was: " + id.getBytes(StandardCharsets.UTF_8).length,
+                validationException
+            );
+        }
+        return validationException;
     }
 
     /** write a document write (index/delete/update) request*/

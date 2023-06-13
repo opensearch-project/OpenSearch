@@ -53,6 +53,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -269,6 +270,38 @@ public class BulkRequestTests extends OpenSearchTestCase {
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead."
             )
+        );
+    }
+
+    public void testBulkRequestInvalidDocIDDuringCreate() {
+        IndexRequest indexRequest = new IndexRequest("index").id(String.join("", Collections.nCopies(513, "a")));
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(indexRequest);
+
+        ActionRequestValidationException validate = bulkRequest.validate();
+        assertThat(validate, notNullValue());
+        assertEquals(
+            1,
+            validate.validationErrors()
+                .stream()
+                .filter(msg -> msg.contains("is too long, must be no longer than 512 bytes but was: "))
+                .count()
+        );
+    }
+
+    public void testBulkRequestInvalidDocIDDuringUpdate() {
+        UpdateRequest updateRequest = new UpdateRequest("index", String.join("", Collections.nCopies(513, "a")));
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(updateRequest);
+
+        ActionRequestValidationException validate = bulkRequest.validate();
+        assertThat(validate, notNullValue());
+        assertEquals(
+            1,
+            validate.validationErrors()
+                .stream()
+                .filter(msg -> msg.contains("is too long, must be no longer than 512 bytes but was: "))
+                .count()
         );
     }
 
