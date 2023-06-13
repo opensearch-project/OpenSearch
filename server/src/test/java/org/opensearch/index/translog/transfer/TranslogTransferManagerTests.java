@@ -204,7 +204,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
         when(transferService.downloadBlob(any(BlobPath.class), eq("12__234"))).thenReturn(
-            new ByteArrayInputStream(metadata.createMetadataBytes())
+            new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata))
         );
 
         assertEquals(metadata, translogTransferManager.readMetadata());
@@ -222,7 +222,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
         when(transferService.downloadBlob(any(BlobPath.class), eq("12__235"))).thenReturn(
-            new ByteArrayInputStream(metadata.createMetadataBytes())
+            new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata))
         );
 
         assertEquals(metadata, translogTransferManager.readMetadata());
