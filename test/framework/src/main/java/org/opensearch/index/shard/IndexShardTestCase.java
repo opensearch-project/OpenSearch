@@ -1302,7 +1302,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexShard primaryShard,
         IndexShard target,
         TransportService transportService,
-
         IndicesService indicesService,
         ClusterService clusterService
     ) {

@@ -33,6 +33,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -48,12 +49,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -80,6 +83,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
     private IndicesService indicesService;
     private ClusterService clusterService;
+
+    private SegmentReplicationState state;
 
     private static long TRANSPORT_TIMEOUT = 30000;// 30sec
 
@@ -143,6 +148,14 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             initialCheckpoint.getSegmentsGen(),
             initialCheckpoint.getSegmentInfosVersion() + 1,
             primaryCodec
+        );
+
+        state = new SegmentReplicationState(
+            replicaShard.routingEntry(),
+            new ReplicationLuceneIndex(),
+            0L,
+            "",
+            new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT)
         );
     }
 
@@ -340,6 +353,42 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         doNothing().when(spy).onNewCheckpoint(any(), any());
         spy.afterIndexShardStarted(replicaShard);
         verify(spy, times(1)).processLatestReceivedCheckpoint(eq(replicaShard), any());
+    }
+
+    public void testStartReplicationListenerSuccess() throws InterruptedException {
+        sut.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
+        SegmentReplicationTargetService spy = spy(sut);
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(i -> {
+            ((SegmentReplicationTargetService.SegmentReplicationListener) i.getArgument(1)).onReplicationDone(state);
+            latch.countDown();
+            return null;
+        }).when(spy).startReplication(any(), any());
+        doNothing().when(spy).updateVisibleCheckpoint(eq(0L), any());
+        spy.afterIndexShardStarted(replicaShard);
+
+        latch.await(2, TimeUnit.SECONDS);
+        verify(spy, (atLeastOnce())).updateVisibleCheckpoint(eq(0L), eq(replicaShard));
+    }
+
+    public void testStartReplicationListenerFailure() throws InterruptedException {
+        sut.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
+        SegmentReplicationTargetService spy = spy(sut);
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(i -> {
+            ((SegmentReplicationTargetService.SegmentReplicationListener) i.getArgument(1)).onReplicationFailure(
+                state,
+                new ReplicationFailedException(replicaShard, null),
+                false
+            );
+            latch.countDown();
+            return null;
+        }).when(spy).startReplication(any(), any());
+        doNothing().when(spy).updateVisibleCheckpoint(eq(0L), any());
+        spy.afterIndexShardStarted(replicaShard);
+
+        latch.await(2, TimeUnit.SECONDS);
+        verify(spy, (never())).updateVisibleCheckpoint(eq(0L), eq(replicaShard));
     }
 
     public void testDoNotProcessLatestCheckpointIfItIsbehind() {

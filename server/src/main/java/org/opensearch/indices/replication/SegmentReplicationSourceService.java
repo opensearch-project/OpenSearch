@@ -64,7 +64,6 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
 
         public static final String GET_CHECKPOINT_INFO = "internal:index/shard/replication/get_checkpoint_info";
         public static final String GET_SEGMENT_FILES = "internal:index/shard/replication/get_segment_files";
-
         public static final String UPDATE_VISIBLE_CHECKPOINT = "internal:index/shard/replication/update_visible_checkpoint";
     }
 
