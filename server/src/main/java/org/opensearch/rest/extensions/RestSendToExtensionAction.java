@@ -36,6 +36,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -94,7 +96,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         List<Route> restActionsAsRoutes = new ArrayList<>();
         for (String restAction : restActionsRequest.getRestActions()) {
             Optional<String> name = Optional.empty();
-            Optional<String> legacyActionName = Optional.empty();
+            Set<String> actionNames = new HashSet<>();
             String[] parts = restAction.split(" ");
             if (parts.length < 2) {
                 throw new IllegalArgumentException("REST action must contain at least a REST method and route");
@@ -106,7 +108,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     name = Optional.of(parts[2].trim());
                 }
                 if (parts.length > 3) {
-                    legacyActionName = Optional.of(parts[3].trim());
+                    actionNames = Collections.singleton(parts[3].trim());
                 }
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
@@ -114,8 +116,8 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             logger.info("Registering: " + method + " " + path);
             if (name.isPresent()) {
                 NamedRoute nr;
-                if (legacyActionName.isPresent()) {
-                    nr = new NamedRoute(method, path, name.get(), legacyActionName.get());
+                if (!actionNames.isEmpty()) {
+                    nr = new NamedRoute(method, path, name.get(), actionNames);
                 } else {
                     nr = new NamedRoute(method, path, name.get());
                 }

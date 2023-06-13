@@ -460,6 +460,7 @@ import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1111,15 +1112,15 @@ public class ActionModule extends AbstractModule {
             requireNonNull(route, "route is required");
             requireNonNull(action, "action is required");
             Optional<String> routeName = Optional.empty();
-            Optional<String> legacyActionName = Optional.empty();
+            Set<String> actionNames = new HashSet<>();
             if (route instanceof NamedRoute) {
                 NamedRoute nr = (NamedRoute) route;
                 routeName = Optional.of(nr.name());
                 if (isActionRegistered(routeName.get()) || registeredActionNames.contains(routeName.get())) {
                     throw new IllegalArgumentException("route [" + route + "] already registered");
                 }
-                legacyActionName = Optional.ofNullable(nr.legacyActionName());
-                legacyActionName.ifPresent(act -> {
+                actionNames = nr.actionNames();
+                actionNames.forEach(act -> {
                     if (isActionRegistered(act) || registeredActionNames.contains(act)) {
                         throw new IllegalArgumentException("action [" + act + "] already registered");
                     }
@@ -1130,7 +1131,7 @@ public class ActionModule extends AbstractModule {
             }
             routeRegistry.put(route, action);
             routeName.ifPresent(registeredActionNames::add);
-            legacyActionName.ifPresent(registeredActionNames::add);
+            registeredActionNames.addAll(actionNames);
         }
 
         /**
@@ -1145,7 +1146,7 @@ public class ActionModule extends AbstractModule {
             }
             if (route instanceof NamedRoute) {
                 registeredActionNames.remove(((NamedRoute) route).name());
-                registeredActionNames.remove(((NamedRoute) route).legacyActionName());
+                registeredActionNames.remove(((NamedRoute) route).actionNames());
             }
         }
 

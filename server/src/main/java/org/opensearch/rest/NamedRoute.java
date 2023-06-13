@@ -8,10 +8,10 @@
 
 package org.opensearch.rest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.transport.TransportService;
+
+import java.util.Set;
 
 /**
  * A named Route
@@ -20,13 +20,12 @@ import org.opensearch.transport.TransportService;
  */
 public class NamedRoute extends RestHandler.Route {
 
-    private static final Logger logger = LogManager.getLogger(NamedRoute.class);
     private static final String VALID_ACTION_NAME_PATTERN = "^[a-zA-Z0-9:/*_]*$";
     static final int MAX_LENGTH_OF_ACTION_NAME = 250;
 
     private String name;
 
-    private String legacyActionName;
+    private Set<String> actionNames;
 
     public boolean isValidRouteName(String routeName) {
         if (routeName == null || routeName.isBlank() || routeName.length() > MAX_LENGTH_OF_ACTION_NAME) {
@@ -53,14 +52,18 @@ public class NamedRoute extends RestHandler.Route {
      * @param method - The REST method for this route
      * @param path - the URL for this route
      * @param name - the shortname for this route
-     * @param legacyActionName - name of the transport action this route will be matched against
+     * @param legacyActionNames - list of names of the transport action this route will be matched against
      */
-    public NamedRoute(RestRequest.Method method, String path, String name, String legacyActionName) {
+    public NamedRoute(RestRequest.Method method, String path, String name, Set<String> legacyActionNames) {
         this(method, path, name);
-        if (!TransportService.isValidActionName(legacyActionName)) {
-            logger.warn("invalid action name [" + legacyActionName + "] must start with one of: " + TransportService.VALID_ACTION_PREFIXES);
+        for (String actionName : actionNames) {
+            if (!TransportService.isValidActionName(actionName)) {
+                throw new OpenSearchException(
+                    "invalid action name [" + actionName + "] must start with one of: " + TransportService.VALID_ACTION_PREFIXES
+                );
+            }
         }
-        this.legacyActionName = legacyActionName;
+        this.actionNames = legacyActionNames;
     }
 
     /**
@@ -74,15 +77,12 @@ public class NamedRoute extends RestHandler.Route {
      * The legacy transport Action name to match against this route to support authorization in REST layer.
      * MUST be unique across all Routes
      */
-    public String legacyActionName() {
-        return this.legacyActionName;
+    public Set<String> actionNames() {
+        return this.actionNames;
     }
 
     @Override
     public String toString() {
-        if (legacyActionName == null) {
-            return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + "]";
-        }
-        return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + ", legacyActionName=" + legacyActionName + "]";
+        return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + ", actionNames=" + actionNames + "]";
     }
 }
