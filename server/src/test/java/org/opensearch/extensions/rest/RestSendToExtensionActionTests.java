@@ -218,9 +218,9 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
         List<NamedRoute> expected = new ArrayList<>();
         String uriPrefix = "/_extensions/_uniqueid1";
-        expected.add(new NamedRoute(Method.GET, uriPrefix + "/foo", "foo", "cluster:admin/opensearch/abc/foo"));
-        expected.add(new NamedRoute(Method.PUT, uriPrefix + "/bar", "bar", "cluster:admin/opensearch/jkl/bar"));
-        expected.add(new NamedRoute(Method.POST, uriPrefix + "/baz", "baz", "cluster:admin/opensearch/xyz/baz"));
+        expected.add(new NamedRoute(Method.GET, uriPrefix + "/foo", "foo", Set.of("cluster:admin/opensearch/abc/foo")));
+        expected.add(new NamedRoute(Method.PUT, uriPrefix + "/bar", "bar", Set.of("cluster:admin/opensearch/jkl/bar")));
+        expected.add(new NamedRoute(Method.POST, uriPrefix + "/baz", "baz", Set.of("cluster:admin/opensearch/xyz/baz")));
 
         List<Route> routes = restSendToExtensionAction.routes();
         assertEquals(expected.size(), routes.size());
@@ -230,14 +230,14 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         List<Method> methods = routes.stream().map(Route::getMethod).collect(Collectors.toList());
         List<String> expectedNames = expected.stream().map(NamedRoute::name).collect(Collectors.toList());
         List<String> names = routes.stream().map(r -> ((NamedRoute) r).name()).collect(Collectors.toList());
-        List<String> expectedLegacyActionNames = expected.stream().map(NamedRoute::legacyActionName).collect(Collectors.toList());
-        List<String> legacyActionNames = routes.stream().map(r -> ((NamedRoute) r).legacyActionName()).collect(Collectors.toList());
+        Set<String> expectedActionNames = expected.stream().flatMap(nr -> nr.actionNames().stream()).collect(Collectors.toSet());
+        Set<String> actionNames = routes.stream().flatMap(nr -> ((NamedRoute) nr).actionNames().stream()).collect(Collectors.toSet());
         assertTrue(paths.containsAll(expectedPaths));
         assertTrue(expectedPaths.containsAll(paths));
         assertTrue(methods.containsAll(expectedMethods));
         assertTrue(expectedMethods.containsAll(methods));
         assertTrue(expectedNames.containsAll(names));
-        assertTrue(expectedLegacyActionNames.containsAll(legacyActionNames));
+        assertTrue(expectedActionNames.containsAll(actionNames));
     }
 
     public void testRestSendToExtensionMultipleNamedRoutesWithSameName() throws Exception {
