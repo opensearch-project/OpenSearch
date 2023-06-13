@@ -622,7 +622,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     Tries to delete shard level directory if it is empty
     Return true if it deleted it successfully
      */
-    public boolean deleteIfEmpty() throws IOException {
+    private boolean deleteIfEmpty() throws IOException {
         Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
         if (metadataFiles.size() != 0) {
             logger.info("Remote directory still has files , not deleting the path");
@@ -639,5 +639,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
 
         return true;
+    }
+
+    public void close() throws IOException {
+        deleteStaleSegments(0);
+        deleteIfEmpty();
     }
 }

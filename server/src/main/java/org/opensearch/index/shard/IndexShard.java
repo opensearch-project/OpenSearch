@@ -1899,13 +1899,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
                     IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
 
-                    // Remote Segment Store Cleanup
-                    if (deleted && isPrimaryMode() && isRemoteStoreEnabled()) {
-                        RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
-                        remoteDirectory.deleteStaleSegments(0);
-                        remoteDirectory.deleteIfEmpty();
-                    }
-
                     if (deleted && engine != null) {
                         // Translog Clean up
                         engine.translogManager().onDelete();
@@ -1917,6 +1910,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /*
+    ToDo : Fix this https://github.com/opensearch-project/OpenSearch/issues/8003
+     */
     private RemoteSegmentStoreDirectory getRemoteDirectory() {
         assert indexSettings.isRemoteStoreEnabled();
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
