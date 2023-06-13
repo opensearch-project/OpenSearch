@@ -168,8 +168,6 @@ thirdPartyAudit {
     'org.apache.http.client.methods.HttpRequestBase',
     'org.apache.http.config.Registry',
     'org.apache.http.config.RegistryBuilder',
-    'org.apache.http.config.SocketConfig',
-    'org.apache.http.config.SocketConfig$Builder',
     'org.apache.http.conn.ClientConnectionManager',
     'org.apache.http.conn.ConnectionKeepAliveStrategy',
     'org.apache.http.conn.params.ConnManagerParams',
