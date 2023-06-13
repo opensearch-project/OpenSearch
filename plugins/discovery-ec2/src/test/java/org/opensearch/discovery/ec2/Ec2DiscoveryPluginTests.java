@@ -109,16 +109,16 @@ public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
     public void testDefaultRegion() throws IOException {
         final Settings settings = Settings.builder().build();
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings)) {
-            final Region region = ((MockEc2Client) plugin.ec2Service.client().get()).region;
-            assertEquals(region, Region.US_WEST_2);
+            final String region = ((MockEc2Client) plugin.ec2Service.client().get()).region;
+            assertEquals(region, "");
         }
     }
 
     public void testSpecificRegion() throws IOException {
         final Settings settings = Settings.builder().put(Ec2ClientSettings.REGION_SETTING.getKey(), "us-west-2").build();
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings)) {
-            final Region region = ((MockEc2Client) plugin.ec2Service.client().get()).region;
-            assertEquals(region, Region.US_WEST_2);
+            final String region = ((MockEc2Client) plugin.ec2Service.client().get()).region;
+            assertEquals(region, Region.US_WEST_2.toString());
         }
     }
 
@@ -249,7 +249,7 @@ public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
                     ProxyConfiguration proxyConfiguration,
                     ClientOverrideConfiguration overrideConfiguration,
                     String endpoint,
-                    Region region,
+                    String region,
                     long readTimeoutMillis
                 ) {
                     return new MockEc2Client(credentials, proxyConfiguration, overrideConfiguration, endpoint, region, readTimeoutMillis);
@@ -261,7 +261,7 @@ public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
     private static class MockEc2Client implements Ec2Client {
 
         String endpoint;
-        final Region region;
+        final String region;
         final AwsCredentialsProvider credentials;
         final ClientOverrideConfiguration clientOverrideConfiguration;
         final ProxyConfiguration proxyConfiguration;
@@ -272,7 +272,7 @@ public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
             ProxyConfiguration proxyConfiguration,
             ClientOverrideConfiguration clientOverrideConfiguration,
             String endpoint,
-            Region region,
+            String region,
             long readTimeoutMillis
         ) {
             this.credentials = credentials;

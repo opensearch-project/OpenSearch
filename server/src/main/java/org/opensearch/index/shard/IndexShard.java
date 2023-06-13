@@ -58,6 +58,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
@@ -333,6 +334,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private final boolean isTimeSeriesIndex;
     private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
 
     public IndexShard(
@@ -451,6 +453,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkpointPublisher = checkpointPublisher;
         this.remoteStore = remoteStore;
         this.translogFactorySupplier = translogFactorySupplier;
+        this.isTimeSeriesIndex = (mapperService == null || mapperService.documentMapper() == null)
+            ? false
+            : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteRefreshSegmentPressureService = remoteRefreshSegmentPressureService;
     }
 
@@ -1474,6 +1479,46 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
+    }
+
+    public GatedCloseable<IndexCommit> acquireLastIndexCommitAndRefresh(boolean flushFirst) throws EngineException {
+        GatedCloseable<IndexCommit> indexCommit = acquireLastIndexCommit(flushFirst);
+        getEngine().refresh("Snapshot for Remote Store based Shard");
+        return indexCommit;
+    }
+
+    /**
+     *
+     * @param snapshotId Snapshot UUID.
+     * @param primaryTerm current primary term.
+     * @param generation Snapshot Commit Generation.
+     * @throws IOException if there is some failure in acquiring lock in remote store.
+     */
+    public void acquireLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteSegmentDirectoryForShard();
+        remoteSegmentStoreDirectory.acquireLock(primaryTerm, generation, snapshotId);
+    }
+
+    /**
+     *
+     * @param snapshotId Snapshot UUID.
+     * @param primaryTerm current primary term.
+     * @param generation Snapshot Commit Generation.
+     * @throws IOException if there is some failure in releasing lock in remote store.
+     */
+    public void releaseLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteSegmentDirectoryForShard();
+        remoteSegmentStoreDirectory.releaseLock(primaryTerm, generation, snapshotId);
+    }
+
+    private RemoteSegmentStoreDirectory getRemoteSegmentDirectoryForShard() {
+        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
+        assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
+            : "Store.directory is not enclosing an instance of FilterDirectory";
+        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
+        assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of RemoteSegmentStoreDirectory";
+        return ((RemoteSegmentStoreDirectory) remoteDirectory);
     }
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {
@@ -3587,7 +3632,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             tombstoneDocSupplier(),
             isReadOnlyReplica,
             replicationTracker::isPrimaryMode,
-            translogFactorySupplier.apply(indexSettings, shardRouting)
+            translogFactorySupplier.apply(indexSettings, shardRouting),
+            isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
+                                                                                                 // timeseries
         );
     }
 
@@ -3597,6 +3644,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public boolean isRemoteTranslogEnabled() {
         return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
+    }
+
+    /**
+     * @return true if segment reverse search optimization is enabled for time series based workload.
+     */
+    public boolean isTimeSeriesDescSortOptimizationEnabled() {
+        // Do not change segment order in case of index sort.
+        return isTimeSeriesIndex && getIndexSort() == null;
     }
 
     /**
