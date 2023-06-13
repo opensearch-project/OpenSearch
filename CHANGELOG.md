@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `commons-io:commons-io` from 2.12.0 to 2.13.0 (#8014, #8013, #8010)
 - Bump `com.diffplug.spotless` from 6.18.0 to 6.19.0 (#8007)
 - Bump `'com.azure:azure-storage-blob` to 12.22.2 from 12.21.1 ([#8043](https://github.com/opensearch-project/OpenSearch/pull/8043))
+- Bump `org.jruby.joni:joni` from 2.1.48 to 2.2.1 (#8015)
 
 ### Changed
 - Replace jboss-annotations-api_1.2_spec with jakarta.annotation-api ([#7836](https://github.com/opensearch-project/OpenSearch/pull/7836))
