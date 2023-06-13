@@ -389,6 +389,7 @@ public interface Repository extends LifecycleComponent {
     default void cloneRemoteStoreIndexShardSnapshot(
         SnapshotId source,
         SnapshotId target,
+        RepositoryData repositoryData,
         RepositoryShardId shardId,
         @Nullable String shardGeneration,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,

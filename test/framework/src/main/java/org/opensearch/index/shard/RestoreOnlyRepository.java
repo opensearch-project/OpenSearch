@@ -211,6 +211,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public void cloneRemoteStoreIndexShardSnapshot(
         SnapshotId source,
         SnapshotId target,
+        RepositoryData repositoryData,
         RepositoryShardId shardId,
         String shardGeneration,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,

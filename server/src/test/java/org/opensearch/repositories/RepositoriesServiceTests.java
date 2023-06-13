@@ -383,6 +383,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         public void cloneRemoteStoreIndexShardSnapshot(
             SnapshotId source,
             SnapshotId target,
+            RepositoryData repositoryData,
             RepositoryShardId shardId,
             String shardGeneration,
             RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,

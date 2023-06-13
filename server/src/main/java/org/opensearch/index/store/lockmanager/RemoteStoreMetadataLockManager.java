@@ -16,7 +16,7 @@ import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
+import java.util.Objects;
 
 /**
  * A Class that implements Remote Store Lock Manager by creating lock files for the remote store files that needs to
@@ -59,16 +59,8 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
     public void release(LockInfo lockInfo) throws IOException {
         assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
         String[] lockFiles = lockDirectory.listAll();
-
-        // ideally there should be only one lock per acquirer, but just to handle any stale locks,
-        // we try to release all the locks for the acquirer.
-        List<String> locksToRelease = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles);
-        if (locksToRelease.size() > 1) {
-            logger.warn(locksToRelease.size() + " locks found for acquirer " + ((FileLockInfo) lockInfo).getAcquirerId());
-        }
-        for (String lock : locksToRelease) {
-            lockDirectory.deleteFile(lock);
-        }
+        String lockToRelease = ((FileLockInfo) lockInfo).getLockForAcquirer(lockFiles);
+        lockDirectory.deleteFile(lockToRelease);
     }
 
     /**
@@ -85,7 +77,9 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
     }
 
     /**
-     * Acquires lock on the file mentioned in originalLockInfo for acquirer mentioned in clonedLockInfo
+     * Acquires lock on the file mentioned in originalLockInfo for acquirer mentioned in clonedLockInfo.
+     * Snapshot layer enforces thread safety by having checks in place to ensure that the source snapshot is not being deleted before proceeding
+     * with the clone operation. Hence, the original lock file would always be present while acquiring the lock for cloned snapshot.
      * @param originalLockInfo lock info instance for original lock.
      * @param clonedLockInfo lock info instance for which lock needs to be cloned.
      * @throws IOException throws IOException if originalResource itself do not have any lock.
@@ -94,11 +88,11 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
     public void cloneLock(LockInfo originalLockInfo, LockInfo clonedLockInfo) throws IOException {
         assert originalLockInfo instanceof FileLockInfo : "originalLockInfo should be instance of FileLockInfo";
         assert clonedLockInfo instanceof FileLockInfo : "clonedLockInfo should be instance of FileLockInfo";
-        String originalResourceId = ((FileLockInfo) originalLockInfo).getAcquirerId();
-        String clonedResourceId = ((FileLockInfo) clonedLockInfo).getAcquirerId();
+        String originalResourceId = Objects.requireNonNull(((FileLockInfo) originalLockInfo).getAcquirerId());
+        String clonedResourceId = Objects.requireNonNull(((FileLockInfo) clonedLockInfo).getAcquirerId());
         assert originalResourceId != null && clonedResourceId != null : "provided resourceIds should not be null";
         String[] lockFiles = lockDirectory.listAll();
-        String lockNameForAcquirer = ((FileLockInfo) originalLockInfo).getLocksForAcquirer(lockFiles).get(0);
+        String lockNameForAcquirer = ((FileLockInfo) originalLockInfo).getLockForAcquirer(lockFiles);
         String fileToLockName = FileLockInfo.LockFileUtils.getFileToLockNameFromLock(lockNameForAcquirer);
         acquire(FileLockInfo.getLockInfoBuilder().withFileToLock(fileToLockName).withAcquirerId(clonedResourceId).build());
     }

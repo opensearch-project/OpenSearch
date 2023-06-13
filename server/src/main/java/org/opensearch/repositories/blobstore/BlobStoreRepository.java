@@ -588,6 +588,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void cloneRemoteStoreIndexShardSnapshot(
         SnapshotId source,
         SnapshotId target,
+        RepositoryData repositoryData,
         RepositoryShardId shardId,
         @Nullable String shardGeneration,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
@@ -601,32 +602,70 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final int shardNum = shardId.shardId();
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         executor.execute(ActionRunnable.supply(listener, () -> {
-            final long startTime = threadPool.absoluteTimeInMillis();
-            final BlobContainer shardContainer = shardContainer(index, shardNum);
-            // We don't need to check if there exists a shallow/full copy snapshot with the same name as we have the check before starting the clone
-            // operation ensuring that the snapshot name is available by checking the repository data. Also, the new clone shallow snapshot would
-            // have a different UUID and hence a new unique shallow-snap-N file will be created.
-            RemoteStoreShardShallowCopySnapshot remStoreBasedShardMetadata = loadShallowCopyShardSnapshot(shardContainer, source);
-
-            String indexUUID = remStoreBasedShardMetadata.getIndexUUID();
-            String remoteStoreRepository = remStoreBasedShardMetadata.getRemoteStoreRepository();
-            RemoteStoreMetadataLockManager remoteStoreMetadataLockManger = remoteStoreLockManagerFactory.newLockManager(
-                remoteStoreRepository,
-                indexUUID,
-                String.valueOf(shardId.shardId())
-            );
-            remoteStoreMetadataLockManger.cloneLock(
-                FileLockInfo.getLockInfoBuilder().withAcquirerId(source.getUUID()).build(),
-                FileLockInfo.getLockInfoBuilder().withAcquirerId(target.getUUID()).build()
-            );
-
-            REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
-                remStoreBasedShardMetadata.asClone(target.getName(), startTime, threadPool.absoluteTimeInMillis() - startTime),
-                shardContainer,
-                target.getUUID(),
-                compress
-            );
-            return shardGeneration;
+            // We don't need to check if there exists a shallow/full copy snapshot with the same name as we have the check before starting
+            // the clone operation ensuring that the snapshot name is available by checking the repository data. Also, the new clone shallow
+            // snapshot
+            // would have a different UUID and hence a new unique shallow-snap-N file will be created.
+            try {
+                final long startTime = threadPool.relativeTimeInMillis();
+                final BlobContainer shardContainer = shardContainer(index, shardNum);
+                RemoteStoreShardShallowCopySnapshot remStoreBasedShardMetadata = loadShallowCopyShardSnapshot(shardContainer, source);
+                String indexUUID = remStoreBasedShardMetadata.getIndexUUID();
+                String remoteStoreRepository = remStoreBasedShardMetadata.getRemoteStoreRepository();
+                RemoteStoreMetadataLockManager remoteStoreMetadataLockManger = remoteStoreLockManagerFactory.newLockManager(
+                    remoteStoreRepository,
+                    indexUUID,
+                    String.valueOf(shardId.shardId())
+                );
+                remoteStoreMetadataLockManger.cloneLock(
+                    FileLockInfo.getLockInfoBuilder().withAcquirerId(source.getUUID()).build(),
+                    FileLockInfo.getLockInfoBuilder().withAcquirerId(target.getUUID()).build()
+                );
+                REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
+                    remStoreBasedShardMetadata.asClone(target.getName(), startTime, threadPool.absoluteTimeInMillis() - startTime),
+                    shardContainer,
+                    target.getUUID(),
+                    compressor
+                );
+                return shardGeneration;
+            } catch (Exception e) {
+                logger.info("Exception caught!");
+                List<String> indices = this.getSnapshotInfo(source).indices();
+                List<IndexId> indexIds = repositoryData.resolveIndices(indices);
+                for (IndexId indexId : indexIds) {
+                    logger.info("IndexId: {}", indexId);
+                    IndexMetadata indexMetadata;
+                    try {
+                        indexMetadata = this.getSnapshotIndexMetaData(repositoryData, source, indexId);
+                    } catch (Exception ex) {
+                        continue;
+                    }
+                    if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)) {
+                        int numberOfShards = indexMetadata.getNumberOfShards();
+                        for (int shard = 0; shard < numberOfShards; shard++) {
+                            logger.info("Trying to release lock for {} {}", indexId, shard);
+                            final int finalShardId = shard;
+                            String indexUUID = indexMetadata.getIndexUUID();
+                            String remoteStoreRepoForIndex = indexMetadata.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
+                            RemoteStoreMetadataLockManager remoteStoreMetadataLockManager = remoteStoreLockManagerFactory.newLockManager(
+                                remoteStoreRepoForIndex,
+                                indexUUID,
+                                String.valueOf(finalShardId)
+                            );
+                            try {
+                                remoteStoreMetadataLockManager.release(
+                                    FileLockInfo.getLockInfoBuilder().withAcquirerId(target.getUUID()).build()
+                                );
+                            } catch (Exception ex) {
+                                logger.info("IGNORED EXCEPTION");
+                                // ignoring all exceptions while cleaning up lock files. Uncleaned files will be taken care of either during
+                                // delete/cleanup operation.
+                            }
+                        }
+                    }
+                }
+                throw e;
+            }
         }));
     }
 

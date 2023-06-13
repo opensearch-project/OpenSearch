@@ -50,18 +50,17 @@ public class FileLockInfo implements LockInfo {
         return fileToLock + RemoteStoreLockManagerUtils.SEPARATOR;
     }
 
-    List<String> getLocksForAcquirer(String[] lockFiles) {
+    String getLockForAcquirer(String[] lockFiles) {
         if (acquirerId == null || acquirerId.isBlank()) {
             throw new IllegalArgumentException("Acquirer ID should be provided");
         }
         List<String> locksForAcquirer = Arrays.stream(lockFiles)
             .filter(lockFile -> acquirerId.equals(LockFileUtils.getAcquirerIdFromLock(lockFile)))
             .collect(Collectors.toList());
-        assert locksForAcquirer.size() == 1 : "Multiple lock files found for acquirer";
-        return locksForAcquirer;
-        return Arrays.stream(lockFiles)
-            .filter(lockFile -> acquirerId.equals(LockFileUtils.getAcquirerIdFromLock(lockFile)))
-            .collect(Collectors.toList());
+        if (locksForAcquirer.size() != 1) {
+            throw new IllegalStateException("Expected single lock file but found [" + locksForAcquirer.size() + "] lock files");
+        }
+        return locksForAcquirer.get(0);
     }
 
     public static LockInfoBuilder getLockInfoBuilder() {

@@ -253,12 +253,21 @@ public class FilterRepository implements Repository {
     public void cloneRemoteStoreIndexShardSnapshot(
         SnapshotId source,
         SnapshotId target,
+        RepositoryData repositoryData,
         RepositoryShardId shardId,
         String shardGeneration,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<String> listener
     ) {
-        in.cloneRemoteStoreIndexShardSnapshot(source, target, shardId, shardGeneration, remoteStoreLockManagerFactory, listener);
+        in.cloneRemoteStoreIndexShardSnapshot(
+            source,
+            target,
+            repositoryData,
+            shardId,
+            shardGeneration,
+            remoteStoreLockManagerFactory,
+            listener
+        );
     }
 
     @Override

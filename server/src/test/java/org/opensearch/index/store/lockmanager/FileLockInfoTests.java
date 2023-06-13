@@ -10,8 +10,6 @@ package org.opensearch.index.store.lockmanager;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.List;
-
 public class FileLockInfoTests extends OpenSearchTestCase {
     String testMetadata = "testMetadata";
     String testAcquirerId = "testAcquirerId";
@@ -47,10 +45,7 @@ public class FileLockInfoTests extends OpenSearchTestCase {
             FileLockInfo.LockFileUtils.generateLockName(testMetadata, "acquirerId2") };
         FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withAcquirerId(testAcquirerId).build();
 
-        assertEquals(
-            fileLockInfo.getLocksForAcquirer(locks),
-            List.of(FileLockInfo.LockFileUtils.generateLockName(testMetadata, testAcquirerId))
-        );
+        assertEquals(fileLockInfo.getLockForAcquirer(locks), FileLockInfo.LockFileUtils.generateLockName(testMetadata, testAcquirerId));
     }
 
 }
