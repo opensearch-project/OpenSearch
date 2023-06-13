@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula:gradle-extra-configurations-plugin` from 9.0.0 to 10.0.0 in /buildSrc ([#7068](https://github.com/opensearch-project/OpenSearch/pull/7068))
 - Bump `com.google.guava:guava` from 32.0.0-jre to 32.0.1-jre (#8009)
 - Bump `com.diffplug.spotless` from 6.18.0 to 6.19.0 (#8007)
+- Bump azure storage blob dependency to 12.22.2 from 12.21.1
 
 ### Changed
 - Replace jboss-annotations-api_1.2_spec with jakarta.annotation-api ([#7836](https://github.com/opensearch-project/OpenSearch/pull/7836))
