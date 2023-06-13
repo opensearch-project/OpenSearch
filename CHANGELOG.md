@@ -51,6 +51,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.http-client:google-http-client:1.43.2` from 1.42.0 to 1.43.2 ([7928](https://github.com/opensearch-project/OpenSearch/pull/7928)))
 - Bump `com.azure:azure-storage-blob` from 12.21.1 to 12.22.2 ([7930](https://github.com/opensearch-project/OpenSearch/pull/7930))
 - Bump `io.projectreactor:reactor-core` from 3.5.1 to 3.5.6 in /plugins/repository-azure ([#8016](https://github.com/opensearch-project/OpenSearch/pull/8016))
+- Bump `com.google.guava:guava` from 32.0.0-jre to 32.0.1-jre in /distribution/tools/upgrade-cli ([#8011](https://github.com/opensearch-project/OpenSearch/pull/8011))
+- Bump `com.google.guava:guava` from 32.0.0-jre to 32.0.1-jre in /distribution/tools/plugin-cli ([#8012](https://github.com/opensearch-project/OpenSearch/pull/8012))
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
