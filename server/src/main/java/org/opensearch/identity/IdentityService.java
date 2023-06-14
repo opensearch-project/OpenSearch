@@ -94,6 +94,8 @@ public class IdentityService {
         return applicationList.stream().map(Principal::getName).collect(Collectors.toList());
     }
 
+
+    //TODO: Find a way to combine these
     public Set<String> getApplicationScopes(Principal principal) {
 
         Set<String> allScopes = ExtensionsManager.getExtensionManager().getExtensionIdMap().get(principal.getName()).getScopes();
