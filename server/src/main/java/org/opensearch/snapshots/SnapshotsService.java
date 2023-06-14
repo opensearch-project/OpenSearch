@@ -739,7 +739,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 repository.cloneRemoteStoreIndexShardSnapshot(
                                     sourceSnapshot,
                                     targetSnapshot,
-                                    repositoryData,
                                     repoShardId,
                                     shardStatusBefore.generation(),
                                     remoteStoreLockManagerFactory,
@@ -765,6 +764,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private void failCloneShardAndUpdateClusterState(Snapshot target, SnapshotId sourceSnapshot, RepositoryShardId repoShardId) {
+        // Stale blobs/lock-files will be cleaned up during delete/cleanup operation.
         final String localNodeId = clusterService.localNode().getId();
         innerUpdateSnapshotState(
             new ShardSnapshotUpdate(

@@ -15,6 +15,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Objects;
 
@@ -59,8 +60,12 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
     public void release(LockInfo lockInfo) throws IOException {
         assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
         String[] lockFiles = lockDirectory.listAll();
-        String lockToRelease = ((FileLockInfo) lockInfo).getLockForAcquirer(lockFiles);
-        lockDirectory.deleteFile(lockToRelease);
+        try {
+            String lockToRelease = ((FileLockInfo) lockInfo).getLockForAcquirer(lockFiles);
+            lockDirectory.deleteFile(lockToRelease);
+        } catch (NoSuchFileException e) {
+            // Ignoring if the file to be deleted is not present.
+        }
     }
 
     /**

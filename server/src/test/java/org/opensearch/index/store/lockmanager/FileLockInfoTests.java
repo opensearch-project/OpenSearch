@@ -10,6 +10,8 @@ package org.opensearch.index.store.lockmanager;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.nio.file.NoSuchFileException;
+
 public class FileLockInfoTests extends OpenSearchTestCase {
     String testMetadata = "testMetadata";
     String testAcquirerId = "testAcquirerId";
@@ -39,7 +41,7 @@ public class FileLockInfoTests extends OpenSearchTestCase {
         assertThrows(IllegalArgumentException.class, fileLockInfo::getLockPrefix);
     }
 
-    public void testGetLocksForAcquirer() {
+    public void testGetLocksForAcquirer() throws NoSuchFileException {
         String[] locks = new String[] {
             FileLockInfo.LockFileUtils.generateLockName(testMetadata, testAcquirerId),
             FileLockInfo.LockFileUtils.generateLockName(testMetadata, "acquirerId2") };
