@@ -44,7 +44,7 @@ import org.opensearch.common.Table;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.core.common.Strings;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -211,5 +211,8 @@ public class RestCatRecoveryAction extends AbstractCatAction {
         return t;
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 }

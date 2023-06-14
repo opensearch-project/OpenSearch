@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.shards;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * ActionType for {@link TransportIndicesShardStoresAction}
@@ -55,5 +55,8 @@ public class IndicesShardStoresAction extends ActionType<IndicesShardStoresRespo
         super(NAME, IndicesShardStoresResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 }

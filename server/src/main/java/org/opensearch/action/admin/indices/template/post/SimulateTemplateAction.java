@@ -41,7 +41,7 @@ import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadReques
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 import java.io.IOException;
 import java.util.List;
@@ -157,5 +157,8 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         }
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 }

@@ -39,7 +39,7 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 import java.io.IOException;
 import java.util.List;
@@ -114,5 +114,8 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
         }
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 }

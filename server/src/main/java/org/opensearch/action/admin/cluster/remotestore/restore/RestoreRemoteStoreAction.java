@@ -11,7 +11,7 @@ package org.opensearch.action.admin.cluster.remotestore.restore;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Restore remote store action
@@ -27,5 +27,8 @@ public final class RestoreRemoteStoreAction extends ActionType<RestoreRemoteStor
         super(NAME, RestoreRemoteStoreResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
+    }
 }

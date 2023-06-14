@@ -38,7 +38,7 @@ import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -74,5 +74,10 @@ public class RestCleanupRepositoryAction extends BaseRestHandler {
         );
         parseDeprecatedMasterTimeoutParameter(cleanupRepositoryRequest, request, deprecationLogger, getName());
         return channel -> client.admin().cluster().cleanupRepository(cleanupRepositoryRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

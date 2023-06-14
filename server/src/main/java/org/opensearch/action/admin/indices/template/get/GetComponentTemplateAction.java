@@ -44,7 +44,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 import java.io.IOException;
 import java.util.List;
@@ -173,6 +173,9 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 
 }

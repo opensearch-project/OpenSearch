@@ -36,7 +36,7 @@ import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for listing index aliases
@@ -51,4 +51,10 @@ public class IndicesAliasesAction extends ActionType<AcknowledgedResponse> {
     private IndicesAliasesAction() {
         super(NAME, AcknowledgedResponse::new);
     }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
+
 }

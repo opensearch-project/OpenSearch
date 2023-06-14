@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.post;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport Action for handling simulating an index template either by name (looking it up in the
@@ -52,5 +52,8 @@ public class SimulateIndexTemplateAction extends ActionType<SimulateIndexTemplat
         super(NAME, SimulateIndexTemplateResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 }

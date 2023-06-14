@@ -35,7 +35,7 @@ package org.opensearch.action.explain;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Entry point for the explain feature.
@@ -51,6 +51,9 @@ public class ExplainAction extends ActionType<ExplainResponse> {
         super(NAME, ExplainResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 
 }

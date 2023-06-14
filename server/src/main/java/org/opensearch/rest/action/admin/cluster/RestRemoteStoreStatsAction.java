@@ -11,7 +11,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequest;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -59,5 +59,8 @@ public class RestRemoteStoreStatsAction extends BaseRestHandler {
         return channel -> client.admin().cluster().remoteStoreStats(remoteStoreStatsRequest, new RestToXContentListener<>(channel));
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
+    }
 }

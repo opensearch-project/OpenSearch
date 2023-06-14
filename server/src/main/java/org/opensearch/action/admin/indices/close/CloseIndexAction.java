@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.close;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for closing an index
@@ -51,5 +51,8 @@ public class CloseIndexAction extends ActionType<CloseIndexResponse> {
         super(NAME, CloseIndexResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 }

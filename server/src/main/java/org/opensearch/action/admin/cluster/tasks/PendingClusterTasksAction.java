@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.tasks;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for getting pending cluster tasks
@@ -51,5 +51,8 @@ public class PendingClusterTasksAction extends ActionType<PendingClusterTasksRes
         super(NAME, PendingClusterTasksResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
+    }
 }

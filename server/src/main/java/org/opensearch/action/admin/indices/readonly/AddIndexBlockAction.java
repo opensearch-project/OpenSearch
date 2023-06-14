@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.readonly;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action to add an index block.
@@ -49,5 +49,10 @@ public class AddIndexBlockAction extends ActionType<AddIndexBlockResponse> {
 
     private AddIndexBlockAction() {
         super(NAME, AddIndexBlockResponse::new);
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

@@ -42,7 +42,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.common.Strings;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 import java.io.IOException;
 import java.util.List;
@@ -168,6 +168,9 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
         }
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 
 }

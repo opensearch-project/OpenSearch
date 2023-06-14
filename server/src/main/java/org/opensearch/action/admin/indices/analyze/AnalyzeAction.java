@@ -48,7 +48,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.index.analysis.NameOrDefinition;
 
 import java.io.IOException;
@@ -853,6 +853,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScope.READ);
+        return List.of(ActionScope.Index_Read, ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

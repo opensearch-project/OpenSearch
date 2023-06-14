@@ -34,7 +34,7 @@ package org.opensearch.action.admin.cluster.configuration;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport endpoint for clearing exclusions to voting config
@@ -49,5 +49,8 @@ public class ClearVotingConfigExclusionsAction extends ActionType<ClearVotingCon
         super(NAME, ClearVotingConfigExclusionsResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
+    }
 }

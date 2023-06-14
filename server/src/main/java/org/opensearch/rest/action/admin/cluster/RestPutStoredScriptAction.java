@@ -37,7 +37,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -90,5 +90,10 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
         parseDeprecatedMasterTimeoutParameter(putRequest, request, deprecationLogger, getName());
         putRequest.timeout(request.paramAsTime("timeout", putRequest.timeout()));
         return channel -> client.admin().cluster().putStoredScript(putRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.storedscripts;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Transport action for getting script language
@@ -50,5 +50,8 @@ public class GetScriptLanguageAction extends ActionType<GetScriptLanguageRespons
         super(NAME, GetScriptLanguageResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
+    }
 }

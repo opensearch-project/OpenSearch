@@ -34,7 +34,7 @@ package org.opensearch.rest.action.admin.indices;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -66,6 +66,9 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
         return channel -> client.admin().indices().createDataStream(putDataStreamRequest, new RestToXContentListener<>(channel));
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 
 }

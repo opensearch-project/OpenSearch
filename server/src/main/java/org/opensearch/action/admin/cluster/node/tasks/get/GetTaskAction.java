@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.node.tasks.get;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * ActionType for retrieving a list of currently running tasks
@@ -52,5 +52,8 @@ public class GetTaskAction extends ActionType<GetTaskResponse> {
         super(NAME, GetTaskResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
+    }
 }

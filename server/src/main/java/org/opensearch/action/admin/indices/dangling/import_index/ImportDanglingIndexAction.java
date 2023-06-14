@@ -36,7 +36,7 @@ import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Represents a request to import a particular dangling index.
@@ -52,5 +52,8 @@ public class ImportDanglingIndexAction extends ActionType<AcknowledgedResponse> 
         super(NAME, AcknowledgedResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 }

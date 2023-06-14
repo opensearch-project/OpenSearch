@@ -46,7 +46,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -194,5 +194,10 @@ public class RestClusterStateAction extends BaseRestHandler {
     static final class Fields {
         static final String WAIT_FOR_TIMED_OUT = "wait_for_timed_out";
         static final String CLUSTER_NAME = "cluster_name";
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

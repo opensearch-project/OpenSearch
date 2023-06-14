@@ -59,7 +59,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
@@ -300,7 +300,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             return "DataStreamStats{"
                 + "dataStream='"
                 + dataStream
-                + '\
+                + '\''
                 + ", backingIndices="
                 + backingIndices
                 + ", storeSize="
@@ -527,5 +527,8 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 }

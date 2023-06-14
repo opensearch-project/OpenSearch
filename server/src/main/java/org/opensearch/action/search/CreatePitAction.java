@@ -11,7 +11,7 @@ package org.opensearch.action.search;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Action type for creating PIT reader context
@@ -24,5 +24,8 @@ public class CreatePitAction extends ActionType<CreatePitResponse> {
         super(NAME, CreatePitResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
+    }
 }
