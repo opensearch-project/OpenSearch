@@ -296,6 +296,10 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         translog.setMinSeqNoToKeep(seqNo);
     }
 
+    public void onDelete() {
+        translog.onDelete();
+    }
+
     /**
      * Reads operations from the translog
      * @param location location of translog

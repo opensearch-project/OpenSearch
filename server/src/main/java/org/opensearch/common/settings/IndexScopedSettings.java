@@ -235,7 +235,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
             IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
-        )
+        ),
+        FeatureFlags.CONCURRENT_SEGMENT_SEARCH,
+        List.of(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING)
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

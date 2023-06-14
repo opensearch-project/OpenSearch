@@ -1720,7 +1720,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (cacheRepositoryData && bestEffortConsistency == false) {
             final BytesReference serialized;
             try {
-                serialized = CompressorFactory.COMPRESSOR.compress(updated);
+                serialized = CompressorFactory.defaultCompressor().compress(updated);
                 final int len = serialized.length();
                 if (len > ByteSizeUnit.KB.toBytes(500)) {
                     logger.debug(
@@ -1756,7 +1756,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
-        try (InputStream input = CompressorFactory.COMPRESSOR.threadLocalInputStream(cacheEntry.v2().streamInput())) {
+        try (InputStream input = CompressorFactory.defaultCompressor().threadLocalInputStream(cacheEntry.v2().streamInput())) {
             return RepositoryData.snapshotsFromXContent(
                 XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input),
                 cacheEntry.v1()

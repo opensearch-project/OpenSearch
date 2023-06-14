@@ -14,6 +14,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -33,6 +34,7 @@ import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
@@ -57,12 +59,13 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
     private DiscoveryNode localNode;
     private SegmentReplicationSourceService segmentReplicationSourceService;
     private OngoingSegmentReplications ongoingSegmentReplications;
+    private IndexShard mockIndexShard;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         // setup mocks
-        IndexShard mockIndexShard = CopyStateTests.createMockIndexShard();
+        mockIndexShard = CopyStateTests.createMockIndexShard();
         ShardId testShardId = mockIndexShard.shardId();
         IndicesService mockIndicesService = mock(IndicesService.class);
         IndexService mockIndexService = mock(IndexService.class);
@@ -136,6 +139,27 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
             @Override
             public void onResponse(GetSegmentFilesResponse response) {
                 assertEquals(0, response.files.size());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("unexpected exception: " + e);
+            }
+        });
+    }
+
+    public void testUpdateVisibleCheckpoint() {
+        UpdateVisibleCheckpointRequest request = new UpdateVisibleCheckpointRequest(
+            0L,
+            "",
+            mockIndexShard.shardId(),
+            localNode,
+            testCheckpoint
+        );
+        executeUpdateVisibleCheckpoint(request, new ActionListener<>() {
+            @Override
+            public void onResponse(TransportResponse transportResponse) {
+                assertTrue(TransportResponse.Empty.INSTANCE.equals(transportResponse));
             }
 
             @Override
@@ -222,6 +246,46 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
                 @Override
                 public GetSegmentFilesResponse read(StreamInput in) throws IOException {
                     return new GetSegmentFilesResponse(in);
+                }
+            }
+        );
+    }
+
+    private void executeUpdateVisibleCheckpoint(UpdateVisibleCheckpointRequest request, ActionListener<TransportResponse> listener) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            request.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                UpdateVisibleCheckpointRequest newRequest = new UpdateVisibleCheckpointRequest(in);
+                assertTrue(newRequest.getCheckpoint().equals(request.getCheckpoint()));
+                assertTrue(newRequest.getTargetAllocationId().equals(request.getTargetAllocationId()));
+            }
+        } catch (IOException e) {
+            fail("Failed to parse UpdateVisibleCheckpointRequest " + e);
+        }
+
+        transportService.sendRequest(
+            localNode,
+            SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT,
+            request,
+            new TransportResponseHandler<>() {
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    listener.onResponse(TransportResponse.Empty.INSTANCE);
+                }
+
+                @Override
+                public void handleException(TransportException e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public CheckpointInfoResponse read(StreamInput in) throws IOException {
+                    return new CheckpointInfoResponse(in);
                 }
             }
         );
