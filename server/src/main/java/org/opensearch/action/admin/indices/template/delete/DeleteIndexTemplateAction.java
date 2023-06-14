@@ -32,11 +32,8 @@
 
 package org.opensearch.action.admin.indices.template.delete;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.identity.Scope;
 
 /**
  * Transport action for deleting an index template
@@ -50,11 +47,6 @@ public class DeleteIndexTemplateAction extends ActionType<AcknowledgedResponse> 
 
     private DeleteIndexTemplateAction() {
         super(NAME, AcknowledgedResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 
 }

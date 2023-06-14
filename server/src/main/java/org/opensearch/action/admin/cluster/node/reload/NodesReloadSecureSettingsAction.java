@@ -32,10 +32,7 @@
 
 package org.opensearch.action.admin.cluster.node.reload;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * Transport action for reloading OpenSearch Secure Settings
@@ -49,10 +46,5 @@ public class NodesReloadSecureSettingsAction extends ActionType<NodesReloadSecur
 
     private NodesReloadSecureSettingsAction() {
         super(NAME, NodesReloadSecureSettingsResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

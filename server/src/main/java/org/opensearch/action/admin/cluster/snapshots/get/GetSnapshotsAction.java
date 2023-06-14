@@ -32,10 +32,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.get;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * Get snapshots action
@@ -49,11 +46,6 @@ public class GetSnapshotsAction extends ActionType<GetSnapshotsResponse> {
 
     private GetSnapshotsAction() {
         super(NAME, GetSnapshotsResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 
 }

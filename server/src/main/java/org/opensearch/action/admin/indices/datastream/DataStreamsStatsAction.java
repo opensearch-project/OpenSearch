@@ -35,7 +35,6 @@ package org.opensearch.action.admin.indices.datastream;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
@@ -59,7 +58,6 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.Scope;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
@@ -525,10 +523,5 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 dataStreamStats
             );
         }
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

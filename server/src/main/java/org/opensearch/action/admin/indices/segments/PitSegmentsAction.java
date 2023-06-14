@@ -8,10 +8,7 @@
 
 package org.opensearch.action.admin.indices.segments;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * Action for retrieving segment information for PITs
@@ -23,10 +20,5 @@ public class PitSegmentsAction extends ActionType<IndicesSegmentResponse> {
 
     private PitSegmentsAction() {
         super(NAME, IndicesSegmentResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

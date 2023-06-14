@@ -32,10 +32,7 @@
 
 package org.opensearch.action.admin.indices.exists.indices;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * Transport action for checking if an index exists
@@ -49,10 +46,5 @@ public class IndicesExistsAction extends ActionType<IndicesExistsResponse> {
 
     private IndicesExistsAction() {
         super(NAME, IndicesExistsResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

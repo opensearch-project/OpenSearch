@@ -32,11 +32,8 @@
 
 package org.opensearch.action.admin.indices.dangling.delete;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.identity.Scope;
 
 /**
  * This action causes a dangling index to be considered as deleted by the cluster.
@@ -50,10 +47,5 @@ public class DeleteDanglingIndexAction extends ActionType<AcknowledgedResponse> 
 
     private DeleteDanglingIndexAction() {
         super(NAME, AcknowledgedResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

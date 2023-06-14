@@ -32,10 +32,7 @@
 
 package org.opensearch.action.admin.indices.mapping.get;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * Transport action to get field mappings.
@@ -51,8 +48,4 @@ public class GetFieldMappingsAction extends ActionType<GetFieldMappingsResponse>
         super(NAME, GetFieldMappingsResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
 }

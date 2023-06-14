@@ -32,10 +32,7 @@
 
 package org.opensearch.action.get;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * Transport action for a multi get
@@ -50,10 +47,4 @@ public class MultiGetAction extends ActionType<MultiGetResponse> {
     private MultiGetAction() {
         super(NAME, MultiGetResponse::new);
     }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_Read, ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
-    }
-
 }

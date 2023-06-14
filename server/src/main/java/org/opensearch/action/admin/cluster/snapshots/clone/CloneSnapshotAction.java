@@ -32,11 +32,8 @@
 
 package org.opensearch.action.admin.cluster.snapshots.clone;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.identity.Scope;
 
 /**
  * Transport action for cloning a snapshot
@@ -50,10 +47,5 @@ public final class CloneSnapshotAction extends ActionType<AcknowledgedResponse> 
 
     private CloneSnapshotAction() {
         super(NAME, AcknowledgedResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

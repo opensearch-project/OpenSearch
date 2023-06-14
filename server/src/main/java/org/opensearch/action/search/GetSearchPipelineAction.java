@@ -8,10 +8,7 @@
 
 package org.opensearch.action.search;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * Action type to get search pipelines
@@ -24,10 +21,5 @@ public class GetSearchPipelineAction extends ActionType<GetSearchPipelineRespons
 
     public GetSearchPipelineAction() {
         super(NAME, GetSearchPipelineResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

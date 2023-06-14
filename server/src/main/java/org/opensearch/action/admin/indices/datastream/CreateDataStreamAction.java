@@ -33,7 +33,6 @@ package org.opensearch.action.admin.indices.datastream;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.ValidateActions;
@@ -53,12 +52,10 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.common.Strings;
-import org.opensearch.identity.Scope;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -181,8 +178,4 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
 }

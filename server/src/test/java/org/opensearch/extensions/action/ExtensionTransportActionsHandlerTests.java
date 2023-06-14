@@ -8,12 +8,6 @@
 
 package org.opensearch.extensions.action;
 
-import java.net.InetAddress;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import com.google.protobuf.ByteString;
 import org.junit.After;
 import org.junit.Before;
@@ -28,8 +22,8 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.DiscoveryExtensionNode;
+import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.rest.RestSendToExtensionActionTests;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -41,10 +35,19 @@ import org.opensearch.transport.ActionNotFoundTransportException;
 import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
+
+import java.net.InetAddress;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
     private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.emptySet());
@@ -90,7 +93,6 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
             Version.fromString("3.0.0"),
-            Collections.emptyList(),
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());

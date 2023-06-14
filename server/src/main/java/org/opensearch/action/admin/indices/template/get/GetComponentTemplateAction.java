@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.template.get;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.metadata.ComponentTemplate;
@@ -44,10 +43,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.Scope;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -171,11 +168,6 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             return builder;
         }
 
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 
 }

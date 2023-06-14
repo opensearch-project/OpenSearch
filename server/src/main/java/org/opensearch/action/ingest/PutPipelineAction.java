@@ -32,11 +32,8 @@
 
 package org.opensearch.action.ingest;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.identity.Scope;
 
 /**
  * Transport action to put a new pipeline
@@ -50,11 +47,6 @@ public class PutPipelineAction extends ActionType<AcknowledgedResponse> {
 
     public PutPipelineAction() {
         super(NAME, AcknowledgedResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 
 }

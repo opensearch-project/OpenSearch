@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.template.post;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -41,10 +40,8 @@ import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadReques
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.identity.Scope;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -155,10 +152,5 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         public int hashCode() {
             return Objects.hash(templateName, indexTemplateRequest);
         }
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

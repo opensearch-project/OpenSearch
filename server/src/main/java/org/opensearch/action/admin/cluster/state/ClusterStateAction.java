@@ -32,10 +32,7 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * Transport action for obtaining cluster state
@@ -49,10 +46,5 @@ public class ClusterStateAction extends ActionType<ClusterStateResponse> {
 
     private ClusterStateAction() {
         super(NAME, ClusterStateResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

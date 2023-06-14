@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.analyze;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.common.Strings;
@@ -48,7 +47,6 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.identity.Scope;
 import org.opensearch.index.analysis.NameOrDefinition;
 
 import java.io.IOException;
@@ -851,8 +849,4 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_Read, ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
-    }
 }

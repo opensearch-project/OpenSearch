@@ -32,10 +32,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.restore;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * Restore snapshot action
@@ -49,10 +46,5 @@ public class RestoreSnapshotAction extends ActionType<RestoreSnapshotResponse> {
 
     private RestoreSnapshotAction() {
         super(NAME, RestoreSnapshotResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

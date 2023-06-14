@@ -32,10 +32,7 @@
 
 package org.opensearch.action.admin.cluster.allocation;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * ActionType for explaining shard allocation for a shard in the cluster
@@ -49,10 +46,5 @@ public class ClusterAllocationExplainAction extends ActionType<ClusterAllocation
 
     private ClusterAllocationExplainAction() {
         super(NAME, ClusterAllocationExplainResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.template.put;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
@@ -42,10 +41,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.common.Strings;
-import org.opensearch.identity.Scope;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -166,11 +163,6 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
             sb.append("]");
             return sb.toString();
         }
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 
 }

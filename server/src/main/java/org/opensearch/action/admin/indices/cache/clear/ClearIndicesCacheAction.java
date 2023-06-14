@@ -32,10 +32,7 @@
 
 package org.opensearch.action.admin.indices.cache.clear;
 
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.Scope;
 
 /**
  * Transport action for clearing cache
@@ -49,10 +46,5 @@ public class ClearIndicesCacheAction extends ActionType<ClearIndicesCacheRespons
 
     private ClearIndicesCacheAction() {
         super(NAME, ClearIndicesCacheResponse::new);
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }
