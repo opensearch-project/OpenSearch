@@ -48,14 +48,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        boolean couldUseConcurrentSegmentSearch = allowConcurrentSegmentSearch(searcher);
-
-        if (couldUseConcurrentSegmentSearch) {
-            LOGGER.debug("Using concurrent search over index segments (experimental)");
-            return searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
-        } else {
-            return super.searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
-        }
+        return searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
     }
 
     private static boolean searchWithCollectorManager(
@@ -108,9 +101,4 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
         return aggregationProcessor;
     }
-
-    private static boolean allowConcurrentSegmentSearch(final ContextIndexSearcher searcher) {
-        return (searcher.getExecutor() != null);
-    }
-
 }

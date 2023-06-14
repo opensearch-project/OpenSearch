@@ -45,13 +45,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Suggest phase of a search request, used to collect suggestions
+ * SuggestProcessor of a search request, used to collect suggestions
  *
  * @opensearch.internal
  */
-public class SuggestPhase {
+public class SuggestProcessor {
 
-    public void execute(SearchContext context) {
+    public void process(SearchContext context) {
         final SuggestionSearchContext suggest = context.suggest();
         if (suggest == null) {
             return;

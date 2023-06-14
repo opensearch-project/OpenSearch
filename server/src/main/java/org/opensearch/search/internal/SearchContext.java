@@ -367,6 +367,13 @@ public abstract class SearchContext implements Releasable {
     public abstract Profilers getProfilers();
 
     /**
+     * Returns concurrent segment search status for the search context
+     */
+    public boolean isConcurrentSegmentSearchEnabled() {
+        return false;
+    }
+
+    /**
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {
