@@ -342,19 +342,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         );
 
         for (String clusterAlias : enabledClusters) {
-            updateRemoteCluster(clusterAlias, settings, new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    logger.debug("Successfully established connection with {}", clusterAlias);
-                    groupListener.onResponse(unused);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Failed to established connection with {}: {}", clusterAlias, e);
-                    groupListener.onFailure(e);
-                }
-            });
+            updateRemoteCluster(clusterAlias, settings, groupListener);
         }
     }
 
