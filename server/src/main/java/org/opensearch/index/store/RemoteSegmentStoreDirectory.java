@@ -28,6 +28,7 @@ import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
@@ -464,32 +465,50 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 segmentInfosSnapshot.getGeneration(),
                 this.commonFilenameSuffix
             );
-            IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
-            Map<String, String> uploadedSegments = new HashMap<>();
-            for (String file : segmentFiles) {
-                if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                    uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
-                } else {
-                    throw new NoSuchFileException(file);
+            try {
+                IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
+                Map<String, String> uploadedSegments = new HashMap<>();
+                for (String file : segmentFiles) {
+                    if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                        uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
+                    } else {
+                        throw new NoSuchFileException(file);
+                    }
                 }
+
+                ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
+                segmentInfosSnapshot.write(new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos"));
+                byte[] segmentInfoSnapshotByteArray = byteBuffersIndexOutput.toArrayCopy();
+
+                metadataStreamWrapper.writeStream(
+                    indexOutput,
+                    new RemoteSegmentMetadata(
+                        RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
+                        segmentInfoSnapshotByteArray,
+                        segmentInfosSnapshot.getGeneration()
+                    )
+                );
+                indexOutput.close();
+                storeDirectory.sync(Collections.singleton(metadataFilename));
+                remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
+            } finally {
+                tryAndDeleteLocalFile(metadataFilename, storeDirectory);
             }
+        }
+    }
 
-            ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
-            segmentInfosSnapshot.write(new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos"));
-            byte[] segmentInfoSnapshotByteArray = byteBuffersIndexOutput.toArrayCopy();
-
-            metadataStreamWrapper.writeStream(
-                indexOutput,
-                new RemoteSegmentMetadata(
-                    RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
-                    segmentInfoSnapshotByteArray,
-                    segmentInfosSnapshot.getGeneration()
-                )
-            );
-            indexOutput.close();
-            storeDirectory.sync(Collections.singleton(metadataFilename));
-            remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
-            storeDirectory.deleteFile(metadataFilename);
+    /**
+     * Try to delete file from local store. Fails silently on failures
+     * @param filename: name of the file to be deleted
+     */
+    private void tryAndDeleteLocalFile(String filename, Directory directory) {
+        try {
+            logger.trace("Deleting file: " + filename);
+            directory.deleteFile(filename);
+        } catch (NoSuchFileException | FileNotFoundException e) {
+            logger.trace("Exception while deleting. Missing file : " + filename, e);
+        } catch (IOException e) {
+            logger.warn("Exception while deleting: " + filename, e);
         }
     }
 
