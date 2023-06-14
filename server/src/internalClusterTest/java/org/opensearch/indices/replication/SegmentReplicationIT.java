@@ -796,10 +796,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPressureServiceStats() throws Exception {
-        assumeFalse(
-            "Skipping the test as pressure service is not compatible with SegRep and Remote store yet.",
-            segmentReplicationWithRemoteEnabled()
-        );
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
         final String replicaNode = internalCluster().startNode();
