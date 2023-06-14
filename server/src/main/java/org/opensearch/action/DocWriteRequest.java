@@ -32,6 +32,7 @@
 package org.opensearch.action;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.IndicesOptions;
@@ -44,7 +45,6 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
@@ -256,9 +256,12 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * @return validationException
      */
     static ActionRequestValidationException validateDocIdLength(String id, ActionRequestValidationException validationException) {
-        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
-            validationException = addValidationError(
-                "id [" + id + "] is too long, must be no longer than 512 bytes but was: " + id.getBytes(StandardCharsets.UTF_8).length,
+        if (id != null && UnicodeUtil.calcUTF16toUTF8Length(id, 0, id.length()) > 512) {
+            return addValidationError(
+                "id ["
+                    + id
+                    + "] is too long, must be no longer than 512 bytes but was: "
+                    + UnicodeUtil.calcUTF16toUTF8Length(id, 0, id.length()),
                 validationException
             );
         }

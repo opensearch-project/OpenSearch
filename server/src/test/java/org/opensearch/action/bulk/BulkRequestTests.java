@@ -274,10 +274,17 @@ public class BulkRequestTests extends OpenSearchTestCase {
     }
 
     public void testBulkRequestInvalidDocIDDuringCreate() {
-        IndexRequest indexRequest = new IndexRequest("index").id(String.join("", Collections.nCopies(513, "a")));
+        String validDocID = String.join("", Collections.nCopies(512, "a"));
+        String invalidDocID = String.join("", Collections.nCopies(513, "a"));
+
+        // doc id length under limit
+        IndexRequest indexRequest = new IndexRequest("index").id(validDocID).source(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(indexRequest);
+        assertNull(bulkRequest.validate());
 
+        // doc id length over limit
+        indexRequest.id(invalidDocID);
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertEquals(
@@ -290,10 +297,16 @@ public class BulkRequestTests extends OpenSearchTestCase {
     }
 
     public void testBulkRequestInvalidDocIDDuringUpdate() {
-        UpdateRequest updateRequest = new UpdateRequest("index", String.join("", Collections.nCopies(513, "a")));
+        String validDocID = String.join("", Collections.nCopies(512, "a"));
+        String invalidDocID = String.join("", Collections.nCopies(513, "a"));
+        // doc id length under limit
+        UpdateRequest updateRequest = new UpdateRequest("index", validDocID).doc("reason", "no source");
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(updateRequest);
+        assertNull(bulkRequest.validate());
 
+        // doc id length over limit
+        updateRequest.id(invalidDocID);
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertEquals(

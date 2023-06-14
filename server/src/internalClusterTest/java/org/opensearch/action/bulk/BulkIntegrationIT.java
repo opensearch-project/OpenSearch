@@ -222,16 +222,22 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
     public void testDocIdTooLong() {
         String index = "testing";
         createIndex(index);
+        String validId = String.join("", Collections.nCopies(512, "a"));
         String invalidId = String.join("", Collections.nCopies(513, "a"));
 
         // Index Request
-        IndexRequest indexRequest = new IndexRequest(index).id(invalidId);
-        indexRequest.source(Collections.singletonMap("foo", "baz"));
-        validateDocIdLimit(() -> client().prepareBulk().add(indexRequest).get());
+        IndexRequest indexRequest = new IndexRequest(index).source(Collections.singletonMap("foo", "baz"));
+        // Valid id shouldn't throw any exception
+        assertFalse(client().prepareBulk().add(indexRequest.id(validId)).get().hasFailures());
+        // Invalid id should throw the ActionRequestValidationException
+        validateDocIdLimit(() -> client().prepareBulk().add(indexRequest.id(invalidId)).get());
 
         // Update Request
-        UpdateRequest updateRequest = new UpdateRequest(index, invalidId).doc("reason", "no source");
-        validateDocIdLimit(() -> client().prepareBulk().add(updateRequest).get());
+        UpdateRequest updateRequest = new UpdateRequest(index, validId).doc("reason", "no source");
+        // Valid id shouldn't throw any exception
+        assertFalse(client().prepareBulk().add(updateRequest).get().hasFailures());
+        // Invalid id should throw the ActionRequestValidationException
+        validateDocIdLimit(() -> client().prepareBulk().add(updateRequest.id(invalidId)).get());
     }
 
     private void validateDocIdLimit(Runnable runner) {
