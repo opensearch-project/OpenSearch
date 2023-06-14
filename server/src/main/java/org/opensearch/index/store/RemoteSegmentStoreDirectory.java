@@ -459,9 +459,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         Directory storeDirectory,
         long primaryTerm
     ) throws IOException {
-        String metadataFilename = getMetadataFileName(primaryTerm, segmentInfosSnapshot.getGeneration());
-        try {
-            synchronized (this) {
+        synchronized (this) {
+            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
+                primaryTerm,
+                segmentInfosSnapshot.getGeneration(),
+                this.commonFilenameSuffix
+            );
+            try {
                 IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
                 Map<String, String> uploadedSegments = new HashMap<>();
                 for (String file : segmentFiles) {
@@ -487,20 +491,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 indexOutput.close();
                 storeDirectory.sync(Collections.singleton(metadataFilename));
                 remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
+            } finally {
+                tryAndDeleteLocalFile(metadataFilename, storeDirectory);
             }
-        } finally {
-            tryAndDeleteLocalFile(metadataFilename, storeDirectory);
         }
-    }
-
-    /**
-     * Generate filename for segment metadata file
-     * @param primaryTerm primary term to be used in the name of metadata file
-     * @param generation commit generation
-     * @return metadata filename
-     */
-    private String getMetadataFileName(long primaryTerm, long generation) {
-        return MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.commonFilenameSuffix);
     }
 
     /**
