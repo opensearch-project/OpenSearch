@@ -33,7 +33,6 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest.OpType;
@@ -144,7 +143,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         }
 
         RestStatus status = null;
-        BaseOpenSearchException exception = null;
+        OpenSearchException exception = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -152,7 +151,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
             if (ERROR.equals(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
-                    exception = BaseOpenSearchException.fromXContent(parser);
+                    exception = OpenSearchException.fromXContent(parser);
                 }
             } else if (STATUS.equals(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_NUMBER) {

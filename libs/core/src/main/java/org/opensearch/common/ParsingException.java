@@ -32,7 +32,7 @@
 
 package org.opensearch.common;
 
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
@@ -50,7 +50,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ParsingException extends BaseOpenSearchException {
+public class ParsingException extends OpenSearchException {
 
     protected static final int UNKNOWN_POSITION = -1;
     private final int lineNumber;

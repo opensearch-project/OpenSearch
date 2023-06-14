@@ -33,8 +33,7 @@
 package org.opensearch.action.support;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -70,7 +69,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     protected static <T extends DefaultShardOperationFailedException> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
         objectParser.declareString(constructorArg(), new ParseField(INDEX));
         objectParser.declareInt(constructorArg(), new ParseField(SHARD_ID));
-        objectParser.declareObject(constructorArg(), (p, c) -> BaseOpenSearchException.fromXContent(p), new ParseField(REASON));
+        objectParser.declareObject(constructorArg(), (p, c) -> OpenSearchException.fromXContent(p), new ParseField(REASON));
     }
 
     static {
@@ -83,7 +82,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         readFrom(in, this);
     }
 
-    public DefaultShardOperationFailedException(BaseOpenSearchException e) {
+    public DefaultShardOperationFailedException(OpenSearchException e) {
         super(
             e.getIndex() == null ? null : e.getIndex().getName(),
             e.getShardId() == null ? -1 : e.getShardId().getId(),

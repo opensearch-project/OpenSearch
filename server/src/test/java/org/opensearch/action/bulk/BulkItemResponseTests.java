@@ -33,7 +33,6 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
@@ -148,7 +147,7 @@ public class BulkItemResponseTests extends OpenSearchTestCase {
             assertEquals(expectedFailure.getMessage(), actualFailure.getMessage());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
 
-            assertDeepEquals((BaseOpenSearchException) expectedFailure.getCause(), (BaseOpenSearchException) actualFailure.getCause());
+            assertDeepEquals((OpenSearchException) expectedFailure.getCause(), (OpenSearchException) actualFailure.getCause());
         } else {
             DocWriteResponse expectedDocResponse = expected.getResponse();
             DocWriteResponse actualDocResponse = expected.getResponse();

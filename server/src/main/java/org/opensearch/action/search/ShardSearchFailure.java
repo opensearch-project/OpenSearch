@@ -33,7 +33,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -162,7 +162,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         String indexName = null;
         String clusterAlias = null;
         String nodeId = null;
-        BaseOpenSearchException exception = null;
+        OpenSearchException exception = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -183,7 +183,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (REASON_FIELD.equals(currentFieldName)) {
-                    exception = BaseOpenSearchException.fromXContent(parser);
+                    exception = OpenSearchException.fromXContent(parser);
                 } else {
                     parser.skipChildren();
                 }

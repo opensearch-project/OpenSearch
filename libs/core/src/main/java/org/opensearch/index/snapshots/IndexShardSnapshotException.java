@@ -32,7 +32,7 @@
 
 package org.opensearch.index.snapshots;
 
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.shard.ShardId;
 
@@ -43,7 +43,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class IndexShardSnapshotException extends BaseOpenSearchException {
+public class IndexShardSnapshotException extends OpenSearchException {
     public IndexShardSnapshotException(ShardId shardId, String msg) {
         this(shardId, msg, null);
     }

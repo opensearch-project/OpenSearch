@@ -41,8 +41,8 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.Build;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
@@ -89,7 +89,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
-import static org.opensearch.BaseOpenSearchException.readStackTrace;
+import static org.opensearch.OpenSearchException.readStackTrace;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
@@ -981,7 +981,7 @@ public abstract class StreamInput extends InputStream {
             switch (key) {
                 case 0:
                     final int ord = readVInt();
-                    return (T) BaseOpenSearchException.readException(this, ord);
+                    return (T) OpenSearchException.readException(this, ord);
                 case 1:
                     String msg1 = readOptionalString();
                     String resource1 = readOptionalString();

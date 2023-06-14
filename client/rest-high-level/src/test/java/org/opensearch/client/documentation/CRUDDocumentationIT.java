@@ -33,7 +33,6 @@
 package org.opensearch.client.documentation;
 
 import org.apache.hc.core5.http.HttpHost;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
@@ -1944,7 +1943,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             // tag::multi-get-indexnotfound
             assertNull(missingIndexItem.getResponse());                // <1>
             Exception e = missingIndexItem.getFailure().getFailure();  // <2>
-            BaseOpenSearchException ee = (BaseOpenSearchException) e;    // <3>
+            OpenSearchException ee = (OpenSearchException) e;    // <3>
             // TODO status is broken! fix in a followup
             // assertEquals(RestStatus.NOT_FOUND, ee.status());        // <4>
             assertThat(e.getMessage(),
@@ -2036,7 +2035,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             MultiGetItemResponse item = response.getResponses()[0];
             assertNull(item.getResponse());                          // <1>
             Exception e = item.getFailure().getFailure();            // <2>
-            BaseOpenSearchException ee = (BaseOpenSearchException) e;  // <3>
+            OpenSearchException ee = (OpenSearchException) e;  // <3>
             // TODO status is broken! fix in a followup
             // assertEquals(RestStatus.CONFLICT, ee.status());          // <4>
             assertThat(e.getMessage(),

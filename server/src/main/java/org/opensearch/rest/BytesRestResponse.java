@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.common.bytes.BytesArray;
@@ -173,7 +172,7 @@ public class BytesRestResponse extends RestResponse {
     private void build(XContentBuilder builder, ToXContent.Params params, RestStatus status, boolean detailedErrorsEnabled, Exception e)
         throws IOException {
         builder.startObject();
-        BaseOpenSearchException.generateFailureXContent(builder, params, e, detailedErrorsEnabled);
+        OpenSearchException.generateFailureXContent(builder, params, e, detailedErrorsEnabled);
         builder.field(STATUS, status.getStatus());
         builder.endObject();
     }
@@ -189,7 +188,7 @@ public class BytesRestResponse extends RestResponse {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
-        BaseOpenSearchException exception = null;
+        OpenSearchException exception = null;
         RestStatus status = null;
 
         String currentFieldName = null;
@@ -203,7 +202,7 @@ public class BytesRestResponse extends RestResponse {
                     status = RestStatus.fromCode(parser.intValue());
                 }
             } else {
-                exception = BaseOpenSearchException.failureFromXContent(parser);
+                exception = OpenSearchException.failureFromXContent(parser);
             }
         }
 

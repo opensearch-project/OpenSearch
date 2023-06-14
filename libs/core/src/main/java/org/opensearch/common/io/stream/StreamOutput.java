@@ -40,8 +40,8 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.Build;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
@@ -1065,14 +1065,14 @@ public abstract class StreamOutput extends OutputStream {
                 writeBoolean(((OpenSearchRejectedExecutionException) throwable).isExecutorShutdown());
                 writeCause = false;
             } else {
-                final BaseOpenSearchException ex;
-                if (throwable instanceof BaseOpenSearchException && BaseOpenSearchException.isRegistered(throwable.getClass(), version)) {
-                    ex = (BaseOpenSearchException) throwable;
+                final OpenSearchException ex;
+                if (throwable instanceof OpenSearchException && OpenSearchException.isRegistered(throwable.getClass(), version)) {
+                    ex = (OpenSearchException) throwable;
                 } else {
                     ex = new NotSerializableExceptionWrapper(throwable);
                 }
                 writeVInt(0);
-                writeVInt(BaseOpenSearchException.getId(ex.getClass()));
+                writeVInt(OpenSearchException.getId(ex.getClass()));
                 ex.writeTo(this);
                 return;
             }
@@ -1082,7 +1082,7 @@ public abstract class StreamOutput extends OutputStream {
             if (writeCause) {
                 writeException(rootException, throwable.getCause(), nestedLevel + 1);
             }
-            BaseOpenSearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
+            OpenSearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
         }
     }
 

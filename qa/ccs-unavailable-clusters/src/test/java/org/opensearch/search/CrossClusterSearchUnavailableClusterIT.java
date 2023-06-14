@@ -36,7 +36,6 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -296,21 +295,21 @@ public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCa
 
     private static void assertSearchConnectFailure() {
         {
-            BaseOpenSearchException exception = expectThrows(BaseOpenSearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT));
-            BaseOpenSearchException rootCause = (BaseOpenSearchException)exception.getRootCause();
+            OpenSearchException rootCause = (OpenSearchException)exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
         {
-            BaseOpenSearchException exception = expectThrows(BaseOpenSearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT));
-            BaseOpenSearchException rootCause = (BaseOpenSearchException)exception.getRootCause();
+            OpenSearchException rootCause = (OpenSearchException)exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
         {
-            BaseOpenSearchException exception = expectThrows(BaseOpenSearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> restHighLevelClient.search(new SearchRequest("remote1:index").scroll("1m"), RequestOptions.DEFAULT));
-            BaseOpenSearchException rootCause = (BaseOpenSearchException)exception.getRootCause();
+            OpenSearchException rootCause = (OpenSearchException)exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
     }

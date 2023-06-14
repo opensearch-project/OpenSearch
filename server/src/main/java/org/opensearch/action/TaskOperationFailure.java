@@ -33,7 +33,6 @@
 package org.opensearch.action;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -76,7 +75,7 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
             int i = 0;
             String nodeId = (String) constructorObjects[i++];
             long taskId = (long) constructorObjects[i++];
-            BaseOpenSearchException reason = (BaseOpenSearchException) constructorObjects[i];
+            OpenSearchException reason = (OpenSearchException) constructorObjects[i];
             return new TaskOperationFailure(nodeId, taskId, reason);
         }
     );

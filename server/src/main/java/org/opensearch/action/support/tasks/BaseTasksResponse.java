@@ -32,7 +32,6 @@
 
 package org.opensearch.action.support.tasks;
 
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.FailedNodeException;
@@ -63,7 +62,7 @@ public class BaseTasksResponse extends ActionResponse {
     protected static final String NODE_FAILURES = "node_failures";
 
     private List<TaskOperationFailure> taskFailures;
-    private List<BaseOpenSearchException> nodeFailures;
+    private List<OpenSearchException> nodeFailures;
 
     public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends OpenSearchException> nodeFailures) {
         this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(taskFailures));
@@ -93,7 +92,7 @@ public class BaseTasksResponse extends ActionResponse {
             exp.writeTo(out);
         }
         out.writeVInt(nodeFailures.size());
-        for (BaseOpenSearchException exp : nodeFailures) {
+        for (OpenSearchException exp : nodeFailures) {
             exp.writeTo(out);
         }
     }
@@ -108,7 +107,7 @@ public class BaseTasksResponse extends ActionResponse {
     /**
      * The list of node failures exception.
      */
-    public List<BaseOpenSearchException> getNodeFailures() {
+    public List<OpenSearchException> getNodeFailures() {
         return nodeFailures;
     }
 
@@ -145,7 +144,7 @@ public class BaseTasksResponse extends ActionResponse {
 
         if (getNodeFailures() != null && getNodeFailures().size() > 0) {
             builder.startArray(NODE_FAILURES);
-            for (BaseOpenSearchException ex : getNodeFailures()) {
+            for (OpenSearchException ex : getNodeFailures()) {
                 builder.startObject();
                 ex.toXContent(builder, params);
                 builder.endObject();

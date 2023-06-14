@@ -33,7 +33,6 @@
 package org.opensearch.action.search;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.Nullable;
@@ -192,7 +191,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             builder.startObject();
             if (item.isFailure()) {
-                BaseOpenSearchException.generateFailureXContent(builder, params, item.getFailure(), true);
+                OpenSearchException.generateFailureXContent(builder, params, item.getFailure(), true);
                 builder.field(Fields.STATUS, BaseExceptionsHelper.status(item.getFailure()).getStatus());
             } else {
                 item.getResponse().innerToXContent(builder, params);

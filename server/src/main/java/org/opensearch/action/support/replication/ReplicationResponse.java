@@ -33,7 +33,7 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -320,7 +320,7 @@ public class ReplicationResponse extends ActionResponse {
                 int shardId = -1;
                 boolean primary = false;
                 RestStatus status = null;
-                BaseOpenSearchException reason = null;
+                OpenSearchException reason = null;
 
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -340,7 +340,7 @@ public class ReplicationResponse extends ActionResponse {
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (REASON.equals(currentFieldName)) {
-                            reason = BaseOpenSearchException.fromXContent(parser);
+                            reason = OpenSearchException.fromXContent(parser);
                         } else {
                             parser.skipChildren(); // skip potential inner objects for forward compatibility
                         }

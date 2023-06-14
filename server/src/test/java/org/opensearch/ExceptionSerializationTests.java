@@ -161,7 +161,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();
         final String path = "/org/opensearch";
-        final Path startPath = PathUtils.get(OpenSearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+        final Path coreLibStartPath = PathUtils.get(OpenSearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        final Path startPath = PathUtils.get(OpenSearchServerException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
             .resolve("org")
             .resolve("opensearch");
         final Set<String> ignore = Sets.newHashSet(
@@ -243,6 +244,9 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
             }
         };
 
+        // walk the core library start path
+        Files.walkFileTree(coreLibStartPath, visitor);
+        // walk the server module start path
         Files.walkFileTree(startPath, visitor);
         final Path testStartPath = PathUtils.get(ExceptionSerializationTests.class.getResource(path).toURI());
         Files.walkFileTree(testStartPath, visitor);
@@ -579,7 +583,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         final Exception ex = new UnknownException("eggplant", parsingException);
         Exception exception = serialize(ex);
         assertEquals("unknown_exception: eggplant", exception.getMessage());
-        assertTrue(exception instanceof BaseOpenSearchException);
+        assertTrue(exception instanceof OpenSearchException);
         ParsingException e = (ParsingException) exception.getCause();
         assertEquals(parsingException.getIndex(), e.getIndex());
         assertEquals(parsingException.getMessage(), e.getMessage());
@@ -652,7 +656,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
             uhe.addHeader("foo", "foo", "bar");
             uhe.addMetadata("opensearch.foo_metadata", "value1", "value2");
 
-            BaseOpenSearchException serialize = serialize((OpenSearchException) uhe);
+            OpenSearchException serialize = serialize((OpenSearchException) uhe);
             assertTrue(serialize instanceof NotSerializableExceptionWrapper);
             NotSerializableExceptionWrapper e = (NotSerializableExceptionWrapper) serialize;
             assertEquals("unknown_header_exception: msg", e.getMessage());
@@ -715,7 +719,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     public void testIds() {
-        Map<Integer, Class<? extends BaseOpenSearchException>> ids = new HashMap<>();
+        Map<Integer, Class<? extends OpenSearchException>> ids = new HashMap<>();
         ids.put(0, org.opensearch.index.snapshots.IndexShardSnapshotFailedException.class);
         ids.put(1, org.opensearch.search.dfs.DfsPhaseExecutionException.class);
         ids.put(2, org.opensearch.common.util.CancellableThreads.ExecutionCancelledException.class);
@@ -886,14 +890,14 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(170, SearchPipelineProcessingException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
-        Map<Class<? extends BaseOpenSearchException>, Integer> reverse = new HashMap<>();
-        for (Map.Entry<Integer, Class<? extends BaseOpenSearchException>> entry : ids.entrySet()) {
+        Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
+        for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {
             if (entry.getValue() != null) {
                 reverse.put(entry.getValue(), entry.getKey());
             }
         }
 
-        for (final Tuple<Integer, Class<? extends BaseOpenSearchException>> tuple : OpenSearchException.classes()) {
+        for (final Tuple<Integer, Class<? extends OpenSearchException>> tuple : OpenSearchException.classes()) {
             assertNotNull(tuple.v1());
             assertNotNull(
                 tuple.v2().getName() + " not found in ExceptionSerializationTests.testIds. Please add it.",
@@ -902,7 +906,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
             assertEquals((int) reverse.get(tuple.v2()), (int) tuple.v1());
         }
 
-        for (Map.Entry<Integer, Class<? extends BaseOpenSearchException>> entry : ids.entrySet()) {
+        for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {
             if (entry.getValue() != null) {
                 assertEquals((int) entry.getKey(), OpenSearchException.getId(entry.getValue()));
             }

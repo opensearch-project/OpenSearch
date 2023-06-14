@@ -59,7 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.opensearch.BaseOpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
+import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
@@ -70,7 +70,7 @@ import static java.util.Collections.singletonMap;
  *
  * @opensearch.internal
  */
-public abstract class BaseOpenSearchException extends RuntimeException implements Writeable, ToXContentFragment {
+public class OpenSearchException extends RuntimeException implements Writeable, ToXContentFragment {
 
     protected static final String ERROR = "error";
     protected static final String ROOT_CAUSE = "root_cause";
@@ -85,7 +85,7 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
 
     static {
         registerExceptionHandle(
-            new BaseOpenSearchExceptionHandle(
+            new OpenSearchExceptionHandle(
                 org.opensearch.index.snapshots.IndexShardSnapshotFailedException.class,
                 org.opensearch.index.snapshots.IndexShardSnapshotFailedException::new,
                 0,
@@ -93,7 +93,7 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
             )
         );
         registerExceptionHandle(
-            new BaseOpenSearchExceptionHandle(
+            new OpenSearchExceptionHandle(
                 org.opensearch.common.ParsingException.class,
                 org.opensearch.common.ParsingException::new,
                 40,
@@ -101,7 +101,7 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
             )
         );
         registerExceptionHandle(
-            new BaseOpenSearchExceptionHandle(
+            new OpenSearchExceptionHandle(
                 org.opensearch.common.io.stream.NotSerializableExceptionWrapper.class,
                 org.opensearch.common.io.stream.NotSerializableExceptionWrapper::new,
                 62,
@@ -111,9 +111,9 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
     }
 
     /**
-     * Construct a <code>BaseOpenSearchException</code> with the specified cause exception.
+     * Construct a <code>OpenSearchException</code> with the specified cause exception.
      */
-    public BaseOpenSearchException(Throwable cause) {
+    public OpenSearchException(Throwable cause) {
         super(cause);
     }
 
@@ -126,7 +126,7 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
      * @param msg  the detail message
      * @param args the arguments for the message
      */
-    public BaseOpenSearchException(String msg, Object... args) {
+    public OpenSearchException(String msg, Object... args) {
         super(LoggerMessageFormat.format(msg, args));
     }
 
@@ -141,11 +141,11 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
      * @param cause the nested exception
      * @param args  the arguments for the message
      */
-    public BaseOpenSearchException(String msg, Throwable cause, Object... args) {
+    public OpenSearchException(String msg, Throwable cause, Object... args) {
         super(LoggerMessageFormat.format(msg, args), cause);
     }
 
-    public BaseOpenSearchException(StreamInput in) throws IOException {
+    public OpenSearchException(StreamInput in) throws IOException {
         this(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
@@ -182,7 +182,7 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
         if (detailed == false) {
             Throwable t = e;
             for (int counter = 0; counter < 10 && t != null; counter++) {
-                if (t instanceof BaseOpenSearchException) {
+                if (t instanceof OpenSearchException) {
                     break;
                 }
                 t = t.getCause();
@@ -192,11 +192,11 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
         }
 
         // Render the exception with all details
-        final BaseOpenSearchException[] rootCauses = BaseOpenSearchException.guessRootCauses(e);
+        final OpenSearchException[] rootCauses = OpenSearchException.guessRootCauses(e);
         builder.startObject(ERROR);
         {
             builder.startArray(ROOT_CAUSE);
-            for (BaseOpenSearchException rootCause : rootCauses) {
+            for (OpenSearchException rootCause : rootCauses) {
                 builder.startObject();
                 rootCause.toXContent(
                     builder,
@@ -212,14 +212,14 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
 
     /**
      * Returns the root cause of this exception or multiple if different shards caused different exceptions.
-     * If the given exception is not an instance of {@link BaseOpenSearchException} an empty array
+     * If the given exception is not an instance of {@link OpenSearchException} an empty array
      * is returned.
      */
-    public static BaseOpenSearchException[] guessRootCauses(Throwable t) {
+    public static OpenSearchException[] guessRootCauses(Throwable t) {
         Throwable ex = BaseExceptionsHelper.unwrapCause(t);
-        if (ex instanceof BaseOpenSearchException) {
+        if (ex instanceof OpenSearchException) {
             // OpenSearchException knows how to guess its own root cause
-            return ((BaseOpenSearchException) ex).guessRootCauses();
+            return ((OpenSearchException) ex).guessRootCauses();
         }
         if (ex instanceof XContentParseException) {
             /*
@@ -232,12 +232,12 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
              */
             Throwable cause = ex.getCause();
             if (cause != null) {
-                if (cause instanceof XContentParseException || cause instanceof BaseOpenSearchException) {
-                    return BaseOpenSearchException.guessRootCauses(ex.getCause());
+                if (cause instanceof XContentParseException || cause instanceof OpenSearchException) {
+                    return OpenSearchException.guessRootCauses(ex.getCause());
                 }
             }
         }
-        return new BaseOpenSearchException[] { new BaseOpenSearchException(ex.getMessage(), ex) {
+        return new OpenSearchException[] { new OpenSearchException(ex.getMessage(), ex) {
             @Override
             protected String getExceptionName() {
                 return BaseExceptionsHelper.getExceptionName(getCause());
@@ -354,8 +354,8 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
         if (getCause() != null) {
             StringBuilder sb = new StringBuilder();
             sb.append(toString()).append("; ");
-            if (getCause() instanceof BaseOpenSearchException) {
-                sb.append(((BaseOpenSearchException) getCause()).getDetailedMessage());
+            if (getCause() instanceof OpenSearchException) {
+                sb.append(((OpenSearchException) getCause()).getDetailedMessage());
             } else {
                 sb.append(getCause());
             }
@@ -400,12 +400,12 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
     /**
      * Returns the root cause of this exception or multiple if different shards caused different exceptions
      */
-    public BaseOpenSearchException[] guessRootCauses() {
+    public OpenSearchException[] guessRootCauses() {
         final Throwable cause = getCause();
-        if (cause != null && cause instanceof BaseOpenSearchException) {
-            return ((BaseOpenSearchException) cause).guessRootCauses();
+        if (cause != null && cause instanceof OpenSearchException) {
+            return ((OpenSearchException) cause).guessRootCauses();
         }
-        return new BaseOpenSearchException[] { this };
+        return new OpenSearchException[] { this };
     }
 
     public void setResources(String type, String... id) {
@@ -524,8 +524,8 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
      * @return an array of all registered pairs of handle IDs and exception classes
      */
     @SuppressWarnings("unchecked")
-    static Tuple<Integer, Class<? extends BaseOpenSearchException>>[] classes() {
-        final Tuple<Integer, Class<? extends BaseOpenSearchException>>[] ts = OpenSearchExceptionHandleRegistry.handles()
+    static Tuple<Integer, Class<? extends OpenSearchException>>[] classes() {
+        final Tuple<Integer, Class<? extends OpenSearchException>>[] ts = OpenSearchExceptionHandleRegistry.handles()
             .stream()
             .map(h -> Tuple.tuple(h.id, h.exceptionClass))
             .toArray(Tuple[]::new);
@@ -579,13 +579,13 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
      *
      * @opensearch.internal
      */
-    protected static class BaseOpenSearchExceptionHandle {
-        final Class<? extends BaseOpenSearchException> exceptionClass;
-        final CheckedFunction<StreamInput, ? extends BaseOpenSearchException, IOException> constructor;
+    protected static class OpenSearchExceptionHandle {
+        final Class<? extends OpenSearchException> exceptionClass;
+        final CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> constructor;
         final int id;
         final Version versionAdded;
 
-        <E extends BaseOpenSearchException> BaseOpenSearchExceptionHandle(
+        <E extends OpenSearchException> OpenSearchExceptionHandle(
             Class<E> exceptionClass,
             CheckedFunction<StreamInput, E, IOException> constructor,
             int id,
@@ -600,10 +600,10 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
     }
 
     @SuppressWarnings("unchecked")
-    public static <T extends StreamInput> BaseOpenSearchException readException(T input, int id) throws IOException {
-        CheckedFunction<T, ? extends BaseOpenSearchException, IOException> opensearchException = (CheckedFunction<
+    public static <T extends StreamInput> OpenSearchException readException(T input, int id) throws IOException {
+        CheckedFunction<T, ? extends OpenSearchException, IOException> opensearchException = (CheckedFunction<
             T,
-            ? extends BaseOpenSearchException,
+            ? extends OpenSearchException,
             IOException>) OpenSearchExceptionHandleRegistry.getSupplier(id);
         if (opensearchException == null) {
             throw new IllegalStateException("unknown exception for id: " + id);
@@ -652,7 +652,7 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
     /**
      * Returns the serialization id the given exception.
      */
-    public static int getId(final Class<? extends BaseOpenSearchException> exception) {
+    public static int getId(final Class<? extends OpenSearchException> exception) {
         return OpenSearchExceptionHandleRegistry.getId(exception);
     }
 
@@ -664,13 +664,13 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
     }
 
     /**
-     * Generate a {@link BaseOpenSearchException} from a {@link XContentParser}. This does not
+     * Generate a {@link OpenSearchException} from a {@link XContentParser}. This does not
      * return the original exception type (ie NodeClosedException for example) but just wraps
      * the type, the reason and the cause of the exception. It also recursively parses the
-     * tree structure of the cause, returning it as a tree structure of {@link BaseOpenSearchException}
+     * tree structure of the cause, returning it as a tree structure of {@link OpenSearchException}
      * instances.
      */
-    public static BaseOpenSearchException fromXContent(XContentParser parser) throws IOException {
+    public static OpenSearchException fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         return innerFromXContent(parser, false);
@@ -679,13 +679,13 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
     /**
      * Parses the output of {@link #generateFailureXContent(XContentBuilder, Params, Exception, boolean)}
      */
-    public static BaseOpenSearchException failureFromXContent(XContentParser parser) throws IOException {
+    public static OpenSearchException failureFromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureFieldName(parser, token, ERROR);
 
         token = parser.nextToken();
         if (token.isValue()) {
-            return new BaseOpenSearchException(buildMessage("exception", parser.text(), null)) {
+            return new OpenSearchException(buildMessage("exception", parser.text(), null)) {
             };
         }
 
@@ -696,16 +696,16 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
         return innerFromXContent(parser, true);
     }
 
-    public static BaseOpenSearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
+    public static OpenSearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
         String type = null, reason = null, stack = null;
-        BaseOpenSearchException cause = null;
+        OpenSearchException cause = null;
         Map<String, List<String>> metadata = new HashMap<>();
         Map<String, List<String>> headers = new HashMap<>();
-        List<BaseOpenSearchException> rootCauses = new ArrayList<>();
-        List<BaseOpenSearchException> suppressed = new ArrayList<>();
+        List<OpenSearchException> rootCauses = new ArrayList<>();
+        List<OpenSearchException> suppressed = new ArrayList<>();
 
         for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
             String currentFieldName = parser.currentName();
@@ -782,7 +782,7 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
             }
         }
 
-        BaseOpenSearchException e = new BaseOpenSearchException(buildMessage(type, reason, stack), cause) {
+        OpenSearchException e = new OpenSearchException(buildMessage(type, reason, stack), cause) {
         };
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             // subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
@@ -799,16 +799,16 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
 
         // Adds root causes as suppressed exception. This way they are not lost
         // after parsing and can be retrieved using getSuppressed() method.
-        for (BaseOpenSearchException rootCause : rootCauses) {
+        for (OpenSearchException rootCause : rootCauses) {
             e.addSuppressed(rootCause);
         }
-        for (BaseOpenSearchException s : suppressed) {
+        for (OpenSearchException s : suppressed) {
             e.addSuppressed(s);
         }
         return e;
     }
 
-    static Set<Class<? extends BaseOpenSearchException>> getRegisteredKeys() { // for testing
+    static Set<Class<? extends OpenSearchException>> getRegisteredKeys() { // for testing
         return OpenSearchExceptionHandleRegistry.getRegisteredKeys();
     }
 
@@ -821,26 +821,25 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
         /** Registry mapping from unique Ordinal to the Exception Constructor */
         private static final Map<
             Integer,
-            CheckedFunction<StreamInput, ? extends BaseOpenSearchException, IOException>> ID_TO_SUPPLIER_REGISTRY =
-                new ConcurrentHashMap<>();
+            CheckedFunction<StreamInput, ? extends OpenSearchException, IOException>> ID_TO_SUPPLIER_REGISTRY = new ConcurrentHashMap<>();
         /** Registry mapping from Exception class to the Exception Handler  */
         private static final Map<
-            Class<? extends BaseOpenSearchException>,
-            BaseOpenSearchExceptionHandle> CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY = new ConcurrentHashMap<>();
+            Class<? extends OpenSearchException>,
+            OpenSearchExceptionHandle> CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY = new ConcurrentHashMap<>();
 
         /** returns the Exception constructor function from a given ordinal */
-        public static CheckedFunction<StreamInput, ? extends BaseOpenSearchException, IOException> getSupplier(final int id) {
+        public static CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> getSupplier(final int id) {
             return ID_TO_SUPPLIER_REGISTRY.get(id);
         }
 
         /** registers the Exception handler */
-        public static void registerExceptionHandle(final BaseOpenSearchExceptionHandle handle) {
+        public static void registerExceptionHandle(final OpenSearchExceptionHandle handle) {
             ID_TO_SUPPLIER_REGISTRY.put(handle.id, handle.constructor);
             CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.put(handle.exceptionClass, handle);
         }
 
         /** Gets the unique ordinal id of the Exception from the given class */
-        public static int getId(final Class<? extends BaseOpenSearchException> exception) {
+        public static int getId(final Class<? extends OpenSearchException> exception) {
             return CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.get(exception).id;
         }
 
@@ -850,13 +849,13 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
         }
 
         /** returns a collection of handles */
-        public static Collection<BaseOpenSearchExceptionHandle> handles() {
+        public static Collection<OpenSearchExceptionHandle> handles() {
             return CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.values();
         }
 
         /** checks that the exception class is registered */
         public static boolean isRegistered(final Class<? extends Throwable> exception, final Version version) {
-            BaseOpenSearchExceptionHandle openSearchExceptionHandle = CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.get(exception);
+            OpenSearchExceptionHandle openSearchExceptionHandle = CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.get(exception);
             if (openSearchExceptionHandle != null) {
                 return version.onOrAfter(openSearchExceptionHandle.versionAdded);
             }
@@ -864,7 +863,7 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
         }
 
         /** returns a set of registered exception classes */
-        public static Set<Class<? extends BaseOpenSearchException>> getRegisteredKeys() { // for testing
+        public static Set<Class<? extends OpenSearchException>> getRegisteredKeys() { // for testing
             return CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.keySet();
         }
     }

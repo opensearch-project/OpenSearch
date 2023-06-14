@@ -32,7 +32,6 @@
 
 package org.opensearch.action.support.replication;
 
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.opensearch.common.Strings;
@@ -154,7 +153,7 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
                 assertEquals(expectedFailure.primary(), actualFailure.primary());
 
                 OpenSearchException expectedCause = (OpenSearchException) expectedFailure.getCause();
-                BaseOpenSearchException actualCause = (BaseOpenSearchException) actualFailure.getCause();
+                OpenSearchException actualCause = (OpenSearchException) actualFailure.getCause();
                 assertDeepEquals(expectedCause, actualCause);
             }
         }

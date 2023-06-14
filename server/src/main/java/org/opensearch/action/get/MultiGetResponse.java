@@ -32,7 +32,7 @@
 
 package org.opensearch.action.get;
 
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.io.stream.StreamInput;
@@ -130,7 +130,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             builder.startObject();
             builder.field(INDEX.getPreferredName(), index);
             builder.field(ID.getPreferredName(), id);
-            BaseOpenSearchException.generateFailureXContent(builder, params, exception, true);
+            OpenSearchException.generateFailureXContent(builder, params, exception, true);
             builder.endObject();
             return builder;
         }
@@ -208,7 +208,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         String currentFieldName = null;
         String index = null;
         String id = null;
-        BaseOpenSearchException exception = null;
+        OpenSearchException exception = null;
         GetResult getResult = null;
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
             switch (token) {
@@ -230,7 +230,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                     break;
                 case START_OBJECT:
                     if (ERROR.match(currentFieldName, parser.getDeprecationHandler())) {
-                        exception = BaseOpenSearchException.fromXContent(parser);
+                        exception = OpenSearchException.fromXContent(parser);
                     }
                     break;
                 default:

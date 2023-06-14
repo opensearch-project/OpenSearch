@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.explain.ExplainRequest;
@@ -829,8 +828,8 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
                 () -> execute(scrollRequest, highLevelClient()::scroll, highLevelClient()::scrollAsync)
             );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertThat(exception.getRootCause(), instanceOf(BaseOpenSearchException.class));
-            BaseOpenSearchException rootCause = (BaseOpenSearchException) exception.getRootCause();
+            assertThat(exception.getRootCause(), instanceOf(OpenSearchException.class));
+            OpenSearchException rootCause = (OpenSearchException) exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("No search context found for"));
         }
     }

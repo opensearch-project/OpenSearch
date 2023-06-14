@@ -31,7 +31,6 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.collect.Tuple;
@@ -88,10 +87,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
     private final Exception failure;
     private final Tuple<String, Boolean> conditionalWithResult;
 
-    private static final ConstructingObjectParser<BaseOpenSearchException, Void> IGNORED_ERROR_PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<OpenSearchException, Void> IGNORED_ERROR_PARSER = new ConstructingObjectParser<>(
         "ignored_error_parser",
         true,
-        a -> (BaseOpenSearchException) a[0]
+        a -> (OpenSearchException) a[0]
     );
     static {
         IGNORED_ERROR_PARSER.declareObject(constructorArg(), (p, c) -> OpenSearchException.fromXContent(p), new ParseField("error"));
@@ -123,9 +122,9 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             IngestDocument document = a[4] == null ? null : ((WriteableIngestDocument) a[4]).getIngestDocument();
             Exception failure = null;
             if (a[5] != null) {
-                failure = (BaseOpenSearchException) a[5];
+                failure = (OpenSearchException) a[5];
             } else if (a[6] != null) {
-                failure = (BaseOpenSearchException) a[6];
+                failure = (OpenSearchException) a[6];
             }
 
             return new SimulateProcessorResult(type, processorTag, description, document, failure, conditionalWithResult);
@@ -270,10 +269,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
         if (failure != null && ingestDocument != null) {
             builder.startObject(IGNORED_ERROR_FIELD);
-            BaseOpenSearchException.generateFailureXContent(builder, params, failure, true);
+            OpenSearchException.generateFailureXContent(builder, params, failure, true);
             builder.endObject();
         } else if (failure != null) {
-            BaseOpenSearchException.generateFailureXContent(builder, params, failure, true);
+            OpenSearchException.generateFailureXContent(builder, params, failure, true);
         }
 
         if (ingestDocument != null) {

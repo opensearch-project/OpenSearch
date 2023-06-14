@@ -33,7 +33,7 @@
 package org.opensearch.common.io.stream;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public final class NotSerializableExceptionWrapper extends BaseOpenSearchException {
+public final class NotSerializableExceptionWrapper extends OpenSearchException {
 
     private final String name;
     private final RestStatus status;
@@ -60,8 +60,8 @@ public final class NotSerializableExceptionWrapper extends BaseOpenSearchExcepti
         for (Throwable otherSuppressed : other.getSuppressed()) {
             addSuppressed(otherSuppressed);
         }
-        if (other instanceof BaseOpenSearchException) {
-            BaseOpenSearchException ex = (BaseOpenSearchException) other;
+        if (other instanceof OpenSearchException) {
+            OpenSearchException ex = (OpenSearchException) other;
             for (String key : ex.getHeaderKeys()) {
                 this.addHeader(key, ex.getHeader(key));
             }

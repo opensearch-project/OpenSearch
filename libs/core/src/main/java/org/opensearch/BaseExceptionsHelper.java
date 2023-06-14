@@ -137,7 +137,7 @@ public abstract class BaseExceptionsHelper {
 
     public static String summaryMessage(Throwable t) {
         if (t != null) {
-            if (t instanceof BaseOpenSearchException) {
+            if (t instanceof OpenSearchException) {
                 return getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
             } else if (t instanceof IllegalArgumentException) {
                 return "Invalid argument";
@@ -167,8 +167,8 @@ public abstract class BaseExceptionsHelper {
             headerToXContent(builder, entry.getKey().substring(OPENSEARCH_PREFIX_KEY.length()), entry.getValue());
         }
 
-        if (throwable instanceof BaseOpenSearchException) {
-            BaseOpenSearchException exception = (BaseOpenSearchException) throwable;
+        if (throwable instanceof OpenSearchException) {
+            OpenSearchException exception = (OpenSearchException) throwable;
             exception.metadataToXContent(builder, params);
         }
 
@@ -206,8 +206,8 @@ public abstract class BaseExceptionsHelper {
     }
 
     /**
-     * Static toXContent helper method that renders {@link BaseOpenSearchException} or {@link Throwable} instances
-     * as XContent, delegating the rendering to {@link BaseOpenSearchException#toXContent(XContentBuilder, ToXContent.Params)}
+     * Static toXContent helper method that renders {@link OpenSearchException} or {@link Throwable} instances
+     * as XContent, delegating the rendering to {@link OpenSearchException#toXContent(XContentBuilder, ToXContent.Params)}
      * or {@link #innerToXContent(XContentBuilder, ToXContent.Params, Throwable, String, String, Map, Map, Throwable)}.
      *
      * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
@@ -216,8 +216,8 @@ public abstract class BaseExceptionsHelper {
     public static void generateThrowableXContent(XContentBuilder builder, ToXContent.Params params, Throwable t) throws IOException {
         t = unwrapCause(t);
 
-        if (t instanceof BaseOpenSearchException) {
-            ((BaseOpenSearchException) t).toXContent(builder, params);
+        if (t instanceof OpenSearchException) {
+            ((OpenSearchException) t).toXContent(builder, params);
         } else {
             innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
         }
@@ -237,12 +237,8 @@ public abstract class BaseExceptionsHelper {
 
     private static String getExceptionSimpleClassName(final Throwable ex) {
         String simpleName = ex.getClass().getSimpleName();
-        if (Strings.isEmpty(simpleName) && ex instanceof BaseOpenSearchException) {
+        if (Strings.isEmpty(simpleName)) {
             simpleName = "OpenSearchException";
-        }
-
-        if (simpleName.startsWith("BaseOpenSearch")) {
-            simpleName = simpleName.substring("Base".length());
         }
         return simpleName;
     }
@@ -298,8 +294,8 @@ public abstract class BaseExceptionsHelper {
 
     public static RestStatus status(Throwable t) {
         if (t != null) {
-            if (t instanceof BaseOpenSearchException) {
-                return ((BaseOpenSearchException) t).status();
+            if (t instanceof OpenSearchException) {
+                return ((OpenSearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof JsonParseException) {
