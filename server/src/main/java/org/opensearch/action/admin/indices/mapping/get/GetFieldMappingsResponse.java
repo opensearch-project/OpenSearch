@@ -241,7 +241,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
         @Override
         public String toString() {
-            return "FieldMappingMetadata{fullName='" + fullName + '\ + ", source=" + source + '}';
+            return "FieldMappingMetadata{fullName='" + fullName + '\'' + ", source=" + source + '}';
         }
 
         @Override
