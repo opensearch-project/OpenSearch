@@ -90,8 +90,7 @@ public class ActionType<Response extends ActionResponse> {
         return name.hashCode();
     }
 
-    public List<Scope>
-    allowedScopes() {
+    public List<Scope> allowedScopes() {
         return Collections.emptyList();
     }
 }

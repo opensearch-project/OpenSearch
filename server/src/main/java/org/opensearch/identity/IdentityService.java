@@ -83,17 +83,15 @@ public class IdentityService {
     /**
      * Returns a list of the known application principals
      */
-    public List<Principal> getApplicationList(){
+    public List<Principal> getApplicationList() {
         return List.copyOf(applicationList);
     }
 
     /**
      * Returns a list of the known application principals
      */
-    public List<String> getApplicationStrings(){
-        return applicationList.stream()
-            .map(Principal::getName)
-            .collect(Collectors.toList());
+    public List<String> getApplicationStrings() {
+        return applicationList.stream().map(Principal::getName).collect(Collectors.toList());
     }
 
     public Set<String> getApplicationScopes(Principal principal) {
@@ -101,30 +99,27 @@ public class IdentityService {
         Set<String> allScopes = ExtensionsManager.getExtensionManager().getExtensionIdMap().get(principal.getName()).getScopes();
 
         return allScopes.stream().filter(scope -> {
-                String[] parts = scope.split("\\.");
-                if (parts.length != 3) {
-                    throw new IllegalArgumentException("Invalid scope format: " + scope);
-                }
-                ScopeEnums.ScopeNamespace scopeNamespace = ScopeEnums.ScopeNamespace.fromString(parts[0]);
-                return scopeNamespace == ScopeEnums.ScopeNamespace.APPLICATION;
-            })
-            .collect(Collectors.toSet());
+            String[] parts = scope.split("\\.");
+            if (parts.length != 3) {
+                throw new IllegalArgumentException("Invalid scope format: " + scope);
+            }
+            ScopeEnums.ScopeNamespace scopeNamespace = ScopeEnums.ScopeNamespace.fromString(parts[0]);
+            return scopeNamespace == ScopeEnums.ScopeNamespace.APPLICATION;
+        }).collect(Collectors.toSet());
     }
-
 
     public Set<String> getActionScopes(Principal principal) {
 
         Set<String> allScopes = ExtensionsManager.getExtensionManager().getExtensionIdMap().get(principal.getName()).getScopes();
 
         return allScopes.stream().filter(scope -> {
-                String[] parts = scope.split("\\.");
-                if (parts.length != 3) {
-                    throw new IllegalArgumentException("Invalid scope format: " + scope);
-                }
-                ScopeEnums.ScopeNamespace scopeNamespace = ScopeEnums.ScopeNamespace.fromString(parts[0]);
-                return scopeNamespace == ScopeEnums.ScopeNamespace.ACTION;
-            })
-            .collect(Collectors.toSet());
+            String[] parts = scope.split("\\.");
+            if (parts.length != 3) {
+                throw new IllegalArgumentException("Invalid scope format: " + scope);
+            }
+            ScopeEnums.ScopeNamespace scopeNamespace = ScopeEnums.ScopeNamespace.fromString(parts[0]);
+            return scopeNamespace == ScopeEnums.ScopeNamespace.ACTION;
+        }).collect(Collectors.toSet());
     }
 
     public Set<String> getExtensionPointScopes(Principal principal) {
@@ -132,13 +127,12 @@ public class IdentityService {
         Set<String> allScopes = ExtensionsManager.getExtensionManager().getExtensionIdMap().get(principal.getName()).getScopes();
 
         return allScopes.stream().filter(scope -> {
-                String[] parts = scope.split("\\.");
-                if (parts.length != 3) {
-                    throw new IllegalArgumentException("Invalid scope format: " + scope);
-                }
-                ScopeEnums.ScopeNamespace scopeNamespace = ScopeEnums.ScopeNamespace.fromString(parts[0]);
-                return scopeNamespace == ScopeEnums.ScopeNamespace.EXTENSION_POINT;
-            })
-            .collect(Collectors.toSet());
+            String[] parts = scope.split("\\.");
+            if (parts.length != 3) {
+                throw new IllegalArgumentException("Invalid scope format: " + scope);
+            }
+            ScopeEnums.ScopeNamespace scopeNamespace = ScopeEnums.ScopeNamespace.fromString(parts[0]);
+            return scopeNamespace == ScopeEnums.ScopeNamespace.EXTENSION_POINT;
+        }).collect(Collectors.toSet());
     }
 }

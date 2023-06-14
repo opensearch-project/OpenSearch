@@ -28,7 +28,9 @@ public enum ActionScope implements Scope {
         this.action = action;
     }
 
-    public ScopeNamespace getNamespace() {return ScopeNamespace.ACTION;}
+    public ScopeNamespace getNamespace() {
+        return ScopeNamespace.ACTION;
+    }
 
     public ScopeArea getArea() {
         return this.area;

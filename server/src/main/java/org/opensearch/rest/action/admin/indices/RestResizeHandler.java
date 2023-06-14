@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.indices.shrink.ResizeAction;
 import org.opensearch.action.admin.indices.shrink.ResizeRequest;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
@@ -44,7 +43,6 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.identity.scopes.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -203,7 +201,5 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         }
 
     }
-
-
 
 }

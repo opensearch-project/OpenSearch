@@ -43,7 +43,9 @@ public final class ApplicationAwareSubject implements Subject {
         return new Function<Principal, Set<Scope>>() {
             @Override
             public Set<Scope> apply(Principal principal) {
-                return IdentityService.getInstance().getApplicationScopes(principal).stream()
+                return IdentityService.getInstance()
+                    .getApplicationScopes(principal)
+                    .stream()
                     .map(ApplicationScopes::valueOf)
                     .collect(Collectors.toSet());
             }
@@ -61,14 +63,15 @@ public final class ApplicationAwareSubject implements Subject {
     public Principal getPrincipal() {
         return wrapped.getPrincipal();
     }
+
     public void authenticate(final AuthToken token) {
         wrapped.authenticate(token);
     }
+
     public Optional<Principal> getApplication() {
         return wrapped.getApplication();
     }
     // end Passthroughs for wrapped subject
-
 
     /**
      * Checks scopes of the current subject if they are allowed for any of the listed scopes

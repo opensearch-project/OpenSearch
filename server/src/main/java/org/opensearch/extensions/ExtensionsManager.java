@@ -486,9 +486,7 @@ public class ExtensionsManager {
     }
 
     public List<Principal> getExtensionPrincipals() {
-        return extensionIdMap.keySet().stream()
-            .map(key -> (Principal) () -> key)
-            .collect(Collectors.toList());
+        return extensionIdMap.keySet().stream().map(key -> (Principal) () -> key).collect(Collectors.toList());
     }
 
     RestActionsRequestHandler getRestActionsRequestHandler() {
@@ -531,7 +529,7 @@ public class ExtensionsManager {
         return environmentSettings;
     }
 
-    public static ExtensionsManager getExtensionManager(){
+    public static ExtensionsManager getExtensionManager() {
         return instance;
     }
 }

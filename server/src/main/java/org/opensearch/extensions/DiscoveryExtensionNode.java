@@ -25,8 +25,6 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.ApplicationScopes;
-import org.opensearch.identity.scopes.Scope;
 
 /**
  * Discover extensions running independently or in a separate process
