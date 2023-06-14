@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.snapshots.create;
 import java.util.List;
 import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
 /**
  * Create snapshot action
@@ -51,5 +51,8 @@ public class CreateSnapshotAction extends ActionType<CreateSnapshotResponse> {
         super(NAME, CreateSnapshotResponse::new);
     }
 
-
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
+    }
 }
