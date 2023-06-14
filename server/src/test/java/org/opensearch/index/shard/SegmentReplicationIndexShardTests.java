@@ -579,7 +579,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEqualCommittedSegments(primary, replica_1);
 
             shards.promoteReplicaToPrimary(replica_2).get();
-            primary.close("demoted", false);
+            primary.close("demoted", false, false);
             primary.store().close();
             IndexShard oldPrimary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
@@ -618,7 +618,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
                 // randomly resetart a replica
                 final IndexShard replicaToRestart = getRandomReplica(shards);
-                replicaToRestart.close("restart", false);
+                replicaToRestart.close("restart", false, false);
                 replicaToRestart.store().close();
                 shards.removeReplica(replicaToRestart);
                 final IndexShard newReplica = shards.addReplicaWithExistingPath(
@@ -716,7 +716,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.promoteReplicaToPrimary(nextPrimary).get();
 
             // close oldPrimary.
-            oldPrimary.close("demoted", false);
+            oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
 
             assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
@@ -783,7 +783,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.promoteReplicaToPrimary(nextPrimary);
 
             // close and start the oldPrimary as a replica.
-            oldPrimary.close("demoted", false);
+            oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
             oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
@@ -866,7 +866,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEquals(nextPrimary.getEngine().getClass(), InternalEngine.class);
             nextPrimary.refresh("test");
 
-            oldPrimary.close("demoted", false);
+            oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
             IndexShard newReplica = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
@@ -1074,7 +1074,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         IndexShard primary = shards.getPrimary();
         final IndexShard newPrimary = getRandomReplica(shards);
         shards.promoteReplicaToPrimary(newPrimary);
-        primary.close("demoted", true);
+        primary.close("demoted", true, false);
         primary.store().close();
         primary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
         shards.recoverReplica(primary);

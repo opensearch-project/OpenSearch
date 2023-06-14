@@ -83,4 +83,8 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         Collection<String> lockFiles = lockDirectory.listFilesByPrefix(((FileLockInfo) lockInfo).getLockPrefix());
         return !lockFiles.isEmpty();
     }
+
+    public void delete() throws IOException {
+        lockDirectory.delete();
+    }
 }

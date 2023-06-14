@@ -603,6 +603,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store, IndexEventListener listener) {
         final int shardId = sId.id();
         final Settings indexSettings = this.getIndexSettings().getSettings();
+        Store remoteStore = indexShard.remoteStore();
         if (store != null) {
             store.beforeClose();
         }
@@ -616,7 +617,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     try {
                         // only flush if we are closed (closed index or shutdown) and if we are not deleted
                         final boolean flushEngine = deleted.get() == false && closed.get();
-                        indexShard.close(reason, flushEngine);
+                        indexShard.close(reason, flushEngine, deleted.get());
                     } catch (Exception e) {
                         logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
                         // ignore
@@ -632,6 +633,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 } else {
                     logger.trace("[{}] store not initialized prior to closing shard, nothing to close", shardId);
                 }
+
+                if (remoteStore != null && indexShard.isPrimaryMode() && deleted.get()) {
+                    remoteStore.close();
+                }
+
             } catch (Exception e) {
                 logger.warn(
                     () -> new ParameterizedMessage("[{}] failed to close store on shard removal (reason: [{}])", shardId, reason),

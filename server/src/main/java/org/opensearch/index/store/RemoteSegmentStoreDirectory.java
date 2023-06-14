@@ -20,24 +20,24 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
-import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.HashMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -616,5 +616,33 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 remoteMetadataDirectory.deleteFile(metadataFile);
             }
         }
+    }
+
+    /*
+    Tries to delete shard level directory if it is empty
+    Return true if it deleted it successfully
+     */
+    private boolean deleteIfEmpty() throws IOException {
+        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
+        if (metadataFiles.size() != 0) {
+            logger.info("Remote directory still has files , not deleting the path");
+            return false;
+        }
+
+        try {
+            remoteDataDirectory.delete();
+            remoteMetadataDirectory.delete();
+            mdLockManager.delete();
+        } catch (Exception e) {
+            logger.error("Exception occurred while deleting directory", e);
+            return false;
+        }
+
+        return true;
+    }
+
+    public void close() throws IOException {
+        deleteStaleSegments(0);
+        deleteIfEmpty();
     }
 }
