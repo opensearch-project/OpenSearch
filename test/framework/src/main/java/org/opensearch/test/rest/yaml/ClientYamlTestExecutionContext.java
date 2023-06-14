@@ -41,7 +41,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -185,7 +185,7 @@ public class ClientYamlTestExecutionContext {
     private BytesRef bodyAsBytesRef(Map<String, Object> bodyAsMap, XContentType xContentType) throws IOException {
         Map<String, Object> finalBodyAsMap = stash.replaceStashedValues(bodyAsMap);
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
-            return BytesReferenceUtil.bytes(builder.map(finalBodyAsMap)).toBytesRef();
+            return BytesReference.bytes(builder.map(finalBodyAsMap)).toBytesRef();
         }
     }
 

@@ -9,7 +9,7 @@
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
 import org.opensearch.action.support.DefaultShardOperationFailedException;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -56,11 +56,8 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         statsResponse.toXContent(builder, EMPTY_PARAMS);
-        Map<String, Object> jsonResponseObject = XContentHelper.convertToMap(
-            BytesReferenceUtil.bytes(builder),
-            false,
-            builder.contentType()
-        ).v2();
+        Map<String, Object> jsonResponseObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
+            .v2();
 
         ArrayList<Map<String, Object>> statsObjectArray = (ArrayList<Map<String, Object>>) jsonResponseObject.get("stats");
         assertEquals(statsObjectArray.size(), 1);

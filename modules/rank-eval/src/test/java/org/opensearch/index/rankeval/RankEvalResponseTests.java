@@ -44,7 +44,6 @@ import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -179,7 +178,7 @@ public class RankEvalResponseTests extends OpenSearchTestCase {
             Collections.singletonMap("beer_query", new ParsingException(new XContentLocation(0, 0), "someMsg"))
         );
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        String xContent = BytesReferenceUtil.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
+        String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
         assertEquals(
             ("{"
                 + "    \"metric_score\": 0.123,"

@@ -48,7 +48,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -272,7 +271,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      * @param source The mapping source
      */
     public PutIndexTemplateRequest mapping(XContentBuilder source) {
-        return mapping(BytesReferenceUtil.bytes(source), source.contentType());
+        return mapping(BytesReference.bytes(source), source.contentType());
     }
 
     /**
@@ -324,7 +323,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      */
     public PutIndexTemplateRequest source(XContentBuilder templateBuilder) {
         try {
-            return source(BytesReferenceUtil.bytes(templateBuilder), templateBuilder.contentType());
+            return source(BytesReference.bytes(templateBuilder), templateBuilder.contentType());
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to build json for template request", e);
         }
@@ -428,7 +427,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return aliases(BytesReferenceUtil.bytes(builder));
+            return aliases(BytesReference.bytes(builder));
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -438,7 +437,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      * Sets the aliases that will be associated with the index when it gets created
      */
     public PutIndexTemplateRequest aliases(XContentBuilder source) {
-        return aliases(BytesReferenceUtil.bytes(source));
+        return aliases(BytesReference.bytes(source));
     }
 
     /**

@@ -32,7 +32,7 @@
 package org.opensearch.common.geo;
 
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -72,7 +72,7 @@ public class GeoUtilTests extends OpenSearchTestCase {
         XContentBuilder builder = jsonBuilder().startObject();
         tokenGenerator.accept(builder);
         builder.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken()); // {
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // field name
             assertTrue(parser.nextToken().isValue()); // field value

@@ -34,7 +34,6 @@ package org.opensearch.index.mapper;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -360,7 +359,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     private void doTestDefaultFloatingPointMappings(DocumentMapper mapper, XContentBuilder builder) throws IOException {
-        BytesReference source = BytesReferenceUtil.bytes(
+        BytesReference source = BytesReference.bytes(
             builder.startObject()
                 .field("foo", 3.2f) // float
                 .field("bar", 3.2d) // double

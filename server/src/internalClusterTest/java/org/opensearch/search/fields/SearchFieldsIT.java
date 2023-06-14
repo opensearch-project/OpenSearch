@@ -44,7 +44,6 @@ import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateUtils;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -893,7 +892,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        BytesReference source = BytesReferenceUtil.bytes(
+        BytesReference source = BytesReference.bytes(
             jsonBuilder().startObject()
                 .startArray("field1")
                 .startObject()

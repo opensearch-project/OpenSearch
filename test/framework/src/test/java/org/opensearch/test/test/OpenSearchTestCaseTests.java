@@ -36,7 +36,6 @@ import junit.framework.AssertionFailedError;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -133,7 +132,7 @@ public class OpenSearchTestCaseTests extends OpenSearchTestCase {
                 }
             }
             builder.endObject();
-            BytesReference bytes = BytesReferenceUtil.bytes(builder);
+            BytesReference bytes = BytesReference.bytes(builder);
             final LinkedHashMap<String, Object> initialMap;
             try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
                 initialMap = (LinkedHashMap<String, Object>) parser.mapOrdered();

@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.cluster.snapshots.restore;
 
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -138,7 +138,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         original.snapshotUuid(null); // cannot be set via the REST API
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
         XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, null, BytesReferenceUtil.bytes(builder).streamInput());
+            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
         Map<String, Object> map = parser.mapOrdered();
 
         // we will only restore properties from the map that are contained in the request body. All other

@@ -32,7 +32,6 @@
 
 package org.opensearch.index.query.functionscore;
 
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesReference;
@@ -125,7 +124,7 @@ public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> im
                 fieldName = currentFieldName;
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.copyCurrentStructure(parser);
-                functionBytes = BytesReferenceUtil.bytes(builder);
+                functionBytes = BytesReference.bytes(builder);
             } else if (MULTI_VALUE_MODE.match(currentFieldName, parser.getDeprecationHandler())) {
                 multiValueMode = MultiValueMode.fromString(parser.text());
             } else {

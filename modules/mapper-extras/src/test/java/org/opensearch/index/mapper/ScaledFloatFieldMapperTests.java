@@ -35,7 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.Strings;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -135,7 +135,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
             )
         );
@@ -156,7 +156,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
             )
         );
@@ -177,7 +177,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
             )
         );
@@ -200,7 +200,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
                 XContentType.JSON
             )
         );
@@ -219,7 +219,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
                 XContentType.JSON
             )
         );
@@ -243,7 +243,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                 XContentType.JSON
             )
         );
@@ -257,7 +257,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                 XContentType.JSON
             )
         );
@@ -272,7 +272,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
                 XContentType.JSON
             )
         );
@@ -285,7 +285,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
                 XContentType.JSON
             )
         );

@@ -34,7 +34,7 @@ package org.opensearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -196,7 +196,7 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
         HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, new SourceLookup());
-        hitContext.sourceLookup().setSource(source == null ? null : BytesReferenceUtil.bytes(source));
+        hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
 
         FetchSourcePhase phase = new FetchSourcePhase();
         FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);

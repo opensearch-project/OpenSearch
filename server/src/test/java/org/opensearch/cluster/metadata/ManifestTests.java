@@ -35,7 +35,6 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -125,7 +124,7 @@ public class ManifestTests extends OpenSearchTestCase {
         builder.startObject();
         Manifest.FORMAT.toXContent(builder, state);
         builder.endObject();
-        BytesReference bytes = BytesReferenceUtil.bytes(builder);
+        BytesReference bytes = BytesReference.bytes(builder);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
             assertThat(Manifest.fromXContent(parser), equalTo(state));
         }

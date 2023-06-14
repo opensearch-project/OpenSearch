@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
@@ -65,7 +64,7 @@ public class ClusterUpdateSettingsRequestTests extends OpenSearchTestCase {
 
         if (addRandomFields) {
             String unsupportedField = "unsupported_field";
-            BytesReference mutated = BytesReferenceUtil.bytes(
+            BytesReference mutated = BytesReference.bytes(
                 XContentTestUtils.insertIntoXContent(
                     xContentType.xContent(),
                     originalBytes,

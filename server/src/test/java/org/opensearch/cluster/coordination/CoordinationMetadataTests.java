@@ -33,8 +33,8 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -134,7 +134,7 @@ public class CoordinationMetadataTests extends OpenSearchTestCase {
         final XContentBuilder builder = JsonXContent.contentBuilder();
         originalTombstone.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final VotingConfigExclusion fromXContentTombstone = VotingConfigExclusion.fromXContent(parser);
             assertThat(originalTombstone, equalTo(fromXContentTombstone));
         }
@@ -226,7 +226,7 @@ public class CoordinationMetadataTests extends OpenSearchTestCase {
         originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final CoordinationMetadata fromXContentMeta = CoordinationMetadata.fromXContent(parser);
             assertThat(originalMeta, equalTo(fromXContentMeta));
         }

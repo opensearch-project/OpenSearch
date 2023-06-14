@@ -34,7 +34,6 @@ package org.opensearch.common.xcontent.support;
 
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -1090,7 +1089,7 @@ public abstract class AbstractFilteringTestCase extends OpenSearchTestCase {
             .endObject();
 
         Builder sampleWithRaw = builder -> {
-            BytesReference raw = BytesReferenceUtil.bytes(
+            BytesReference raw = BytesReference.bytes(
                 XContentBuilder.builder(builder.contentType().xContent()).startObject().field("content", "hello world!").endObject()
             );
             return builder.startObject().field("foo", 0).rawField("raw", raw.streamInput()).endObject();
@@ -1104,7 +1103,7 @@ public abstract class AbstractFilteringTestCase extends OpenSearchTestCase {
         testFilter(expectedRawFieldNotFiltered, sampleWithRaw, emptySet(), singleton("f*"));
 
         sampleWithRaw = builder -> {
-            BytesReference raw = BytesReferenceUtil.bytes(
+            BytesReference raw = BytesReference.bytes(
                 XContentBuilder.builder(builder.contentType().xContent()).startObject().field("content", "hello world!").endObject()
             );
             return builder.startObject().field("foo", 0).rawField("raw", raw.streamInput()).endObject();

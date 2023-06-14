@@ -34,7 +34,6 @@ package org.opensearch.ingest;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
@@ -65,7 +64,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PARSER.declareField((parser, builder, aVoid) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
             contentBuilder.generator().copyCurrentStructure(parser);
-            builder.setConfig(BytesReferenceUtil.bytes(contentBuilder), contentBuilder.contentType());
+            builder.setConfig(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
 
     }

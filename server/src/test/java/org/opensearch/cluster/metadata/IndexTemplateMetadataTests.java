@@ -34,7 +34,6 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -85,7 +84,7 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
             builder.startObject();
             IndexTemplateMetadata.Builder.toXContentWithTypes(indexTemplateMetadata, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            templateBytesRoundTrip = BytesReferenceUtil.bytes(builder);
+            templateBytesRoundTrip = BytesReference.bytes(builder);
         }
 
         final IndexTemplateMetadata indexTemplateMetadataRoundTrip;

@@ -36,7 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedRunnable;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
@@ -546,7 +546,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             MultiSearchRequest.writeSearchRequestParams(request, builder);
             Map<String, Object> map = XContentHelper.convertToMap(
                 XContentType.JSON.xContent(),
-                BytesReferenceUtil.bytes(builder).streamInput(),
+                BytesReference.bytes(builder).streamInput(),
                 false
             );
             final String value = (String) map.get("expand_wildcards");

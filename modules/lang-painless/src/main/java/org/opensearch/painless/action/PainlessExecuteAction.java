@@ -63,7 +63,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -165,7 +164,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
                     try (XContentBuilder b = XContentBuilder.builder(p.contentType().xContent())) {
                         b.copyCurrentStructure(p);
-                        return BytesReferenceUtil.bytes(b);
+                        return BytesReference.bytes(b);
                     }
                 }, DOCUMENT_FIELD);
                 PARSER.declareObject(

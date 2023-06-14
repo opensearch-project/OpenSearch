@@ -33,7 +33,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -136,7 +136,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         ) throws Exception {
             try (
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
-                InputStream stream = BytesReferenceUtil.bytes(builder).streamInput();
+                InputStream stream = BytesReference.bytes(builder).streamInput();
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
             ) {

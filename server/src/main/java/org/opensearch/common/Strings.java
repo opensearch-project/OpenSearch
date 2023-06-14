@@ -36,7 +36,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
@@ -246,7 +245,7 @@ public class Strings {
      * @param xContentBuilder builder containing an object to converted to a string
      */
     public static String toString(XContentBuilder xContentBuilder) {
-        return BytesReferenceUtil.bytes(xContentBuilder).utf8ToString();
+        return BytesReference.bytes(xContentBuilder).utf8ToString();
     }
 
     /**

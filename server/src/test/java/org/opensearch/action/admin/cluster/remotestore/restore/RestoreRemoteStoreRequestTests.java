@@ -8,8 +8,8 @@
 
 package org.opensearch.action.admin.cluster.remotestore.restore;
 
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -70,7 +70,7 @@ public class RestoreRemoteStoreRequestTests extends AbstractWireSerializingTestC
         RestoreRemoteStoreRequest original = createTestInstance();
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
         XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, null, BytesReferenceUtil.bytes(builder).streamInput());
+            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
         Map<String, Object> map = parser.mapOrdered();
 
         RestoreRemoteStoreRequest processed = new RestoreRemoteStoreRequest();

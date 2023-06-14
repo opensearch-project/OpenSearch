@@ -82,7 +82,6 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -451,7 +450,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 source.endObject();
             }
             source.endObject();
-            return nestedMapper.parse(new SourceToParse("test", docId, BytesReferenceUtil.bytes(source), XContentType.JSON));
+            return nestedMapper.parse(new SourceToParse("test", docId, BytesReference.bytes(source), XContentType.JSON));
         };
     }
 

@@ -55,7 +55,6 @@ import org.opensearch.client.core.CountResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -1188,7 +1187,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         );
         assertNull(searchTemplateResponse.getResponse());
 
-        BytesReference expectedSource = BytesReferenceUtil.bytes(
+        BytesReference expectedSource = BytesReference.bytes(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("query")

@@ -9,7 +9,7 @@
 package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -105,7 +105,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
         ) throws Exception {
             try (
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
-                InputStream stream = BytesReferenceUtil.bytes(builder).streamInput();
+                InputStream stream = BytesReference.bytes(builder).streamInput();
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
             ) {

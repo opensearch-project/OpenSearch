@@ -38,7 +38,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -271,14 +270,14 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         XContentBuilder builder = XContentBuilder.builder(QUERY_CONTENT_TYPE).prettyPrint();
         Object query = source.remove("query");
         if (query == null) {
-            return BytesReferenceUtil.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
+            return BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
         }
         if (!(query instanceof Map)) {
             throw new IllegalArgumentException("Expected [query] to be an object but was [" + query + "]");
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) query;
-        return BytesReferenceUtil.bytes(builder.map(map));
+        return BytesReference.bytes(builder.map(map));
     }
 
     private static boolean isQueryJson(BytesReference bytesReference) {

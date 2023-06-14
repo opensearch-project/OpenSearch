@@ -50,7 +50,6 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -379,7 +378,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 sourceAsMap = typeMapTuple.v2();
                 sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
                 try {
-                    source = BytesReferenceUtil.bytes(XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap));
+                    source = BytesReference.bytes(XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap));
                 } catch (IOException e) {
                     throw new OpenSearchException("Failed to get id [" + id + "] with includes/excludes set", e);
                 }
@@ -407,7 +406,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             sourceAsMap = typeMapTuple.v2();
             sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
             try {
-                source = BytesReferenceUtil.bytes(XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap));
+                source = BytesReference.bytes(XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap));
             } catch (IOException e) {
                 throw new OpenSearchException("Failed to get id [" + id + "] with includes/excludes set", e);
             }

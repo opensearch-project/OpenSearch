@@ -53,7 +53,6 @@ import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
@@ -90,7 +89,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
     }
 
     public void testSimulate() throws Exception {
-        BytesReference pipelineSource = BytesReferenceUtil.bytes(
+        BytesReference pipelineSource = BytesReference.bytes(
             jsonBuilder().startObject()
                 .field("description", "my_pipeline")
                 .startArray("processors")
@@ -107,7 +106,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
-        BytesReference bytes = BytesReferenceUtil.bytes(
+        BytesReference bytes = BytesReference.bytes(
             jsonBuilder().startObject()
                 .startArray("docs")
                 .startObject()
@@ -150,7 +149,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
     public void testBulkWithIngestFailures() throws Exception {
         createIndex("index");
 
-        BytesReference source = BytesReferenceUtil.bytes(
+        BytesReference source = BytesReference.bytes(
             jsonBuilder().startObject()
                 .field("description", "my_pipeline")
                 .startArray("processors")
@@ -201,7 +200,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
     public void testBulkWithUpsert() throws Exception {
         createIndex("index");
 
-        BytesReference source = BytesReferenceUtil.bytes(
+        BytesReference source = BytesReference.bytes(
             jsonBuilder().startObject()
                 .field("description", "my_pipeline")
                 .startArray("processors")
@@ -236,7 +235,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
     }
 
     public void test() throws Exception {
-        BytesReference source = BytesReferenceUtil.bytes(
+        BytesReference source = BytesReference.bytes(
             jsonBuilder().startObject()
                 .field("description", "my_pipeline")
                 .startArray("processors")
@@ -279,7 +278,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
     }
 
     public void testPutWithPipelineFactoryError() throws Exception {
-        BytesReference source = BytesReferenceUtil.bytes(
+        BytesReference source = BytesReference.bytes(
             jsonBuilder().startObject()
                 .field("description", "my_pipeline")
                 .startArray("processors")
@@ -304,7 +303,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
 
     public void testWithDedicatedClusterManager() throws Exception {
         String clusterManagerOnlyNode = internalCluster().startClusterManagerOnlyNode();
-        BytesReference source = BytesReferenceUtil.bytes(
+        BytesReference source = BytesReference.bytes(
             jsonBuilder().startObject()
                 .field("description", "my_pipeline")
                 .startArray("processors")
@@ -341,7 +340,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", BytesReferenceUtil.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", BytesReference.bytes(source), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
         {
@@ -358,7 +357,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("2", BytesReferenceUtil.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("2", BytesReference.bytes(source), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
         {
@@ -374,7 +373,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("3", BytesReferenceUtil.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("3", BytesReference.bytes(source), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
 
@@ -414,7 +413,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", BytesReferenceUtil.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", BytesReference.bytes(source), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
         {
@@ -431,7 +430,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("2", BytesReferenceUtil.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("2", BytesReference.bytes(source), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
         {
@@ -447,7 +446,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("3", BytesReferenceUtil.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("3", BytesReference.bytes(source), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
 

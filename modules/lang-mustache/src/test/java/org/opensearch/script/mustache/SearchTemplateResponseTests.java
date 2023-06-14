@@ -36,7 +36,6 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -104,7 +103,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
                 .endObject()
                 .endObject()
                 .endObject();
-            return BytesReferenceUtil.bytes(source);
+            return BytesReference.bytes(source);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -162,7 +161,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             .endObject()
             .endObject()
             .endObject();
-        response.setSource(BytesReferenceUtil.bytes(source));
+        response.setSource(BytesReference.bytes(source));
 
         XContentType contentType = randomFrom(XContentType.values());
         XContentBuilder expectedResponse = XContentFactory.contentBuilder(contentType)
@@ -179,7 +178,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         XContentBuilder actualResponse = XContentFactory.contentBuilder(contentType);
         response.toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
 
-        assertToXContentEquivalent(BytesReferenceUtil.bytes(expectedResponse), BytesReferenceUtil.bytes(actualResponse), contentType);
+        assertToXContentEquivalent(BytesReference.bytes(expectedResponse), BytesReference.bytes(actualResponse), contentType);
     }
 
     public void testSearchResponseToXContent() throws IOException {
@@ -239,6 +238,6 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         XContentBuilder actualResponse = XContentFactory.contentBuilder(contentType);
         response.toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
 
-        assertToXContentEquivalent(BytesReferenceUtil.bytes(expectedResponse), BytesReferenceUtil.bytes(actualResponse), contentType);
+        assertToXContentEquivalent(BytesReference.bytes(expectedResponse), BytesReference.bytes(actualResponse), contentType);
     }
 }

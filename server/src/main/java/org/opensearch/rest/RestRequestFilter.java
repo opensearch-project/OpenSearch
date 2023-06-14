@@ -35,7 +35,6 @@ package org.opensearch.rest;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -81,7 +80,7 @@ public interface RestRequestFilter {
                         );
                         try {
                             XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
-                            filteredBytes = BytesReferenceUtil.bytes(xContentBuilder);
+                            filteredBytes = BytesReference.bytes(xContentBuilder);
                         } catch (IOException e) {
                             throw new OpenSearchException("failed to parse request", e);
                         }

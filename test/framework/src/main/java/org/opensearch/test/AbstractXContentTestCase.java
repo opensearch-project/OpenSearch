@@ -36,7 +36,6 @@ import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
@@ -66,7 +65,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends Ope
         return new XContentTester<>(createParser, x -> instanceSupplier.get(), (testInstance, xContentType) -> {
             try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
                 toXContent.accept(testInstance, builder);
-                return BytesReferenceUtil.bytes(builder);
+                return BytesReference.bytes(builder);
             }
         }, fromXContent);
     }
@@ -307,7 +306,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends Ope
             withRandomFields = xContent;
         }
         XContentParser parserWithRandonFields = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
-        return BytesReferenceUtil.bytes(shuffleXContent(parserWithRandonFields, false, shuffleFieldsExceptions));
+        return BytesReference.bytes(shuffleXContent(parserWithRandonFields, false, shuffleFieldsExceptions));
     }
 
 }

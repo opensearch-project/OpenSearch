@@ -34,9 +34,9 @@ package org.opensearch.search.fetch.subphase;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexService;
@@ -446,7 +446,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
         throws IOException {
 
         SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReferenceUtil.bytes(source));
+        sourceLookup.setSource(BytesReference.bytes(source));
 
         FieldFetcher fieldFetcher = FieldFetcher.create(createQueryShardContext(mapperService), null, fields);
         return fieldFetcher.fetch(sourceLookup, Set.of());

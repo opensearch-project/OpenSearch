@@ -32,8 +32,8 @@
 
 package org.opensearch.action.fieldcaps;
 
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -128,7 +128,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        String generatedResponse = BytesReferenceUtil.bytes(builder).utf8ToString();
+        String generatedResponse = BytesReference.bytes(builder).utf8ToString();
         assertEquals(
             ("{"
                 + "    \"indices\": null,"

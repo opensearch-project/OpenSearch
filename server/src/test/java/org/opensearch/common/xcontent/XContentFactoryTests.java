@@ -37,7 +37,6 @@ import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -80,7 +79,7 @@ public class XContentFactoryTests extends OpenSearchTestCase {
             sb.append(new String(chars)).append(content);
             bytes = new BytesArray(sb.toString());
         } else {
-            bytes = BytesReferenceUtil.bytes(builder);
+            bytes = BytesReference.bytes(builder);
         }
 
         assertThat(XContentHelper.xContentType(bytes), equalTo(type));

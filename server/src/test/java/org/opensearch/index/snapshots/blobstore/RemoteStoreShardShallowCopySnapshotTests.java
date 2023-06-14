@@ -10,7 +10,6 @@ package org.opensearch.index.snapshots.blobstore;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -198,7 +197,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             }
             builder.endArray();
             builder.endObject();
-            byte[] xContent = BytesReference.toBytes(BytesReferenceUtil.bytes(builder));
+            byte[] xContent = BytesReference.toBytes(BytesReference.bytes(builder));
 
             if (failure == null) {
                 // No failures should read as usual

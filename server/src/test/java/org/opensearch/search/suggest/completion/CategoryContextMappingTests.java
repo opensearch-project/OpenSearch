@@ -42,9 +42,9 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
@@ -99,7 +99,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(
+                BytesReference.bytes(
                     jsonBuilder().startObject()
                         .startArray("completion")
                         .startObject()
@@ -149,7 +149,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(
+                BytesReference.bytes(
                     jsonBuilder().startObject()
                         .startArray("completion")
                         .startObject()
@@ -194,7 +194,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(
+                BytesReference.bytes(
                     jsonBuilder().startObject()
                         .startArray("completion")
                         .startObject()
@@ -239,7 +239,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(
+                BytesReference.bytes(
                     jsonBuilder().startObject()
                         .startArray("completion")
                         .startObject()
@@ -293,7 +293,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReferenceUtil.bytes(builder), XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON))
         );
         assertEquals(
             "contexts must be a string, number or boolean or a list of string, number or boolean, but was [VALUE_NULL]",
@@ -326,7 +326,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(
+                BytesReference.bytes(
                     jsonBuilder().startObject()
                         .startObject("completion")
                         .array("input", "suggestion5", "suggestion6", "suggestion7")
@@ -369,7 +369,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             new SourceToParse(
                 "test",
                 "1",
-                BytesReferenceUtil.bytes(
+                BytesReference.bytes(
                     jsonBuilder().startObject()
                         .startObject("completion")
                         .array("input", "suggestion5", "suggestion6", "suggestion7")
@@ -419,7 +419,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReferenceUtil.bytes(builder), XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON))
         );
         assertEquals("context array must have string, number or boolean values, but was [VALUE_NULL]", e.getCause().getMessage());
     }
@@ -462,7 +462,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endArray()
             .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse(
-            new SourceToParse("test", "1", BytesReferenceUtil.bytes(builder), XContentType.JSON)
+            new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON)
         );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
@@ -470,7 +470,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testQueryContextParsingBasic() throws Exception {
         XContentBuilder builder = jsonBuilder().value("context1");
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
@@ -482,7 +482,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testBooleanQueryContextParsingBasic() throws Exception {
         XContentBuilder builder = jsonBuilder().value(true);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
@@ -494,7 +494,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testNumberQueryContextParsingBasic() throws Exception {
         XContentBuilder builder = jsonBuilder().value(10);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
@@ -506,7 +506,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testNULLQueryContextParsingBasic() throws Exception {
         XContentBuilder builder = jsonBuilder().nullValue();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
 
             XContentParseException e = expectThrows(XContentParseException.class, () -> mapping.parseQueryContext(parser));
@@ -516,7 +516,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testQueryContextParsingArray() throws Exception {
         XContentBuilder builder = jsonBuilder().startArray().value("context1").value("context2").endArray();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(2));
@@ -531,7 +531,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testQueryContextParsingMixedTypeValuesArray() throws Exception {
         XContentBuilder builder = jsonBuilder().startArray().value("context1").value("context2").value(true).value(10).endArray();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(4));
@@ -558,7 +558,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .value(10)
             .nullValue()
             .endArray();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
 
             XContentParseException e = expectThrows(XContentParseException.class, () -> mapping.parseQueryContext(parser));
@@ -572,7 +572,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .field("boost", 10)
             .field("prefix", true)
             .endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
@@ -584,7 +584,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testQueryContextParsingObjectHavingBoolean() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("context", false).field("boost", 10).field("prefix", true).endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
@@ -596,7 +596,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testQueryContextParsingObjectHavingNumber() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("context", 333).field("boost", 10).field("prefix", true).endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
@@ -608,7 +608,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testQueryContextParsingObjectHavingNULL() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().nullField("context").field("boost", 10).field("prefix", true).endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
 
             Exception e = expectThrows(XContentParseException.class, () -> mapping.parseQueryContext(parser));
@@ -629,7 +629,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .field("prefix", false)
             .endObject()
             .endArray();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(2));
@@ -665,7 +665,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .field("prefix", false)
             .endObject()
             .endArray();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(4));
@@ -712,7 +712,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .field("prefix", false)
             .endObject()
             .endArray();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
 
             XContentParseException e = expectThrows(XContentParseException.class, () -> mapping.parseQueryContext(parser));
@@ -735,7 +735,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .field("prefix", true)
             .endObject()
             .endArray();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(4));
@@ -770,7 +770,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .nullValue()
             .endArray();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
 
             XContentParseException e = expectThrows(XContentParseException.class, () -> mapping.parseQueryContext(parser));

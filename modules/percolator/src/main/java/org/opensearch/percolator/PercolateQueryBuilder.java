@@ -66,7 +66,6 @@ import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -393,7 +392,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.copyCurrentStructure(parser);
             builder.flush();
-            return BytesReferenceUtil.bytes(builder);
+            return BytesReference.bytes(builder);
         }
     }
 

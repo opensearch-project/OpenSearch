@@ -34,7 +34,6 @@ package org.opensearch.script.mustache;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -106,16 +105,12 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
         if (contentAsMap.containsKey(TEMPLATE_OUTPUT_FIELD.getPreferredName())) {
             Object source = contentAsMap.get(TEMPLATE_OUTPUT_FIELD.getPreferredName());
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).value(source);
-            searchTemplateResponse.setSource(BytesReferenceUtil.bytes(builder));
+            searchTemplateResponse.setSource(BytesReference.bytes(builder));
         } else {
             MediaType contentType = parser.contentType();
             XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
             XContentParser searchResponseParser = contentType.xContent()
-                .createParser(
-                    parser.getXContentRegistry(),
-                    parser.getDeprecationHandler(),
-                    BytesReferenceUtil.bytes(builder).streamInput()
-                );
+                .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput());
 
             SearchResponse searchResponse = SearchResponse.fromXContent(searchResponseParser);
             searchTemplateResponse.setResponse(searchResponse);

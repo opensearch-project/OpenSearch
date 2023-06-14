@@ -35,10 +35,10 @@ package org.opensearch.common.xcontent.builder;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -191,7 +191,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
     public void testByteConversion() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test_name", (Byte) (byte) 120).endObject();
-        assertThat(BytesReferenceUtil.bytes(builder).utf8ToString(), equalTo("{\"test_name\":120}"));
+        assertThat(BytesReference.bytes(builder).utf8ToString(), equalTo("{\"test_name\":120}"));
     }
 
     public void testDateTypesConversion() throws Exception {
@@ -235,7 +235,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
         XContentBuilder filterBuilder = null;
         XContentParser.Token token;
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
 
             String currentFieldName = null;
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
@@ -255,7 +255,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
             }
         }
         assertNotNull(filterBuilder);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(filterBuilder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(filterBuilder))) {
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
             assertThat(parser.currentName(), equalTo("terms"));

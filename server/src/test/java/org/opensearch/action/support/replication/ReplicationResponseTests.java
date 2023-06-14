@@ -39,7 +39,6 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -113,7 +112,7 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
         // Shuffle the XContent fields
         if (randomBoolean()) {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                originalBytes = BytesReferenceUtil.bytes(shuffleXContent(parser, randomBoolean()));
+                originalBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
             }
         }
 

@@ -32,8 +32,8 @@
 
 package org.opensearch.search.suggest.completion;
 
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -133,7 +133,7 @@ public class GeoQueryContextTests extends QueryContextTestCase<GeoQueryContext> 
             builder.array("neighbours", 1, 2);
         }
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
         GeoQueryContext queryContext = fromXContent(parser);
         assertEquals(10, queryContext.getBoost());
@@ -148,7 +148,7 @@ public class GeoQueryContextTests extends QueryContextTestCase<GeoQueryContext> 
             builder.array("neighbours", "4km", "10km");
         }
         builder.endObject();
-        parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder));
+        parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
         queryContext = fromXContent(parser);
         assertEquals(10, queryContext.getBoost());

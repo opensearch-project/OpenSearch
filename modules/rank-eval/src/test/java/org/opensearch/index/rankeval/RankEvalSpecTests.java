@@ -35,7 +35,6 @@ package org.opensearch.index.rankeval;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -143,7 +142,7 @@ public class RankEvalSpecTests extends OpenSearchTestCase {
     public void testXContentRoundtrip() throws IOException {
         RankEvalSpec testItem = createTestItem();
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(shuffled))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(shuffled))) {
             RankEvalSpec parsedItem = RankEvalSpec.parse(parser);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);

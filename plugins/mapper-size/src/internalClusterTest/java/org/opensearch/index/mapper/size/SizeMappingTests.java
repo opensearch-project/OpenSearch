@@ -38,7 +38,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
@@ -66,7 +65,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=true");
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
-        BytesReference source = BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
 
         boolean stored = false;
@@ -83,7 +82,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=false");
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
-        BytesReference source = BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
@@ -93,7 +92,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         IndexService service = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME);
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
-        BytesReference source = BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());

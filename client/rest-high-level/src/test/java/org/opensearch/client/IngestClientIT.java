@@ -42,7 +42,7 @@ import org.opensearch.action.ingest.SimulateDocumentVerboseResult;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.ingest.PipelineConfiguration;
@@ -58,7 +58,7 @@ public class IngestClientIT extends OpenSearchRestHighLevelClientTestCase {
     public void testPutPipeline() throws IOException {
         String id = "some_pipeline_id";
         XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
-        PutPipelineRequest request = new PutPipelineRequest(id, BytesReferenceUtil.bytes(pipelineBuilder), pipelineBuilder.contentType());
+        PutPipelineRequest request = new PutPipelineRequest(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
 
         AcknowledgedResponse putPipelineResponse = execute(
             request,
@@ -72,11 +72,7 @@ public class IngestClientIT extends OpenSearchRestHighLevelClientTestCase {
         String id = "some_pipeline_id";
         XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
         {
-            PutPipelineRequest request = new PutPipelineRequest(
-                id,
-                BytesReferenceUtil.bytes(pipelineBuilder),
-                pipelineBuilder.contentType()
-            );
+            PutPipelineRequest request = new PutPipelineRequest(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
             createPipeline(request);
         }
 
@@ -91,7 +87,7 @@ public class IngestClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(response.pipelines().get(0).getId(), id);
         PipelineConfiguration expectedConfig = new PipelineConfiguration(
             id,
-            BytesReferenceUtil.bytes(pipelineBuilder),
+            BytesReference.bytes(pipelineBuilder),
             pipelineBuilder.contentType()
         );
         assertEquals(expectedConfig.getConfigAsMap(), response.pipelines().get(0).getConfigAsMap());
@@ -166,7 +162,7 @@ public class IngestClientIT extends OpenSearchRestHighLevelClientTestCase {
         builder.endObject();
 
         SimulatePipelineRequest request = new SimulatePipelineRequest(
-            BytesReferenceUtil.bytes(builder),
+            BytesReference.bytes(builder),
             XContentType.fromMediaType(builder.contentType())
         );
         request.setVerbose(isVerbose);

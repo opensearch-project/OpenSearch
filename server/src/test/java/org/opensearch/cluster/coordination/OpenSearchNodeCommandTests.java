@@ -38,7 +38,7 @@ import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -90,7 +90,7 @@ public class OpenSearchNodeCommandTests extends OpenSearchTestCase {
             XContentParser parser = createParser(
                 hasMissingCustoms ? OpenSearchNodeCommand.namedXContentRegistry : xContentRegistry(),
                 JsonXContent.jsonXContent,
-                BytesReferenceUtil.bytes(builder)
+                BytesReference.bytes(builder)
             )
         ) {
             loadedMetadata = Metadata.fromXContent(parser);

@@ -37,7 +37,7 @@ import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -82,16 +82,12 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
 
             try (
                 XContentBuilder copy = JsonXContent.contentBuilder();
-                XContentParser parser = createParser(original.contentType().xContent(), BytesReferenceUtil.bytes(original))
+                XContentParser parser = createParser(original.contentType().xContent(), BytesReference.bytes(original))
             ) {
                 parser.nextToken();
                 copy.generator().copyCurrentStructure(parser);
                 try (XContentBuilder copyShuffled = shuffleXContent(copy)) {
-                    assertToXContentEquivalent(
-                        BytesReferenceUtil.bytes(original),
-                        BytesReferenceUtil.bytes(copyShuffled),
-                        original.contentType()
-                    );
+                    assertToXContentEquivalent(BytesReference.bytes(original), BytesReference.bytes(copyShuffled), original.contentType());
                 }
             }
         }
@@ -123,11 +119,7 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
             otherBuilder.endObject();
             AssertionError error = expectThrows(
                 AssertionError.class,
-                () -> assertToXContentEquivalent(
-                    BytesReferenceUtil.bytes(builder),
-                    BytesReferenceUtil.bytes(otherBuilder),
-                    builder.contentType()
-                )
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
             );
             assertThat(error.getMessage(), containsString("f2: expected [value2] but not found"));
         }
@@ -157,11 +149,7 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
             otherBuilder.endObject();
             AssertionError error = expectThrows(
                 AssertionError.class,
-                () -> assertToXContentEquivalent(
-                    BytesReferenceUtil.bytes(builder),
-                    BytesReferenceUtil.bytes(otherBuilder),
-                    builder.contentType()
-                )
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
             );
             assertThat(error.getMessage(), containsString("f2: expected String [value2] but was String [differentValue2]"));
         }
@@ -195,11 +183,7 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
             otherBuilder.endObject();
             AssertionError error = expectThrows(
                 AssertionError.class,
-                () -> assertToXContentEquivalent(
-                    BytesReferenceUtil.bytes(builder),
-                    BytesReferenceUtil.bytes(otherBuilder),
-                    builder.contentType()
-                )
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
             );
             assertThat(error.getMessage(), containsString("2: expected String [three] but was String [four]"));
         }
@@ -230,11 +214,7 @@ public class OpenSearchAssertionsTests extends OpenSearchTestCase {
             otherBuilder.endObject();
             AssertionError error = expectThrows(
                 AssertionError.class,
-                () -> assertToXContentEquivalent(
-                    BytesReferenceUtil.bytes(builder),
-                    BytesReferenceUtil.bytes(otherBuilder),
-                    builder.contentType()
-                )
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
             );
             assertThat(error.getMessage(), containsString("expected [1] more entries"));
         }

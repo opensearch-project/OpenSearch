@@ -109,7 +109,6 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -1203,13 +1202,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 builder.startObject();
                 metadataWithoutIndices.toXContent(builder, serializationFormatParams);
                 builder.endObject();
-                final BytesReference originalBytes = BytesReferenceUtil.bytes(builder);
+                final BytesReference originalBytes = BytesReference.bytes(builder);
 
                 XContentBuilder compareBuilder = SmileXContent.contentBuilder();
                 compareBuilder.startObject();
                 metadataWithoutIndices.toXContent(compareBuilder, compareFormatParams);
                 compareBuilder.endObject();
-                final BytesReference compareOriginalBytes = BytesReferenceUtil.bytes(compareBuilder);
+                final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
                 final Metadata loadedMetadata;
                 try (
@@ -1225,7 +1224,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 builder.startObject();
                 loadedMetadata.toXContent(builder, compareFormatParams);
                 builder.endObject();
-                final BytesReference parsedBytes = BytesReferenceUtil.bytes(builder);
+                final BytesReference parsedBytes = BytesReference.bytes(builder);
 
                 assertNull(
                     "cluster state XContent serialization does not match, expected "
@@ -1244,13 +1243,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 builder.startObject();
                 indexMetadata.toXContent(builder, serializationFormatParams);
                 builder.endObject();
-                final BytesReference originalBytes = BytesReferenceUtil.bytes(builder);
+                final BytesReference originalBytes = BytesReference.bytes(builder);
 
                 XContentBuilder compareBuilder = SmileXContent.contentBuilder();
                 compareBuilder.startObject();
                 indexMetadata.toXContent(compareBuilder, compareFormatParams);
                 compareBuilder.endObject();
-                final BytesReference compareOriginalBytes = BytesReferenceUtil.bytes(compareBuilder);
+                final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
                 final IndexMetadata loadedIndexMetadata;
                 try (
@@ -1266,7 +1265,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 builder.startObject();
                 loadedIndexMetadata.toXContent(builder, compareFormatParams);
                 builder.endObject();
-                final BytesReference parsedBytes = BytesReferenceUtil.bytes(builder);
+                final BytesReference parsedBytes = BytesReference.bytes(builder);
 
                 assertNull(
                     "cluster state XContent serialization does not match, expected "

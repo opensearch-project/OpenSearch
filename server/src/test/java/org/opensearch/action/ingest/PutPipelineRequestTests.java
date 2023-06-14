@@ -36,7 +36,6 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -76,9 +75,9 @@ public class PutPipelineRequestTests extends OpenSearchTestCase {
         // End first processor
         pipelineBuilder.endArray();
         pipelineBuilder.endObject();
-        PutPipelineRequest request = new PutPipelineRequest("1", BytesReferenceUtil.bytes(pipelineBuilder), xContentType);
+        PutPipelineRequest request = new PutPipelineRequest("1", BytesReference.bytes(pipelineBuilder), xContentType);
         XContentBuilder requestBuilder = XContentBuilder.builder(xContentType.xContent());
-        BytesReference actualRequestBody = BytesReferenceUtil.bytes(request.toXContent(requestBuilder, ToXContent.EMPTY_PARAMS));
-        assertEquals(BytesReferenceUtil.bytes(pipelineBuilder), actualRequestBody);
+        BytesReference actualRequestBody = BytesReference.bytes(request.toXContent(requestBuilder, ToXContent.EMPTY_PARAMS));
+        assertEquals(BytesReference.bytes(pipelineBuilder), actualRequestBody);
     }
 }

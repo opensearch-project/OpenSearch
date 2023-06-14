@@ -41,7 +41,6 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -186,7 +185,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
             .field("client_email", "integration_test@appspot.gserviceaccount.com")
             .field("client_id", "client_id")
             .endObject();
-        return BytesReference.toBytes(BytesReferenceUtil.bytes(serviceAccountBuilder));
+        return BytesReference.toBytes(BytesReference.bytes(serviceAccountBuilder));
     }
 
     public void testToTimeout() {

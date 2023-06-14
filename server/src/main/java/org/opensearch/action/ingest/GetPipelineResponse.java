@@ -34,9 +34,9 @@ package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -128,7 +128,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
                 contentBuilder.generator().copyCurrentStructure(parser);
                 PipelineConfiguration pipeline = new PipelineConfiguration(
                     pipelineId,
-                    BytesReferenceUtil.bytes(contentBuilder),
+                    BytesReference.bytes(contentBuilder),
                     contentBuilder.contentType()
                 );
                 pipelines.add(pipeline);

@@ -37,7 +37,6 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -90,7 +89,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
         if (randomBoolean()) {
             try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint()) {
-                BytesReference query = BytesReferenceUtil.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
+                BytesReference query = BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
                 reindexRequest.setRemoteInfo(
                     new RemoteInfo(
                         randomAlphaOfLength(5),
@@ -366,7 +365,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                 b.endObject();
             }
             b.endObject();
-            request = BytesReferenceUtil.bytes(b);
+            request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             ReindexRequest r = ReindexRequest.fromXContent(p);
@@ -423,7 +422,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                 b.endObject();
             }
             b.endObject();
-            request = BytesReferenceUtil.bytes(b);
+            request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             return ReindexRequest.fromXContent(p);

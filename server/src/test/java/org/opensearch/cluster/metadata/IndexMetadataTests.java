@@ -37,6 +37,7 @@ import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -44,7 +45,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -125,7 +125,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         builder.startObject();
         IndexMetadata.FORMAT.toXContent(builder, metadata);
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(builder));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         final IndexMetadata fromXContentMeta = IndexMetadata.fromXContent(parser);
         assertEquals(
             "expected: "

@@ -32,7 +32,7 @@
 
 package org.opensearch.script.mustache;
 
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -115,7 +115,7 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
         request.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
-        assertToXContentEquivalent(BytesReferenceUtil.bytes(expectedRequest), BytesReferenceUtil.bytes(actualRequest), contentType);
+        assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);
     }
 
     public void testToXContentWithStoredTemplate() throws IOException {
@@ -145,7 +145,7 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
         request.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
-        assertToXContentEquivalent(BytesReferenceUtil.bytes(expectedRequest), BytesReferenceUtil.bytes(actualRequest), contentType);
+        assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);
     }
 
     public void testFromXContentWithEmbeddedTemplate() throws Exception {

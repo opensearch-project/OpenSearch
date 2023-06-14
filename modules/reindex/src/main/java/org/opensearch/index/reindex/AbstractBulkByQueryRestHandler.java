@@ -34,8 +34,8 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -121,7 +121,7 @@ public abstract class AbstractBulkByQueryRestHandler<
                 .createParser(
                     parser.getXContentRegistry(),
                     parser.getDeprecationHandler(),
-                    BytesReferenceUtil.bytes(builder.map(body)).streamInput()
+                    BytesReference.bytes(builder.map(body)).streamInput()
                 );
         }
     }

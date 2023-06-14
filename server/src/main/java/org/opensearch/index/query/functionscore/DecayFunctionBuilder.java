@@ -48,7 +48,6 @@ import org.opensearch.common.lucene.search.function.LeafScoreFunction;
 import org.opensearch.common.lucene.search.function.ScoreFunction;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -147,7 +146,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             }
             builder.field(DECAY, decay);
             builder.endObject();
-            this.functionBytes = BytesReferenceUtil.bytes(builder);
+            this.functionBytes = BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new IllegalArgumentException("unable to build inner function object", e);
         }

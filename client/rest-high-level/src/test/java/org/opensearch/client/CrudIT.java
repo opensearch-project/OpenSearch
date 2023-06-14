@@ -62,7 +62,6 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -863,7 +862,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 bulkRequest.add(deleteRequest);
 
             } else {
-                BytesReference source = BytesReferenceUtil.bytes(
+                BytesReference source = BytesReference.bytes(
                     XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject()
                 );
                 if (opType == DocWriteRequest.OpType.INDEX) {

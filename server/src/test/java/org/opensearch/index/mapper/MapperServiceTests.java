@@ -35,9 +35,9 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.env.Environment;
@@ -124,7 +124,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             mappingBuilder.endObject();
         }
         mappingBuilder.endObject().endObject();
-        return new CompressedXContent(BytesReferenceUtil.bytes(mappingBuilder));
+        return new CompressedXContent(BytesReference.bytes(mappingBuilder));
     }
 
     public void testMappingDepthExceedsLimit() throws Throwable {
@@ -136,7 +136,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         indexService1.mapperService().merge("type", createMappingSpecifyingNumberOfFields(1), MergeReason.MAPPING_UPDATE);
 
         CompressedXContent objectMapping = new CompressedXContent(
-            BytesReferenceUtil.bytes(
+            BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("properties")
@@ -203,7 +203,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(invalidNestedException.getMessage(), containsString("cannot have nested fields when index sort is activated"));
         IndexService indexService = createIndex("test", settings, "t", "foo", "type=keyword");
         CompressedXContent nestedFieldMapping = new CompressedXContent(
-            BytesReferenceUtil.bytes(
+            BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("properties")
@@ -226,7 +226,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = indexService.mapperService();
 
         CompressedXContent mapping = new CompressedXContent(
-            BytesReferenceUtil.bytes(
+            BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("properties")
@@ -246,7 +246,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
 
         CompressedXContent mappingUpdate = new CompressedXContent(
-            BytesReferenceUtil.bytes(
+            BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("properties")
@@ -311,7 +311,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex("test1", settings).mapperService();
 
         CompressedXContent mapping = new CompressedXContent(
-            BytesReferenceUtil.bytes(
+            BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("type")
@@ -328,7 +328,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
 
         CompressedXContent mappingUpdate = new CompressedXContent(
-            BytesReferenceUtil.bytes(
+            BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("properties")
@@ -356,7 +356,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex("test1", settings).mapperService();
 
         CompressedXContent mapping = new CompressedXContent(
-            BytesReferenceUtil.bytes(
+            BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("type")
@@ -386,7 +386,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex("test1", settings).mapperService();
 
         CompressedXContent mapping = new CompressedXContent(
-            BytesReferenceUtil.bytes(
+            BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("type")
@@ -420,7 +420,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex("test1", settings).mapperService();
 
         CompressedXContent mapping = new CompressedXContent(
-            BytesReferenceUtil.bytes(
+            BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("type")
@@ -450,7 +450,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
 
         MapperService mapperService = createIndex("test_index", settings).mapperService();
         CompressedXContent mapping = new CompressedXContent(
-            BytesReferenceUtil.bytes(
+            BytesReference.bytes(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("_doc")

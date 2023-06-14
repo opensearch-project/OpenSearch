@@ -37,7 +37,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -115,7 +114,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
             .setQuery(
                 new PercolateQueryBuilder(
                     "query",
-                    BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
+                    BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
                     XContentType.JSON
                 )
             )
@@ -175,7 +174,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 .setQuery(
                     new PercolateQueryBuilder(
                         "query",
-                        BytesReferenceUtil.bytes(
+                        BytesReference.bytes(
                             XContentFactory.jsonBuilder()
                                 .startObject()
                                 .field("companyname", "stark")
@@ -270,7 +269,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
         doc.endObject();
         for (int i = 0; i < 32; i++) {
             SearchResponse response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", BytesReferenceUtil.bytes(doc), XContentType.JSON))
+                .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(doc), XContentType.JSON))
                 .addSort("_doc", SortOrder.ASC)
                 .get();
             assertHitCount(response, 1);
@@ -293,7 +292,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
             .setQuery(
                 new PercolateQueryBuilder(
                     "query",
-                    BytesReferenceUtil.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
+                    BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
                     XContentType.JSON
                 )
             )
@@ -346,7 +345,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
             long[] currentTime = new long[] { System.currentTimeMillis() };
             QueryShardContext queryShardContext = indexService.newQueryShardContext(0, searcher, () -> currentTime[0], null);
 
-            BytesReference source = BytesReferenceUtil.bytes(
+            BytesReference source = BytesReference.bytes(
                 jsonBuilder().startObject().field("field1", "value").field("field2", currentTime[0]).endObject()
             );
             QueryBuilder queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
@@ -354,9 +353,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
             assertThat(searcher.count(query), equalTo(3));
 
             currentTime[0] = currentTime[0] + 10800000; // + 3 hours
-            source = BytesReferenceUtil.bytes(
-                jsonBuilder().startObject().field("field1", "value").field("field2", currentTime[0]).endObject()
-            );
+            source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").field("field2", currentTime[0]).endObject());
             queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
             query = queryBuilder.toQuery(queryShardContext);
             assertThat(searcher.count(query), equalTo(3));

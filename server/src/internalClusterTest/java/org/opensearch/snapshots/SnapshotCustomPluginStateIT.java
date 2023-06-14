@@ -42,7 +42,6 @@ import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.GetPipelineResponse;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.ingest.IngestTestPlugin;
@@ -105,7 +104,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testPipeline) {
             logger.info("-->  creating test pipeline");
-            BytesReference pipelineSource = BytesReferenceUtil.bytes(
+            BytesReference pipelineSource = BytesReference.bytes(
                 jsonBuilder().startObject()
                     .field("description", "my_pipeline")
                     .startArray("processors")

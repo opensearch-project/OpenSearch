@@ -41,7 +41,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -72,7 +71,7 @@ public class BytesRestResponse extends RestResponse {
      * Creates a new response based on {@link XContentBuilder}.
      */
     public BytesRestResponse(RestStatus status, XContentBuilder builder) {
-        this(status, builder.contentType().mediaType(), BytesReferenceUtil.bytes(builder));
+        this(status, builder.contentType().mediaType(), BytesReference.bytes(builder));
     }
 
     /**
@@ -130,7 +129,7 @@ public class BytesRestResponse extends RestResponse {
         this.status = status;
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
-            this.content = BytesReferenceUtil.bytes(builder);
+            this.content = BytesReference.bytes(builder);
             this.contentType = builder.contentType().mediaType();
         }
         if (e instanceof OpenSearchException) {

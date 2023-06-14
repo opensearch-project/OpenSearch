@@ -34,7 +34,6 @@ package org.opensearch.tasks;
 import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
@@ -243,7 +242,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
             builder.startObject();
             BaseExceptionsHelper.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
             builder.endObject();
-            return BytesReferenceUtil.bytes(builder);
+            return BytesReference.bytes(builder);
         }
     }
 }

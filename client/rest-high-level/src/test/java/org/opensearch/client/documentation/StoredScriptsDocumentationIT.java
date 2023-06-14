@@ -43,8 +43,8 @@ import org.opensearch.client.OpenSearchRestHighLevelClientTestCase;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -255,7 +255,7 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
                 builder.endObject();
             }
             builder.endObject();
-            request.content(BytesReferenceUtil.bytes(builder), XContentType.JSON); // <1>
+            request.content(BytesReference.bytes(builder), XContentType.JSON); // <1>
             // end::put-stored-script-content-painless
 
             // tag::put-stored-script-execute
@@ -310,7 +310,7 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
                 builder.endObject();
             }
             builder.endObject();
-            request.content(BytesReferenceUtil.bytes(builder), XContentType.JSON); // <1>
+            request.content(BytesReference.bytes(builder), XContentType.JSON); // <1>
             // end::put-stored-script-content-mustache
 
             client.putScript(request, RequestOptions.DEFAULT);

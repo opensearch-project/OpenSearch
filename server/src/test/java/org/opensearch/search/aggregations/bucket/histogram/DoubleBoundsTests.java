@@ -35,7 +35,6 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -101,7 +100,7 @@ public class DoubleBoundsTests extends OpenSearchTestCase {
             orig.toXContent(out, ToXContent.EMPTY_PARAMS);
             out.endObject();
 
-            try (XContentParser in = createParser(JsonXContent.jsonXContent, BytesReferenceUtil.bytes(out))) {
+            try (XContentParser in = createParser(JsonXContent.jsonXContent, BytesReference.bytes(out))) {
                 XContentParser.Token token = in.currentToken();
                 assertNull(token);
 
@@ -111,7 +110,7 @@ public class DoubleBoundsTests extends OpenSearchTestCase {
                 DoubleBounds read = DoubleBounds.PARSER.apply(in, null);
                 assertEquals(orig, read);
             } catch (Exception e) {
-                throw new Exception("Error parsing [" + BytesReferenceUtil.bytes(out).utf8ToString() + "]", e);
+                throw new Exception("Error parsing [" + BytesReference.bytes(out).utf8ToString() + "]", e);
             }
         }
     }

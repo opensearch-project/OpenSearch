@@ -39,7 +39,6 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -428,7 +427,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            BytesReference source = BytesReferenceUtil.bytes(builder);
+            BytesReference source = BytesReference.bytes(builder);
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
             assertEquals(0, sourceAsMap.size());
         }
@@ -437,7 +436,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             searchSourceBuilder.query(RandomQueryBuilder.createQuery(random()));
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            BytesReference source = BytesReferenceUtil.bytes(builder);
+            BytesReference source = BytesReference.bytes(builder);
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
             assertEquals(1, sourceAsMap.size());
             assertEquals("query", sourceAsMap.keySet().iterator().next());
@@ -451,7 +450,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("id").setKeepAlive(keepAlive));
         XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
         searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        BytesReference bytes = BytesReferenceUtil.bytes(builder);
+        BytesReference bytes = BytesReference.bytes(builder);
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(bytes, false, xContentType).v2();
         assertEquals(1, sourceAsMap.size());
         @SuppressWarnings("unchecked")

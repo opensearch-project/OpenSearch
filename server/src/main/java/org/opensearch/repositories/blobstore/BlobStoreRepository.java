@@ -92,7 +92,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -1668,7 +1667,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // since we're only caching the information that we just wrote and thus won't accidentally cache any information that
                     // isn't safe
                     cacheRepositoryData(
-                        BytesReferenceUtil.bytes(loaded.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT)),
+                        BytesReference.bytes(loaded.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT)),
                         genToLoad
                     );
                 }
@@ -2051,7 +2050,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
             logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
-            final BytesReference serializedRepoData = BytesReferenceUtil.bytes(
+            final BytesReference serializedRepoData = BytesReference.bytes(
                 newRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), version)
             );
             writeAtomic(blobContainer(), indexBlob, serializedRepoData, true);

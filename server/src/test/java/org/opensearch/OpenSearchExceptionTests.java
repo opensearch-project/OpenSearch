@@ -46,7 +46,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
@@ -556,7 +555,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
         builder = shuffleXContent(builder);
         OpenSearchException parsed;
-        try (XContentParser parser = createParser(xContent, BytesReferenceUtil.bytes(builder))) {
+        try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = OpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -706,7 +705,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
                 .endObject()
                 .endObject();
             try (XContentBuilder shuffledBuilder = shuffleXContent(builder)) {
-                originalBytes = BytesReferenceUtil.bytes(shuffledBuilder);
+                originalBytes = BytesReference.bytes(shuffledBuilder);
             }
         }
 
@@ -759,7 +758,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             builder.startObject();
             BaseExceptionsHelper.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, throwable);
             builder.endObject();
-            throwableBytes = BytesReferenceUtil.bytes(builder);
+            throwableBytes = BytesReference.bytes(builder);
             try (XContentParser parser = createParser(xContent, throwableBytes)) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 List<String> keys = new ArrayList<>(parser.mapOrdered().keySet());
@@ -802,7 +801,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
-            failureBytes = BytesReferenceUtil.bytes(shuffleXContent(parser, randomBoolean()));
+            failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
         }
 
         OpenSearchException parsedFailure;
@@ -956,7 +955,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
-            failureBytes = BytesReferenceUtil.bytes(shuffleXContent(parser, randomBoolean()));
+            failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
         }
 
         OpenSearchException parsedFailure;

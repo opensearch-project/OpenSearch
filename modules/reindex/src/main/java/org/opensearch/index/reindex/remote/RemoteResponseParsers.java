@@ -35,7 +35,7 @@ package org.opensearch.index.reindex.remote;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.collect.Tuple;
@@ -92,7 +92,7 @@ final class RemoteResponseParsers {
                 try (XContentBuilder b = XContentBuilder.builder(s.xContent())) {
                     b.copyCurrentStructure(p);
                     // a hack but this lets us get the right xcontent type to go with the source
-                    return new Tuple<>(BytesReferenceUtil.bytes(b), s);
+                    return new Tuple<>(BytesReference.bytes(b), s);
                 }
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "[hit] failed to parse [_source]", e);

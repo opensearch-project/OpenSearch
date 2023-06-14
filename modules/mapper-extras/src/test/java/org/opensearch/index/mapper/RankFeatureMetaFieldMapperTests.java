@@ -35,7 +35,6 @@ package org.opensearch.index.mapper;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
@@ -89,7 +88,7 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
-        BytesReference bytes = BytesReferenceUtil.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON))

@@ -47,7 +47,6 @@ import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -210,7 +209,7 @@ public final class RandomObjects {
             builder.startObject();
             addFields(random, builder, minNumFields, 0);
             builder.endObject();
-            return BytesReferenceUtil.bytes(builder);
+            return BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

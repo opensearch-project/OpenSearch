@@ -39,10 +39,10 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -182,7 +182,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         }
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.value(userMetadata);
-            int size = BytesReferenceUtil.bytes(builder).length();
+            int size = BytesReference.bytes(builder).length();
             return size;
         } catch (IOException e) {
             // This should not be possible as we are just rendering the xcontent in memory

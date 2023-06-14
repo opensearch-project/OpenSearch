@@ -33,7 +33,7 @@
 package org.opensearch.script;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
@@ -329,7 +329,7 @@ public final class Script implements ToXContentObject, Writeable {
             settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             try (
-                InputStream stream = BytesReferenceUtil.bytes(builder).streamInput();
+                InputStream stream = BytesReference.bytes(builder).streamInput();
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,

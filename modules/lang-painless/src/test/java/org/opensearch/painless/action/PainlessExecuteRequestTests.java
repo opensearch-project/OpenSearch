@@ -36,7 +36,6 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
@@ -76,7 +75,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
 
             try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
                 builder.value(testInstance);
-                StreamInput instanceInput = BytesReferenceUtil.bytes(builder).streamInput();
+                StreamInput instanceInput = BytesReference.bytes(builder).streamInput();
                 try (XContentParser parser = xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, instanceInput)) {
                     PainlessExecuteAction.Request result = PainlessExecuteAction.Request.parse(parser);
                     assertThat(result, equalTo(testInstance));
@@ -126,7 +125,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
                 XContentBuilder xContentBuilder = XContentBuilder.builder(xContentType.xContent());
                 xContentBuilder.startObject();
                 xContentBuilder.endObject();
-                doc = BytesReferenceUtil.bytes(xContentBuilder);
+                doc = BytesReference.bytes(xContentBuilder);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

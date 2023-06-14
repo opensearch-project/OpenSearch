@@ -51,11 +51,11 @@ import org.opensearch.action.support.tasks.TransportTasksAction;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BytesReferenceUtil;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -772,6 +772,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         builder.endObject();
         builder.flush();
         logger.info(Strings.toString(builder));
-        return XContentHelper.convertToMap(BytesReferenceUtil.bytes(builder), false, builder.contentType()).v2();
+        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 }

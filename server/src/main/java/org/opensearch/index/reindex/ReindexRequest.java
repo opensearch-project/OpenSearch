@@ -36,7 +36,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.util.BytesReferenceUtil;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -359,7 +359,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             try (
-                InputStream stream = BytesReferenceUtil.bytes(builder).streamInput();
+                InputStream stream = BytesReference.bytes(builder).streamInput();
                 XContentParser innerParser = parser.contentType()
                     .xContent()
                     .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)
