@@ -87,6 +87,8 @@ public interface ClusterPlugin {
 
     /**
      * Called when the node is started
+     *
+     * DEPRECATED: Use {@link #onNodeStarted(DiscoveryNode)} for newer implementations.
      */
     @Deprecated
     default void onNodeStarted() {}
