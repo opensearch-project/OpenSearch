@@ -179,16 +179,16 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return "CreateIndexClusterStateUpdateRequest{"
             + "cause='"
             + cause
-            + '\''
+            + '\
             + ", index='"
             + index
-            + '\''
+            + '\
             + ", dataStreamName='"
             + dataStreamName
-            + '\''
+            + '\
             + ", providedName='"
             + providedName
-            + '\''
+            + '\
             + ", recoverFrom="
             + recoverFrom
             + ", resizeType="

@@ -51,8 +51,5 @@ public class NodesHotThreadsAction extends ActionType<NodesHotThreadsResponse> {
         super(NAME, NodesHotThreadsResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

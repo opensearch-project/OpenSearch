@@ -51,8 +51,5 @@ public class CancelTasksAction extends ActionType<CancelTasksResponse> {
         super(NAME, CancelTasksResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

@@ -26,8 +26,5 @@ public class SegmentReplicationStatsAction extends ActionType<SegmentReplication
         super(NAME, SegmentReplicationStatsResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

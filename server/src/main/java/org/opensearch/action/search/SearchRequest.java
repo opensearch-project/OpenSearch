@@ -755,10 +755,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + indicesOptions
             + ", routing='"
             + routing
-            + '\''
+            + '\
             + ", preference='"
             + preference
-            + '\''
+            + '\
             + ", requestCache="
             + requestCache
             + ", scroll="

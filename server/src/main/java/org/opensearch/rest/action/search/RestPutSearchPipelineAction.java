@@ -49,8 +49,5 @@ public class RestPutSearchPipelineAction extends BaseRestHandler {
         return channel -> client.admin().cluster().putSearchPipeline(request, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_Search, ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

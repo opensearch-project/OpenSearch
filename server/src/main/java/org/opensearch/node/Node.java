@@ -403,6 +403,7 @@ public class Node implements Closeable {
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
     private final ExtensionsManager extensionsManager;
+    private final IdentityService identityService;
     private final NodeClient client;
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
@@ -515,7 +516,7 @@ public class Node implements Closeable {
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
-            final IdentityService identityService = new IdentityService(settings, identityPlugins);
+            this.identityService = new IdentityService(settings, identityPlugins);
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -1360,6 +1361,7 @@ public class Node implements Closeable {
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
+        identityService.setApplicationList(extensionsManager.getExtensionPrincipals());
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);

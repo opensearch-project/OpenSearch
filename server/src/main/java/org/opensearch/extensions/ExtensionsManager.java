@@ -10,6 +10,11 @@ package org.opensearch.extensions;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.Principal;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -27,7 +32,6 @@ import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.common.Strings;
@@ -50,12 +54,6 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
-import org.opensearch.index.IndexModule;
-import org.opensearch.index.IndexService;
-import org.opensearch.index.IndicesModuleRequest;
-import org.opensearch.index.IndicesModuleResponse;
-import org.opensearch.index.shard.IndexEventListener;
-import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
@@ -70,8 +68,6 @@ import org.opensearch.env.EnvironmentSettingsResponse;
  * @opensearch.internal
  */
 public class ExtensionsManager {
-    public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
-    public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String REQUEST_EXTENSION_CLUSTER_STATE = "internal:discovery/clusterstate";
     public static final String REQUEST_EXTENSION_CLUSTER_SETTINGS = "internal:discovery/clustersettings";
@@ -110,6 +106,7 @@ public class ExtensionsManager {
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
+    public static ExtensionsManager instance;
 
     /**
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -173,6 +170,7 @@ public class ExtensionsManager {
             this
         );
         registerRequestHandler(actionModule.getDynamicActionRegistry());
+        instance = this;
     }
 
     /**
@@ -483,8 +481,14 @@ public class ExtensionsManager {
         return clusterService;
     }
 
-    Map<String, DiscoveryExtensionNode> getExtensionIdMap() {
+    public Map<String, DiscoveryExtensionNode> getExtensionIdMap() {
         return extensionIdMap;
+    }
+
+    public List<Principal> getExtensionPrincipals() {
+        return extensionIdMap.keySet().stream()
+            .map(key -> (Principal) () -> key)
+            .collect(Collectors.toList());
     }
 
     RestActionsRequestHandler getRestActionsRequestHandler() {
@@ -525,5 +529,9 @@ public class ExtensionsManager {
 
     Settings getEnvironmentSettings() {
         return environmentSettings;
+    }
+
+    public static ExtensionsManager getExtensionManager(){
+        return instance;
     }
 }

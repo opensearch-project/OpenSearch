@@ -51,8 +51,5 @@ public class IndicesExistsAction extends ActionType<IndicesExistsResponse> {
         super(NAME, IndicesExistsResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

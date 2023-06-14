@@ -50,8 +50,5 @@ public final class RestRestoreRemoteStoreAction extends BaseRestHandler {
         return channel -> client.admin().cluster().restoreRemoteStore(restoreRemoteStoreRequest, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

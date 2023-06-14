@@ -81,8 +81,5 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
         return channel -> client.execute(PutComposableIndexTemplateAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

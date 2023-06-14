@@ -77,8 +77,5 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
         return channel -> client.admin().cluster().pendingClusterTasks(pendingClusterTasksRequest, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

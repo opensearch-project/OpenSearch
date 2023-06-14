@@ -81,8 +81,5 @@ public class RestCatAction extends BaseRestHandler {
         return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, HELP));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

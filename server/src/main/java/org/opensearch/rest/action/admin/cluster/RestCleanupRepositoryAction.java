@@ -75,9 +75,4 @@ public class RestCleanupRepositoryAction extends BaseRestHandler {
         parseDeprecatedMasterTimeoutParameter(cleanupRepositoryRequest, request, deprecationLogger, getName());
         return channel -> client.admin().cluster().cleanupRepository(cleanupRepositoryRequest, new RestToXContentListener<>(channel));
     }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
 }

@@ -51,8 +51,5 @@ public class GetStoredScriptAction extends ActionType<GetStoredScriptResponse> {
         super(NAME, GetStoredScriptResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

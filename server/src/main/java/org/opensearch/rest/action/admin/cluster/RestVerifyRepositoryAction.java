@@ -78,8 +78,5 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
         return channel -> client.admin().cluster().verifyRepository(verifyRepositoryRequest, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

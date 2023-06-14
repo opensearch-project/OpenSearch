@@ -853,6 +853,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     @Override
     public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_Read, ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
+        return List.of(ActionScope.READ);
     }
 }

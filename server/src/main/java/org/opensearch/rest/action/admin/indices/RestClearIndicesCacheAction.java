@@ -90,8 +90,5 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         return clearIndicesCacheRequest;
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

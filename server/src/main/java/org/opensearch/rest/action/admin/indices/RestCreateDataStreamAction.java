@@ -66,9 +66,6 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
         return channel -> client.admin().indices().createDataStream(putDataStreamRequest, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 
 }

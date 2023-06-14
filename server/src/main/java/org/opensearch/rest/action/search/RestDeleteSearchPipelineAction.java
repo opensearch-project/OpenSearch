@@ -45,8 +45,5 @@ public class RestDeleteSearchPipelineAction extends BaseRestHandler {
         return channel -> client.admin().cluster().deleteSearchPipeline(request, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_Search, ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

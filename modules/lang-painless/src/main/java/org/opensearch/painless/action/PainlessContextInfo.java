@@ -226,7 +226,7 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
         return "PainlessContextInfo{"
             + "name='"
             + name
-            + '\''
+            + '\
             + ", classes="
             + classes
             + ", importedMethods="

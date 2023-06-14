@@ -48,9 +48,4 @@ public final class AddVotingConfigExclusionsAction extends ActionType<AddVotingC
     private AddVotingConfigExclusionsAction() {
         super(NAME, AddVotingConfigExclusionsResponse::new);
     }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
 }

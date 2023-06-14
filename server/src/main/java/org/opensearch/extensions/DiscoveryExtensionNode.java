@@ -11,8 +11,10 @@ package org.opensearch.extensions;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -23,6 +25,8 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.identity.ApplicationScopes;
+import org.opensearch.identity.scopes.Scope;
 
 /**
  * Discover extensions running independently or in a separate process
@@ -34,7 +38,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     private Version minimumCompatibleVersion;
     private List<ExtensionDependency> dependencies = Collections.emptyList();
     private List<String> implementedInterfaces = Collections.emptyList();
-    private List<String> scopes = Collections.emptyList();
+    private List<String> scopes = List.of();
 
     public DiscoveryExtensionNode(
         String name,
@@ -89,6 +93,10 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
 
     public List<String> getImplementedInterfaces() {
         return implementedInterfaces;
+    }
+
+    public Set<String> getScopes() {
+        return new HashSet<>(this.scopes);
     }
 
     public void setImplementedInterfaces(List<String> implementedInterfaces) {

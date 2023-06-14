@@ -51,8 +51,5 @@ public class RefreshAction extends ActionType<RefreshResponse> {
         super(NAME, RefreshResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

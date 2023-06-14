@@ -26,8 +26,5 @@ public class DeleteDecommissionStateAction extends ActionType<DeleteDecommission
         super(NAME, DeleteDecommissionStateResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

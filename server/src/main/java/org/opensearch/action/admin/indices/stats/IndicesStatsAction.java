@@ -51,8 +51,5 @@ public class IndicesStatsAction extends ActionType<IndicesStatsResponse> {
         super(NAME, IndicesStatsResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

@@ -105,8 +105,5 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
         return Settings.FORMAT_PARAMS;
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

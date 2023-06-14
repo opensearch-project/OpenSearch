@@ -50,9 +50,4 @@ public class AddIndexBlockAction extends ActionType<AddIndexBlockResponse> {
     private AddIndexBlockAction() {
         super(NAME, AddIndexBlockResponse::new);
     }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
-    }
 }

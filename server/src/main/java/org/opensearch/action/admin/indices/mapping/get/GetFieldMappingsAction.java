@@ -51,8 +51,5 @@ public class GetFieldMappingsAction extends ActionType<GetFieldMappingsResponse>
         super(NAME, GetFieldMappingsResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

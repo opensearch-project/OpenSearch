@@ -78,8 +78,5 @@ public class RestGetTaskAction extends BaseRestHandler {
         return channel -> client.admin().cluster().getTask(getTaskRequest, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

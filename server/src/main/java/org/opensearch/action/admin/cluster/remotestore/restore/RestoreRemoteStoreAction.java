@@ -27,8 +27,5 @@ public final class RestoreRemoteStoreAction extends ActionType<RestoreRemoteStor
         super(NAME, RestoreRemoteStoreResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

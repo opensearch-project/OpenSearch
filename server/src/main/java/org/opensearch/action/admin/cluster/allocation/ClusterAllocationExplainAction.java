@@ -51,8 +51,5 @@ public class ClusterAllocationExplainAction extends ActionType<ClusterAllocation
         super(NAME, ClusterAllocationExplainResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

@@ -181,8 +181,5 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

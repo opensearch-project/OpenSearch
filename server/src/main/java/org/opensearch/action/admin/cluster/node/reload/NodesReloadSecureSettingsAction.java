@@ -51,8 +51,5 @@ public class NodesReloadSecureSettingsAction extends ActionType<NodesReloadSecur
         super(NAME, NodesReloadSecureSettingsResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

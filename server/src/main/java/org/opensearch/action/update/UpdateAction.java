@@ -51,8 +51,5 @@ public class UpdateAction extends ActionType<UpdateResponse> {
         super(NAME, UpdateResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

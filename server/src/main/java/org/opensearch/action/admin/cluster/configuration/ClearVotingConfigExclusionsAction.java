@@ -49,8 +49,5 @@ public class ClearVotingConfigExclusionsAction extends ActionType<ClearVotingCon
         super(NAME, ClearVotingConfigExclusionsResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

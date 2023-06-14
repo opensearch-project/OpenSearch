@@ -542,10 +542,10 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         return "CreateSnapshotRequest{"
             + "snapshot='"
             + snapshot
-            + '\''
+            + '\
             + ", repository='"
             + repository
-            + '\''
+            + '\
             + ", indices="
             + (indices == null ? null : Arrays.asList(indices))
             + ", indicesOptions="

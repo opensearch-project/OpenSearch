@@ -114,8 +114,5 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
         }
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

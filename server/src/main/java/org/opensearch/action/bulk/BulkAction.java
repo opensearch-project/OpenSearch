@@ -58,8 +58,5 @@ public class BulkAction extends ActionType<BulkResponse> {
         return TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK).build();
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

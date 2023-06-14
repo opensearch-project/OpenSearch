@@ -51,8 +51,5 @@ public class ListDanglingIndicesAction extends ActionType<ListDanglingIndicesRes
         super(NAME, ListDanglingIndicesResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

@@ -51,8 +51,5 @@ public class ClusterRerouteAction extends ActionType<ClusterRerouteResponse> {
         super(NAME, ClusterRerouteResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

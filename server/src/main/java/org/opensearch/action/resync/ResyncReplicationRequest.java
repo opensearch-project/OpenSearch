@@ -115,7 +115,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
             + timeout
             + ", index='"
             + index
-            + '\''
+            + '\
             + ", trimAboveSeqNo="
             + trimAboveSeqNo
             + ", maxSeenAutoIdTimestampOnPrimary="

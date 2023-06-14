@@ -79,8 +79,5 @@ public class RestRecoveryAction extends BaseRestHandler {
         return channel -> client.admin().indices().recoveries(recoveryRequest, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

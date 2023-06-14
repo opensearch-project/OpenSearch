@@ -51,9 +51,6 @@ public class ListTasksAction extends ActionType<ListTasksResponse> {
         super(NAME, ListTasksResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 
 }

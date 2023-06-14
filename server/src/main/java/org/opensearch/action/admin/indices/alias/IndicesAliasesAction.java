@@ -51,10 +51,4 @@ public class IndicesAliasesAction extends ActionType<AcknowledgedResponse> {
     private IndicesAliasesAction() {
         super(NAME, AcknowledgedResponse::new);
     }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
-
 }

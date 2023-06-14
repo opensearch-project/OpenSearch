@@ -52,8 +52,5 @@ public final class CloneSnapshotAction extends ActionType<AcknowledgedResponse> 
         super(NAME, AcknowledgedResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

@@ -959,8 +959,5 @@ public class RestIndicesAction extends AbstractCatAction {
         return (A) responses.stream().filter(c::isInstance).findFirst().get();
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

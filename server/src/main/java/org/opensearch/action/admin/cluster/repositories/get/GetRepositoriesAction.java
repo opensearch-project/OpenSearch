@@ -51,8 +51,5 @@ public class GetRepositoriesAction extends ActionType<GetRepositoriesResponse> {
         super(NAME, GetRepositoriesResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

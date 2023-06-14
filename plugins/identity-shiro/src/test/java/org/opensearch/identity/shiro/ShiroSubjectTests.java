@@ -81,15 +81,15 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
 
     public void testSetAndGetScopesShouldPass() {
 
-        List<Scope> testScopes = List.of(ActionScope.INDEX_READ);
+        List<Scope> testScopes = List.of(ActionScope.READ);
         // Set scopes for a subject
         subject.setScopes(testScopes);
         assertEquals(subject.getScopes(), testScopes);
 
-        List<Scope> testScopes2 = List.of(ActionScope.INDEX_SEARCH);
+        List<Scope> testScopes2 = List.of(ActionScope.ALL);
         subject.setScopes(testScopes2);
         assertEquals(subject.getScopes(), testScopes2);
-        assertFalse(subject.getScopes().contains(ActionScope.INDEX_READ)); // Verify that setScopes overwrites completely
+        assertFalse(subject.getScopes().contains(ActionScope.READ)); // Verify that setScopes overwrites completely
     }
 
     public void testSetScopeGetActionAreaName() {
@@ -98,14 +98,14 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
         assertEquals(ActionScope.ALL.getArea(), ScopeEnums.ScopeArea.ALL);
         assertEquals(ActionScope.ALL.getNamespace(), ScopeEnums.ScopeNamespace.ACTION);
 
-        assertEquals(ActionScope.INDEX_READ.getAction(), "READ");
-        assertEquals(ActionScope.INDEX_READ.getArea(), ScopeEnums.ScopeArea.INDEX);
-        assertEquals(ActionScope.INDEX_READ.getNamespace(), ScopeEnums.ScopeNamespace.ACTION);
+        assertEquals(ActionScope.READ.getAction(), "READ");
+        assertEquals(ActionScope.READ.getArea(), ScopeEnums.ScopeArea.INDEX);
+        assertEquals(ActionScope.READ.getNamespace(), ScopeEnums.ScopeNamespace.ACTION);
     }
 
     public void testIsAllowedShouldPass() {
 
-        List<Scope> testScopes = List.of(ActionScope.INDEX_READ);
+        List<Scope> testScopes = List.of(ActionScope.READ);
         // Set scopes for a subject
         subject.setScopes(testScopes);
         assertEquals(subject.getScopes(), testScopes);
@@ -118,7 +118,7 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
 
     public void testIsAllowedShouldFail() {
 
-        List<Scope> testScopes = List.of(ActionScope.INDEX_READ);
+        List<Scope> testScopes = List.of(ActionScope.READ);
         // Set scopes for a subject
         subject.setScopes(testScopes);
         assertEquals(subject.getScopes(), testScopes);

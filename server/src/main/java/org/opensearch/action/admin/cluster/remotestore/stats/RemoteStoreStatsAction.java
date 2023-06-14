@@ -27,8 +27,5 @@ public class RemoteStoreStatsAction extends ActionType<RemoteStoreStatsResponse>
         super(NAME, RemoteStoreStatsResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

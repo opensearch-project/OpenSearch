@@ -51,8 +51,5 @@ public class ClearIndicesCacheAction extends ActionType<ClearIndicesCacheRespons
         super(NAME, ClearIndicesCacheResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

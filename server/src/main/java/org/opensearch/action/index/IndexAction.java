@@ -51,8 +51,5 @@ public class IndexAction extends ActionType<IndexResponse> {
         super(NAME, IndexResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

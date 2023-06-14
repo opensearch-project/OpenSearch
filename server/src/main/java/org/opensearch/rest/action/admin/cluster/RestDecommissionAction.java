@@ -60,9 +60,4 @@ public class RestDecommissionAction extends BaseRestHandler {
         }
         return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
     }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
 }

@@ -50,8 +50,5 @@ public class GetScriptLanguageAction extends ActionType<GetScriptLanguageRespons
         super(NAME, GetScriptLanguageResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

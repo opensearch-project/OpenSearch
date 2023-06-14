@@ -86,8 +86,5 @@ public class RestDeleteAction extends BaseRestHandler {
         return channel -> client.delete(deleteRequest, new RestStatusToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

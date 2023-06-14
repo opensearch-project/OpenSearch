@@ -73,8 +73,5 @@ public class RestUpgradeStatusAction extends BaseRestHandler {
         return "upgrade_status_action";
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

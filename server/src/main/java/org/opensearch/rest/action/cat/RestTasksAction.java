@@ -202,8 +202,5 @@ public class RestTasksAction extends AbstractCatAction {
         return table;
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

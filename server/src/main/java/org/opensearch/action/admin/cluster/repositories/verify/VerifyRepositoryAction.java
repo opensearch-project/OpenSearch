@@ -51,8 +51,5 @@ public class VerifyRepositoryAction extends ActionType<VerifyRepositoryResponse>
         super(NAME, VerifyRepositoryResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

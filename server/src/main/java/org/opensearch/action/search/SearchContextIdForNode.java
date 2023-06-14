@@ -87,12 +87,12 @@ public final class SearchContextIdForNode implements Writeable {
         return "SearchContextIdForNode{"
             + "node='"
             + node
-            + '\''
+            + '\
             + ", seachContextId="
             + searchContextId
             + ", clusterAlias='"
             + clusterAlias
-            + '\''
+            + '\
             + '}';
     }
 }

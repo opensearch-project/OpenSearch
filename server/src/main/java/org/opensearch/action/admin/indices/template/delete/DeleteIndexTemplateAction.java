@@ -52,9 +52,6 @@ public class DeleteIndexTemplateAction extends ActionType<AcknowledgedResponse> 
         super(NAME, AcknowledgedResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 
 }

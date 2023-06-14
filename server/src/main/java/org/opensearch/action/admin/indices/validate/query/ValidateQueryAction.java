@@ -51,8 +51,5 @@ public class ValidateQueryAction extends ActionType<ValidateQueryResponse> {
         super(NAME, ValidateQueryResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

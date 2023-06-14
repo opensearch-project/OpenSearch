@@ -51,8 +51,5 @@ public class DeleteAction extends ActionType<DeleteResponse> {
         super(NAME, DeleteResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

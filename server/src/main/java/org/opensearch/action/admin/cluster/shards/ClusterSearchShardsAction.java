@@ -51,8 +51,5 @@ public class ClusterSearchShardsAction extends ActionType<ClusterSearchShardsRes
         super(NAME, ClusterSearchShardsResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

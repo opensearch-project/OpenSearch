@@ -9,16 +9,25 @@
 package org.opensearch.identity.scopes;
 
 public class ScopeEnums {
+
     public enum ScopeArea {
         APPLICATION,
         CLUSTER,
         INDEX,
         ALL;
+
+        public static ScopeArea fromString(String value) {
+            return ScopeArea.valueOf(value.toUpperCase());
+        }
     }
 
     public enum ScopeNamespace {
         ACTION,
         APPLICATION,
         EXTENSION_POINT;
+
+        public static ScopeNamespace fromString(String value) {
+            return ScopeNamespace.valueOf(value.toUpperCase());
+        }
     }
 }

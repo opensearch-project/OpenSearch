@@ -51,8 +51,5 @@ public class ForceMergeAction extends ActionType<ForceMergeResponse> {
         super(NAME, ForceMergeResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

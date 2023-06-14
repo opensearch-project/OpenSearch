@@ -51,8 +51,5 @@ public class CreateSnapshotAction extends ActionType<CreateSnapshotResponse> {
         super(NAME, CreateSnapshotResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

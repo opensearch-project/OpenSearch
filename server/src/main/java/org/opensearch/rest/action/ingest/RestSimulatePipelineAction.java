@@ -84,8 +84,5 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
         return channel -> client.admin().cluster().simulatePipeline(request, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

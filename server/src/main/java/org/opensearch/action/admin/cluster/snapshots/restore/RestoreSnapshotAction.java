@@ -51,8 +51,5 @@ public class RestoreSnapshotAction extends ActionType<RestoreSnapshotResponse> {
         super(NAME, RestoreSnapshotResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

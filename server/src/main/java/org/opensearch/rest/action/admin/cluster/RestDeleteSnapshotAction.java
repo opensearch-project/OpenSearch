@@ -80,9 +80,4 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
         parseDeprecatedMasterTimeoutParameter(deleteSnapshotRequest, request, deprecationLogger, getName());
         return channel -> client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new RestToXContentListener<>(channel));
     }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
 }

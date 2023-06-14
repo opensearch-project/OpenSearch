@@ -51,8 +51,5 @@ public class GetPipelineAction extends ActionType<GetPipelineResponse> {
         super(NAME, GetPipelineResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

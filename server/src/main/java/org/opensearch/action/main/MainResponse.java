@@ -192,14 +192,14 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return "MainResponse{"
             + "nodeName='"
             + nodeName
-            + '\''
+            + '\
             + ", version="
             + version
             + ", clusterName="
             + clusterName
             + ", clusterUuid='"
             + clusterUuid
-            + '\''
+            + '\
             + ", build="
             + build
             + '}';

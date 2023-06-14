@@ -50,8 +50,5 @@ public class GetIndexTemplatesAction extends ActionType<GetIndexTemplatesRespons
         super(NAME, GetIndexTemplatesResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

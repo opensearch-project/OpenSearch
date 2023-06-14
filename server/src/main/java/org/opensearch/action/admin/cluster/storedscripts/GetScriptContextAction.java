@@ -51,8 +51,5 @@ public class GetScriptContextAction extends ActionType<GetScriptContextResponse>
         super(NAME, GetScriptContextResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

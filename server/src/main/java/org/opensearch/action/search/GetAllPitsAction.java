@@ -24,8 +24,5 @@ public class GetAllPitsAction extends ActionType<GetAllPitNodesResponse> {
         super(NAME, GetAllPitNodesResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

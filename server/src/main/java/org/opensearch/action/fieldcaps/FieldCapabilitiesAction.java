@@ -51,9 +51,6 @@ public class FieldCapabilitiesAction extends ActionType<FieldCapabilitiesRespons
         super(NAME, FieldCapabilitiesResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 
 }

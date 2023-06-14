@@ -57,9 +57,6 @@ public class RestClusterPutWeightedRoutingAction extends BaseRestHandler {
         return putWeightedRoutingRequest;
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 
 }

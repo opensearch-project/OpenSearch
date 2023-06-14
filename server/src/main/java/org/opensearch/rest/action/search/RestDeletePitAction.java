@@ -59,8 +59,5 @@ public class RestDeletePitAction extends BaseRestHandler {
         return unmodifiableList(asList(new Route(DELETE, "/_search/point_in_time"), new Route(DELETE, "/_search/point_in_time/_all")));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_Search, ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

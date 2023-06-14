@@ -51,8 +51,5 @@ public class ClearScrollAction extends ActionType<ClearScrollResponse> {
         super(NAME, ClearScrollResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

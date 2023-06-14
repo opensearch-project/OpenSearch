@@ -17,6 +17,7 @@ import java.security.Principal;
 import java.util.Set;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -26,11 +27,28 @@ import java.util.stream.Collectors;
  */
 public final class ApplicationAwareSubject implements Subject {
 
-    // TODO: Wire this up to check the list of applications
-    // private final Function<Principal, boolean> checkApplicationExists;
+    private final Function<Principal, Boolean> checkApplicationExists() {
 
-    // TODO: Wire this up to list of applications scopes
-    // private final Function<Principal, Set<Scope>> getApplicationScopes;
+        return new Function<Principal, Boolean>() {
+            @Override
+            public Boolean apply(Principal principal) {
+
+                return (IdentityService.getInstance().getApplicationStrings().contains(principal.getName()));
+            }
+        };
+    }
+
+    private final Function<Principal, Set<Scope>> getApplicationScopes() {
+
+        return new Function<Principal, Set<Scope>>() {
+            @Override
+            public Set<Scope> apply(Principal principal) {
+                return IdentityService.getInstance().getApplicationScopes(principal).stream()
+                    .map(ApplicationScopes::valueOf)
+                    .collect(Collectors.toSet());
+            }
+        };
+    }
 
     private final Subject wrapped;
 
@@ -57,25 +75,24 @@ public final class ApplicationAwareSubject implements Subject {
      * @param scope The scopes to check against the subject
      * @return true if allowed, false if none of the scopes are allowed.
      */
-    boolean isAllowed(final List<Scope> scope) {
+    public boolean isAllowed(final List<Scope> scope) {
         final Optional<Principal> appPrincipal = wrapped.getApplication();
         if (appPrincipal.isEmpty()) {
             // If there is no application, actions are permitted by default
             return true;
         }
 
-        if (!this.checkApplicationExists.apply(appPrincipal.get())) {
-            // Unable to find the application, something is wrong! deny by default
+        if (!this.checkApplicationExists().apply(appPrincipal.get())) {
             return false;
         }
 
-        final Set<Scope> scopesOfApplication = this.getApplicationScopes.apply(appPrincipal.get());
+        final Set<Scope> scopesOfApplication = this.getApplicationScopes().apply(appPrincipal.get());
         if (scopesOfApplication.contains(ApplicationScopes.Trusted_Fully)) {
             // Applications that are fully trusted automatically pass all checks
             return true;
         }
 
         final List<Scope> matchingScopes = scopesOfApplication.stream().filter(scope::contains).collect(Collectors.toList());
-        return !matchingScopes.isEmpty());
+        return !matchingScopes.isEmpty();
     }
 }

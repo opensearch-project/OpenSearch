@@ -300,7 +300,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             return "DataStreamStats{"
                 + "dataStream='"
                 + dataStream
-                + '\''
+                + '\
                 + ", backingIndices="
                 + backingIndices
                 + ", storeSize="
@@ -527,8 +527,5 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

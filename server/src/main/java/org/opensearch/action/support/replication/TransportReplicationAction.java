@@ -1579,10 +1579,10 @@ public abstract class TransportReplicationAction<
             return "ConcreteReplicaRequest{"
                 + "targetAllocationID='"
                 + getTargetAllocationID()
-                + '\''
+                + '\
                 + ", primaryTerm='"
                 + getPrimaryTerm()
-                + '\''
+                + '\
                 + ", request="
                 + getRequest()
                 + ", globalCheckpoint="

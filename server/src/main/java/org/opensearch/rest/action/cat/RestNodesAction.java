@@ -565,8 +565,5 @@ public class RestNodesAction extends AbstractCatAction {
         return max <= 0 ? 0 : (short) ((100d * used) / max);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

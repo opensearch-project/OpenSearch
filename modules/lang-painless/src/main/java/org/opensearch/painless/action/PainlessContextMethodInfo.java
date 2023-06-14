@@ -147,13 +147,13 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         return "PainlessContextMethodInfo{"
             + "declaring='"
             + declaring
-            + '\''
+            + '\
             + ", name='"
             + name
-            + '\''
+            + '\
             + ", rtn='"
             + rtn
-            + '\''
+            + '\
             + ", parameters="
             + parameters
             + '}';

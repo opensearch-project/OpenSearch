@@ -73,8 +73,5 @@ public final class RestRemoteClusterInfoAction extends BaseRestHandler {
         return false;
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

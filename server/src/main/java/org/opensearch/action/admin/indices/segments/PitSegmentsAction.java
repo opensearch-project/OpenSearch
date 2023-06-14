@@ -25,8 +25,5 @@ public class PitSegmentsAction extends ActionType<IndicesSegmentResponse> {
         super(NAME, IndicesSegmentResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

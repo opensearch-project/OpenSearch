@@ -73,9 +73,4 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
         parseDeprecatedMasterTimeoutParameter(getRequest, request, deprecationLogger, getName());
         return channel -> client.admin().cluster().getStoredScript(getRequest, new RestStatusToXContentListener<>(channel));
     }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
 }

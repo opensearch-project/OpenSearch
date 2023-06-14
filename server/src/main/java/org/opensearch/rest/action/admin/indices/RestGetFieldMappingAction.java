@@ -113,9 +113,6 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
             });
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 
 }

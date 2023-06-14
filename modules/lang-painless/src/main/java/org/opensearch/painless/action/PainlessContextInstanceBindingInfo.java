@@ -148,13 +148,13 @@ public class PainlessContextInstanceBindingInfo implements Writeable, ToXContent
         return "PainlessContextInstanceBindingInfo{"
             + "declaring='"
             + declaring
-            + '\''
+            + '\
             + ", name='"
             + name
-            + '\''
+            + '\
             + ", rtn='"
             + rtn
-            + '\''
+            + '\
             + ", parameters="
             + parameters
             + '}';

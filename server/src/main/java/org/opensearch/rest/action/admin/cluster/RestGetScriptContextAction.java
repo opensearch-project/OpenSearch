@@ -72,9 +72,4 @@ public class RestGetScriptContextAction extends BaseRestHandler {
             new RestToXContentListener<>(channel)
         );
     }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
 }

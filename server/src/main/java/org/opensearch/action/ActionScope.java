@@ -18,12 +18,7 @@ import org.opensearch.identity.scopes.ScopeEnums.ScopeArea;
  */
 public enum ActionScope implements Scope {
     ALL(ScopeArea.ALL, "ALL"),
-    CLUSTER_READ(ScopeArea.CLUSTER, "READ"),
-    CLUSTER_ALL(ScopeArea.ALL, "ALL"),
-    INDEX_READ(ScopeArea.INDEX, "READ"),
-    INDEX_READWRITE(ScopeArea.INDEX, "READWRITE"),
-    INDEX_SEARCH(ScopeArea.INDEX, "SEARCH"),
-    INDEX_ALL(ScopeArea.INDEX, "ALL");
+    READ(ScopeArea.ALL, "READ");
 
     public final ScopeArea area;
     public final String action;

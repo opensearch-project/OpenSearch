@@ -24,8 +24,5 @@ public class CreatePitAction extends ActionType<CreatePitResponse> {
         super(NAME, CreatePitResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

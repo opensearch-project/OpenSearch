@@ -83,8 +83,5 @@ public class RestFlushAction extends BaseRestHandler {
         return channel -> client.admin().indices().flush(flushRequest, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

@@ -103,8 +103,5 @@ public class RestExplainAction extends BaseRestHandler {
         return channel -> client.explain(explainRequest, new RestStatusToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_Search, ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

@@ -109,8 +109,5 @@ public class RestCreateIndexAction extends BaseRestHandler {
         return newSource;
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

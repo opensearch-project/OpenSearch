@@ -26,8 +26,5 @@ public class GetSearchPipelineAction extends ActionType<GetSearchPipelineRespons
         super(NAME, GetSearchPipelineResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
+
 }

@@ -50,8 +50,5 @@ public final class CleanupRepositoryAction extends ActionType<CleanupRepositoryR
         super(NAME, CleanupRepositoryResponse::new);
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
+
 }

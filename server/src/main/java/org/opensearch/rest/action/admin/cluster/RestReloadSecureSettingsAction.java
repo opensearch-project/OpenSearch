@@ -132,9 +132,4 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
     public Set<String> getFilteredFields() {
         return FILTERED_FIELDS;
     }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
-    }
 }
