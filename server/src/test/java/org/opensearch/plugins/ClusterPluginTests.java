@@ -25,6 +25,8 @@ public class ClusterPluginTests extends OpenSearchSingleNodeTestCase {
         DiscoveryNode localNode = DummyClusterPlugin.getLocalNode();
 
         assertTrue(localNode != null);
+        // TODO Figure out if there is a way to check ephemeralId
+        assertTrue(localNode.getId().equals(node().getNodeEnvironment().nodeId()));
     }
 
 }
