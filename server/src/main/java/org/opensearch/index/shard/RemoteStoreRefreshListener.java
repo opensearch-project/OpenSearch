@@ -179,8 +179,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             return;
         }
         beforeSegmentsSync(isRetry);
-        long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs(),
-            refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
+        long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
+        long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
         long bytesBeforeUpload = segmentTracker.getUploadBytesSucceeded(), startTimeInNS = System.nanoTime();
         boolean shouldRetry = true;
         try {
