@@ -256,14 +256,14 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * @return validationException
      */
     static ActionRequestValidationException validateDocIdLength(String id, ActionRequestValidationException validationException) {
-        if (id != null && UnicodeUtil.calcUTF16toUTF8Length(id, 0, id.length()) > 512) {
-            return addValidationError(
-                "id ["
-                    + id
-                    + "] is too long, must be no longer than 512 bytes but was: "
-                    + UnicodeUtil.calcUTF16toUTF8Length(id, 0, id.length()),
-                validationException
-            );
+        if (id != null) {
+            int docIdLength = UnicodeUtil.calcUTF16toUTF8Length(id, 0, id.length());
+            if (docIdLength > 512) {
+                return addValidationError(
+                    "id [" + id + "] is too long, must be no longer than 512 bytes but was: " + docIdLength,
+                    validationException
+                );
+            }
         }
         return validationException;
     }
