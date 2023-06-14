@@ -90,6 +90,6 @@ public final class SearchShard implements Comparable<SearchShard> {
 
     @Override
     public String toString() {
-        return "SearchShard{" + "clusterAlias='" + clusterAlias + '\ + ", shardId=" + shardId + '}';
+        return "SearchShard{" + "clusterAlias='" + clusterAlias + '\'' + ", shardId=" + shardId + '}';
     }
 }
