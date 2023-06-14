@@ -116,20 +116,16 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
             }
             logger.info("Registering: " + method + " " + path);
-            if (name.isPresent()) {
-                NamedRoute nr;
-                if (!actionNames.isEmpty()) {
-                    nr = new NamedRoute(method, path, name.get(), actionNames);
-                } else {
-                    nr = new NamedRoute(method, path, name.get());
-                }
-                restActionsAsRoutes.add(nr);
-                dynamicActionRegistry.registerDynamicRoute(nr, this);
+
+            // All extension routes being registered must have a unique name associated with them
+            NamedRoute nr;
+            if (!actionNames.isEmpty()) {
+                nr = new NamedRoute(method, path, name.get(), actionNames);
             } else {
-                Route r = new Route(method, path);
-                restActionsAsRoutes.add(r);
-                dynamicActionRegistry.registerDynamicRoute(r, this);
+                nr = new NamedRoute(method, path, name.get());
             }
+            restActionsAsRoutes.add(nr);
+            dynamicActionRegistry.registerDynamicRoute(nr, this);
         }
         this.routes = unmodifiableList(restActionsAsRoutes);
 
