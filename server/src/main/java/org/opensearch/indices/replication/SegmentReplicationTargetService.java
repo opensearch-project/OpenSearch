@@ -330,7 +330,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     request.getCheckpoint(),
                     e
                 );
-                transportClient.cancel();
             }
         };
 

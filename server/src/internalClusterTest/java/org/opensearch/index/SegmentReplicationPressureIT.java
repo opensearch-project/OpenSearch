@@ -30,7 +30,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -324,15 +323,6 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         executeBulkRequest(nodes, totalDocs);
         waitForSearchableDocs(totalDocs * 2L, replicaNodes.toArray(new String[] {}));
         verifyStoreContent();
-    }
-
-    private void assertReplicaCheckpointUpdated(IndexShard primaryShard) throws Exception {
-        assertBusy(() -> {
-            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStats();
-            for (SegmentReplicationShardStats shardStat : groupStats) {
-                assertEquals(0, shardStat.getCheckpointsBehindCount());
-            }
-        }, 30, TimeUnit.SECONDS);
     }
 
     private BulkResponse executeBulkRequest(List<String> nodes, int docsPerBatch) {

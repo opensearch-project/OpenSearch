@@ -78,7 +78,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -877,7 +876,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 assertEquals(1, shardStatsSet.size());
                 final SegmentReplicationShardStats stats = shardStatsSet.stream().findFirst().get();
                 assertEquals(0, stats.getCheckpointsBehindCount());
-            }, 30, TimeUnit.SECONDS);
+            });
         }
     }
 

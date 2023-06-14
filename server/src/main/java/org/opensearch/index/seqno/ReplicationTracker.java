@@ -1185,7 +1185,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             // Compute the max lag from the set of completed timers.
             final AtomicLong lastFinished = new AtomicLong(0L);
             cps.checkpointTimers.entrySet().removeIf((entry) -> {
-                boolean result = !entry.getKey().isAheadOf(visibleCheckpoint);
+                boolean result = entry.getKey().isAheadOf(visibleCheckpoint) == false;
                 if (result) {
                     final ReplicationTimer timer = entry.getValue();
                     timer.stop();
