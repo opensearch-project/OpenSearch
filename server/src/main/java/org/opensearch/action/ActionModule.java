@@ -460,7 +460,6 @@ import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1112,7 +1111,7 @@ public class ActionModule extends AbstractModule {
             requireNonNull(route, "route is required");
             requireNonNull(action, "action is required");
             Optional<String> routeName = Optional.empty();
-            Set<String> actionNames = new HashSet<>();
+            Set<String> actionNames = null;
             if (route instanceof NamedRoute) {
                 NamedRoute nr = (NamedRoute) route;
                 routeName = Optional.of(nr.name());
@@ -1120,18 +1119,22 @@ public class ActionModule extends AbstractModule {
                     throw new IllegalArgumentException("route [" + route + "] already registered");
                 }
                 actionNames = nr.actionNames();
-                actionNames.forEach(act -> {
-                    if (isActionRegistered(act) || registeredActionNames.contains(act)) {
-                        throw new IllegalArgumentException("action [" + act + "] already registered");
-                    }
-                });
+                if (actionNames != null) {
+                    actionNames.forEach(act -> {
+                        if (isActionRegistered(act) || registeredActionNames.contains(act)) {
+                            throw new IllegalArgumentException("action [" + act + "] already registered");
+                        }
+                    });
+                }
             }
             if (routeRegistry.containsKey(route)) {
                 throw new IllegalArgumentException("route [" + route + "] already registered");
             }
             routeRegistry.put(route, action);
             routeName.ifPresent(registeredActionNames::add);
-            registeredActionNames.addAll(actionNames);
+            if (actionNames != null) {
+                registeredActionNames.addAll(actionNames);
+            }
         }
 
         /**

@@ -134,8 +134,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
     public void testRestSendToExtensionAction() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("GET /foo", "PUT /bar", "POST /baz"),
-            List.of("GET /deprecated/foo", "It's deprecated!")
+            List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz"),
+            List.of("GET /deprecated/foo foo-deprecated")
         );
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
@@ -245,6 +245,18 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         assertTrue(expectedMethods.containsAll(methods));
         assertTrue(expectedNames.containsAll(names));
         assertTrue(expectedActionNames.containsAll(actionNames));
+    }
+
+    public void testRestSendToExtensionActionWithoutUniqueNameShouldFail() {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo", "PUT /bar"),
+            List.of()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, dynamicActionRegistry)
+        );
     }
 
     public void testRestSendToExtensionMultipleNamedRoutesWithSameName() throws Exception {
