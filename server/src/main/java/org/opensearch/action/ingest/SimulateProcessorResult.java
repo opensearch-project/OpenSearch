@@ -310,13 +310,13 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         return "SimulateProcessorResult{"
             + "type='"
             + type
-            + '\
+            + '\''
             + ", processorTag='"
             + processorTag
-            + '\
+            + '\''
             + ", description='"
             + description
-            + '\
+            + '\''
             + ", ingestDocument="
             + ingestDocument
             + ", failure="
