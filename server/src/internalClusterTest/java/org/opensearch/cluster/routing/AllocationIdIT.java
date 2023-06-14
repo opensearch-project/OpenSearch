@@ -237,7 +237,7 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
             store.markStoreCorrupted(new IOException("fake ioexception"));
         }
     }
-
+// Test
     private void checkNoValidShardCopy(String indexName, ShardId shardId) throws Exception {
         assertBusy(() -> {
             final ClusterAllocationExplanation explanation = client().admin()
