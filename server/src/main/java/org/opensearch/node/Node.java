@@ -106,7 +106,7 @@ import org.opensearch.cluster.routing.BatchedRerouteService;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.StopWatch;
+import org.opensearch.core.common.StopWatch;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleComponent;

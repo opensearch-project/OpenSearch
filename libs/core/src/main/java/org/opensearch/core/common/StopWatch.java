@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common;
+package org.opensearch.core.common;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.lease.Releasable;

@@ -49,7 +49,7 @@ import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.common.StopWatch;
+import org.opensearch.core.common.StopWatch;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;

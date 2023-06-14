@@ -46,7 +46,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.common.CheckedRunnable;
-import org.opensearch.common.StopWatch;
+import org.opensearch.core.common.StopWatch;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.ByteSizeValue;
