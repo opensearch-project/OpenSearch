@@ -251,7 +251,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return "ContextSetup{"
                     + ", index='"
                     + index
-                    + '\
+                    + '\''
                     + ", document="
                     + document
                     + ", query="
