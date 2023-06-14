@@ -33,7 +33,7 @@
 package org.opensearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 
 /**
  * Base implementation for a hash table that is paged, recycles arrays and grows in-place.

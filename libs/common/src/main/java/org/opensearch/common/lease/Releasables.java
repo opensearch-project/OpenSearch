@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.core.common.lease;
+package org.opensearch.common.lease;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.io.IOUtils;
