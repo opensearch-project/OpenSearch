@@ -113,6 +113,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
     private StorageType storageType = StorageType.LOCAL;
+    private String sourceRemoteStoreRepository = null;
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -148,6 +149,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             storageType = in.readEnum(StorageType.class);
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            sourceRemoteStoreRepository = in.readOptionalString();
+        }
     }
 
     @Override
@@ -168,6 +172,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         out.writeOptionalString(snapshotUuid);
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeEnum(storageType);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalString(sourceRemoteStoreRepository);
         }
     }
 
@@ -522,6 +529,25 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     }
 
     /**
+     * Sets Source Remote Store Repository for all the restored indices
+     *
+     * @param sourceRemoteStoreRepository name of the remote store repository that should be used for all restored indices.
+     */
+    public RestoreSnapshotRequest setSourceRemoteStoreRepository(String sourceRemoteStoreRepository) {
+        this.sourceRemoteStoreRepository = sourceRemoteStoreRepository;
+        return this;
+    }
+
+    /**
+     * Returns Source Remote Store Repository for all the restored indices
+     *
+     * @return source Remote Store Repository
+     */
+    public String getSourceRemoteStoreRepository() {
+        return sourceRemoteStoreRepository;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -586,6 +612,12 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                     throw new IllegalArgumentException("malformed storage_type");
                 }
 
+            } else if (name.equals("source_remote_store_repository")) {
+                if (entry.getValue() instanceof String) {
+                    setSourceRemoteStoreRepository((String) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed source_remote_store_repository");
+                }
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -631,6 +663,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (storageType != null) {
             storageType.toXContent(builder);
         }
+        if (sourceRemoteStoreRepository != null) {
+            builder.field("source_remote_store_repository", sourceRemoteStoreRepository);
+        }
         builder.endObject();
         return builder;
     }
@@ -658,7 +693,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
             && Objects.equals(snapshotUuid, that.snapshotUuid)
-            && Objects.equals(storageType, that.storageType);
+            && Objects.equals(storageType, that.storageType)
+            && Objects.equals(sourceRemoteStoreRepository, that.sourceRemoteStoreRepository);
     }
 
     @Override
@@ -675,7 +711,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             includeAliases,
             indexSettings,
             snapshotUuid,
-            storageType
+            storageType,
+            sourceRemoteStoreRepository
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);

@@ -69,8 +69,6 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.RepositoryMissingException;
-import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -376,19 +374,10 @@ final class StoreRecovery {
                 long primaryTerm = shallowCopyShardMetadata.getPrimaryTerm();
                 long commitGeneration = shallowCopyShardMetadata.getCommitGeneration();
                 String indexUUID = shallowCopyShardMetadata.getIndexUUID();
-                String remoteStoreRepository = shallowCopyShardMetadata.getRemoteStoreRepository();
-                String basePath = shallowCopyShardMetadata.getRepositoryBasePath();
-                try {
-                    Repository remoteStoreRepo = repositoriesService.repository(remoteStoreRepository);
-                    if (!((BlobStoreRepository) remoteStoreRepo).basePath().toString().equals(basePath)) {
-                        throw new IndexShardRecoveryException(
-                            shardId,
-                            "Remote Store repository settings were modified after storing the shallow copy snapshot.",
-                            null
-                        );
-                    }
-                } catch (RepositoryMissingException e) {
-                    throw new IndexShardRecoveryException(shardId, "Remote Store Repository for shard is not found.", null);
+                String remoteStoreRepository = ((SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource())
+                    .sourceRemoteStoreRepository();
+                if (remoteStoreRepository == null) {
+                    remoteStoreRepository = shallowCopyShardMetadata.getRemoteStoreRepository();
                 }
 
                 RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService);

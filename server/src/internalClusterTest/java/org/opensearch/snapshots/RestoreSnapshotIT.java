@@ -44,7 +44,7 @@ import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesRespons
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.Client;
-import org.opensearch.cluster.ClusterState;
+import org.opensearch.client.Requests;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -300,11 +300,12 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client, restoredIndexName1Doc, numDocsInIndex1);
     }
 
-    public void testRestoreShallowSnapshotRepositoryCorrupted() {
+    public void testRestoreShallowSnapshotRepositoryCorrupted() throws ExecutionException, InterruptedException {
         internalCluster().startNodes(3);
         String indexName1 = "testindex1";
         String snapshotRepoName = "test-restore-snapshot-repo";
         String remoteStoreRepoName = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
+        String remoteStoreRepoNameUpdated = "test-rs-repo-updated" + TEST_REMOTE_STORE_REPO_SUFFIX;
         String snapshotName1 = "test-restore-snapshot1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         Path absolutePath2 = randomRepoPath().toAbsolutePath();
@@ -317,8 +318,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         String basePath2 = pathTokens[pathTokens.length - 1];
         Arrays.copyOf(pathTokens, pathTokens.length - 1);
         Path location2 = PathUtils.get(String.join("/", pathTokens));
-        logger.info("Snapshot Path [{}]", absolutePath1);
-        logger.info("Remote Store Repo Path [{}]", absolutePath3);
+        logger.info("Path 1 [{}]", absolutePath1);
+        logger.info("Path 2 [{}]", absolutePath2);
+        logger.info("Path 3 [{}]", absolutePath3);
         String restoredIndexName1 = indexName1 + "-restored";
 
         createRepository(snapshotRepoName, "fs", getRepositorySettings(location, basePath, true));
@@ -336,7 +338,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .build();
         createIndex(indexName1, indexSettings);
 
-        indexDocuments(client, indexName1, randomIntBetween(2, 5));
+        int numDocsInIndex1 = randomIntBetween(2, 5);
+        indexDocuments(client, indexName1, numDocsInIndex1);
 
         ensureGreen(indexName1);
 
@@ -354,7 +357,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
 
-        updateRepository(remoteStoreRepoName, "fs", getRepositorySettings(location2, basePath2, false));
+        createRepository(remoteStoreRepoName, "fs", absolutePath2);
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()
@@ -367,15 +370,23 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         assertTrue(restoreSnapshotResponse.getRestoreInfo().failedShards() > 0);
 
-        final ClusterState state = clusterService().state();
-        String failureReason = state.routingTable()
-            .indicesRouting()
-            .get(restoredIndexName1)
-            .shard(0)
-            .primaryShard()
-            .unassignedInfo()
-            .shortSummary();
-        assertTrue(failureReason.contains("Remote Store repository settings were modified after storing the shallow copy snapshot."));
+        ensureRed(restoredIndexName1);
+
+        client().admin().indices().close(Requests.closeIndexRequest(restoredIndexName1)).get();
+        createRepository(remoteStoreRepoNameUpdated, "fs", absolutePath3);
+        RestoreSnapshotResponse restoreSnapshotResponse2 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1)
+            .setSourceRemoteStoreRepository(remoteStoreRepoNameUpdated)
+            .get();
+
+        assertTrue(restoreSnapshotResponse2.getRestoreInfo().failedShards() == 0);
+        ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
     }
 
     private void stopNodeWithPrimaryShard(String indexName) throws IOException {

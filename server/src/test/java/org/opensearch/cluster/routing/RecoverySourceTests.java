@@ -59,13 +59,15 @@ public class RecoverySourceTests extends OpenSearchTestCase {
     public void testSerializationSnapshotRecoverySource() throws IOException {
         boolean isSearchableSnapshot = randomBoolean();
         boolean isRemoteStoreShallowCopyEnabled = randomBoolean();
+        String sourceRemoteStoreRepo = "test-remote-repo";
         RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
             Version.CURRENT,
             new IndexId("some_index", UUIDs.randomBase64UUID(random())),
             isSearchableSnapshot,
-            isRemoteStoreShallowCopyEnabled
+            isRemoteStoreShallowCopyEnabled,
+            sourceRemoteStoreRepo
         );
         BytesStreamOutput out = new BytesStreamOutput();
         recoverySource.writeTo(out);

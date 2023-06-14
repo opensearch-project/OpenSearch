@@ -459,7 +459,8 @@ public class RestoreService implements ClusterStateApplier {
                                     snapshotInfo.version(),
                                     repositoryData.resolveIndexId(index),
                                     isSearchableSnapshot,
-                                    isRemoteStoreShallowCopy
+                                    isRemoteStoreShallowCopy,
+                                    request.getSourceRemoteStoreRepository()
                                 );
                                 final Version minIndexCompatibilityVersion;
                                 if (isSearchableSnapshot && isSearchableSnapshotsExtendedCompatibilityEnabled()) {
