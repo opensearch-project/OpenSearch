@@ -33,9 +33,11 @@
 package org.opensearch.tasks;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
@@ -47,17 +49,17 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  */
 public abstract class CancellableTask extends Task {
 
-    private volatile String reason;
+    private final SetOnce<String> reason = new SetOnce<>();
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private final TimeValue cancelAfterTimeInterval;
     /**
      * The time this task was cancelled as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
      */
-    private Long cancellationStartTime = null;
+    private final SetOnce<Long> cancellationStartTime = new SetOnce<>();
     /**
      * The time this task was cancelled as a relative time ({@link System#nanoTime()} style).
      */
-    private Long cancellationStartTimeNanos = null;
+    private final SetOnce<Long> cancellationStartTimeNanos = new SetOnce<>();
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT);
@@ -79,12 +81,12 @@ public abstract class CancellableTask extends Task {
     /**
      * This method is called by the task manager when this task is cancelled.
      */
-    public void cancel(String reason) {
+    public synchronized void cancel(String reason) {
         assert reason != null;
         if (cancelled.compareAndSet(false, true)) {
-            this.cancellationStartTime = System.currentTimeMillis();
-            this.cancellationStartTimeNanos = System.nanoTime();
-            this.reason = reason;
+            this.cancellationStartTime.set(System.currentTimeMillis());
+            this.cancellationStartTimeNanos.set(System.nanoTime());
+            this.reason.set(reason);
             onCancelled();
         }
     }
@@ -98,11 +100,11 @@ public abstract class CancellableTask extends Task {
     }
 
     public Long getCancellationStartTime() {
-        return cancellationStartTime;
+        return cancellationStartTime.get();
     }
 
     public Long getCancellationStartTimeNanos() {
-        return cancellationStartTimeNanos;
+        return cancellationStartTimeNanos.get();
     }
 
     /**
@@ -123,7 +125,7 @@ public abstract class CancellableTask extends Task {
      */
     @Nullable
     public final String getReasonCancelled() {
-        return reason;
+        return reason.get();
     }
 
     /**
