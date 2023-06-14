@@ -32,11 +32,9 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.opensearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -71,10 +69,5 @@ public final class RestRemoteClusterInfoAction extends BaseRestHandler {
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

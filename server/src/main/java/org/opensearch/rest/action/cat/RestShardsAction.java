@@ -32,11 +32,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.Locale;
-import java.util.function.Function;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.CommonStats;
@@ -50,7 +45,6 @@ import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
-import org.opensearch.identity.Scope;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
@@ -70,6 +64,12 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
+
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
@@ -427,10 +427,5 @@ public class RestShardsAction extends AbstractCatAction {
         }
 
         return table;
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

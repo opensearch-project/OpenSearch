@@ -32,18 +32,6 @@
 
 package org.opensearch.rest;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.concurrent.atomic.LongAdder;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
@@ -57,10 +45,22 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.tasks.Task;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
 
 /**
  * Base handler for REST requests.
@@ -92,8 +92,8 @@ public abstract class BaseRestHandler implements RestHandler {
     }
 
     /**
-     * @return the name of this handler. The name should be human-readable and
-     *         should describe the action that will be performed when this API is
+     * @return the name of this handler. The name should be human readable and
+     *         should describe the action that will performed when this API is
      *         called. This name is used in the response to the
      *         {@link RestNodesUsageAction}.
      */
@@ -101,13 +101,6 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        final IdentityService identityService = IdentityService.getInstance();
-        if (!identityService.getSubject().isAllowed(allowedScopes())) {
-            final String scopeList = allowedScopes().stream().map(s -> s.toString()).collect(Collectors.joining(","));
-            logger.debug("Request did not have any of the required scopes, " + scopeList);
-            throw new IllegalArgumentException("Unauthorized, at least of these scopes is required, " + scopeList);
-        }
-
         // prepare the request for execution; has the side effect of touching the request parameters
         final RestChannelConsumer action = prepareRequest(request, client);
 

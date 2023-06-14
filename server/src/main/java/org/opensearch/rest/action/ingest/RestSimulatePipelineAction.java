@@ -32,13 +32,11 @@
 
 package org.opensearch.rest.action.ingest;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -82,10 +80,5 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
         request.setId(restRequest.param("id"));
         request.setVerbose(restRequest.paramAsBoolean("verbose", false));
         return channel -> client.admin().cluster().simulatePipeline(request, new RestToXContentListener<>(channel));
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

@@ -32,14 +32,12 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.PendingClusterTask;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -117,11 +115,5 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
         }
 
         return t;
-
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

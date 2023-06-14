@@ -35,7 +35,6 @@ package org.opensearch.rest.action.cat;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
@@ -58,7 +57,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
-import org.opensearch.identity.Scope;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -957,10 +955,5 @@ public class RestIndicesAction extends AbstractCatAction {
     @SuppressWarnings("unchecked")
     private static <A extends ActionResponse> A extractResponse(final Collection<? extends ActionResponse> responses, Class<A> c) {
         return (A) responses.stream().filter(c::isInstance).findFirst().get();
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

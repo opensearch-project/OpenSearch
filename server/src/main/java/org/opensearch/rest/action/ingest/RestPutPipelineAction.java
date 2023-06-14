@@ -32,14 +32,12 @@
 
 package org.opensearch.rest.action.ingest;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -79,8 +77,4 @@ public class RestPutPipelineAction extends BaseRestHandler {
         return channel -> client.admin().cluster().putPipeline(request, new RestToXContentListener<>(channel));
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
 }

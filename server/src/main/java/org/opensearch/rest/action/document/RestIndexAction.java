@@ -32,13 +32,11 @@
 
 package org.opensearch.rest.action.document;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.identity.Scope;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -164,11 +162,6 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest,
             new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing()))
         );
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 
 }

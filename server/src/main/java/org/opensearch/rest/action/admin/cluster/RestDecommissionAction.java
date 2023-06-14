@@ -8,18 +8,18 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import java.io.IOException;
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+
+import java.io.IOException;
+import java.util.List;
+
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
@@ -59,10 +59,5 @@ public class RestDecommissionAction extends BaseRestHandler {
             decommissionRequest.setDelayTimeout(delayTimeout);
         }
         return decommissionRequest.setDecommissionAttribute(new DecommissionAttribute(attributeName, attributeValue));
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

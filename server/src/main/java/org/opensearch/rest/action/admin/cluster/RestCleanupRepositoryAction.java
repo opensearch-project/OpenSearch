@@ -32,16 +32,16 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import java.io.IOException;
-import java.util.List;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+
+import java.io.IOException;
+import java.util.List;
+
 import static java.util.Collections.singletonList;
 import static org.opensearch.client.Requests.cleanupRepositoryRequest;
 import static org.opensearch.rest.RestRequest.Method.POST;
@@ -74,10 +74,5 @@ public class RestCleanupRepositoryAction extends BaseRestHandler {
         );
         parseDeprecatedMasterTimeoutParameter(cleanupRepositoryRequest, request, deprecationLogger, getName());
         return channel -> client.admin().cluster().cleanupRepository(cleanupRepositoryRequest, new RestToXContentListener<>(channel));
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

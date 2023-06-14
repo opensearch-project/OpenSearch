@@ -34,14 +34,12 @@ package org.opensearch.rest.action.document;
 
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
@@ -134,10 +132,5 @@ public class RestGetSourceAction extends BaseRestHandler {
                 throw new ResourceNotFoundException("Source not found [" + index + "]/[" + id + "]");
             }
         }
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

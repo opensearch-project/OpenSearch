@@ -32,13 +32,11 @@
 
 package org.opensearch.rest.action.document;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -100,10 +98,5 @@ public class RestMultiGetAction extends BaseRestHandler {
         }
 
         return channel -> client.multiGet(multiGetRequest, new RestToXContentListener<>(channel));
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_Read, ActionScope.Index_ReadWrite, ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

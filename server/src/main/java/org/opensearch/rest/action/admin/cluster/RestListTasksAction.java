@@ -33,7 +33,6 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.client.node.NodeClient;
@@ -41,7 +40,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
@@ -145,10 +143,5 @@ public class RestListTasksAction extends BaseRestHandler {
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

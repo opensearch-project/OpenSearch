@@ -32,11 +32,9 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -76,10 +74,5 @@ public class RestGetTaskAction extends BaseRestHandler {
         getTaskRequest.setWaitForCompletion(waitForCompletion);
         getTaskRequest.setTimeout(timeout);
         return channel -> client.admin().cluster().getTask(getTaskRequest, new RestToXContentListener<>(channel));
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_Read, ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

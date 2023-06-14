@@ -32,16 +32,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.function.Supplier;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -52,12 +42,22 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
+
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
+
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
@@ -200,10 +200,5 @@ public class RestTasksAction extends AbstractCatAction {
         Table table = getTableWithHeader(request);
         buildGroups(table, fullId, detailed, listTasksResponse.getTaskGroups());
         return table;
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

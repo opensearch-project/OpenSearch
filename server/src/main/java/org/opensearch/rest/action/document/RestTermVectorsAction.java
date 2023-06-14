@@ -32,12 +32,10 @@
 
 package org.opensearch.rest.action.document;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.identity.Scope;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -129,8 +127,4 @@ public class RestTermVectorsAction extends BaseRestHandler {
         }
     }
 
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
-    }
 }

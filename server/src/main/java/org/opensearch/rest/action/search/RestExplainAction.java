@@ -32,11 +32,9 @@
 
 package org.opensearch.rest.action.search;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.explain.ExplainRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.Strings;
-import org.opensearch.identity.Scope;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -101,10 +99,5 @@ public class RestExplainAction extends BaseRestHandler {
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
         return channel -> client.explain(explainRequest, new RestStatusToXContentListener<>(channel));
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_Search, ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

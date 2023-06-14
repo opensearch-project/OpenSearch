@@ -8,11 +8,9 @@
 
 package org.opensearch.rest.action.search;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.search.GetSearchPipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.Strings;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;
@@ -43,10 +41,5 @@ public class RestGetSearchPipelineAction extends BaseRestHandler {
         GetSearchPipelineRequest request = new GetSearchPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
         request.clusterManagerNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.clusterManagerNodeTimeout()));
         return channel -> client.admin().cluster().getSearchPipeline(request, new RestStatusToXContentListener<>(channel));
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_Search, ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

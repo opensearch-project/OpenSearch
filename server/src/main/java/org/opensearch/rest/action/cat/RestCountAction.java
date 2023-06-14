@@ -122,5 +122,4 @@ public class RestCountAction extends AbstractCatAction {
 
         return table;
     }
-
 }

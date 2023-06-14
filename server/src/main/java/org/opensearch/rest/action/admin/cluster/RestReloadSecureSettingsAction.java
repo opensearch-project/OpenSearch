@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
@@ -42,7 +41,6 @@ import org.opensearch.common.settings.SecureString;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -131,10 +129,5 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
     @Override
     public Set<String> getFilteredFields() {
         return FILTERED_FIELDS;
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Cluster_ALL, ActionScope.ALL);
     }
 }

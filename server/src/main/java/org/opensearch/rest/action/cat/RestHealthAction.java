@@ -32,17 +32,17 @@
 
 package org.opensearch.rest.action.cat;
 
-import java.util.List;
-import java.util.Locale;
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
-import org.opensearch.identity.Scope;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+
+import java.util.List;
+import java.util.Locale;
+
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
@@ -130,10 +130,5 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell(String.format(Locale.ROOT, "%1.1f%%", health.getActiveShardsPercent()));
         t.endRow();
         return t;
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }

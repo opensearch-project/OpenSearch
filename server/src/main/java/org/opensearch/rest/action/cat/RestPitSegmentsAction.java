@@ -8,7 +8,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.ActionScope;
 import org.opensearch.action.admin.indices.segments.IndexSegments;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -18,7 +17,6 @@ import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
-import org.opensearch.identity.Scope;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestHandler;
@@ -169,10 +167,5 @@ public class RestPitSegmentsAction extends AbstractCatAction {
             }
         }
         return table;
-    }
-
-    @Override
-    public List<Scope> allowedScopes() {
-        return List.of(ActionScope.Index_ALL, ActionScope.ALL);
     }
 }
