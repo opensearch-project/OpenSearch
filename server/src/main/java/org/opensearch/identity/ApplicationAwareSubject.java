@@ -46,7 +46,7 @@ public final class ApplicationAwareSubject implements Subject {
                 return IdentityService.getInstance()
                     .getApplicationScopes(principal)
                     .stream()
-                    .map(ApplicationScopes::valueOf)
+                    .map(ApplicationScope::valueOf)
                     .collect(Collectors.toSet());
             }
         };
@@ -90,12 +90,13 @@ public final class ApplicationAwareSubject implements Subject {
         }
 
         final Set<Scope> scopesOfApplication = this.getApplicationScopes().apply(appPrincipal.get());
-        if (scopesOfApplication.contains(ApplicationScopes.Trusted_Fully)) {
+        if (scopesOfApplication.contains(ApplicationScope.TRUSTED)) {
             // Applications that are fully trusted automatically pass all checks
             return true;
         }
 
-        final List<Scope> matchingScopes = scopesOfApplication.stream().filter(scope::contains).collect(Collectors.toList());
-        return !matchingScopes.isEmpty();
+        //TODO: Decide how to handle resolution of scopes here. Should no longer be TRUSTED/UNTRUSTED
+        // For now returning FALSE as application is not TRUSTED
+        return false;
     }
 }

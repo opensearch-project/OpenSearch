@@ -52,7 +52,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ActionPlugin;
-import org.opensearch.plugins.ExtensionPointScopes;
+import org.opensearch.plugins.ExtensionPointScope;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
@@ -72,8 +72,8 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
     }
 
     private void throwIfNotAllowed() {
-        if (!identity.getSubject().isAllowed(List.of(ExtensionPointScopes.Action))) {
-            throw new ExtensionPointScopes.ExtensionPointScopeException(ExtensionPointScopes.Action);
+        if (!identity.getSubject().isAllowed(List.of(ExtensionPointScope.Action))) {
+            throw new ExtensionPointScope.ExtensionPointScopeException(ExtensionPointScope.Action);
         }
     }
 

@@ -14,9 +14,17 @@ import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
  *
  * @opensearch.experimental
  */
-public enum ApplicationScopes implements Scope {
+public enum ApplicationScope implements Scope {
+    TRUSTED(ScopeArea.ALL, "TRUSTED"),
+    UNTRUSTED(ScopeArea.ALL, "UNTRUSTED");
 
-    Trusted_Fully();
+    public final ScopeArea area;
+    public final String action;
+
+    ApplicationScope(ScopeArea area, String action) {
+        this.area = area;
+        this.action = action;
+    }
 
     public ScopeNamespace getNamespace() {
         return ScopeNamespace.APPLICATION;
@@ -27,6 +35,6 @@ public enum ApplicationScopes implements Scope {
     }
 
     public String getAction() {
-        return name().split("_")[1];
+        return this.action;
     }
 }

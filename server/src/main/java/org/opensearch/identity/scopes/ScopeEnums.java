@@ -13,6 +13,7 @@ public class ScopeEnums {
     public enum ScopeArea {
         APPLICATION,
         CLUSTER,
+        EXTENSION_POINT,
         INDEX,
         ALL;
 

@@ -10,53 +10,44 @@ package org.opensearch.plugins;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.scopes.ScopeEnums.ScopeArea;
+import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
 
 /**
  * scopes associated with extension points, used by plugins/extensions
  *
  * @opensearch.experimental
  */
-public enum ExtensionPointScopes implements Scope {
-    Action,
-    Analysis,
-    CircuitBreaker,
-    Cluster,
-    Discovery,
-    Engine,
-    Extensible,
-    ExtensionAware,
-    Identity,
-    IndexStore,
-    Ingest,
-    Mapper,
-    Network,
-    PersistentTask,
-    Reloadable,
-    Repository,
-    Script,
-    SearchPipeline,
-    Search,
-    SystemIndex;
+public enum ExtensionPointScope implements Scope {
+    Action(ScopeArea.EXTENSION_POINT, "ALLOW");
 
-    public String getNamespace() {
-        return "ExtensionPoint";
+    public final ScopeArea area;
+    public final String action;
+
+    ExtensionPointScope(ScopeArea area, String action) {
+        this.area = area;
+        this.action = action;
     }
 
-    public String getArea() {
-        return name();
+    public ScopeNamespace getNamespace() {
+        return ScopeNamespace.EXTENSION_POINT;
+    }
+
+    public ScopeArea getArea() {
+        return this.area;
     }
 
     public String getAction() {
-        return "Allowed";
+        return this.action;
     }
 
     /**
-     * Exception raised when an ExtensionPointScopes is missing
+     * Exception raised when an ExtensionPointScope is missing
      *
      * @opensearch.experimental
      */
     public static class ExtensionPointScopeException extends OpenSearchException {
-        public ExtensionPointScopeException(final ExtensionPointScopes missingScope) {
+        public ExtensionPointScopeException(final ExtensionPointScope missingScope) {
             super("Missing scope for this extension point " + missingScope.asPermissionString());
         }
     }
