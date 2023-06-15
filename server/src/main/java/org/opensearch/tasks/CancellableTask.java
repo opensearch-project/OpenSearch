@@ -38,7 +38,6 @@ import org.opensearch.common.unit.TimeValue;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
@@ -48,7 +47,6 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  * @opensearch.internal
  */
 public abstract class CancellableTask extends Task {
-
 
     static class CancelledInfo {
         String reason;
@@ -116,7 +114,6 @@ public abstract class CancellableTask extends Task {
      * Returns true if this task can potentially have children that need to be cancelled when it parent is cancelled.
      */
     public abstract boolean shouldCancelChildrenOnCancellation();
-
 
     public TimeValue getCancellationTimeout() {
         return cancelAfterTimeInterval;
