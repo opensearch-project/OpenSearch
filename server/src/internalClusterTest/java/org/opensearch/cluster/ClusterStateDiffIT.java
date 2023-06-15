@@ -776,7 +776,8 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
                                     ImmutableOpenMap.of(),
                                     null,
                                     SnapshotInfoTests.randomUserMetadata(),
-                                    randomVersion(random())
+                                    randomVersion(random()),
+                                    false
                                 )
                             )
                         );
