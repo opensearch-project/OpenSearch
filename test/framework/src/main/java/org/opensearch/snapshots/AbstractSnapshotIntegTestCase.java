@@ -524,7 +524,8 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             0,
             Collections.emptyList(),
             randomBoolean(),
-            metadata
+            metadata,
+            false
         );
         PlainActionFuture.<RepositoryData, Exception>get(
             f -> repo.finalizeSnapshot(

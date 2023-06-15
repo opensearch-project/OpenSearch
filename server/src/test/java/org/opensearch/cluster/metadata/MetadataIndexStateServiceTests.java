@@ -530,7 +530,8 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
             shardsBuilder.build(),
             null,
             SnapshotInfoTests.randomUserMetadata(),
-            VersionUtils.randomVersion(random())
+            VersionUtils.randomVersion(random()),
+            false
         );
         return ClusterState.builder(newState)
             .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(Collections.singletonList(entry)))

@@ -1486,6 +1486,46 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public GatedCloseable<IndexCommit> acquireLastIndexCommitAndRefresh(boolean flushFirst) throws EngineException {
+        GatedCloseable<IndexCommit> indexCommit = acquireLastIndexCommit(flushFirst);
+        getEngine().refresh("Snapshot for Remote Store based Shard");
+        return indexCommit;
+    }
+
+    /**
+     *
+     * @param snapshotId Snapshot UUID.
+     * @param primaryTerm current primary term.
+     * @param generation Snapshot Commit Generation.
+     * @throws IOException if there is some failure in acquiring lock in remote store.
+     */
+    public void acquireLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteSegmentDirectoryForShard();
+        remoteSegmentStoreDirectory.acquireLock(primaryTerm, generation, snapshotId);
+    }
+
+    /**
+     *
+     * @param snapshotId Snapshot UUID.
+     * @param primaryTerm current primary term.
+     * @param generation Snapshot Commit Generation.
+     * @throws IOException if there is some failure in releasing lock in remote store.
+     */
+    public void releaseLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteSegmentDirectoryForShard();
+        remoteSegmentStoreDirectory.releaseLock(primaryTerm, generation, snapshotId);
+    }
+
+    private RemoteSegmentStoreDirectory getRemoteSegmentDirectoryForShard() {
+        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
+        assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
+            : "Store.directory is not enclosing an instance of FilterDirectory";
+        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
+        assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of RemoteSegmentStoreDirectory";
+        return ((RemoteSegmentStoreDirectory) remoteDirectory);
+    }
+
     public Optional<NRTReplicationEngine> getReplicationEngine() {
         if (getEngine() instanceof NRTReplicationEngine) {
             return Optional.of((NRTReplicationEngine) getEngine());
