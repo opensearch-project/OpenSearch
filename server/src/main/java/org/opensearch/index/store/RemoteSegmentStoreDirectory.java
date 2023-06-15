@@ -250,9 +250,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         public static UploadedSegmentMetadata fromString(String uploadedFilename) {
             String[] values = uploadedFilename.split(SEPARATOR);
             UploadedSegmentMetadata metadata = new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
-            if (values.length == 5) {
-                metadata.setWrittenBy(values[4]);
-            }
+            metadata.setWrittenBy(values[4]);
 
             return metadata;
         }

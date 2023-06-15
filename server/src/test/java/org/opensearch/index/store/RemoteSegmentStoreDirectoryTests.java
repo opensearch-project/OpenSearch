@@ -21,6 +21,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Version;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -124,14 +125,22 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             "123456",
             1234
         );
-        assertEquals("abc::pqr::123456::1234", metadata.toString());
+        metadata.setWrittenBy(Version.LATEST);
+        assertEquals("abc::pqr::123456::1234::" + Version.LATEST, metadata.toString());
     }
 
     public void testUploadedSegmentMetadataFromString() {
         RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(
-            "_0.cfe::_0.cfe__uuidxyz::4567::372000"
+            "_0.cfe::_0.cfe__uuidxyz::4567::372000::" + Version.LATEST
         );
-        assertEquals("_0.cfe::_0.cfe__uuidxyz::4567::372000", metadata.toString());
+        assertEquals("_0.cfe::_0.cfe__uuidxyz::4567::372000::" + Version.LATEST, metadata.toString());
+    }
+
+    public void testUploadedSegmentMetadataFromStringException() {
+        assertThrows(
+            ArrayIndexOutOfBoundsException.class,
+            () -> RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString("_0.cfe::_0.cfe__uuidxyz::4567::372000")
+        );
     }
 
     public void testGetPrimaryTermGenerationUuid() {
@@ -176,6 +185,12 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 + randomIntBetween(1000, 5000)
                 + "::"
                 + randomIntBetween(512000, 1024000)
+                + "::"
+                + Version.MIN_SUPPORTED_MAJOR
+                + "."
+                + "0"
+                + "."
+                + "0"
         );
         metadata.put(
             prefix + ".cfs",
@@ -188,6 +203,12 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 + randomIntBetween(1000, 5000)
                 + "::"
                 + randomIntBetween(512000, 1024000)
+                + "::"
+                + Version.MIN_SUPPORTED_MAJOR
+                + "."
+                + "0"
+                + "."
+                + "0"
         );
         metadata.put(
             prefix + ".si",
@@ -200,6 +221,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 + randomIntBetween(1000, 5000)
                 + "::"
                 + randomIntBetween(512000, 1024000)
+                + "::"
+                + Version.LATEST
         );
         metadata.put(
             "segments_" + commitGeneration,
@@ -213,6 +236,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 + randomIntBetween(1000, 5000)
                 + "::"
                 + randomIntBetween(1024, 5120)
+                + "::"
+                + Version.LATEST
         );
         return metadata;
     }
@@ -611,8 +636,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ).thenReturn(metadataFiles);
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512");
-        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024");
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512::" + Version.LATEST);
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024::" + Version.LATEST);
 
         when(remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)).thenReturn(createMetadataFileBytes(metadata, 1, 5));
 
