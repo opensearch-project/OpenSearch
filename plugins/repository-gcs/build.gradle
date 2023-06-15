@@ -197,6 +197,14 @@ thirdPartyAudit {
     'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
+    //google dependencies
+    'com.google.storage.*',
+    'com.google.api.gax.*',
+    'com.google.cloud.grpc.GrpcTransportOptions',
+    'com.google.cloud.grpc.GrpcTransportOptions$Builder',
+    'com.google.iam.v1.GetPolicyOptions$Builder',
+    'io.grpc.ManagedChannelBuilder',
+    'io.grpc.Status$Code',
   )
 }
 
