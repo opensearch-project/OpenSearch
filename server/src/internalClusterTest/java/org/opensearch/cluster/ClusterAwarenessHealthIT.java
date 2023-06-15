@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.test.NodeRoles.onlyRole;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class clusterAwarenessHealthIT extends OpenSearchIntegTestCase {
+public class ClusterAwarenessHealthIT extends OpenSearchIntegTestCase {
 
     public void testAwarenessAttributeHealthSucceeded() {
         createIndex("test");

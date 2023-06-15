@@ -50,7 +50,7 @@ public class NoOpEngineRecoveryTests extends IndexShardTestCase {
         for (int i = 0; i < nbDocs; i++) {
             indexDoc(indexShard, "_doc", String.valueOf(i));
         }
-        indexShard.close("test", true);
+        indexShard.close("test", true, false);
 
         final ShardRouting shardRouting = indexShard.routingEntry();
         IndexShard primary = reinitShard(

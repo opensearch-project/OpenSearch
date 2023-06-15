@@ -159,7 +159,6 @@ class SegmentReplicationSourceHandler {
 
             sendFileStep.whenComplete(r -> {
                 try {
-                    shard.updateVisibleCheckpointForShard(allocationId, copyState.getCheckpoint());
                     future.onResponse(new GetSegmentFilesResponse(List.of(storeFileMetadata)));
                 } finally {
                     IOUtils.close(resources);

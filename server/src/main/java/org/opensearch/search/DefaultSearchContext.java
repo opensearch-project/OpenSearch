@@ -48,6 +48,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.lease.Releasables;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
@@ -103,6 +104,8 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 
 /**
  * The main search context used during search phase
@@ -867,6 +870,25 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Profilers getProfilers() {
         return profilers;
+    }
+
+    /**
+     * Returns concurrent segment search status for the search context
+     */
+    @Override
+    public boolean isConcurrentSegmentSearchEnabled() {
+        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)
+            && (clusterService != null)
+            && (searcher().getExecutor() != null)) {
+            return indexService.getIndexSettings()
+                .getSettings()
+                .getAsBoolean(
+                    IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(),
+                    clusterService.getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+                );
+        } else {
+            return false;
+        }
     }
 
     public void setProfilers(Profilers profilers) {
