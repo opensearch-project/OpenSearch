@@ -35,7 +35,7 @@ package org.opensearch.common.lease;
 import java.io.Closeable;
 
 /**
- * Specialization of {@link AutoCloseable} that may only throw an {@code BaseOpenSearchException}.
+ * Specialization of {@link AutoCloseable} for calls that might not throw a checked exception.
  *
  * @opensearch.internal
  */
