@@ -48,9 +48,15 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  */
 public abstract class CancellableTask extends Task {
 
-    static class CancelledInfo {
+    private static class CancelledInfo {
         String reason;
+        /**
+         * The time this task was cancelled as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
+         */
         Long cancellationStartTime;
+        /**
+         * The time this task was cancelled as a relative time ({@link System#nanoTime()} style).
+         */
         Long cancellationStartTimeNanos;
 
         public CancelledInfo(String reason) {
@@ -103,11 +109,13 @@ public abstract class CancellableTask extends Task {
     }
 
     public Long getCancellationStartTime() {
-        return Objects.requireNonNull(cancelledInfo.get()).cancellationStartTime;
+        CancelledInfo info = cancelledInfo.get();
+        return (info != null) ? info.cancellationStartTime : null;
     }
 
     public Long getCancellationStartTimeNanos() {
-        return Objects.requireNonNull(cancelledInfo.get()).cancellationStartTimeNanos;
+        CancelledInfo info = cancelledInfo.get();
+        return (info != null) ? info.cancellationStartTimeNanos : null;
     }
 
     /**
