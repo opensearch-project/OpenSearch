@@ -88,8 +88,6 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.tracing.Level;
-import org.opensearch.tracing.TracerManager;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteTransportException;
@@ -280,35 +278,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // cancellation. There may be other top level requests like AsyncSearch which is using SearchRequest internally and has it's own
         // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
         // cancelAfterTimeInterval to NO_TIMEOUT and bypass this mechanism
-        final ActionListener<SearchResponse> responseListener;
         if (task instanceof CancellableTask) {
-            responseListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
                 (CancellableTask) task,
                 clusterService.getClusterSettings(),
                 listener
             );
-        } else {
-            responseListener = listener;
         }
-        TracerManager.getTracer().startSpan("SearchTask_" + task.getId(), Level.TERSE);
-        executeRequest(task, searchRequest, this::searchAsyncAction, getTracingWrappedListener(responseListener));
-    }
-
-    private ActionListener<SearchResponse> getTracingWrappedListener(final ActionListener<SearchResponse> listener) {
-        return new ActionListener<SearchResponse>() {
-            @Override
-            public void onResponse(SearchResponse searchResponse) {
-                listener.onResponse(searchResponse);
-                TracerManager.getTracer().endSpan();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-                TracerManager.getTracer().endSpan();
-            }
-        };
+        executeRequest(task, searchRequest, this::searchAsyncAction, listener);
     }
 
     /**
