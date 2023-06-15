@@ -41,13 +41,13 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 
 /**
- * Rescore phase of a search request, used to run potentially expensive scoring models against the top matching documents.
+ * RescoreProcessor of a search request, used to run potentially expensive scoring models against the top matching documents.
  *
  * @opensearch.internal
  */
-public class RescorePhase {
+public class RescoreProcessor {
 
-    public void execute(SearchContext context) {
+    public void process(SearchContext context) {
         TopDocs topDocs = context.queryResult().topDocs().topDocs;
         if (topDocs.scoreDocs.length == 0) {
             return;
