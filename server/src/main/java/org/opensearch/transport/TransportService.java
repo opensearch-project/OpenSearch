@@ -300,7 +300,12 @@ public class TransportService extends AbstractLifecycleComponent
 
         if (remoteClusterClient) {
             // here we start to connect to the remote clusters
-            remoteClusterService.initializeRemoteClusters();
+            remoteClusterService.initializeRemoteClusters(
+                ActionListener.wrap(
+                    r -> logger.info("Remote clusters initialized successfully."),
+                    e -> logger.error("Remote clusters initialization failed partially", e)
+                )
+            );
         }
     }
 
