@@ -37,7 +37,6 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.Map;
-import java.util.Objects;
 
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
