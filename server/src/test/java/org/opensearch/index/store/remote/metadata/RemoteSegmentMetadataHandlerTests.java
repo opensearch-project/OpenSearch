@@ -12,6 +12,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
+import org.apache.lucene.util.Version;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -134,6 +135,8 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
                 + randomIntBetween(1000, 5000)
                 + "::"
                 + randomIntBetween(1024, 2048)
+                + "::"
+                + Version.LATEST
         );
         expectedOutput.put(
             prefix + ".cfs",
@@ -146,6 +149,8 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
                 + randomIntBetween(1000, 5000)
                 + "::"
                 + randomIntBetween(1024, 2048)
+                + "::"
+                + Version.LATEST
         );
         return expectedOutput;
     }
