@@ -42,7 +42,8 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
             .field(Fields.SHARD_ID, remoteSegmentUploadShardStats.shardId)
-
+            .field(Fields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentUploadShardStats.localRefreshClockTimeMs)
+            .field(Fields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentUploadShardStats.remoteRefreshClockTimeMs)
             .field(Fields.REFRESH_TIME_LAG_IN_MILLIS, remoteSegmentUploadShardStats.refreshTimeLagMs)
             .field(Fields.REFRESH_LAG, remoteSegmentUploadShardStats.localRefreshNumber - remoteSegmentUploadShardStats.remoteRefreshNumber)
             .field(Fields.BYTES_LAG, remoteSegmentUploadShardStats.bytesLag)
@@ -103,6 +104,16 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
          * Time in millis remote refresh is behind local refresh
          */
         static final String REFRESH_TIME_LAG_IN_MILLIS = "refresh_time_lag_in_millis";
+
+        /**
+         * Last successful local refresh timestamp in milliseconds
+         */
+        static final String LOCAL_REFRESH_TIMESTAMP = "local_refresh_timestamp_in_millis";
+
+        /**
+         * Last successful remote refresh timestamp in milliseconds
+         */
+        static final String REMOTE_REFRESH_TIMESTAMP = "remote_refresh_timestamp_in_millis";
 
         /**
          * Total write rejections due to remote store backpressure kick in
