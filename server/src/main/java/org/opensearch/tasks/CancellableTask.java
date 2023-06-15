@@ -108,19 +108,13 @@ public abstract class CancellableTask extends Task {
     }
 
     public Long getCancellationStartTime() {
-        if (cancelledInfo != null) {
-            CancelledInfo info = cancelledInfo.get();
-            return (info != null) ? info.cancellationStartTime : null;
-        }
-        return null;
+        CancelledInfo info = cancelledInfo.get();
+        return (info != null) ? info.cancellationStartTime : null;
     }
 
     public Long getCancellationStartTimeNanos() {
-        if (cancelledInfo != null) {
-            CancelledInfo info = cancelledInfo.get();
-            return (info != null) ? info.cancellationStartTimeNanos : null;
-        }
-        return null;
+        CancelledInfo info = cancelledInfo.get();
+        return (info != null) ? info.cancellationStartTimeNanos : null;
     }
 
     /**
@@ -135,12 +129,9 @@ public abstract class CancellableTask extends Task {
     /**
      * The reason the task was cancelled or null if it hasn't been cancelled.
      */
-    public final String getReasonCancelled() {
-        if (cancelledInfo != null) {
-            CancelledInfo info = cancelledInfo.get();
-            return (info != null) ? info.reason : null;
-        }
-        return null;
+    public String getReasonCancelled() {
+        CancelledInfo info = cancelledInfo.get();
+        return (info != null) ? info.reason : null;
     }
 
     /**
