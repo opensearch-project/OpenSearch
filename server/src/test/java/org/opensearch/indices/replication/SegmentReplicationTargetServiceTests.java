@@ -111,7 +111,11 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         when(replicationSourceFactory.get(replicaShard)).thenReturn(replicationSource);
 
         testThreadPool = new TestThreadPool("test", Settings.EMPTY);
-        localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        localNode = new DiscoveryNode(
+            primaryShard.getReplicationGroup().getRoutingTable().primaryShard().currentNodeId(),
+            buildNewFakeTransportAddress(),
+            Version.CURRENT
+        );
         CapturingTransport transport = new CapturingTransport();
         transportService = transport.createTransportService(
             Settings.EMPTY,
