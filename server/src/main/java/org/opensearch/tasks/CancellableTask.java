@@ -37,6 +37,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
@@ -48,17 +49,21 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  */
 public abstract class CancellableTask extends Task {
 
-    private final SetOnce<String> reason = new SetOnce<>();
-    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+
+    static class CancelledInfo {
+        String reason;
+        Long cancellationStartTime;
+        Long cancellationStartTimeNanos;
+
+        public CancelledInfo(String reason) {
+            this.reason = reason;
+            this.cancellationStartTime = System.currentTimeMillis();
+            this.cancellationStartTimeNanos = System.nanoTime();
+        }
+    }
+
+    private final SetOnce<CancelledInfo> cancelledInfo = new SetOnce<>();
     private final TimeValue cancelAfterTimeInterval;
-    /**
-     * The time this task was cancelled as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
-     */
-    private final SetOnce<Long> cancellationStartTime = new SetOnce<>();
-    /**
-     * The time this task was cancelled as a relative time ({@link System#nanoTime()} style).
-     */
-    private final SetOnce<Long> cancellationStartTimeNanos = new SetOnce<>();
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT);
@@ -80,14 +85,15 @@ public abstract class CancellableTask extends Task {
     /**
      * This method is called by the task manager when this task is cancelled.
      */
-    public synchronized void cancel(String reason) {
+    public void cancel(String reason) {
         assert reason != null;
-        if (cancelled.compareAndSet(false, true)) {
-            this.cancellationStartTime.set(System.currentTimeMillis());
-            this.cancellationStartTimeNanos.set(System.nanoTime());
-            this.reason.set(reason);
+        if (cancelledInfo.trySet(new CancelledInfo(reason))) {
             onCancelled();
         }
+    }
+
+    public boolean isCancelled() {
+        return cancelledInfo.get() != null;
     }
 
     /**
@@ -99,11 +105,11 @@ public abstract class CancellableTask extends Task {
     }
 
     public Long getCancellationStartTime() {
-        return cancellationStartTime.get();
+        return Objects.requireNonNull(cancelledInfo.get()).cancellationStartTime;
     }
 
     public Long getCancellationStartTimeNanos() {
-        return cancellationStartTimeNanos.get();
+        return Objects.requireNonNull(cancelledInfo.get()).cancellationStartTimeNanos;
     }
 
     /**
@@ -111,9 +117,6 @@ public abstract class CancellableTask extends Task {
      */
     public abstract boolean shouldCancelChildrenOnCancellation();
 
-    public boolean isCancelled() {
-        return cancelled.get();
-    }
 
     public TimeValue getCancellationTimeout() {
         return cancelAfterTimeInterval;
@@ -124,7 +127,8 @@ public abstract class CancellableTask extends Task {
      */
     @Nullable
     public final String getReasonCancelled() {
-        return reason.get();
+        CancelledInfo info = cancelledInfo.get();
+        return (info != null) ? info.reason : null;
     }
 
     /**
