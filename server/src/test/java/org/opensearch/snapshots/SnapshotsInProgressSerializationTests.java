@@ -32,6 +32,7 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.cluster.Diff;
@@ -40,7 +41,10 @@ import org.opensearch.cluster.SnapshotsInProgress.Entry;
 import org.opensearch.cluster.SnapshotsInProgress.ShardState;
 import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
@@ -48,10 +52,14 @@ import org.opensearch.repositories.IndexId;
 import org.opensearch.test.AbstractDiffableWireSerializationTestCase;
 import org.opensearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Collections;
 import java.util.stream.Collectors;
+
+import static org.opensearch.test.VersionUtils.randomVersion;
 
 public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireSerializationTestCase<Custom> {
 
@@ -69,6 +77,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         boolean includeGlobalState = randomBoolean();
         boolean partial = randomBoolean();
+        boolean remoteStoreIndexShallowCopy = randomBoolean();
         int numberOfIndices = randomIntBetween(0, 10);
         List<IndexId> indices = new ArrayList<>();
         for (int i = 0; i < numberOfIndices; i++) {
@@ -113,7 +122,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             shards,
             null,
             SnapshotInfoTests.randomUserMetadata(),
-            VersionUtils.randomVersion(random())
+            VersionUtils.randomVersion(random()),
+            remoteStoreIndexShallowCopy
         );
     }
 
@@ -172,9 +182,67 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         return SnapshotsInProgress.of(entries);
     }
 
+    public void testSerDeRemoteStoreIndexShallowCopy() throws IOException {
+        SnapshotsInProgress.Entry entry = new SnapshotsInProgress.Entry(
+            new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
+            randomBoolean(),
+            randomBoolean(),
+            SnapshotsInProgressSerializationTests.randomState(ImmutableOpenMap.of()),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Math.abs(randomLong()),
+            randomIntBetween(0, 1000),
+            ImmutableOpenMap.of(),
+            null,
+            SnapshotInfoTests.randomUserMetadata(),
+            randomVersion(random()),
+            true
+        );
+        final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>();
+        newEntries.add(entry);
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.of(newEntries);
+
+        SnapshotsInProgress actualSnapshotsInProgress;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            snapshotsInProgress.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_2_7_0);
+                actualSnapshotsInProgress = new SnapshotsInProgress(in);
+                assert in.available() != 0;
+                for (Entry curr_entry : actualSnapshotsInProgress.entries()) {
+                    assert (curr_entry.remoteStoreIndexShallowCopy() == false);
+                }
+            }
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_2_9_0);
+                actualSnapshotsInProgress = new SnapshotsInProgress(in);
+                assert in.available() == 0;
+                for (Entry curr_entry : actualSnapshotsInProgress.entries()) {
+                    assert (curr_entry.remoteStoreIndexShallowCopy() == true);
+                }
+            }
+        }
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_2_7_0);
+            snapshotsInProgress.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_2_7_0);
+                actualSnapshotsInProgress = new SnapshotsInProgress(in);
+                assert in.available() == 0;
+                for (Entry curr_entry : actualSnapshotsInProgress.entries()) {
+                    assert (curr_entry.remoteStoreIndexShallowCopy() == false);
+                }
+            }
+        }
+    }
+
     public static State randomState(ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
         return SnapshotsInProgress.completed(shards.values())
             ? randomFrom(State.SUCCESS, State.FAILED)
             : randomFrom(State.STARTED, State.INIT, State.ABORTED);
+    }
+
+    private String randomName(String prefix) {
+        return prefix + UUIDs.randomBase64UUID(random());
     }
 }
