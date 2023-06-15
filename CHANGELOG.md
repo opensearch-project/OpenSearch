@@ -53,6 +53,7 @@ Remove `COMPRESSOR` variable from `CompressorFactory` and use `DEFLATE_COMPRESSO
 
 ### Fixed
 -  Fixing error: adding a new/forgotten parameter to the configuration for checking the config on startup in plugins/repository-s3 #7924
+- Enforce 512 byte document ID limit in bulk updates ([#8039](https://github.com/opensearch-project/OpenSearch/pull/8039))
 
 ### Security
 
