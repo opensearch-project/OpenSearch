@@ -8,15 +8,19 @@
 
 package org.opensearch.search.pipeline;
 
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -69,115 +73,120 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
     }
 
     public void testToXContent() throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        XContentBuilder xContentBuilder = new XContentBuilder(JsonXContent.jsonXContent, bos);
-        xContentBuilder.prettyPrint();
-        xContentBuilder.startObject();
-        createStats().toXContent(xContentBuilder, null);
-        xContentBuilder.endObject();
-        xContentBuilder.close();
+        XContentBuilder actualBuilder = XContentBuilder.builder(JsonXContent.jsonXContent);
+        actualBuilder.startObject();
+        createStats().toXContent(actualBuilder, null);
+        actualBuilder.endObject();
 
-        String jsonContent = bos.toString(StandardCharsets.UTF_8);
+        String expected = "{"
+            + "  \"search_pipeline\" : {"
+            + "    \"total_request\" : {"
+            + "      \"count\" : 1,"
+            + "      \"time_in_millis\" : 2,"
+            + "      \"current\" : 3,"
+            + "      \"failed\" : 4"
+            + "    },"
+            + "    \"total_response\" : {"
+            + "      \"count\" : 5,"
+            + "      \"time_in_millis\" : 6,"
+            + "      \"current\" : 7,"
+            + "      \"failed\" : 8"
+            + "    },"
+            + "    \"pipelines\" : {"
+            + "      \"p1\" : {"
+            + "        \"request\" : {"
+            + "          \"count\" : 9,"
+            + "          \"time_in_millis\" : 10,"
+            + "          \"current\" : 11,"
+            + "          \"failed\" : 12"
+            + "        },"
+            + "        \"response\" : {"
+            + "          \"count\" : 13,"
+            + "          \"time_in_millis\" : 14,"
+            + "          \"current\" : 15,"
+            + "          \"failed\" : 16"
+            + "        },"
+            + "        \"request_processors\" : ["
+            + "          {"
+            + "            \"req1:a\" : {"
+            + "              \"type\" : \"req1\","
+            + "              \"stats\" : {"
+            + "                \"count\" : 25,"
+            + "                \"time_in_millis\" : 26,"
+            + "                \"current\" : 27,"
+            + "                \"failed\" : 28"
+            + "              }"
+            + "            }"
+            + "          }"
+            + "        ],"
+            + "        \"response_processors\" : ["
+            + "          {"
+            + "            \"rsp1:a\" : {"
+            + "              \"type\" : \"rsp1\","
+            + "              \"stats\" : {"
+            + "                \"count\" : 29,"
+            + "                \"time_in_millis\" : 30,"
+            + "                \"current\" : 31,"
+            + "                \"failed\" : 32"
+            + "              }"
+            + "            }"
+            + "          }"
+            + "        ]"
+            + "      },"
+            + "      \"p2\" : {"
+            + "        \"request\" : {"
+            + "          \"count\" : 17,"
+            + "          \"time_in_millis\" : 18,"
+            + "          \"current\" : 19,"
+            + "          \"failed\" : 20"
+            + "        },"
+            + "        \"response\" : {"
+            + "          \"count\" : 21,"
+            + "          \"time_in_millis\" : 22,"
+            + "          \"current\" : 23,"
+            + "          \"failed\" : 24"
+            + "        },"
+            + "        \"request_processors\" : ["
+            + "          {"
+            + "            \"req1:a\" : {"
+            + "              \"type\" : \"req1\","
+            + "              \"stats\" : {"
+            + "                \"count\" : 33,"
+            + "                \"time_in_millis\" : 34,"
+            + "                \"current\" : 35,"
+            + "                \"failed\" : 36"
+            + "              }"
+            + "            }"
+            + "          },"
+            + "          {"
+            + "            \"req2\" : {"
+            + "              \"type\" : \"req2\","
+            + "              \"stats\" : {"
+            + "                \"count\" : 37,"
+            + "                \"time_in_millis\" : 38,"
+            + "                \"current\" : 39,"
+            + "                \"failed\" : 40"
+            + "              }"
+            + "            }"
+            + "          }"
+            + "        ],"
+            + "        \"response_processors\" : [ ]"
+            + "      }"
+            + "    }"
+            + "  }"
+            + "}";
+
+        XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
+            this.xContentRegistry(),
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            expected
+        );
+        XContentBuilder expectedBuilder = XContentBuilder.builder(JsonXContent.jsonXContent);
+        expectedBuilder.generator().copyCurrentStructure(expectedParser);
 
         assertEquals(
-            "{\n"
-                + "  \"search_pipeline\" : {\n"
-                + "    \"total_request\" : {\n"
-                + "      \"count\" : 1,\n"
-                + "      \"time_in_millis\" : 2,\n"
-                + "      \"current\" : 3,\n"
-                + "      \"failed\" : 4\n"
-                + "    },\n"
-                + "    \"total_response\" : {\n"
-                + "      \"count\" : 5,\n"
-                + "      \"time_in_millis\" : 6,\n"
-                + "      \"current\" : 7,\n"
-                + "      \"failed\" : 8\n"
-                + "    },\n"
-                + "    \"pipelines\" : {\n"
-                + "      \"p1\" : {\n"
-                + "        \"request\" : {\n"
-                + "          \"count\" : 9,\n"
-                + "          \"time_in_millis\" : 10,\n"
-                + "          \"current\" : 11,\n"
-                + "          \"failed\" : 12\n"
-                + "        },\n"
-                + "        \"response\" : {\n"
-                + "          \"count\" : 13,\n"
-                + "          \"time_in_millis\" : 14,\n"
-                + "          \"current\" : 15,\n"
-                + "          \"failed\" : 16\n"
-                + "        },\n"
-                + "        \"request_processors\" : [\n"
-                + "          {\n"
-                + "            \"req1:a\" : {\n"
-                + "              \"type\" : \"req1\",\n"
-                + "              \"stats\" : {\n"
-                + "                \"count\" : 25,\n"
-                + "                \"time_in_millis\" : 26,\n"
-                + "                \"current\" : 27,\n"
-                + "                \"failed\" : 28\n"
-                + "              }\n"
-                + "            }\n"
-                + "          }\n"
-                + "        ],\n"
-                + "        \"response_processors\" : [\n"
-                + "          {\n"
-                + "            \"rsp1:a\" : {\n"
-                + "              \"type\" : \"rsp1\",\n"
-                + "              \"stats\" : {\n"
-                + "                \"count\" : 29,\n"
-                + "                \"time_in_millis\" : 30,\n"
-                + "                \"current\" : 31,\n"
-                + "                \"failed\" : 32\n"
-                + "              }\n"
-                + "            }\n"
-                + "          }\n"
-                + "        ]\n"
-                + "      },\n"
-                + "      \"p2\" : {\n"
-                + "        \"request\" : {\n"
-                + "          \"count\" : 17,\n"
-                + "          \"time_in_millis\" : 18,\n"
-                + "          \"current\" : 19,\n"
-                + "          \"failed\" : 20\n"
-                + "        },\n"
-                + "        \"response\" : {\n"
-                + "          \"count\" : 21,\n"
-                + "          \"time_in_millis\" : 22,\n"
-                + "          \"current\" : 23,\n"
-                + "          \"failed\" : 24\n"
-                + "        },\n"
-                + "        \"request_processors\" : [\n"
-                + "          {\n"
-                + "            \"req1:a\" : {\n"
-                + "              \"type\" : \"req1\",\n"
-                + "              \"stats\" : {\n"
-                + "                \"count\" : 33,\n"
-                + "                \"time_in_millis\" : 34,\n"
-                + "                \"current\" : 35,\n"
-                + "                \"failed\" : 36\n"
-                + "              }\n"
-                + "            }\n"
-                + "          },\n"
-                + "          {\n"
-                + "            \"req2\" : {\n"
-                + "              \"type\" : \"req2\",\n"
-                + "              \"stats\" : {\n"
-                + "                \"count\" : 37,\n"
-                + "                \"time_in_millis\" : 38,\n"
-                + "                \"current\" : 39,\n"
-                + "                \"failed\" : 40\n"
-                + "              }\n"
-                + "            }\n"
-                + "          }\n"
-                + "        ],\n"
-                + "        \"response_processors\" : [ ]\n"
-                + "      }\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            jsonContent
+            XContentHelper.convertToMap(BytesReference.bytes(expectedBuilder), false, (MediaType) XContentType.JSON),
+            XContentHelper.convertToMap(BytesReference.bytes(actualBuilder), false, (MediaType) XContentType.JSON)
         );
     }
 }
