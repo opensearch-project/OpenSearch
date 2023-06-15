@@ -231,6 +231,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (doc == null && docAsUpsert) {
             validationException = addValidationError("doc must be specified if doc_as_upsert is enabled", validationException);
         }
+
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
+
         return validationException;
     }
 
