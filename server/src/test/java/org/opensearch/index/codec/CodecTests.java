@@ -115,15 +115,15 @@ public class CodecTests extends OpenSearchTestCase {
     }
 
     // write some docs with it, inspect .si to see this was the used compression
-    private void assertStoredFieldsCompressionEquals(Lucene95Codec.Mode expected, Codec actual) throws Exception {
-        SegmentReader sr = getSegmentReader(actual);
+    private void assertStoredFieldsCompressionEquals(Lucene95Codec.Mode expected, Codec codec) throws Exception {
+        SegmentReader sr = getSegmentReader(codec);
         String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
         assertEquals(expected, Lucene95Codec.Mode.valueOf(v));
     }
 
-    private void assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode expected, Codec actual) throws Exception {
-        SegmentReader sr = getSegmentReader(actual);
+    private void assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode expected, Codec codec) throws Exception {
+        SegmentReader sr = getSegmentReader(codec);
         String v = sr.getSegmentInfo().info.getAttribute(Lucene95CustomStoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
         assertEquals(expected, Lucene95CustomCodec.Mode.valueOf(v));
@@ -152,10 +152,10 @@ public class CodecTests extends OpenSearchTestCase {
         return new CodecService(service, LogManager.getLogger("test"));
     }
 
-    private SegmentReader getSegmentReader(Codec actual) throws IOException {
+    private SegmentReader getSegmentReader(Codec codec) throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(null);
-        iwc.setCodec(actual);
+        iwc.setCodec(codec);
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.addDocument(new Document());
         iw.commit();
