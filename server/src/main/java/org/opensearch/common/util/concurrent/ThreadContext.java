@@ -44,8 +44,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpTransportSettings;
-import org.opensearch.tracing.SpanHolder;
-import org.opensearch.tracing.TracerManager;
+import org.opensearch.telemetry.tracing.TracerManager;
 import org.opensearch.tasks.Task;
 
 import java.io.IOException;
@@ -59,6 +58,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
@@ -69,7 +69,7 @@ import java.util.stream.Stream;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
-import static org.opensearch.tracing.DefaultTracer.CURRENT_SPAN;
+import static org.opensearch.telemetry.tracing.DefaultTracer.CURRENT_SPAN;
 
 /**
  * A ThreadContext is a map of string headers and a transient map of keyed objects that are associated with
@@ -157,7 +157,7 @@ public final class ThreadContext implements Writeable {
         if (context.transientHeaders.containsKey(CURRENT_SPAN)) {
             threadContextStruct = threadContextStruct.putTransient(
                 CURRENT_SPAN,
-                new SpanHolder(((SpanHolder) context.transientHeaders.get(CURRENT_SPAN)).getSpan())
+                new AtomicReference<>(((AtomicReference) context.transientHeaders.get(CURRENT_SPAN)).get())
             );
         }
 
@@ -260,7 +260,7 @@ public final class ThreadContext implements Writeable {
         if (newContext.transientHeaders.containsKey(CURRENT_SPAN)) {
             newContext.transientHeaders.put(
                 CURRENT_SPAN,
-                new SpanHolder(((SpanHolder) newContext.transientHeaders.get(CURRENT_SPAN)).getSpan())
+                new AtomicReference<>(((AtomicReference) newContext.transientHeaders.get(CURRENT_SPAN)).get())
             );
         }
 

@@ -12,8 +12,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.telemetry.tracing.*;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.tracing.noop.NoopSpan;
+import org.opensearch.telemetry.tracing.noop.NoopSpan;
 
 import java.util.HashSet;
 import java.util.List;
@@ -39,9 +40,9 @@ public class SpanFactoryTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(TracerSettings.TRACER_LEVEL_SETTING.getKey(), Level.INFO).build();
         TracerSettings tracerSettings = new TracerSettings(settings, new ClusterSettings(settings, getClusterSettings()));
 
-        Telemetry mockTelemetry = mock(Telemetry.class);
-        when(mockTelemetry.createSpan(eq("spanName"), any(), eq(Level.INFO))).thenReturn(mock(Span.class));
-        SpanFactory spanFactory = new SpanFactory(tracerSettings, mockTelemetry);
+        TracingTelemetry mockTracingTelemetry = mock(TracingTelemetry.class);
+        when(mockTracingTelemetry.createSpan(eq("spanName"), any(), eq(Level.INFO))).thenReturn(mock(Span.class));
+        SpanFactory spanFactory = new SpanFactory(tracerSettings, mockTracingTelemetry);
 
         assertFalse(spanFactory.createSpan("spanName", null, Level.INFO) instanceof NoopSpan);
     }

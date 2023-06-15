@@ -8,6 +8,7 @@
 
 package org.opensearch.tracing;
 
+import org.opensearch.telemetry.tracing.Level;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class LevelTests extends OpenSearchTestCase {

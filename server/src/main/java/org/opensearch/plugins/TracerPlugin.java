@@ -8,14 +8,14 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.tracing.Telemetry;
-import org.opensearch.tracing.TracerSettings;
+import org.opensearch.telemetry.Telemetry;
+import org.opensearch.telemetry.tracing.TracerSettings;
 
 import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Plugin for extending tracing related classes
+ * Plugin for extending telemetry related classes
  */
 public interface TracerPlugin {
 

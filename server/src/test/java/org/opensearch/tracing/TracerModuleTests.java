@@ -13,6 +13,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.TracerPlugin;
+import org.opensearch.telemetry.tracing.*;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashSet;
@@ -22,7 +23,7 @@ import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.tracing.TracerModule.TRACER_DEFAULT_TYPE_SETTING;
+import static org.opensearch.telemetry.tracing.TracerModule.TRACER_DEFAULT_TYPE_SETTING;
 
 public class TracerModuleTests extends OpenSearchTestCase {
 
@@ -31,15 +32,35 @@ public class TracerModuleTests extends OpenSearchTestCase {
         TracerSettings tracerSettings = new TracerSettings(settings, new ClusterSettings(settings, getClusterSettings()));
         TracerPlugin tracerPlugin1 = mock(TracerPlugin.class);
         TracerPlugin tracerPlugin2 = mock(TracerPlugin.class);
-        Telemetry telemetry1 = mock(Telemetry.class);
-        Telemetry telemetry2 = mock(Telemetry.class);
-        when(tracerPlugin1.getTelemetries(tracerSettings)).thenReturn(Map.of("otel", () -> telemetry1));
-        when(tracerPlugin2.getTelemetries(tracerSettings)).thenReturn(Map.of("foo", () -> telemetry2));
+        TracingTelemetry tracingTelemetry1 = mock(TracingTelemetry.class);
+        TracingTelemetry tracingTelemetry2 = mock(TracingTelemetry.class);
+        when(tracerPlugin1.getTelemetries(tracerSettings)).thenReturn(Map.of("otel", () -> new Telemetry() {
+            @Override
+            public TracingTelemetry getTracingTelemetry() {
+                return tracingTelemetry1;
+            }
+
+            @Override
+            public MetricsTelemetry getMetricsTelemetry() {
+                return null;
+            }
+        }));
+        when(tracerPlugin2.getTelemetries(tracerSettings)).thenReturn(Map.of("foo", () -> new Telemetry() {
+            @Override
+            public TracingTelemetry getTracingTelemetry() {
+                return tracingTelemetry2;
+            }
+
+            @Override
+            public MetricsTelemetry getMetricsTelemetry() {
+                return null;
+            }
+        }));
         List<TracerPlugin> tracerPlugins = List.of(tracerPlugin1, tracerPlugin2);
 
         TracerModule tracerModule = new TracerModule(settings, tracerPlugins, tracerSettings);
 
-        assertEquals(telemetry1, tracerModule.getTelemetrySupplier().get());
+        assertEquals(tracingTelemetry1, tracerModule.getTelemetrySupplier().get());
     }
 
     private Set<Setting<?>> getClusterSettings() {
