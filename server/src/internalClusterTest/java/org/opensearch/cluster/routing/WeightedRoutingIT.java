@@ -385,6 +385,53 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
     }
 
+    public void testWeightedRoutingOnOSProcessRestartAfterWeightDelete() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+
+        internalCluster().startNodes(
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build(),
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build(),
+            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
+        );
+
+        logger.info("--> waiting for nodes to form a cluster");
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("3").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+
+        ensureGreen();
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 2.0, "c", 3.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+        // put api call to set weights
+        ClusterPutWeightedRoutingResponse response = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
+            .get();
+        assertEquals(response.isAcknowledged(), true);
+
+        ensureStableCluster(3);
+
+        // routing weights are set in cluster metadata
+        assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+
+        ensureGreen();
+
+        // delete weighted routing metadata
+        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().setVersion(0).get();
+        assertTrue(deleteResponse.isAcknowledged());
+
+        // Restart a random data node and check that OS process comes healthy
+        internalCluster().restartRandomDataNode();
+        ensureGreen();
+        assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+    }
+
     public void testDeleteWeightedRouting_WeightsNotSet() {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
