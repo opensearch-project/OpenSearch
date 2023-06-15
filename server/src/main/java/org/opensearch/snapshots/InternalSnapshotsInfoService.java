@@ -213,11 +213,15 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     private void fetchNextSnapshotShard() {
         synchronized (mutex) {
-            if (activeFetches < maxConcurrentFetches) {
-                final SnapshotShard snapshotShard = queue.poll();
-                if (snapshotShard != null) {
-                    activeFetches += 1;
-                    threadPool.generic().execute(new FetchingSnapshotShardSizeRunnable(snapshotShard));
+            boolean fetchNext = false;
+            while (!fetchNext) {
+                if (activeFetches < maxConcurrentFetches) {
+                    fetchNext = true;
+                    final SnapshotShard snapshotShard = queue.poll();
+                    if (snapshotShard != null) {
+                        activeFetches += 1;
+                        threadPool.generic().execute(new FetchingSnapshotShardSizeRunnable(snapshotShard));
+                    }
                 }
             }
             assert invariant();
@@ -237,45 +241,46 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
         @Override
         protected void doRun() throws Exception {
-            final RepositoriesService repositories = repositoriesService.get();
-            assert repositories != null;
-            final Repository repository = repositories.repository(snapshotShard.snapshot.getRepository());
+            synchronized (mutex) {
+                final RepositoriesService repositories = repositoriesService.get();
+                assert repositories != null;
+                final Repository repository = repositories.repository(snapshotShard.snapshot.getRepository());
 
-            final Consumer<Exception> onFailure = e -> onFailure(e);
+                final Consumer<Exception> onFailure = e -> onFailure(e);
 
-            final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-            repositories.getRepositoryData(snapshotShard.snapshot.getRepository(), repositoryDataListener);
-            repositoryDataListener.whenComplete(repositoryData -> {
-                final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(
-                    repositoryData,
-                    snapshotShard.snapshot.getSnapshotId(),
-                    snapshotShard.index
-                );
-                final boolean isRemoteIndexShard = indexMetadata.getSettings()
-                    .getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
-                    && repository.getSnapshotInfo(snapshotShard.snapshot.getSnapshotId()).isRemoteStoreIndexShallowCopyEnabled();
-
-                logger.debug("fetching snapshot shard size for {}", snapshotShard);
-                final IndexShardSnapshotStatus shardSnapshotStatus;
-                if (isRemoteIndexShard) {
-                    shardSnapshotStatus = repository.getShallowShardSnapshotStatus(
-                        snapshotShard.snapshot().getSnapshotId(),
-                        snapshotShard.index(),
-                        snapshotShard.shardId()
+                final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+                repositories.repository(snapshotShard.snapshot.getRepository()).getRepositoryData(repositoryDataListener);
+                repositoryDataListener.whenComplete(repositoryData -> {
+                    final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(
+                        repositoryData,
+                        snapshotShard.snapshot.getSnapshotId(),
+                        snapshotShard.index
                     );
-                } else {
-                    shardSnapshotStatus = repository.getShardSnapshotStatus(
-                        snapshotShard.snapshot().getSnapshotId(),
-                        snapshotShard.index(),
-                        snapshotShard.shardId()
-                    );
-                }
-                final long snapshotShardSize = shardSnapshotStatus.asCopy().getTotalSize();
+                    final boolean isRemoteIndexShard = indexMetadata.getSettings()
+                        .getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
+                        && Boolean.TRUE.equals(
+                            repository.getSnapshotInfo(snapshotShard.snapshot.getSnapshotId()).isRemoteStoreIndexShallowCopyEnabled()
+                        );
+                    logger.debug("fetching snapshot shard size for {}", snapshotShard);
+                    final IndexShardSnapshotStatus shardSnapshotStatus;
+                    if (isRemoteIndexShard) {
+                        shardSnapshotStatus = repository.getShallowShardSnapshotStatus(
+                            snapshotShard.snapshot().getSnapshotId(),
+                            snapshotShard.index(),
+                            snapshotShard.shardId()
+                        );
+                    } else {
+                        shardSnapshotStatus = repository.getShardSnapshotStatus(
+                            snapshotShard.snapshot().getSnapshotId(),
+                            snapshotShard.index(),
+                            snapshotShard.shardId()
+                        );
+                    }
+                    final long snapshotShardSize = shardSnapshotStatus.asCopy().getTotalSize();
 
-                logger.debug("snapshot shard size for {}: {} bytes", snapshotShard, snapshotShardSize);
+                    logger.debug("snapshot shard size for {}: {} bytes", snapshotShard, snapshotShardSize);
 
-                boolean updated = false;
-                synchronized (mutex) {
+                    boolean updated = false;
                     removed = unknownSnapshotShards.remove(snapshotShard);
                     assert removed : "snapshot shard to remove does not exist " + snapshotShardSize;
                     if (isMaster) {
@@ -285,12 +290,12 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                         knownSnapshotShards = Collections.unmodifiableMap(newSnapshotShardSizes);
                     }
                     activeFetches -= 1;
-                    assert invariant();
-                }
-                if (updated) {
-                    rerouteService.get().reroute("snapshot shard size updated", Priority.HIGH, REROUTE_LISTENER);
-                }
-            }, onFailure);
+                    if (updated) {
+                        rerouteService.get().reroute("snapshot shard size updated", Priority.HIGH, REROUTE_LISTENER);
+                    }
+                }, onFailure);
+                assert invariant();
+            }
         }
 
         @Override

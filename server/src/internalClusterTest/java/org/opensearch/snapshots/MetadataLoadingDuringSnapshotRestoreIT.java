@@ -88,6 +88,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             client().prepareIndex("others").setSource("rank", 5)
         );
 
+        NumShards docsShards = getNumShards("docs");
+        NumShards othersShards = getNumShards("others");
+
         createRepository("repository", CountingMockRepositoryPlugin.TYPE);
 
         // Creating a snapshot does not load any metadata
@@ -137,8 +140,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().status(), equalTo(RestStatus.OK));
         assertGlobalMetadataLoads("snap", 0);
-        assertIndexMetadataLoads("snap", "docs", 2);
-        assertIndexMetadataLoads("snap", "others", 2);
+        assertIndexMetadataLoads("snap", "docs", 2 + docsShards.numPrimaries);
+        assertIndexMetadataLoads("snap", "others", 2 + othersShards.numPrimaries);
 
         assertAcked(client().admin().indices().prepareDelete("docs"));
 
@@ -152,8 +155,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().status(), equalTo(RestStatus.OK));
         assertGlobalMetadataLoads("snap", 0);
-        assertIndexMetadataLoads("snap", "docs", 3);
-        assertIndexMetadataLoads("snap", "others", 2);
+        assertIndexMetadataLoads("snap", "docs", 3 + 2 * docsShards.numPrimaries);
+        assertIndexMetadataLoads("snap", "others", 2 + othersShards.numPrimaries);
 
         assertAcked(client().admin().indices().prepareDelete("docs", "others"));
 
@@ -168,14 +171,14 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().status(), equalTo(RestStatus.OK));
         assertGlobalMetadataLoads("snap", 1);
-        assertIndexMetadataLoads("snap", "docs", 4);
-        assertIndexMetadataLoads("snap", "others", 3);
+        assertIndexMetadataLoads("snap", "docs", 4 + 3 * docsShards.numPrimaries);
+        assertIndexMetadataLoads("snap", "others", 3 + 2 * othersShards.numPrimaries);
 
         // Deleting a snapshot does not load the global metadata state but loads each index metadata
         assertAcked(client().admin().cluster().prepareDeleteSnapshot("repository", "snap").get());
         assertGlobalMetadataLoads("snap", 1);
-        assertIndexMetadataLoads("snap", "docs", 4);
-        assertIndexMetadataLoads("snap", "others", 3);
+        assertIndexMetadataLoads("snap", "docs", 4 + 3 * docsShards.numPrimaries);
+        assertIndexMetadataLoads("snap", "others", 3 + 2 * othersShards.numPrimaries);
     }
 
     private void assertGlobalMetadataLoads(final String snapshot, final int times) {

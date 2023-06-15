@@ -34,6 +34,7 @@ package org.opensearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
@@ -62,6 +63,7 @@ import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryData;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -151,6 +153,19 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
         final AtomicInteger getShardSnapshotStatusCount = new AtomicInteger(0);
         final CountDownLatch latch = new CountDownLatch(1);
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
+
+            @Override
+            public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) {
+                IndexMetadata indexMetadata = mock(IndexMetadata.class);
+                when(indexMetadata.getSettings()).thenReturn(Settings.EMPTY);
+                return indexMetadata;
+            }
+
+            @Override
+            public void getRepositoryData(ActionListener<RepositoryData> listener) {
+                listener.onResponse(null);
+            }
+
             @Override
             public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 try {
@@ -211,6 +226,19 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
 
         final Map<InternalSnapshotsInfoService.SnapshotShard, Long> results = new ConcurrentHashMap<>();
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
+
+            @Override
+            public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) {
+                IndexMetadata indexMetadata = mock(IndexMetadata.class);
+                when(indexMetadata.getSettings()).thenReturn(Settings.EMPTY);
+                return indexMetadata;
+            }
+
+            @Override
+            public void getRepositoryData(ActionListener<RepositoryData> listener) {
+                listener.onResponse(null);
+            }
+
             @Override
             public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 final InternalSnapshotsInfoService.SnapshotShard snapshotShard = new InternalSnapshotsInfoService.SnapshotShard(
@@ -299,6 +327,19 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
         );
 
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
+
+            @Override
+            public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) {
+                IndexMetadata indexMetadata = mock(IndexMetadata.class);
+                when(indexMetadata.getSettings()).thenReturn(Settings.EMPTY);
+                return indexMetadata;
+            }
+
+            @Override
+            public void getRepositoryData(ActionListener<RepositoryData> listener) {
+                listener.onResponse(null);
+            }
+
             @Override
             public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
@@ -335,6 +376,19 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
 
     public void testCleanUpSnapshotShardSizes() throws Exception {
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
+
+            @Override
+            public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) {
+                IndexMetadata indexMetadata = mock(IndexMetadata.class);
+                when(indexMetadata.getSettings()).thenReturn(Settings.EMPTY);
+                return indexMetadata;
+            }
+
+            @Override
+            public void getRepositoryData(ActionListener<RepositoryData> listener) {
+                listener.onResponse(null);
+            }
+
             @Override
             public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 if (randomBoolean()) {
