@@ -33,7 +33,6 @@
 package org.opensearch.common;
 
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.lease.Releasable;
 
 import java.text.NumberFormat;
 import java.util.LinkedList;
@@ -155,7 +154,7 @@ public class StopWatch {
         return this;
     }
 
-    public Releasable timing(String taskName) {
+    public TimingHandle timing(String taskName) {
         start(taskName);
         return this::stop;
     }
@@ -266,6 +265,16 @@ public class StopWatch {
         public TimeValue getTime() {
             return timeValue;
         }
+    }
+
+    /**
+     * Stops the watch and auto calls close in try-with-resources usage
+     *
+     * @opensearch.internal
+     */
+    public interface TimingHandle extends AutoCloseable {
+        @Override
+        void close();
     }
 
 }

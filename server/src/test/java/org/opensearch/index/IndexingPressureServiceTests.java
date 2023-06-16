@@ -20,7 +20,7 @@ import org.opensearch.client.Requests;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.stats.IndexingPressurePerShardStats;
 import org.opensearch.index.stats.IndexingPressureStats;

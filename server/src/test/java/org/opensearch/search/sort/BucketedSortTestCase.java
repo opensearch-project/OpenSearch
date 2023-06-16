@@ -39,7 +39,7 @@ import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.test.OpenSearchTestCase;

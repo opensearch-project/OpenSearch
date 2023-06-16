@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.FutureUtils;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardRelocatedException;
 import org.opensearch.threadpool.ThreadPool;

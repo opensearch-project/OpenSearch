@@ -39,7 +39,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.util.ObjectArray;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptedMetricAggContexts;
 import org.opensearch.script.ScriptedMetricAggContexts.MapScript;

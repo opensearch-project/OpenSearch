@@ -36,7 +36,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.Aggregator;

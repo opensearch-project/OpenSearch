@@ -51,7 +51,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 

@@ -14,7 +14,7 @@
 package org.opensearch.common.concurrent;
 
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 
 /**
  * Decorator class that wraps an object reference as a {@link AbstractRefCounted} instance.

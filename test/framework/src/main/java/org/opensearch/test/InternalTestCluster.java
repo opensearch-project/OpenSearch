@@ -84,7 +84,7 @@ import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.Environment;

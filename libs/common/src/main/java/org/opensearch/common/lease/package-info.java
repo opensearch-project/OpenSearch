@@ -7,4 +7,4 @@
  */
 
 /** Base Releasables package. */
-package org.opensearch.core.common.lease;
+package org.opensearch.common.lease;
