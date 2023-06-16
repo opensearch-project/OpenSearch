@@ -1496,7 +1496,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException if there is some failure in acquiring lock in remote store.
      */
     public void acquireLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteSegmentDirectoryForShard();
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteDirectory();
         remoteSegmentStoreDirectory.acquireLock(primaryTerm, generation, snapshotId);
     }
 
@@ -1508,18 +1508,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException if there is some failure in releasing lock in remote store.
      */
     public void releaseLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteSegmentDirectoryForShard();
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteDirectory();
         remoteSegmentStoreDirectory.releaseLock(primaryTerm, generation, snapshotId);
-    }
-
-    private RemoteSegmentStoreDirectory getRemoteSegmentDirectoryForShard() {
-        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
-        assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
-            : "Store.directory is not enclosing an instance of FilterDirectory";
-        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
-        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
-        assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of RemoteSegmentStoreDirectory";
-        return ((RemoteSegmentStoreDirectory) remoteDirectory);
     }
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {
@@ -2311,7 +2301,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(true, true, true);
+                syncSegmentsFromRemoteSegmentStore(false, true, true);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
@@ -3524,10 +3514,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
             if (r) {
                 recoveryListener.onDone(recoveryState);
-                if (remoteStore != null && recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                    // do something
-
-                }
             }
         }, e -> recoveryListener.onFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));
     }
@@ -4656,45 +4642,45 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
             store.decRef();
-            remoteStore.incRef();
+            remoteStore.decRef();
         }
     }
 
     /**
      * Downloads segments from given remote segment store for a specific commit.
      * @param overrideLocal flag to override local segment files with those in remote store
-     * @param sourceRemoteSegmentDirectory RemoteSegmentDirectory Instance from which we need to sync segments
+     * @param sourceRemoteDirectory RemoteSegmentDirectory Instance from which we need to sync segments
      * @param primaryTerm Primary Term for shard at the time of commit operation for which we are syncing segments
      * @param commitGeneration commit generation at the time of commit operation for which we are syncing segments
      * @throws IOException if exception occurs while reading segments from remote store
      */
     public void syncSegmentsFromGivenRemoteSegmentStore(
         boolean overrideLocal,
-        RemoteSegmentStoreDirectory sourceRemoteSegmentDirectory,
+        RemoteSegmentStoreDirectory sourceRemoteDirectory,
         long primaryTerm,
         long commitGeneration
     ) throws IOException {
         logger.info("Downloading segments from given remote segment store");
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = null;
+        RemoteSegmentStoreDirectory remoteDirectory = null;
         if (remoteStore != null) {
-            remoteSegmentStoreDirectory = getRemoteSegmentDirectoryForShard();
-            remoteSegmentStoreDirectory.init();
+            remoteDirectory = getRemoteDirectory();
+            remoteDirectory.init();
             remoteStore.incRef();
         }
-        sourceRemoteSegmentDirectory.init();
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteSegmentDirectory
+        sourceRemoteDirectory.init();
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
             .getSegmentsUploadedToRemoteStore(primaryTerm, commitGeneration);
         final Directory storeDirectory = store.directory();
         store.incRef();
 
         try {
-            copySegmentFiles(storeDirectory, sourceRemoteSegmentDirectory, remoteSegmentStoreDirectory, uploadedSegments, overrideLocal);
+            copySegmentFiles(storeDirectory, sourceRemoteDirectory, remoteDirectory, uploadedSegments, overrideLocal);
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
             store.decRef();
             if (remoteStore != null) {
-                remoteStore.incRef();
+                remoteStore.decRef();
             }
         }
     }
@@ -4718,13 +4704,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         storeDirectory.deleteFile(file);
                     }
                     storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
-                    storeDirectory.sync(Collections.singleton(file));
-                    if (targetRemoteDirectory != null) {
-                        targetRemoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
-                    }
                     downloadedSegments.add(file);
                 } else {
                     skippedSegments.add(file);
+                }
+                if (targetRemoteDirectory != null) {
+                    targetRemoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
                 }
             }
         } finally {

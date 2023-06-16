@@ -453,7 +453,7 @@ public class RestoreService implements ClusterStateApplier {
                                 final boolean isRemoteStoreShallowCopy = Boolean.TRUE.equals(
                                     snapshotInfo.isRemoteStoreIndexShallowCopyEnabled()
                                 ) && metadata.index(index).getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
-                                if (isRemoteStoreShallowCopy && !currentState.getNodes().getMinNodeVersion().onOrAfter(Version.V_2_9_0)) {
+                                if (isRemoteStoreShallowCopy && !currentState.getNodes().getMinNodeVersion().onOrAfter(Version.V_3_0_0)) {
                                     throw new SnapshotRestoreException(
                                         snapshot,
                                         "cannot restore shallow copy snapshot for index ["

@@ -265,6 +265,10 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureYellowAndNoInitializingShards(restoredIndexName1);
         ensureGreen(restoredIndexName1);
         assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
+        // indexing some new docs and validating
+        indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
+        ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1 + 2);
 
         // restore index as seg rep enabled with remote store and remote translog disabled
         RestoreSnapshotResponse restoreSnapshotResponse3 = client.admin()
@@ -288,6 +292,10 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertNull(indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY, null));
         assertEquals(ReplicationType.SEGMENT.toString(), indexSettings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
         assertDocsPresentInIndex(client, restoredIndexName1Seg, numDocsInIndex1);
+        // indexing some new docs and validating
+        indexDocuments(client, restoredIndexName1Seg, numDocsInIndex1, numDocsInIndex1 + 2);
+        ensureGreen(restoredIndexName1Seg);
+        assertDocsPresentInIndex(client, restoredIndexName1Seg, numDocsInIndex1 + 2);
 
         // restore index as doc rep based from shallow copy snapshot
         RestoreSnapshotResponse restoreSnapshotResponse4 = client.admin()
@@ -315,6 +323,10 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertNull(indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY, null));
         assertNull(indexSettings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
         assertDocsPresentInIndex(client, restoredIndexName1Doc, numDocsInIndex1);
+        // indexing some new docs and validating
+        indexDocuments(client, restoredIndexName1Doc, numDocsInIndex1, numDocsInIndex1 + 2);
+        ensureGreen(restoredIndexName1Doc);
+        assertDocsPresentInIndex(client, restoredIndexName1Doc, numDocsInIndex1 + 2);
     }
 
     public void testRestoreShallowCopySnapshotWithDifferentRepo() throws IOException {
@@ -376,6 +388,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
         ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
 
         // deleting data for restoredIndexName1 and restoring from remote store.
         stopNodeWithPrimaryShard(restoredIndexName1);
@@ -385,7 +398,11 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(restoredIndexName1), PlainActionFuture.newFuture());
         ensureYellowAndNoInitializingShards(restoredIndexName1);
         ensureGreen(restoredIndexName1);
-        assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
+        // indexing some new docs and validating
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
+        indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
+        ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1 + 2);
     }
 
     private Settings.Builder getIndexSettings(
@@ -500,6 +517,11 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(restoreSnapshotResponse2.getRestoreInfo().failedShards() == 0);
         ensureGreen(restoredIndexName1);
         assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
+
+        // indexing some new docs and validating
+        indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
+        ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1 + 2);
     }
 
     private void stopNodeWithPrimaryShard(String indexName) throws IOException {
@@ -524,7 +546,11 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void indexDocuments(Client client, String indexName, int numOfDocs) {
-        for (int i = 0; i < numOfDocs; i++) {
+        indexDocuments(client, indexName, 0, numOfDocs);
+    }
+
+    private void indexDocuments(Client client, String indexName, int fromId, int toId) {
+        for (int i = fromId; i < toId; i++) {
             String id = Integer.toString(i);
             client.prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }

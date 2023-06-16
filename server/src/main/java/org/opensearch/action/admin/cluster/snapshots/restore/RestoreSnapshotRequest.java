@@ -150,7 +150,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             storageType = in.readEnum(StorageType.class);
         }
-        if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             sourceRemoteStoreRepository = in.readOptionalString();
         }
     }
@@ -174,7 +174,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeEnum(storageType);
         }
-        if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalString(sourceRemoteStoreRepository);
         }
     }

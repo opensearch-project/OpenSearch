@@ -546,18 +546,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             AllocatedIndex<? extends Shard> indexService = null;
             try {
                 List<IndexEventListener> updatedIndexEventListeners = new ArrayList<>(builtInIndexListener);
-                if (entry.getValue().get(0).recoverySource().getType() == Type.SNAPSHOT) {
+                if (entry.getValue().size() > 0
+                    && entry.getValue().get(0).recoverySource().getType() == Type.SNAPSHOT
+                    && indexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
                     final IndexEventListener refreshListenerAfterSnapshotRestore = new IndexEventListener() {
                         @Override
                         public void afterIndexShardStarted(IndexShard indexShard) {
-                            indexShard.refresh("snapshot restore done");
+                            indexShard.refresh("refresh to upload metadata to remote store");
                         }
                     };
-                    if (indexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
-
-                        updatedIndexEventListeners.add(refreshListenerAfterSnapshotRestore);
-                    }
-
+                    updatedIndexEventListeners.add(refreshListenerAfterSnapshotRestore);
                 }
                 indexService = indicesService.createIndex(indexMetadata, updatedIndexEventListeners, true);
                 if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
