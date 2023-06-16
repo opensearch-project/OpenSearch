@@ -100,6 +100,20 @@ public abstract class CancellableTask extends Task {
     }
 
     /**
+     * Returns true if this task can potentially have children that need to be cancelled when it parent is cancelled.
+     */
+    public abstract boolean shouldCancelChildrenOnCancellation();
+
+    public TimeValue getCancellationTimeout() {
+        return cancelAfterTimeInterval;
+    }
+
+    /**
+     * Called after the task is cancelled so that it can take any actions that it has to take.
+     */
+    protected void onCancelled() {}
+
+    /**
      * Returns true if this task should be automatically cancelled if the coordinating node that
      * requested this task left the cluster.
      */
@@ -120,15 +134,6 @@ public abstract class CancellableTask extends Task {
     }
 
     /**
-     * Returns true if this task can potentially have children that need to be cancelled when it parent is cancelled.
-     */
-    public abstract boolean shouldCancelChildrenOnCancellation();
-
-    public TimeValue getCancellationTimeout() {
-        return cancelAfterTimeInterval;
-    }
-
-    /**
      * The reason the task was cancelled or null if it hasn't been cancelled.
      */
     @Nullable
@@ -136,9 +141,4 @@ public abstract class CancellableTask extends Task {
         CancelledInfo info = cancelledInfo.get();
         return (info != null) ? info.reason : null;
     }
-
-    /**
-     * Called after the task is cancelled so that it can take any actions that it has to take.
-     */
-    protected void onCancelled() {}
 }
