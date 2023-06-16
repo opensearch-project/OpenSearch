@@ -107,6 +107,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
@@ -544,7 +545,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             AllocatedIndex<? extends Shard> indexService = null;
             try {
-                indexService = indicesService.createIndex(indexMetadata, builtInIndexListener, true);
+                List<IndexEventListener> updatedIndexEventListeners = new ArrayList<>(builtInIndexListener);
+                if (entry.getValue().get(0).recoverySource().getType() == Type.SNAPSHOT) {
+                    final IndexEventListener refreshListenerAfterSnapshotRestore = new IndexEventListener() {
+                        @Override
+                        public void afterIndexShardStarted(IndexShard indexShard) {
+                            indexShard.refresh("snapshot restore done");
+                        }
+                    };
+                    if (indexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
+
+                        updatedIndexEventListeners.add(refreshListenerAfterSnapshotRestore);
+                    }
+
+                }
+                indexService = indicesService.createIndex(indexMetadata, updatedIndexEventListeners, true);
                 if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(
                         state.nodes().getClusterManagerNode(),

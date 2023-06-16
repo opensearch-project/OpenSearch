@@ -2311,7 +2311,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(false, true, true);
+                syncSegmentsFromRemoteSegmentStore(true, true, true);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
@@ -3443,6 +3443,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         recoveryListener,
                         l -> restoreFromSnapshotAndRemoteStore(repositoriesService.repository(repo), repositoriesService, l)
                     );
+                    // indicesService.indexService(shardRouting.shardId().getIndex()).addMetadataListener();
                 } else {
                     final String repo = recoverySource.snapshot().getRepository();
                     executeRecovery(
@@ -3523,6 +3524,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
             if (r) {
                 recoveryListener.onDone(recoveryState);
+                if (remoteStore != null && recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+                    // do something
+
+                }
             }
         }, e -> recoveryListener.onFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));
     }
@@ -4604,8 +4609,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 storeDirectory = store.directory();
             }
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
-            copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments,
-                overrideLocal);
+            copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal);
 
             if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
                 try (
@@ -4684,23 +4688,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         store.incRef();
 
         try {
-            String segmentsNFileName = copySegmentFiles(
-                storeDirectory,
-                sourceRemoteSegmentDirectory,
-                remoteSegmentStoreDirectory,
-                uploadedSegments,
-                overrideLocal
-            );
-            if (segmentsNFileName != null && remoteStore != null) {
-                try (
-                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        storeDirectory.openInput(segmentsNFileName, IOContext.DEFAULT)
-                    )
-                ) {
-                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(store.directory(), indexInput, commitGeneration);
-                    remoteSegmentStoreDirectory.uploadMetadata(uploadedSegments.keySet(), infosSnapshot, storeDirectory, primaryTerm);
-                }
-            }
+            copySegmentFiles(storeDirectory, sourceRemoteSegmentDirectory, remoteSegmentStoreDirectory, uploadedSegments, overrideLocal);
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
@@ -4711,7 +4699,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private String copySegmentFiles(
+    private void copySegmentFiles(
         Directory storeDirectory,
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
@@ -4720,7 +4708,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IOException {
         List<String> downloadedSegments = new ArrayList<>();
         List<String> skippedSegments = new ArrayList<>();
-        String segmentsNFileName = null;
         try {
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             for (String file : uploadedSegments.keySet()) {
@@ -4730,22 +4717,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (localSegmentFiles.contains(file)) {
                         storeDirectory.deleteFile(file);
                     }
-                    if (targetRemoteDirectory != null) {
-                        targetRemoteDirectory.copyFrom(
-                            sourceRemoteDirectory,
-                            file,
-                            file,
-                            IOContext.DEFAULT,
-                            false,
-                            uploadedSegments.get(file).getChecksum()
-                        );
-                    }
                     storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
-                    downloadedSegments.add(file);
-                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                        assert segmentsNFileName == null : "There should be only one SegmentInfosSnapshot file";
-                        segmentsNFileName = file;
+                    storeDirectory.sync(Collections.singleton(file));
+                    if (targetRemoteDirectory != null) {
+                        targetRemoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
                     }
+                    downloadedSegments.add(file);
                 } else {
                     skippedSegments.add(file);
                 }
@@ -4754,7 +4731,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.info("Downloaded segments here: {}", downloadedSegments);
             logger.info("Skipped download for segments here: {}", skippedSegments);
         }
-        return segmentsNFileName;
     }
 
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {

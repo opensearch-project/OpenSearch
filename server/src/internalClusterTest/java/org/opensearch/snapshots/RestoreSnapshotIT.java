@@ -186,6 +186,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("Snapshot Path [{}]", absolutePath1);
         logger.info("Remote Store Repo Path [{}]", absolutePath2);
         String restoredIndexName1 = indexName1 + "-restored";
+        String restoredIndexName1Seg = indexName1 + "-restored-seg";
         String restoredIndexName1Doc = indexName1 + "-restored-doc";
         String restoredIndexName2 = indexName2 + "-restored";
 
@@ -193,22 +194,10 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(remoteStoreRepoName, "fs", absolutePath2);
 
         Client client = client();
-        Settings indexSettings = Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepoName)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s")
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+        Settings indexSettings = getIndexSettings(true, randomBoolean(), remoteStoreRepoName, 1, 0).build();
         createIndex(indexName1, indexSettings);
 
-        Settings indexSettings2 = Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+        Settings indexSettings2 = getIndexSettings(false, false, null, 1, 0).build();
         createIndex(indexName2, indexSettings2);
 
         final int numDocsInIndex1 = 5;
@@ -277,30 +266,154 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(restoredIndexName1);
         assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
 
-        // restore index as doc rep based from shallow copy snapshot
+        // restore index as seg rep enabled with remote store and remote translog disabled
         RestoreSnapshotResponse restoreSnapshotResponse3 = client.admin()
             .cluster()
             .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
             .setWaitForCompletion(false)
-            .setIgnoreIndexSettings(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY)
+            .setIgnoreIndexSettings(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED)
+            .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1Seg)
+            .get();
+        assertEquals(restoreSnapshotResponse3.status(), RestStatus.ACCEPTED);
+        ensureGreen(restoredIndexName1Seg);
+
+        GetIndexResponse getIndexResponse = client().admin()
+            .indices()
+            .getIndex(new GetIndexRequest().indices(restoredIndexName1Seg).includeDefaults(true))
+            .get();
+        indexSettings = getIndexResponse.settings().get(restoredIndexName1Seg);
+        assertNull(indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertNull(indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY, null));
+        assertEquals(ReplicationType.SEGMENT.toString(), indexSettings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
+        assertDocsPresentInIndex(client, restoredIndexName1Seg, numDocsInIndex1);
+
+        // restore index as doc rep based from shallow copy snapshot
+        RestoreSnapshotResponse restoreSnapshotResponse4 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(false)
+            .setIgnoreIndexSettings(
+                IndexMetadata.SETTING_REMOTE_STORE_ENABLED,
+                IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED,
+                IndexMetadata.SETTING_REPLICATION_TYPE
+            )
             .setIndices(indexName1)
             .setRenamePattern(indexName1)
             .setRenameReplacement(restoredIndexName1Doc)
             .get();
-        assertEquals(restoreSnapshotResponse3.status(), RestStatus.ACCEPTED);
+        assertEquals(restoreSnapshotResponse4.status(), RestStatus.ACCEPTED);
         ensureGreen(restoredIndexName1Doc);
 
-        GetIndexResponse getIndexResponse = client().admin()
+        getIndexResponse = client().admin()
             .indices()
             .getIndex(new GetIndexRequest().indices(restoredIndexName1Doc).includeDefaults(true))
             .get();
         indexSettings = getIndexResponse.settings().get(restoredIndexName1Doc);
-        assertEquals(null, indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
-        assertEquals(null, indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY, null));
+        assertNull(indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertNull(indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY, null));
+        assertNull(indexSettings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
         assertDocsPresentInIndex(client, restoredIndexName1Doc, numDocsInIndex1);
     }
 
-    public void testRestoreShallowSnapshotRepositoryCorrupted() throws ExecutionException, InterruptedException {
+    public void testRestoreShallowCopySnapshotWithDifferentRepo() throws IOException {
+        internalCluster().startNodes(3);
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String remoteStoreRepoName = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
+        String remoteStoreRepo2Name = "test-rs-repo-2" + TEST_REMOTE_STORE_REPO_SUFFIX;
+        String snapshotName1 = "test-restore-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        Path absolutePath2 = randomRepoPath().toAbsolutePath();
+        Path absolutePath3 = randomRepoPath().toAbsolutePath();
+        String restoredIndexName1 = indexName1 + "-restored";
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+        createRepository(remoteStoreRepoName, "fs", absolutePath2);
+        createRepository(remoteStoreRepo2Name, "fs", absolutePath3);
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(true, true, remoteStoreRepoName, 1, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(false, false, null, 1, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 5;
+        final int numDocsInIndex2 = 6;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1, indexName2)
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        Settings remoteStoreIndexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo2Name)
+            .build();
+        // restore index as a remote store index with different remote store repo
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(false)
+            .setIndexSettings(remoteStoreIndexSettings)
+            .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1)
+            .get();
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
+        ensureGreen(restoredIndexName1);
+
+        // deleting data for restoredIndexName1 and restoring from remote store.
+        stopNodeWithPrimaryShard(restoredIndexName1);
+        assertAcked(client().admin().indices().prepareClose(restoredIndexName1));
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(restoredIndexName1), PlainActionFuture.newFuture());
+        ensureYellowAndNoInitializingShards(restoredIndexName1);
+        ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
+    }
+
+    private Settings.Builder getIndexSettings(
+        boolean enableRemoteStore,
+        boolean enableRemoteTranslog,
+        String remoteStoreRepo,
+        int numOfShards,
+        int numOfReplicas
+    ) {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas);
+        if (enableRemoteStore) {
+            settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s")
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        }
+        if (enableRemoteTranslog) {
+            settingsBuilder.put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStoreRepo)
+                .build();
+        }
+        return settingsBuilder;
+    }
+
+    public void testRestoreShallowSnapshotRepositoryOverriden() throws ExecutionException, InterruptedException {
         internalCluster().startNodes(3);
         String indexName1 = "testindex1";
         String snapshotRepoName = "test-restore-snapshot-repo";

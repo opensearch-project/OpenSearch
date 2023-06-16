@@ -113,6 +113,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
     private StorageType storageType = StorageType.LOCAL;
+    @Nullable
     private String sourceRemoteStoreRepository = null;
 
     @Nullable // if any snapshot UUID will do
@@ -149,7 +150,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             storageType = in.readEnum(StorageType.class);
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             sourceRemoteStoreRepository = in.readOptionalString();
         }
     }
@@ -173,7 +174,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeEnum(storageType);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalString(sourceRemoteStoreRepository);
         }
     }

@@ -387,7 +387,10 @@ final class StoreRecovery {
                     String.valueOf(shardId.id())
                 );
                 indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, sourceRemoteDirectory, primaryTerm, commitGeneration);
+                // indexShard.resetEngineToGlobalCheckpoint();
                 bootstrap(indexShard, indexShard.store());
+                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+                writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
                 indexShard.openEngineAndRecoverFromTranslog();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
