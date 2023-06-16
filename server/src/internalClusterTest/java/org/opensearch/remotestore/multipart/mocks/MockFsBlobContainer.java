@@ -9,6 +9,7 @@
 package org.opensearch.remotestore.multipart.mocks;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.opensearch.common.blobstore.MultiStreamBlobContainer;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.BlobPath;
@@ -27,7 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class MockFsBlobContainer extends FsBlobContainer {
+public class MockFsBlobContainer extends FsBlobContainer implements MultiStreamBlobContainer {
 
     private static final int TRANSFER_TIMEOUT_MILLIS = 30000;
 
@@ -36,11 +37,6 @@ public class MockFsBlobContainer extends FsBlobContainer {
     public MockFsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path, boolean triggerDataIntegrityFailure) {
         super(blobStore, blobPath, path);
         this.triggerDataIntegrityFailure = triggerDataIntegrityFailure;
-    }
-
-    @Override
-    public boolean isMultiStreamUploadSupported() {
-        return true;
     }
 
     @Override

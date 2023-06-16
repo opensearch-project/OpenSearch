@@ -25,7 +25,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.MultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
@@ -525,9 +525,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
-        BlobContainer blobContainer = mock(BlobContainer.class);
+        MultiStreamBlobContainer blobContainer = mock(MultiStreamBlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
-        when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
         CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
         uploadResponseCompletableFuture.complete(null);
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
@@ -554,9 +553,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
-        BlobContainer blobContainer = mock(BlobContainer.class);
+        MultiStreamBlobContainer blobContainer = mock(MultiStreamBlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
-        when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
         CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
         uploadResponseCompletableFuture.complete(null);
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenThrow(new IOException());
@@ -586,9 +584,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
-        BlobContainer blobContainer = mock(BlobContainer.class);
+        MultiStreamBlobContainer blobContainer = mock(MultiStreamBlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
-        when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
         CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
         uploadResponseCompletableFuture.completeExceptionally(new IOException());
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);

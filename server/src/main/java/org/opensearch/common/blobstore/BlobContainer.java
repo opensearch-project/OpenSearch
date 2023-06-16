@@ -44,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -132,30 +131,12 @@ public interface BlobContainer {
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
 
     /**
-     * Used to check whether vendor plugin support for parallel upload of multiple streams is enabled or not.
-     * Returns false by default
+     * Needs to be set to true by the implementation if remote data integrity check is supported
      *
-     * @return If multi-stream parallel uploads are supported
+     * @return true if remote data integrity check is supported
      */
-    default boolean isMultiStreamUploadSupported() {
-        return false;
-    }
-
     default boolean isRemoteDataIntegritySupported() {
         return false;
-    }
-
-    /**
-     * Reads blob content from multiple streams, each from a specific part of the file, which is provided by the
-     * StreamContextSupplier in the WriteContext passed to this method. An {@link IOException} is thrown if reading
-     * any of the input streams fails, or writing to the target blob fails
-     *
-     * @param writeContext A WriteContext object encapsulating all information needed to perform the upload
-     * @return A {@link CompletableFuture} representing the upload
-     * @throws IOException if any of the input streams could not be read, or the target blob could not be written to
-     */
-    default CompletableFuture<Void> writeBlobByStreams(WriteContext writeContext) throws IOException {
-        throw new UnsupportedOperationException();
     }
 
     /**
