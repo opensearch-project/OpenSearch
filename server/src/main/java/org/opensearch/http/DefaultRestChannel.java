@@ -165,10 +165,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             contentLength = String.valueOf(restResponse.content().length());
             setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
 
-
-
-
-
             addCookies(httpResponse);
 
             BytesStreamOutput bytesStreamOutput = bytesOutputOrNull();
