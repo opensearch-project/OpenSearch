@@ -101,7 +101,7 @@ public class WildflyIT extends LuceneTestCase {
                 + "}";
 
             put.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
-            put.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType()); // Set content-type header
+            put.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.toString()); // Set content-type header
             try (CloseableHttpResponse response = client.execute(put)) {
                 int status = response.getCode();
                 assertThat(
