@@ -219,7 +219,9 @@ class S3Service implements Closeable {
         // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
         // so this change removes that usage of a deprecated API.
         builder.endpointOverride(URI.create(endpoint));
-        builder.region(Region.of(clientSettings.region));
+        if (Strings.hasText(clientSettings.region)) {
+            builder.region(Region.of(clientSettings.region));
+        }
         if (clientSettings.pathStyleAccess) {
             builder.forcePathStyle(true);
         }
@@ -352,9 +354,11 @@ class S3Service implements Closeable {
         if (irsaCredentials != null) {
             logger.debug("Using IRSA credentials");
 
-            final Region region = Region.of(clientSettings.region);
             StsClient stsClient = SocketAccess.doPrivileged(() -> {
-                StsClientBuilder builder = StsClient.builder().region(region);
+                StsClientBuilder builder = StsClient.builder();
+                if (Strings.hasText(clientSettings.region)) {
+                    builder.region(Region.of(clientSettings.region));
+                }
 
                 final String stsEndpoint = System.getProperty(STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY);
                 if (stsEndpoint != null) {
