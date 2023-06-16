@@ -38,6 +38,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
@@ -100,6 +101,7 @@ public class WildflyIT extends LuceneTestCase {
                 + "}";
 
             put.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
+            put.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType()); // Set content-type header
             try (CloseableHttpResponse response = client.execute(put)) {
                 int status = response.getCode();
                 assertThat(
