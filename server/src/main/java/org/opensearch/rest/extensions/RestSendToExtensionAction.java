@@ -114,7 +114,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
             }
-            logger.info("Registering: " + method + " " + path + " " + name);
+            logger.info("Registering: " + method + " " + path + " " + name.get());
 
             // All extension routes being registered must have a unique name associated with them
             NamedRoute nr;
