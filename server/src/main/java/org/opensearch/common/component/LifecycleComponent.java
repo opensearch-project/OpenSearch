@@ -32,7 +32,7 @@
 
 package org.opensearch.common.component;
 
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 
 /**
  * Base interface for a lifecycle component.
