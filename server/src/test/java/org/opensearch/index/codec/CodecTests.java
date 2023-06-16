@@ -115,15 +115,15 @@ public class CodecTests extends OpenSearchTestCase {
     }
 
     // write some docs with it, inspect .si to see this was the used compression
-    private void assertStoredFieldsCompressionEquals(Lucene95Codec.Mode expected, Codec codec) throws Exception {
-        SegmentReader sr = getSegmentReader(codec);
+    private void assertStoredFieldsCompressionEquals(Lucene95Codec.Mode expected, Codec actual) throws Exception {
+        SegmentReader sr = getSegmentReader(actual);
         String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
         assertEquals(expected, Lucene95Codec.Mode.valueOf(v));
     }
 
-    private void assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode expected, Codec codec) throws Exception {
-        SegmentReader sr = getSegmentReader(codec);
+    private void assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode expected, Codec actual) throws Exception {
+        SegmentReader sr = getSegmentReader(actual);
         String v = sr.getSegmentInfo().info.getAttribute(Lucene95CustomStoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
         assertEquals(expected, Lucene95CustomCodec.Mode.valueOf(v));
