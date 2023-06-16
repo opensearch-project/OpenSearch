@@ -37,11 +37,11 @@ public class MappingCharFilterFactoryTests extends OpenSearchTestCase {
 
     public void testRulesOk() throws IOException {
         MappingCharFilterFactory mappingCharFilterFactory = (MappingCharFilterFactory) create(
-            "# This is a comment",
+            "# => _hashtag_",
             ":) => _happy_",
             ":( => _sad_"
         );
-        CharFilter inputReader = (CharFilter) mappingCharFilterFactory.create(new StringReader("I'm so :)"));
+        CharFilter inputReader = (CharFilter) mappingCharFilterFactory.create(new StringReader("I'm so :), I'm so :( #confused"));
         char[] tempBuff = new char[14];
         StringBuilder output = new StringBuilder();
         while (true) {
@@ -49,7 +49,7 @@ public class MappingCharFilterFactoryTests extends OpenSearchTestCase {
             if (length == -1) break;
             output.append(tempBuff, 0, length);
         }
-        assertEquals("I'm so _happy_", output.toString());
+        assertEquals("I'm so _happy_, I'm so _sad_ _hashtag_confused", output.toString());
     }
 
     public void testRuleError() {
@@ -64,7 +64,7 @@ public class MappingCharFilterFactoryTests extends OpenSearchTestCase {
     }
 
     public void testRulePartError() {
-        RuntimeException ex = expectThrows(RuntimeException.class, () -> create("# This is a comment", ":) => _happy_", "a:b"));
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> create("# => _hashtag_", ":) => _happy_", "a:b"));
         assertEquals("Line [3]: Invalid mapping rule : [a:b]", ex.getMessage());
     }
 }
