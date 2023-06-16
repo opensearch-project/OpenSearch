@@ -37,8 +37,8 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
-import org.opensearch.core.common.lease.Releasable;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;

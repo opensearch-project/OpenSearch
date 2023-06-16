@@ -10,7 +10,7 @@ package org.opensearch.geo.search.aggregations.metrics;
 
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
