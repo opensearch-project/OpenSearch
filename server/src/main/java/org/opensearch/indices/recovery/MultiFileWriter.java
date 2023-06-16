@@ -40,7 +40,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;

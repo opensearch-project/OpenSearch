@@ -32,7 +32,7 @@
 
 package org.opensearch.common.util;
 
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;

@@ -43,7 +43,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.InboundPipeline;
 import org.opensearch.transport.Transport;
