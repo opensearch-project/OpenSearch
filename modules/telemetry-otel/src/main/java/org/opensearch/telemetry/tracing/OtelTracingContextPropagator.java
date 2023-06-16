@@ -51,10 +51,13 @@ public class OtelTracingContextPropagator implements TracingContextPropagator {
     public BiConsumer<Map<String, String>, Map<String, Object>> injectSpanInHeader() {
         return (requestHeaders, transientHeaders) -> {
             if (transientHeaders != null && transientHeaders.containsKey(CURRENT_SPAN)) {
-                AtomicReference<Span> currentSpanRef = (AtomicReference<Span>) transientHeaders.get(CURRENT_SPAN);
-                Span currentSpan = currentSpanRef.get();
-                OTelSpan oTelSpan = getLastValidSpanInChain(currentSpan);
-                openTelemetry.getPropagators().getTextMapPropagator().inject(context(oTelSpan), requestHeaders, TEXT_MAP_SETTER);
+                if (transientHeaders.get(CURRENT_SPAN) instanceof AtomicReference) {
+                    @SuppressWarnings("unchecked")
+                    AtomicReference<Span> currentSpanRef = (AtomicReference<Span>) transientHeaders.get(CURRENT_SPAN);
+                    Span currentSpan = currentSpanRef.get();
+                    OTelSpan oTelSpan = getLastValidSpanInChain(currentSpan);
+                    openTelemetry.getPropagators().getTextMapPropagator().inject(context(oTelSpan), requestHeaders, TEXT_MAP_SETTER);
+                }
             }
         };
     }
