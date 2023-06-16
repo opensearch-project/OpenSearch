@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing.exporter;
+package org.opensearch.telemetry.tracing.exporter;
 
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;

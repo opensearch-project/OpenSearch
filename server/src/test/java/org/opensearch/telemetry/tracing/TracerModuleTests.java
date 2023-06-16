@@ -6,14 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.TracerPlugin;
-import org.opensearch.telemetry.tracing.*;
+import org.opensearch.telemetry.Telemetry;
+import org.opensearch.telemetry.metrics.MetricsTelemetry;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashSet;
@@ -60,7 +61,7 @@ public class TracerModuleTests extends OpenSearchTestCase {
 
         TracerModule tracerModule = new TracerModule(settings, tracerPlugins, tracerSettings);
 
-        assertEquals(tracingTelemetry1, tracerModule.getTelemetrySupplier().get());
+        assertEquals(tracingTelemetry1, tracerModule.getTelemetrySupplier().get().getTracingTelemetry());
     }
 
     private Set<Setting<?>> getClusterSettings() {

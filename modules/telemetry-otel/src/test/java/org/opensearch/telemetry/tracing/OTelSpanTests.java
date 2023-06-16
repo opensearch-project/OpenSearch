@@ -6,14 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry.tracing;
 
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
-import org.opensearch.telemetry.tracing.Level;
-import org.opensearch.telemetry.tracing.OTelSpan;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.verify;

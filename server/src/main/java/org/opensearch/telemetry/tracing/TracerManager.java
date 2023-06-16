@@ -90,7 +90,9 @@ public class TracerManager {
     }
 
     private BiConsumer<Map<String, String>, Map<String, Object>> tracerHeaderInjector() {
-        return isTracingDisabled() ? (x, y) -> {} : telemetrySupplier.get().getTracingTelemetry().getContextPropagator().injectSpanInHeader();
+        return isTracingDisabled()
+            ? (x, y) -> {}
+            : telemetrySupplier.get().getTracingTelemetry().getContextPropagator().injectSpanInHeader();
     }
 
     private boolean isTracingDisabled() {
@@ -103,7 +105,10 @@ public class TracerManager {
                 if (defaultTracer == null) {
                     logger.info("Creating Otel tracer...");
                     TracingTelemetry tracingTelemetry = telemetrySupplier.get().getTracingTelemetry();
-                    TracerContextStorage tracerContextStorage = new ThreadContextBasedTracerContextStorage(threadPool.getThreadContext(), tracingTelemetry);
+                    TracerContextStorage tracerContextStorage = new ThreadContextBasedTracerContextStorage(
+                        threadPool.getThreadContext(),
+                        tracingTelemetry
+                    );
                     defaultTracer = new DefaultTracer(tracingTelemetry, tracerContextStorage, () -> tracerSettings.getTracerLevel());
                 }
             }

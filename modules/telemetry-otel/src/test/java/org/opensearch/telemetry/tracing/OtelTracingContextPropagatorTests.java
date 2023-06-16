@@ -6,16 +6,17 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry.tracing;
 
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
-import org.opensearch.telemetry.tracing.Level;
-import org.opensearch.telemetry.tracing.OTelSpan;
-import org.opensearch.test.OpenSearchTestCase;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.propagation.ContextPropagators;
 import org.opensearch.telemetry.tracing.noop.NoopSpan;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,7 +26,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.telemetry.tracing.DefaultTracer.CURRENT_SPAN;
 
-public class TracerUtilsTests extends OpenSearchTestCase {
+public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
 
     private static final String TRACE_ID = "4aa59968f31dcbff7807741afa9d7d62";
     private static final String SPAN_ID = "bea205cd25756b5e";
@@ -37,7 +38,11 @@ public class TracerUtilsTests extends OpenSearchTestCase {
         AtomicReference<org.opensearch.telemetry.tracing.Span> spanHolder = new AtomicReference<>(span);
         Map<String, Object> transientHeaders = Map.of(CURRENT_SPAN, spanHolder);
         Map<String, String> requestHeaders = new HashMap<>();
-        // TracerUtils.addTracerContextToHeader().accept(requestHeaders, transientHeaders);
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
+        TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
+
+        tracingContextPropagator.injectSpanInHeader().accept(requestHeaders, transientHeaders);
         assertEquals("00-" + TRACE_ID + "-" + SPAN_ID + "-00", requestHeaders.get("traceparent"));
     }
 
@@ -49,15 +54,21 @@ public class TracerUtilsTests extends OpenSearchTestCase {
         AtomicReference<org.opensearch.telemetry.tracing.Span> spanHolder = new AtomicReference(noopSpan);
         Map<String, Object> transientHeaders = Map.of(CURRENT_SPAN, spanHolder);
         Map<String, String> requestHeaders = new HashMap<>();
-        // TracerUtils.addTracerContextToHeader().accept(requestHeaders, transientHeaders);
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
+        TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
+        tracingContextPropagator.injectSpanInHeader().accept(requestHeaders, transientHeaders);
         assertEquals("00-" + TRACE_ID + "-" + SPAN_ID + "-00", requestHeaders.get("traceparent"));
     }
 
     public void testExtractTracerContextFromHeader() {
         Map<String, String> requestHeaders = new HashMap<>();
         requestHeaders.put("traceparent", "00-" + TRACE_ID + "-" + SPAN_ID + "-00");
-        // Context context = TracerUtils.extractTracerContextFromHeader(requestHeaders);
-        // assertEquals(TRACE_ID, Span.fromContext(context).getSpanContext().getTraceId());
-        // assertEquals(SPAN_ID, Span.fromContext(context).getSpanContext().getSpanId());
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
+        TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
+        org.opensearch.telemetry.tracing.Span span = tracingContextPropagator.extractSpanFromHeader(requestHeaders);
+        assertEquals(TRACE_ID, span.getTraceId());
+        assertEquals(SPAN_ID, span.getSpanId());
     }
 }

@@ -6,19 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.telemetry.tracing.OTelTracerModulePlugin;
-import org.opensearch.telemetry.tracing.OtelTracingTelemetry;
-import org.opensearch.telemetry.tracing.Level;
-import org.opensearch.telemetry.tracing.TracerSettings;
 import org.opensearch.telemetry.Telemetry;
-import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

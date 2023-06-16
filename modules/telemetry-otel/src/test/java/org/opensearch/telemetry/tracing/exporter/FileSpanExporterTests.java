@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing.exporter;
+package org.opensearch.telemetry.tracing.exporter;
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.SpanKind;
@@ -20,7 +20,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.mockito.Mockito;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.telemetry.tracing.exporter.FileSpanExporter;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;

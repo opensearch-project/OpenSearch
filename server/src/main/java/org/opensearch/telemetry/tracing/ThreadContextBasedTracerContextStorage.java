@@ -14,7 +14,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Core's ThreadContext based TracerContextStorage implementaion
+ * Core's ThreadContext based TracerContextStorage implementation
  */
 public class ThreadContextBasedTracerContextStorage implements TracerContextStorage<String, Span> {
 
@@ -28,7 +28,7 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
     }
 
     @Override
-    public Span get(String  key) {
+    public Span get(String key) {
         return getCurrentSpan(key);
     }
 

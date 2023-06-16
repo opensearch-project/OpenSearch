@@ -6,9 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry.tracing;
 
-import org.opensearch.telemetry.tracing.Level;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class LevelTests extends OpenSearchTestCase {

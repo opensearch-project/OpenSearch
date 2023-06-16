@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry.tracing;
 
 import org.junit.After;
 import org.junit.Before;
@@ -14,7 +14,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.telemetry.tracing.*;
+import org.opensearch.telemetry.Telemetry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TracerManagerTests extends OpenSearchTestCase {
 
@@ -54,7 +55,9 @@ public class TracerManagerTests extends OpenSearchTestCase {
     public void testGetTracerWithTracingEnabledReturnsDefaultTracer() {
         Settings settings = Settings.builder().put(TracerSettings.TRACER_LEVEL_SETTING.getKey(), Level.INFO).build();
         TracerSettings tracerSettings = new TracerSettings(settings, new ClusterSettings(settings, getClusterSettings()));
-        TracerManager.initTracerManager(tracerSettings, () -> mock(TracingTelemetry.class), mock(ThreadPool.class));
+        Telemetry mockTelemetry = mock(Telemetry.class);
+        when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
+        TracerManager.initTracerManager(tracerSettings, () -> mockTelemetry, mock(ThreadPool.class));
 
         Tracer tracer = TracerManager.getTracer();
         assertTrue(tracer instanceof DefaultTracer);
