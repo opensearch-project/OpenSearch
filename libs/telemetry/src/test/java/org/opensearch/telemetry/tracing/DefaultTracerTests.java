@@ -115,6 +115,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         verify(mockTracingTelemetry).close();
     }
 
+    @SuppressWarnings("unchecked")
     private void setupMocks() {
         levelSupplier = () -> Level.INFO;
         mockTracingTelemetry = mock(TracingTelemetry.class);

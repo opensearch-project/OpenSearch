@@ -51,7 +51,7 @@ public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
         when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));
         OTelSpan span = new OTelSpan("spanName", mockSpan, null, Level.INFO);
         NoopSpan noopSpan = new NoopSpan("noopSpanName", span, Level.INFO);
-        AtomicReference<org.opensearch.telemetry.tracing.Span> spanHolder = new AtomicReference(noopSpan);
+        AtomicReference<org.opensearch.telemetry.tracing.Span> spanHolder = new AtomicReference<>(noopSpan);
         Map<String, Object> transientHeaders = Map.of(CURRENT_SPAN, spanHolder);
         Map<String, String> requestHeaders = new HashMap<>();
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
