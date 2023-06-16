@@ -32,6 +32,7 @@
 
 package org.opensearch.http;
 
+import org.opensearch.Build;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
@@ -50,6 +51,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.RestStatus;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -76,6 +78,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
+
 
     @Nullable
     private final HttpTracer tracerLog;
@@ -147,11 +150,24 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
 
+            Map<String, List<String>> serverHeader = new HashMap<>();
+            List<String> serverHeaderString = new ArrayList<>();
+
+            serverHeaderString.add("OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" +   Build.CURRENT.getDistribution() + ")");
+
+            serverHeader.put("serverHeader", serverHeaderString);
+
+            addCustomHeaders(httpResponse,  serverHeader);
+
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
             // If our response has no content-length, calculate and set one
             contentLength = String.valueOf(restResponse.content().length());
             setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
+
+
+
+
 
             addCookies(httpResponse);
 
