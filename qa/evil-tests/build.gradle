@@ -33,7 +33,7 @@
  * integration, change default filesystem impl, mess with arbitrary
  * threads, etc.
  */
- 
+
 import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.testclusters'
@@ -62,7 +62,6 @@ thirdPartyAudit {
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'com.google.common.hash.Striped64',
     'com.google.common.hash.Striped64$1',
     'com.google.common.hash.Striped64$Cell',
