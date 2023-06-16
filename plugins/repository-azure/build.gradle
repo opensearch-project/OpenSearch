@@ -68,8 +68,8 @@ dependencies {
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
   api 'org.codehaus.woodstox:stax2-api:4.2.1'
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
-  runtimeOnly 'com.google.guava:guava:31.1-jre'
-  api 'org.apache.commons:commons-lang3:3.4'
+  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
+  api 'org.apache.commons:commons-lang3:3.12.0'
   testImplementation project(':test:fixtures:azure-fixture')
 }
 
@@ -137,7 +137,7 @@ thirdPartyAudit {
     'javax.xml.bind.annotation.XmlAccessOrder',
     'javax.xml.bind.annotation.XmlAccessType',
     'javax.xml.bind.annotation.XmlAccessorOrder',
-    'javax.xml.bind.annotation.XmlAccessorType', 
+    'javax.xml.bind.annotation.XmlAccessorType',
     'javax.xml.bind.annotation.XmlAttribute',
     'javax.xml.bind.annotation.XmlElement',
     'javax.xml.bind.annotation.XmlElement$DEFAULT',
@@ -188,7 +188,6 @@ thirdPartyAudit {
     'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
