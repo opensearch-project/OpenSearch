@@ -18,7 +18,7 @@ import org.opensearch.common.Numbers;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.LongArray;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;

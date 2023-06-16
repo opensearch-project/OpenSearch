@@ -32,8 +32,8 @@
 
 package org.opensearch.common.util;
 
-import org.opensearch.core.common.lease.Releasable;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 
 /**
  * A bit array that is implemented using a growing {@link LongArray}

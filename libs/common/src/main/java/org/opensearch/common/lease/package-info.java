@@ -4,10 +4,7 @@
  * The OpenSearch Contributors require contributions made to
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
- *
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
  */
 
-// This file is intentionally blank. All configuration of the
-// export is done in the parent project.
+/** Base Releasables package. */
+package org.opensearch.common.lease;

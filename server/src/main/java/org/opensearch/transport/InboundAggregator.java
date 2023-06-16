@@ -38,8 +38,8 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.CompositeBytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
-import org.opensearch.core.common.lease.Releasable;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayList;

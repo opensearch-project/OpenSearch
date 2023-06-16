@@ -39,8 +39,8 @@ import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.ByteArray;
 import org.opensearch.common.util.ByteUtils;
 import org.opensearch.common.util.IntArray;
-import org.opensearch.core.common.lease.Releasable;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;

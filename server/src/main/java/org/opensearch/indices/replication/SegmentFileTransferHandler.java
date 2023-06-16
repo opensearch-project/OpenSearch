@@ -22,7 +22,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
