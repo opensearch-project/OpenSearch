@@ -33,9 +33,9 @@ import org.opensearch.gradle.info.BuildParams
 plugins {
   id('com.google.protobuf') version 'latest.release'
   id('opensearch.build')
-  id('com.netflix.nebula.optional-base')
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')
+  id('opensearch.optional-dependencies')
 }
 
 publishing {
@@ -145,6 +145,9 @@ dependencies {
 
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
+
+  // jcraft
+  api "com.jcraft:jzlib:${versions.jzlib}"
 
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"

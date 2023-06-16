@@ -279,38 +279,47 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     // then no need to snapshot the shard and can immediately notify success.
                     notifySuccessfulSnapshotShard(snapshot, shardId, snapshotStatus.generation());
                 } else {
-                    snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(), new ActionListener<>() {
-                        @Override
-                        public void onResponse(String newGeneration) {
-                            assert newGeneration != null;
-                            assert newGeneration.equals(snapshotStatus.generation());
-                            if (logger.isDebugEnabled()) {
-                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                                logger.debug(
-                                    "snapshot [{}] completed to [{}] with [{}] at generation [{}]",
-                                    snapshot,
-                                    snapshot.getRepository(),
-                                    lastSnapshotStatus,
-                                    snapshotStatus.generation()
-                                );
+                    snapshot(
+                        shardId,
+                        snapshot,
+                        indexId,
+                        entry.userMetadata(),
+                        snapshotStatus,
+                        entry.version(),
+                        entry.remoteStoreIndexShallowCopy(),
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(String newGeneration) {
+                                assert newGeneration != null;
+                                assert newGeneration.equals(snapshotStatus.generation());
+                                if (logger.isDebugEnabled()) {
+                                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+                                    logger.debug(
+                                        "snapshot [{}] completed to [{}] with [{}] at generation [{}]",
+                                        snapshot,
+                                        snapshot.getRepository(),
+                                        lastSnapshotStatus,
+                                        snapshotStatus.generation()
+                                    );
+                                }
+                                notifySuccessfulSnapshotShard(snapshot, shardId, newGeneration);
                             }
-                            notifySuccessfulSnapshotShard(snapshot, shardId, newGeneration);
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            final String failure;
-                            if (e instanceof AbortedSnapshotException) {
-                                failure = "aborted";
-                                logger.debug(() -> new ParameterizedMessage("[{}][{}] aborted shard snapshot", shardId, snapshot), e);
-                            } else {
-                                failure = summarizeFailure(e);
-                                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
+                            @Override
+                            public void onFailure(Exception e) {
+                                final String failure;
+                                if (e instanceof AbortedSnapshotException) {
+                                    failure = "aborted";
+                                    logger.debug(() -> new ParameterizedMessage("[{}][{}] aborted shard snapshot", shardId, snapshot), e);
+                                } else {
+                                    failure = summarizeFailure(e);
+                                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
+                                }
+                                snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
+                                notifyFailedSnapshotShard(snapshot, shardId, failure);
                             }
-                            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
-                            notifyFailedSnapshotShard(snapshot, shardId, failure);
                         }
-                    });
+                    );
                 }
             }
         });
@@ -362,6 +371,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final Map<String, Object> userMetadata,
         final IndexShardSnapshotStatus snapshotStatus,
         Version version,
+        final boolean remoteStoreIndexShallowCopy,
         ActionListener<String> listener
     ) {
         try {
@@ -383,21 +393,68 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
             GatedCloseable<IndexCommit> wrappedSnapshot = null;
             try {
-                // we flush first to make sure we get the latest writes snapshotted
-                wrappedSnapshot = indexShard.acquireLastIndexCommit(true);
-                final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
-                repository.snapshotShard(
-                    indexShard.store(),
-                    indexShard.mapperService(),
-                    snapshot.getSnapshotId(),
-                    indexId,
-                    wrappedSnapshot.get(),
-                    getShardStateId(indexShard, snapshotIndexCommit),
-                    snapshotStatus,
-                    version,
-                    userMetadata,
-                    ActionListener.runBefore(listener, wrappedSnapshot::close)
-                );
+                if (remoteStoreIndexShallowCopy && indexShard.indexSettings().isRemoteStoreEnabled()) {
+                    long startTime = threadPool.relativeTimeInMillis();
+                    // we flush first to make sure we get the latest writes snapshotted
+                    wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
+                    long primaryTerm = indexShard.getOperationPrimaryTerm();
+                    final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
+                    long commitGeneration = snapshotIndexCommit.getGeneration();
+                    indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+                    try {
+                        repository.snapshotRemoteStoreIndexShard(
+                            indexShard.store(),
+                            snapshot.getSnapshotId(),
+                            indexId,
+                            wrappedSnapshot.get(),
+                            getShardStateId(indexShard, snapshotIndexCommit),
+                            snapshotStatus,
+                            primaryTerm,
+                            startTime,
+                            ActionListener.runBefore(listener, wrappedSnapshot::close)
+                        );
+                    } catch (IndexShardSnapshotFailedException e) {
+                        logger.error(
+                            "Shallow Copy Snapshot Failed for Shard ["
+                                + indexId.getName()
+                                + "]["
+                                + shardId.getId()
+                                + "] for snapshot "
+                                + snapshot.getSnapshotId()
+                                + ", releasing acquired lock from remote store"
+                        );
+                        indexShard.releaseLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+                        throw e;
+                    }
+                    long endTime = threadPool.relativeTimeInMillis();
+                    logger.debug(
+                        "Time taken (in milliseconds) to complete shallow copy snapshot, "
+                            + "for index "
+                            + indexId.getName()
+                            + ", shard "
+                            + shardId.getId()
+                            + " and snapshot "
+                            + snapshot.getSnapshotId()
+                            + " is "
+                            + (endTime - startTime)
+                    );
+                } else {
+                    // we flush first to make sure we get the latest writes snapshotted
+                    wrappedSnapshot = indexShard.acquireLastIndexCommit(true);
+                    final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
+                    repository.snapshotShard(
+                        indexShard.store(),
+                        indexShard.mapperService(),
+                        snapshot.getSnapshotId(),
+                        indexId,
+                        wrappedSnapshot.get(),
+                        getShardStateId(indexShard, snapshotIndexCommit),
+                        snapshotStatus,
+                        version,
+                        userMetadata,
+                        ActionListener.runBefore(listener, wrappedSnapshot::close)
+                    );
+                }
             } catch (Exception e) {
                 IOUtils.close(wrappedSnapshot);
                 throw e;

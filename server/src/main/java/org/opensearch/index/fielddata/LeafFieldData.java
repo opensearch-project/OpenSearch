@@ -33,7 +33,7 @@
 package org.opensearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.mapper.DocValueFetcher;
 import org.opensearch.search.DocValueFormat;
 

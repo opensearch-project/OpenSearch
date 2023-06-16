@@ -32,7 +32,7 @@
 
 package org.opensearch.common.util;
 
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 
 /**
  * Specialized hash table implementation similar to BytesRefHash that maps

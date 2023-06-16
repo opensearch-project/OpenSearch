@@ -120,4 +120,6 @@ public class NoOpTranslogManager implements TranslogManager {
     public Translog.Snapshot newChangesSnapshot(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         throw new UnsupportedOperationException("Translog snapshot unsupported with no-op translogs");
     }
+
+    public void onDelete() {}
 }

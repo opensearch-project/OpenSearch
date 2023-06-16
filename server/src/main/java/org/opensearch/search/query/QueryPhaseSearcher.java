@@ -45,9 +45,10 @@ public interface QueryPhaseSearcher {
 
     /**
      * {@link AggregationProcessor} to use to setup and post process aggregation related collectors during search request
+     * @param searchContext search context
      * @return {@link AggregationProcessor} to use
      */
-    default AggregationProcessor newAggregationProcessor() {
+    default AggregationProcessor aggregationProcessor(SearchContext searchContext) {
         return new DefaultAggregationProcessor();
     }
 }
