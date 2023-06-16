@@ -44,7 +44,6 @@ import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.ListPitInfo;
 import org.opensearch.action.search.PitSearchContextIdForNode;
-import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.UpdatePitContextRequest;
@@ -58,8 +57,6 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -70,6 +67,8 @@ import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.core.common.lease.Releasables;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
@@ -244,6 +243,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.max_open_pit_context",
         300,
         0,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
+        "search.concurrent_segment_search.enabled",
+        true,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -1038,7 +1044,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 lowLevelCancellation,
                 clusterService.state().nodes().getMinNodeVersion(),
                 validate,
-                indexSearcherExecutor
+                indexSearcherExecutor,
+                this::aggReduceContextBuilder
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1620,22 +1627,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Returns a builder for {@link InternalAggregation.ReduceContext}. This
-     * builder retains a reference to the provided {@link SearchRequest}.
+     * builder retains a reference to the provided {@link SearchSourceBuilder}.
      */
-    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchRequest request) {
+    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchSourceBuilder searchSourceBuilder) {
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
                 return InternalAggregation.ReduceContext.forPartialReduction(
                     bigArrays,
                     scriptService,
-                    () -> requestToPipelineTree(request)
+                    () -> requestToPipelineTree(searchSourceBuilder)
                 );
             }
 
             @Override
             public ReduceContext forFinalReduction() {
-                PipelineTree pipelineTree = requestToPipelineTree(request);
+                PipelineTree pipelineTree = requestToPipelineTree(searchSourceBuilder);
                 return InternalAggregation.ReduceContext.forFinalReduction(
                     bigArrays,
                     scriptService,
@@ -1646,11 +1653,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         };
     }
 
-    private static PipelineTree requestToPipelineTree(SearchRequest request) {
-        if (request.source() == null || request.source().aggregations() == null) {
+    private static PipelineTree requestToPipelineTree(SearchSourceBuilder searchSourceBuilder) {
+        if (searchSourceBuilder == null || searchSourceBuilder.aggregations() == null) {
             return PipelineTree.EMPTY;
         }
-        return request.source().aggregations().buildPipelineTree();
+        return searchSourceBuilder.aggregations().buildPipelineTree();
     }
 
     /**

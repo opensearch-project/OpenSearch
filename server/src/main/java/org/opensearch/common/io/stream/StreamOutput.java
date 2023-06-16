@@ -40,8 +40,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
 import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -106,22 +104,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
 
     private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
 
-    private Version version = Version.CURRENT;
     private Set<String> features = Collections.emptySet();
-
-    /**
-     * The version of the node on the other side of this stream.
-     */
-    public Version getVersion() {
-        return this.version;
-    }
-
-    /**
-     * Set the version of the node on the other side of this stream.
-     */
-    public void setVersion(Version version) {
-        this.version = version;
-    }
 
     /**
      * Test if the stream has the specified feature. Features are used when serializing {@link ClusterState.Custom} or
@@ -157,11 +140,6 @@ public abstract class StreamOutput extends BaseStreamOutput {
     }
 
     /**
-     * Writes a single byte.
-     */
-    public abstract void writeByte(byte b) throws IOException;
-
-    /**
      * Writes an array of bytes.
      *
      * @param b the bytes to write
@@ -179,15 +157,6 @@ public abstract class StreamOutput extends BaseStreamOutput {
     public void writeBytes(byte[] b, int length) throws IOException {
         writeBytes(b, 0, length);
     }
-
-    /**
-     * Writes an array of bytes.
-     *
-     * @param b      the bytes to write
-     * @param offset the offset in the byte array
-     * @param length the number of bytes to write
-     */
-    public abstract void writeBytes(byte[] b, int offset, int length) throws IOException;
 
     /**
      * Writes an array of bytes.
@@ -233,56 +202,11 @@ public abstract class StreamOutput extends BaseStreamOutput {
         write(bytes.bytes, bytes.offset, bytes.length);
     }
 
-    private static final ThreadLocal<byte[]> scratch = ThreadLocal.withInitial(() -> new byte[1024]);
-
     public final void writeShort(short v) throws IOException {
         final byte[] buffer = scratch.get();
         buffer[0] = (byte) (v >> 8);
         buffer[1] = (byte) v;
         writeBytes(buffer, 0, 2);
-    }
-
-    /**
-     * Writes an int as four bytes.
-     */
-    public void writeInt(int i) throws IOException {
-        final byte[] buffer = scratch.get();
-        buffer[0] = (byte) (i >> 24);
-        buffer[1] = (byte) (i >> 16);
-        buffer[2] = (byte) (i >> 8);
-        buffer[3] = (byte) i;
-        writeBytes(buffer, 0, 4);
-    }
-
-    /**
-     * Writes an int in a variable-length format.  Writes between one and
-     * five bytes.  Smaller values take fewer bytes.  Negative numbers
-     * will always use all 5 bytes and are therefore better serialized
-     * using {@link #writeInt}
-     */
-    public void writeVInt(int i) throws IOException {
-        /*
-         * Shortcut writing single byte because it is very, very common and
-         * can skip grabbing the scratch buffer. This is marginally slower
-         * than hand unrolling the entire encoding loop but hand unrolling
-         * the encoding loop blows out the method size so it can't be inlined.
-         * In that case benchmarks of the method itself are faster but
-         * benchmarks of methods that use this method are slower.
-         * This is philosophically in line with vint in general - it biases
-         * twoards being simple and fast for smaller numbers.
-         */
-        if (Integer.numberOfLeadingZeros(i) >= 25) {
-            writeByte((byte) i);
-            return;
-        }
-        byte[] buffer = scratch.get();
-        int index = 0;
-        do {
-            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
-            i >>>= 7;
-        } while ((i & ~0x7F) != 0);
-        buffer[index++] = ((byte) i);
-        writeBytes(buffer, 0, index);
     }
 
     /**
@@ -388,27 +312,6 @@ public abstract class StreamOutput extends BaseStreamOutput {
         }
     }
 
-    /**
-     * Writes an optional {@link Integer}.
-     */
-    public void writeOptionalInt(@Nullable Integer integer) throws IOException {
-        if (integer == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeInt(integer);
-        }
-    }
-
-    public void writeOptionalVInt(@Nullable Integer integer) throws IOException {
-        if (integer == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeVInt(integer);
-        }
-    }
-
     public void writeOptionalFloat(@Nullable Float floatValue) throws IOException {
         if (floatValue == null) {
             writeBoolean(false);
@@ -498,39 +401,6 @@ public abstract class StreamOutput extends BaseStreamOutput {
     public final void writeBigInteger(BigInteger v) throws IOException {
         writeString(v.toString());
     }
-
-    private static byte ZERO = 0;
-    private static byte ONE = 1;
-    private static byte TWO = 2;
-
-    /**
-     * Writes a boolean.
-     */
-    public void writeBoolean(boolean b) throws IOException {
-        writeByte(b ? ONE : ZERO);
-    }
-
-    public void writeOptionalBoolean(@Nullable Boolean b) throws IOException {
-        if (b == null) {
-            writeByte(TWO);
-        } else {
-            writeBoolean(b);
-        }
-    }
-
-    /**
-     * Forces any buffered output to be written.
-     */
-    @Override
-    public abstract void flush() throws IOException;
-
-    /**
-     * Closes this stream to further operations.
-     */
-    @Override
-    public abstract void close() throws IOException;
-
-    public abstract void reset() throws IOException;
 
     @Override
     public void write(int b) throws IOException {
@@ -734,12 +604,6 @@ public abstract class StreamOutput extends BaseStreamOutput {
             o.writeByte((byte) 12);
             o.writeLong(((Date) v).getTime());
         });
-        writers.put(ReadableInstant.class, (o, v) -> {
-            o.writeByte((byte) 13);
-            final ReadableInstant instant = (ReadableInstant) v;
-            o.writeString(instant.getZone().getID());
-            o.writeLong(instant.getMillis());
-        });
         writers.put(BytesReference.class, (o, v) -> {
             o.writeByte((byte) 14);
             o.writeBytesReference((BytesReference) v);
@@ -795,7 +659,10 @@ public abstract class StreamOutput extends BaseStreamOutput {
     }
 
     private static Class<?> getGenericType(Object value) {
-        if (value instanceof List) {
+        Class<?> registeredClass = Writeable.WriteableRegistry.getCustomClassFromInstance(value);
+        if (registeredClass != null) {
+            return registeredClass;
+        } else if (value instanceof List) {
             return List.class;
         } else if (value instanceof Object[]) {
             return Object[].class;
@@ -803,8 +670,6 @@ public abstract class StreamOutput extends BaseStreamOutput {
             return Map.class;
         } else if (value instanceof Set) {
             return Set.class;
-        } else if (value instanceof ReadableInstant) {
-            return ReadableInstant.class;
         } else if (value instanceof BytesReference) {
             return BytesReference.class;
         } else {
@@ -1137,29 +1002,10 @@ public abstract class StreamOutput extends BaseStreamOutput {
     }
 
     /**
-     * Write a {@linkplain DateTimeZone} to the stream.
-     */
-    public void writeTimeZone(DateTimeZone timeZone) throws IOException {
-        writeString(timeZone.getID());
-    }
-
-    /**
      * Write a {@linkplain ZoneId} to the stream.
      */
     public void writeZoneId(ZoneId timeZone) throws IOException {
         writeString(timeZone.getId());
-    }
-
-    /**
-     * Write an optional {@linkplain DateTimeZone} to the stream.
-     */
-    public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
-        if (timeZone == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeTimeZone(timeZone);
-        }
     }
 
     /**

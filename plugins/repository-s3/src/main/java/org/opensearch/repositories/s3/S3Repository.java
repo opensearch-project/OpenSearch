@@ -157,12 +157,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
-     * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
-     * files that are already compressed by default. Defaults to false.
-     */
-    static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false);
-
-    /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */

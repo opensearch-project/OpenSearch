@@ -95,11 +95,11 @@ public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
 
     public SearchPhaseController(
         NamedWriteableRegistry namedWriteableRegistry,
-        Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder
+        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder
     ) {
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
@@ -737,7 +737,7 @@ public final class SearchPhaseController {
     }
 
     InternalAggregation.ReduceContextBuilder getReduceContext(SearchRequest request) {
-        return requestToAggReduceContextBuilder.apply(request);
+        return requestToAggReduceContextBuilder.apply(request.source());
     }
 
     /**

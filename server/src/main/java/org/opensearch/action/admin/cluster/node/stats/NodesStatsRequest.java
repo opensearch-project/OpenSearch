@@ -210,7 +210,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SEARCH_BACKPRESSURE("search_backpressure"),
         CLUSTER_MANAGER_THROTTLING("cluster_manager_throttling"),
         WEIGHTED_ROUTING_STATS("weighted_routing"),
-        FILE_CACHE_STATS("file_cache");
+        FILE_CACHE_STATS("file_cache"),
+        TASK_CANCELLATION("task_cancellation");
 
         private String metricName;
 

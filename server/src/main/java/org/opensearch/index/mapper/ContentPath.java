@@ -84,6 +84,9 @@ public final class ContentPath {
     }
 
     public String pathAsText(String name) {
+        if (offset == index) {
+            return name;
+        }
         sb.setLength(0);
         for (int i = offset; i < index; i++) {
             sb.append(path[i]).append(DELIMITER);

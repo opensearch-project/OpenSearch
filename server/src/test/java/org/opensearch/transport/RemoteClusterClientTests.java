@@ -86,7 +86,7 @@ public class RemoteClusterClientTests extends OpenSearchTestCase {
                 service.acceptIncomingRequests();
                 logger.info("now accepting incoming requests on local transport");
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-                assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
+                assertBusy(() -> { assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode)); }, 10, TimeUnit.SECONDS);
                 Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test");
                 ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();
                 assertNotNull(clusterStateResponse);

@@ -80,18 +80,18 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
@@ -291,7 +291,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertNotNull(shardPath);
         // fail shard
         shard.failShard("test shard fail", new CorruptIndexException("", ""));
-        shard.close("do not assert history", false);
+        shard.close("do not assert history", false, false);
         shard.store().close();
         // check state file still exists
         ShardStateMetadata shardStateMetadata = load(logger, shardPath.getShardStatePath());
@@ -1614,7 +1614,7 @@ public class IndexShardTests extends IndexShardTestCase {
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
-        newShard.close("test", false);
+        newShard.close("test", false, false);
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
@@ -1874,7 +1874,7 @@ public class IndexShardTests extends IndexShardTestCase {
         AtomicInteger preDelete = new AtomicInteger();
         AtomicInteger postDelete = new AtomicInteger();
         AtomicInteger postDeleteException = new AtomicInteger();
-        shard.close("simon says", true);
+        shard.close("simon says", true, false);
         shard = reinitShard(shard, new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
@@ -1961,7 +1961,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(1, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        shard.close("Unexpected close", true);
+        shard.close("Unexpected close", true, false);
         shard.state = IndexShardState.STARTED; // It will generate exception
 
         try {
@@ -4362,7 +4362,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Thread closeShardThread = new Thread(() -> {
             try {
                 readyToCloseLatch.await();
-                shard.close("testing", false);
+                shard.close("testing", false, false);
                 // in integration tests, this is done as a listener on IndexService.
                 MockFSDirectoryFactory.checkIndex(logger, shard.store(), shard.shardId);
             } catch (InterruptedException | IOException e) {
@@ -4811,7 +4811,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoveryThread.start();
         try {
             warmerStarted.await();
-            shard.close("testing", false);
+            shard.close("testing", false, false);
             assertThat(shard.state, equalTo(IndexShardState.CLOSED));
         } finally {
             warmerBlocking.countDown();

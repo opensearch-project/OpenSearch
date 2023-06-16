@@ -35,7 +35,6 @@ package org.opensearch.common.compress;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -47,41 +46,42 @@ import java.util.Objects;
  */
 public class CompressorFactory {
 
-    public static final Compressor COMPRESSOR = new DeflateCompressor();
+    public static final Compressor DEFLATE_COMPRESSOR = new DeflateCompressor();
+
+    public static final Compressor ZSTD_COMPRESSOR = new ZstdCompressor();
+
+    public static final Compressor NONE_COMPRESSOR = new NoneCompressor();
 
     public static boolean isCompressed(BytesReference bytes) {
         return compressor(bytes) != null;
     }
 
+    public static Compressor defaultCompressor() {
+        return DEFLATE_COMPRESSOR;
+    }
+
     @Nullable
     public static Compressor compressor(BytesReference bytes) {
-        if (COMPRESSOR.isCompressed(bytes)) {
+        if (DEFLATE_COMPRESSOR.isCompressed(bytes)) {
             // bytes should be either detected as compressed or as xcontent,
             // if we have bytes that can be either detected as compressed or
             // as a xcontent, we have a problem
             assert XContentHelper.xContentType(bytes) == null;
-            return COMPRESSOR;
+            return DEFLATE_COMPRESSOR;
+        } else if (ZSTD_COMPRESSOR.isCompressed(bytes)) {
+            assert XContentHelper.xContentType(bytes) == null;
+            return ZSTD_COMPRESSOR;
         }
 
-        XContentType contentType = XContentHelper.xContentType(bytes);
-        if (contentType == null) {
-            if (isAncient(bytes)) {
-                throw new IllegalStateException("unsupported compression: index was created before v2.0.0.beta1 and wasn't upgraded?");
-            }
+        if (XContentHelper.xContentType(bytes) == null) {
             throw new NotXContentException("Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes");
         }
 
         return null;
     }
 
-    /** true if the bytes were compressed with LZF*/
-    private static boolean isAncient(BytesReference bytes) {
-        return bytes.length() >= 3 && bytes.get(0) == 'Z' && bytes.get(1) == 'V' && (bytes.get(2) == 0 || bytes.get(2) == 1);
-    }
-
     /**
      * Uncompress the provided data, data can be detected as compressed using {@link #isCompressed(BytesReference)}.
-     * @throws NullPointerException a NullPointerException will be thrown when bytes is null
      */
     public static BytesReference uncompressIfNeeded(BytesReference bytes) throws IOException {
         Compressor compressor = compressor(Objects.requireNonNull(bytes, "the BytesReference must not be null"));

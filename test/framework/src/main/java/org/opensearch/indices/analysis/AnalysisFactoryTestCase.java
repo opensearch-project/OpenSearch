@@ -222,6 +222,8 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         // LUCENE-10352
         .put("daitchmokotoffsoundex", Void.class)
         .put("persianstem", Void.class)
+        // https://github.com/apache/lucene/pull/12169
+        .put("word2vecsynonym", Void.class)
         .immutableMap();
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String, Class<?>>()

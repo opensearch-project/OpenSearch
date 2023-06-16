@@ -28,6 +28,7 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
      */
     class WriteableRegistry {
         private static final Map<Class<?>, Writer<? extends BaseStreamOutput, ?>> WRITER_REGISTRY = new ConcurrentHashMap<>();
+        private static final Map<Class<?>, Class<?>> WRITER_CUSTOM_CLASS_MAP = new ConcurrentHashMap<>();
         private static final Map<Byte, Reader<? extends BaseStreamInput, ?>> READER_REGISTRY = new ConcurrentHashMap<>();
 
         /**
@@ -36,10 +37,9 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
          * @opensearch.internal
          */
         public static <W extends Writer<? extends BaseStreamOutput, ?>> void registerWriter(final Class<?> clazz, final W writer) {
-            if (WRITER_REGISTRY.containsKey(clazz)) {
+            if (WRITER_REGISTRY.putIfAbsent(clazz, writer) != null) {
                 throw new IllegalArgumentException("Streamable writer already registered for type [" + clazz.getName() + "]");
             }
-            WRITER_REGISTRY.put(clazz, writer);
         }
 
         /**
@@ -48,10 +48,15 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
          * @opensearch.internal
          */
         public static <R extends Reader<? extends BaseStreamInput, ?>> void registerReader(final byte ordinal, final R reader) {
-            if (READER_REGISTRY.containsKey(ordinal)) {
+            if (READER_REGISTRY.putIfAbsent(ordinal, reader) != null) {
                 throw new IllegalArgumentException("Streamable reader already registered for ordinal [" + (int) ordinal + "]");
             }
-            READER_REGISTRY.put(ordinal, reader);
+        }
+
+        public static void registerClassAlias(final Class<?> classInstance, final Class<?> classGeneric) {
+            if (WRITER_CUSTOM_CLASS_MAP.putIfAbsent(classInstance, classGeneric) != null) {
+                throw new IllegalArgumentException("Streamable custom class already registered [" + classInstance.getClass() + "]");
+            }
         }
 
         /**
@@ -68,6 +73,21 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
         @SuppressWarnings("unchecked")
         public static <R extends Reader<? extends BaseStreamInput, ?>> R getReader(final byte b) {
             return (R) READER_REGISTRY.get(b);
+        }
+
+        public static Class<?> getCustomClassFromInstance(final Object value) {
+            if (value == null) {
+                throw new IllegalArgumentException("Attempting to retrieve a class type from a null value");
+            }
+            // rip through registered classes; return the class iff 'value' is an instance
+            // we do it this way to cover inheritance and interfaces (e.g., joda DateTime is an instanceof
+            // a ReadableInstant interface)
+            for (final Class<?> clazz : WRITER_CUSTOM_CLASS_MAP.values()) {
+                if (clazz.isInstance(value)) {
+                    return clazz;
+                }
+            }
+            return null;
         }
     }
 

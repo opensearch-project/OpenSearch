@@ -52,6 +52,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
@@ -376,7 +377,11 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     protected Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
-        settings.put("location", randomRepoPath()).put("compress", randomBoolean());
+        final boolean compress = randomBoolean();
+        settings.put("location", randomRepoPath()).put("compress", compress);
+        if (compress) {
+            settings.put("compression_type", randomFrom(CompressorType.values()));
+        }
         if (rarely()) {
             settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
         }
@@ -518,7 +523,8 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             0,
             Collections.emptyList(),
             randomBoolean(),
-            metadata
+            metadata,
+            false
         );
         PlainActionFuture.<RepositoryData, Exception>get(
             f -> repo.finalizeSnapshot(

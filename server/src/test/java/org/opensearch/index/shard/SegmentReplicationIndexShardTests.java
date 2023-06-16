@@ -19,14 +19,15 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.InternalEngine;
@@ -295,7 +296,13 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testRejectCheckpointOnShardRoutingPrimary() throws IOException {
         IndexShard primaryShard = newStartedShard(true);
         SegmentReplicationTargetService sut;
-        sut = prepareForReplication(primaryShard, null, mock(TransportService.class), mock(IndicesService.class));
+        sut = prepareForReplication(
+            primaryShard,
+            null,
+            mock(TransportService.class),
+            mock(IndicesService.class),
+            mock(ClusterService.class)
+        );
         SegmentReplicationTargetService spy = spy(sut);
 
         // Starting a new shard in PrimaryMode and shard routing primary.
@@ -579,7 +586,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEqualCommittedSegments(primary, replica_1);
 
             shards.promoteReplicaToPrimary(replica_2).get();
-            primary.close("demoted", false);
+            primary.close("demoted", false, false);
             primary.store().close();
             IndexShard oldPrimary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
@@ -618,7 +625,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
                 // randomly resetart a replica
                 final IndexShard replicaToRestart = getRandomReplica(shards);
-                replicaToRestart.close("restart", false);
+                replicaToRestart.close("restart", false, false);
                 replicaToRestart.store().close();
                 shards.removeReplica(replicaToRestart);
                 final IndexShard newReplica = shards.addReplicaWithExistingPath(
@@ -716,7 +723,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.promoteReplicaToPrimary(nextPrimary).get();
 
             // close oldPrimary.
-            oldPrimary.close("demoted", false);
+            oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
 
             assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
@@ -783,7 +790,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.promoteReplicaToPrimary(nextPrimary);
 
             // close and start the oldPrimary as a replica.
-            oldPrimary.close("demoted", false);
+            oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
             oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
@@ -841,7 +848,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     long replicationId,
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
-                    Store store,
+                    IndexShard indexShard,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
@@ -866,7 +873,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEquals(nextPrimary.getEngine().getClass(), InternalEngine.class);
             nextPrimary.refresh("test");
 
-            oldPrimary.close("demoted", false);
+            oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
             IndexShard newReplica = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
@@ -911,7 +918,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     long replicationId,
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
-                    Store store,
+                    IndexShard indexShard,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     Assert.fail("Should not be reached");
@@ -951,7 +958,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     long replicationId,
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
-                    Store store,
+                    IndexShard indexShard,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     // randomly resolve the listener, indicating the source has resolved.
@@ -993,7 +1000,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     long replicationId,
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
-                    Store store,
+                    IndexShard indexShard,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {}
             };
@@ -1011,6 +1018,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(TransportService.class),
             sourceFactory,
+            null,
             null
         );
     }
@@ -1074,7 +1082,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         IndexShard primary = shards.getPrimary();
         final IndexShard newPrimary = getRandomReplica(shards);
         shards.promoteReplicaToPrimary(newPrimary);
-        primary.close("demoted", true);
+        primary.close("demoted", true, false);
         primary.store().close();
         primary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
         shards.recoverReplica(primary);

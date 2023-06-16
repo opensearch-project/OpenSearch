@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add events correlation engine plugin ([#6854](https://github.com/opensearch-project/OpenSearch/issues/6854))
 - Add support for ignoring missing Javadoc on generated code using annotation ([#7604](https://github.com/opensearch-project/OpenSearch/pull/7604))
+- Implement concurrent aggregations support without profile option ([#7514](https://github.com/opensearch-project/OpenSearch/pull/7514))
+- Add dynamic index and cluster setting for concurrent segment search ([#7956](https://github.com/opensearch-project/OpenSearch/pull/7956))
 
 ### Dependencies
 - Bump `log4j-core` from 2.18.0 to 2.19.0
@@ -41,6 +43,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.3.0
 - Bump `com.diffplug.spotless` from 6.17.0 to 6.18.0
 - Bump `io.opencensus:opencensus-api` from 0.18.0 to 0.31.1 ([#7291](https://github.com/opensearch-project/OpenSearch/pull/7291))
+- Add `org.reactivestreams` 1.0.4 ([7372](https://github.com/opensearch-project/OpenSearch/pull/7372/))
+- Add  `com.github.luben:zstd-jni` version 1.5.5-3 ([#2996](https://github.com/opensearch-project/OpenSearch/pull/2996))
+- OpenJDK Update (April 2023 Patch releases) ([#7344](https://github.com/opensearch-project/OpenSearch/pull/7344)
+- Bump `com.amazonaws` 1.12.270 to `software.amazon.awssdk` 2.20.55 ([7372](https://github.com/opensearch-project/OpenSearch/pull/7372/))
+- Bump `com.networknt:json-schema-validator` from 1.0.81 to 1.0.83 ([7933](https://github.com/opensearch-project/OpenSearch/pull/7933/))
+- Bump `com.google.http-client:google-http-client:1.43.2` from 1.42.0 to 1.43.2 ([7928](https://github.com/opensearch-project/OpenSearch/pull/7928)))
+- Bump `com.azure:azure-storage-blob` from 12.21.1 to 12.22.2 ([7930](https://github.com/opensearch-project/OpenSearch/pull/7930))
+- Bump `io.projectreactor:reactor-core` from 3.5.1 to 3.5.6 in /plugins/repository-azure ([#8016](https://github.com/opensearch-project/OpenSearch/pull/8016))
+- Bump `com.google.guava:guava` from 32.0.0-jre to 32.0.1-jre in /distribution/tools/upgrade-cli ([#8011](https://github.com/opensearch-project/OpenSearch/pull/8011))
+- Bump `com.google.guava:guava` from 32.0.0-jre to 32.0.1-jre in /distribution/tools/plugin-cli ([#8012](https://github.com/opensearch-project/OpenSearch/pull/8012))
 - Add Opentelemetry dependencies ([#7543](https://github.com/opensearch-project/OpenSearch/issues/7543))
 
 ### Changed
@@ -50,6 +62,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Change http code on create index API with bad input raising NotXContentException from 500 to 400 ([#4773](https://github.com/opensearch-project/OpenSearch/pull/4773))
 - Change http code for DecommissioningFailedException from 500 to 400 ([#5283](https://github.com/opensearch-project/OpenSearch/pull/5283))
 - Improve summary error message for invalid setting updates ([#4792](https://github.com/opensearch-project/OpenSearch/pull/4792))
+- Reduce memory copy in zstd compression ([#7681](https://github.com/opensearch-project/OpenSearch/pull/7681))
+- Add ZSTD compression for snapshotting ([#2996](https://github.com/opensearch-project/OpenSearch/pull/2996))
+- Change `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` to `aws.ec2MetadataServiceEndpoint` ([7372](https://github.com/opensearch-project/OpenSearch/pull/7372/))
+- Change `com.amazonaws.sdk.stsEndpointOverride` to `aws.stsEndpointOverride` ([7372](https://github.com/opensearch-project/OpenSearch/pull/7372/))
+- Align range and default value for deletes_pct_allowed in merge policy ([#7730](https://github.com/opensearch-project/OpenSearch/pull/7730))
+- Rename QueryPhase actors like Suggest, Rescore to be processors rather than phase ([#8025](https://github.com/opensearch-project/OpenSearch/pull/8025)) 
 
 ### Deprecated
 
@@ -68,6 +86,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove LegacyESVersion.V_7_10_ Constants ([#5018](https://github.com/opensearch-project/OpenSearch/pull/5018))
 - Remove Version.V_1_ Constants ([#5021](https://github.com/opensearch-project/OpenSearch/pull/5021))
 - Remove custom Map, List and Set collection classes ([#6871](https://github.com/opensearch-project/OpenSearch/pull/6871))
+- Remove COMPRESSOR variable from CompressorFactory and use DEFLATE_COMPRESSOR instead ([7907](https://github.com/opensearch-project/OpenSearch/pull/7907))
 
 ### Fixed
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
@@ -80,78 +99,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
-- [Extensions] Moving Extensions APIs to support cross versions via protobuf. ([#7402](https://github.com/opensearch-project/OpenSearch/issues/7402))
-- [Extensions] Add IdentityPlugin into core to support Extension identities ([#7246](https://github.com/opensearch-project/OpenSearch/pull/7246))
-- Add connectToNodeAsExtension in TransportService ([#6866](https://github.com/opensearch-project/OpenSearch/pull/6866))
-- [Search Pipelines] Accept pipelines defined in search source ([#7253](https://github.com/opensearch-project/OpenSearch/pull/7253))
-- [Search Pipelines] Add `default_search_pipeline` index setting ([#7470](https://github.com/opensearch-project/OpenSearch/pull/7470))
-- [Search Pipelines] Add RenameFieldResponseProcessor for Search Pipelines ([#7377](https://github.com/opensearch-project/OpenSearch/pull/7377))
-- [Search Pipelines] Split search pipeline processor factories by type ([#7597](https://github.com/opensearch-project/OpenSearch/pull/7597))
-- [Search Pipelines] Add script processor ([#7607](https://github.com/opensearch-project/OpenSearch/pull/7607))
-- Add descending order search optimization through reverse segment read. ([#7244](https://github.com/opensearch-project/OpenSearch/pull/7244))
-- Add 'unsigned_long' numeric field type ([#6237](https://github.com/opensearch-project/OpenSearch/pull/6237))
-- Add back primary shard preference for queries ([#7375](https://github.com/opensearch-project/OpenSearch/pull/7375))
-- Add task cancellation timestamp in task API ([#7455](https://github.com/opensearch-project/OpenSearch/pull/7455))
-- Adds ExtensionsManager.lookupExtensionSettingsById ([#7466](https://github.com/opensearch-project/OpenSearch/pull/7466))
-- SegRep with Remote: Add hook for publishing checkpoint notifications after segment upload to remote store ([#7394](https://github.com/opensearch-project/OpenSearch/pull/7394))
-- Add search_after query optimizations with shard/segment short cutting ([#7453](https://github.com/opensearch-project/OpenSearch/pull/7453))
-- Provide mechanism to configure XContent parsing constraints (after update to Jackson 2.15.0 and above) ([#7550](https://github.com/opensearch-project/OpenSearch/pull/7550))
-- Support to clear filecache using clear indices cache API ([#7498](https://github.com/opensearch-project/OpenSearch/pull/7498))
-- Create NamedRoute to map extension routes to a shortened name ([#6870](https://github.com/opensearch-project/OpenSearch/pull/6870))
-- Added @dbwiddis as on OpenSearch maintainer ([#7665](https://github.com/opensearch-project/OpenSearch/pull/7665))
-- [Extensions] Add ExtensionAwarePlugin extension point to add custom settings for extensions ([#7526](https://github.com/opensearch-project/OpenSearch/pull/7526))
-- Add new cluster setting to set default index replication type ([#7420](https://github.com/opensearch-project/OpenSearch/pull/7420))
+- Add task cancellation monitoring service ([#7642](https://github.com/opensearch-project/OpenSearch/pull/7642))
+- Add TokenManager Interface ([#7452](https://github.com/opensearch-project/OpenSearch/pull/7452))
+- Add Remote store as a segment replication source ([#7653](https://github.com/opensearch-project/OpenSearch/pull/7653))
+- Add descending order search optimization through reverse segment read. ([#7967](https://github.com/opensearch-project/OpenSearch/pull/7967))
+- Make remote cluster connection setup in async ([#8038](https://github.com/opensearch-project/OpenSearch/pull/8038))
+- Update components of segrep backpressure to support remote store. ([#8020](https://github.com/opensearch-project/OpenSearch/pull/8020))
 - Add distributed tracing framework ([#7543](https://github.com/opensearch-project/OpenSearch/issues/7543))
 
 ### Dependencies
-- Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.3 (#7564)
-- Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.2.0
-- Bump `com.google.protobuf:protobuf-java` from 3.22.2 to 3.22.3
-- Bump `jackson` from 2.14.2 to 2.15.0 ([#7286](https://github.com/opensearch-project/OpenSearch/pull/7286))
-- Bump `com.netflix.nebula:nebula-publishing-plugin` from 20.2.0 to 20.3.0
-- Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.3.0
-- Bump `gradle.plugin.com.github.johnrengelman:shadow` from 7.1.2 to 8.0.0
-- Bump `jna` from 5.11.0 to 5.13.0
-- Bump `commons-io:commons-io` from 2.7 to 2.12.0 (#7661, #7658, #7656)
-- Bump `org.apache.shiro:shiro-core` from 1.9.1 to 1.11.0 ([#7397](https://github.com/opensearch-project/OpenSearch/pull/7397))
-- Bump `jetty-server` in hdfs-fixture from 9.4.49.v20220914 to 9.4.51.v20230217 ([#7405](https://github.com/opensearch-project/OpenSearch/pull/7405))
-- OpenJDK Update (April 2023 Patch releases) ([#7448](https://github.com/opensearch-project/OpenSearch/pull/7448)
-- Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0 (#7462)
-- Bump `com.azure:azure-core` from 1.34.0 to 1.39.0
-- Bump `com.networknt:json-schema-validator` from 1.0.78 to 1.0.81 (#7460)
-- Bump Apache Lucene to 9.6.0 ([#7505](https://github.com/opensearch-project/OpenSearch/pull/7505))
-- Bump `com.google.cloud:google-cloud-core-http` from 1.93.3 to 2.17.0 (#7488)
-- Bump `com.google.guava:guava` from 30.1.1-jre to 31.1-jre (#7565)
-- Bump `com.azure:azure-storage-common` from 12.20.0 to 12.21.0 (#7566)
-- Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0 (#7563)
-- Bump `jackson` from 2.15.0 to 2.15.1 ([#7603](https://github.com/opensearch-project/OpenSearch/pull/7603))
-- Bump `net.minidev:json-smart` from 2.4.10 to 2.4.11 (#7660)
-- Bump `io.projectreactor.netty:reactor-netty-core` from 1.1.5 to 1.1.7 (#7657)
-- Bump `org.apache.maven:maven-model` from 3.9.1 to 3.9.2 (#7655)
-- Bump `com.google.api:gax` from 2.17.0 to 2.27.0 (#7697)
-- Bump `io.projectreactor.netty:reactor-netty` from 1.1.4 to 1.1.7 ([#7725](https://github.com/opensearch-project/OpenSearch/pull/7725))
-- Bump `io.projectreactor.netty:reactor-netty-http` from 1.1.4 to 1.1.7 ([#7725](https://github.com/opensearch-project/OpenSearch/pull/7725))
+- Bump `jackson` from 2.15.1 to 2.15.2 ([#7897](https://github.com/opensearch-project/OpenSearch/pull/7897))
+- Bump `netty` from 4.1.91.Final to 4.1.93.Final ([#7901](https://github.com/opensearch-project/OpenSearch/pull/7901))
+- Bump `com.netflix.nebula:gradle-extra-configurations-plugin` from 9.0.0 to 10.0.0 in /buildSrc ([#7068](https://github.com/opensearch-project/OpenSearch/pull/7068))
+- Bump `com.google.guava:guava` from 32.0.0-jre to 32.0.1-jre (#8009)
+- Bump `commons-io:commons-io` from 2.12.0 to 2.13.0 (#8014, #8013, #8010)
+- Bump `com.diffplug.spotless` from 6.18.0 to 6.19.0 (#8007)
+- Bump `org.jruby.joni:joni` from 2.1.48 to 2.2.1 (#8015)
 
 ### Changed
-- Enable `./gradlew build` on MacOS by disabling bcw tests ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))
-- Moved concurrent-search from sandbox plugin to server module behind feature flag ([#7203](https://github.com/opensearch-project/OpenSearch/pull/7203))
-- Allow access to indices cache clear APIs for read only indexes ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))
-- Changed concurrent-search threadpool type to be resizable and support task resource tracking ([#7502](https://github.com/opensearch-project/OpenSearch/pull/7502))
-- Default search preference to _primary for searchable snapshot indices ([#7628](https://github.com/opensearch-project/OpenSearch/pull/7628))
-- [Segment Replication] Remove codec name string match check for checkpoints ([#7741](https://github.com/opensearch-project/OpenSearch/pull/7741))
+- Replace jboss-annotations-api_1.2_spec with jakarta.annotation-api ([#7836](https://github.com/opensearch-project/OpenSearch/pull/7836))
+- Add min, max, average and thread info to resource stats in tasks API ([#7673](https://github.com/opensearch-project/OpenSearch/pull/7673))
+- Compress and cache cluster state during validate join request ([#7321](https://github.com/opensearch-project/OpenSearch/pull/7321))
+- [Snapshot Interop] Add Changes in Create Snapshot Flow for remote store interoperability. ([#7118](https://github.com/opensearch-project/OpenSearch/pull/7118))
+- Add new query profile collector fields with concurrent search execution ([#7898](https://github.com/opensearch-project/OpenSearch/pull/7898))
+- Allow insecure string settings to warn-log usage and advise to migration of a newer secure variant ([#5496](https://github.com/opensearch-project/OpenSearch/pull/5496))
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- Add more index blocks check for resize APIs ([#6774](https://github.com/opensearch-project/OpenSearch/pull/6774))
-- Replaces ZipInputStream with ZipFile to fix Zip Slip vulnerability ([#7230](https://github.com/opensearch-project/OpenSearch/pull/7230))
-- Add missing validation/parsing of SearchBackpressureMode of SearchBackpressureSettings ([#7541](https://github.com/opensearch-project/OpenSearch/pull/7541))
-- [Search Pipelines] Better exception handling in search pipelines ([#7735](https://github.com/opensearch-project/OpenSearch/pull/7735))
-- Fix input validation in segments and delete pit request ([#6645](https://github.com/opensearch-project/OpenSearch/pull/6645))
+-  Fixing error: adding a new/forgotten parameter to the configuration for checking the config on startup in plugins/repository-s3 #7924
+- Enforce 512 byte document ID limit in bulk updates ([#8039](https://github.com/opensearch-project/OpenSearch/pull/8039))
 
 ### Security
 
 [Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
-[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.7...2.x
+[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.8...2.x
