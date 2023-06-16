@@ -48,7 +48,7 @@ public class LongHashBenchmark {
     @State(Scope.Benchmark)
     public static class HashTableOptions {
 
-        @Param({ "LongHash", "FastLongHash" })
+        @Param({ "LongHash", "ReorganizingLongHash" })
         public String type;
 
         @Param({ "1" })
@@ -65,8 +65,8 @@ public class LongHashBenchmark {
                 case "LongHash":
                     supplier = this::newLongHash;
                     break;
-                case "FastLongHash":
-                    supplier = this::newFastLongHash;
+                case "ReorganizingLongHash":
+                    supplier = this::newReorganizingLongHash;
                     break;
                 default:
                     throw new IllegalArgumentException("invalid hash table type: " + type);
@@ -93,9 +93,13 @@ public class LongHashBenchmark {
             };
         }
 
-        private HashTable newFastLongHash() {
+        private HashTable newReorganizingLongHash() {
             return new HashTable() {
-                private final FastLongHash table = new FastLongHash(initialCapacity, loadFactor, BigArrays.NON_RECYCLING_INSTANCE);
+                private final ReorganizingLongHash table = new ReorganizingLongHash(
+                    initialCapacity,
+                    loadFactor,
+                    BigArrays.NON_RECYCLING_INSTANCE
+                );
 
                 @Override
                 public long add(long key) {

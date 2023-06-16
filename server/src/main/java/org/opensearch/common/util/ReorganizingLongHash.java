@@ -25,9 +25,9 @@ import org.opensearch.common.lease.Releasable;
  *
  * @opensearch.internal
  */
-public class FastLongHash implements Releasable {
+public class ReorganizingLongHash implements Releasable {
     private static final long MAX_CAPACITY = 1L << 32;
-    private static final long DEFAULT_INITIAL_CAPACITY = 1;
+    private static final long DEFAULT_INITIAL_CAPACITY = 32;
     private static final float DEFAULT_LOAD_FACTOR = 0.6f;
 
     /**
@@ -99,11 +99,11 @@ public class FastLongHash implements Releasable {
     private static final long MASK_PSL = 0x7FFF000000000000L;  // extract PSL
     private static final long INCR_PSL = 0x0001000000000000L;  // increment PSL by one
 
-    public FastLongHash(final BigArrays bigArrays) {
+    public ReorganizingLongHash(final BigArrays bigArrays) {
         this(DEFAULT_INITIAL_CAPACITY, DEFAULT_LOAD_FACTOR, bigArrays);
     }
 
-    public FastLongHash(long initialCapacity, final float loadFactor, final BigArrays bigArrays) {
+    public ReorganizingLongHash(final long initialCapacity, final float loadFactor, final BigArrays bigArrays) {
         assert initialCapacity > 0 : "initial capacity must be greater than 0";
         assert loadFactor > 0 && loadFactor < 1 : "load factor must be between 0 and 1";
 

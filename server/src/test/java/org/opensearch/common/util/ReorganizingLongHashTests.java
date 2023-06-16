@@ -13,13 +13,13 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.HashMap;
 import java.util.Map;
 
-public class FastLongHashTests extends OpenSearchTestCase {
+public class ReorganizingLongHashTests extends OpenSearchTestCase {
 
     public void testFuzzy() {
         Map<Long, Long> reference = new HashMap<>();
 
         try (
-            FastLongHash h = new FastLongHash(
+            ReorganizingLongHash h = new ReorganizingLongHash(
                 randomIntBetween(1, 100),      // random capacity
                 0.6f + randomFloat() * 0.39f,  // random load factor to verify collision resolution
                 BigArrays.NON_RECYCLING_INSTANCE
@@ -61,7 +61,7 @@ public class FastLongHashTests extends OpenSearchTestCase {
     }
 
     public void testRearrangement() {
-        try (FastLongHash h = new FastLongHash(4, 0.6f, BigArrays.NON_RECYCLING_INSTANCE) {
+        try (ReorganizingLongHash h = new ReorganizingLongHash(4, 0.6f, BigArrays.NON_RECYCLING_INSTANCE) {
             /**
              * Overriding with an "identity" hash function to make it easier to reason about the placement
              * of values in the hash table. The backing array of the hash table will have a size (8),
