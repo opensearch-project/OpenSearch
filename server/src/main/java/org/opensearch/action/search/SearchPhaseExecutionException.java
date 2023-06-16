@@ -32,7 +32,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ShardOperationFailedException;
@@ -100,7 +99,7 @@ public class SearchPhaseExecutionException extends OpenSearchException {
         if (shardFailures.length == 0) {
             // if no successful shards, the failure can be due to OpenSearchRejectedExecutionException during fetch phase
             // on coordinator node. so get the status from cause instead of returning SERVICE_UNAVAILABLE blindly
-            return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : BaseExceptionsHelper.status(getCause());
+            return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : ExceptionsHelper.status(getCause());
         }
         RestStatus status = shardFailures[0].status();
         if (shardFailures.length > 1) {
@@ -160,14 +159,14 @@ public class SearchPhaseExecutionException extends OpenSearchException {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Throwable ex = BaseExceptionsHelper.unwrapCause(this);
+        Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            BaseExceptionsHelper.generateThrowableXContent(builder, params, this);
+            OpenSearchException.generateThrowableXContent(builder, params, this);
         } else {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
             // be rendered twice (one in the "cause" field, one in "failed_shards")
-            BaseExceptionsHelper.innerToXContent(
+            OpenSearchException.innerToXContent(
                 builder,
                 params,
                 this,

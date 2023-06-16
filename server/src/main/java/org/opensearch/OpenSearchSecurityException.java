@@ -53,7 +53,7 @@ public class OpenSearchSecurityException extends OpenSearchStatusException {
      * Build the exception with the status derived from the cause.
      */
     public OpenSearchSecurityException(String msg, Exception cause, Object... args) {
-        this(msg, BaseExceptionsHelper.status(cause), cause, args);
+        this(msg, ExceptionsHelper.status(cause), cause, args);
     }
 
     /**

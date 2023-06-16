@@ -129,7 +129,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             );
             OpenSearchException[] rootCauses = exception.guessRootCauses();
             assertEquals(rootCauses.length, 1);
-            assertEquals(BaseExceptionsHelper.getExceptionName(rootCauses[0]), "index_not_found_exception");
+            assertEquals(OpenSearchException.getExceptionName(rootCauses[0]), "index_not_found_exception");
             assertEquals("no such index [foo]", rootCauses[0].getMessage());
             ShardSearchFailure failure = new ShardSearchFailure(
                 new ParsingException(1, 2, "foobar", null),
@@ -149,12 +149,12 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             } else {
                 rootCauses = OpenSearchException.guessRootCauses(randomBoolean() ? new RemoteTransportException("remoteboom", ex) : ex);
             }
-            assertEquals("parsing_exception", BaseExceptionsHelper.getExceptionName(rootCauses[0]));
+            assertEquals("parsing_exception", OpenSearchException.getExceptionName(rootCauses[0]));
             assertEquals("foobar", rootCauses[0].getMessage());
 
             OpenSearchException oneLevel = new OpenSearchException("foo", new RuntimeException("foobar"));
             rootCauses = oneLevel.guessRootCauses();
-            assertEquals("exception", BaseExceptionsHelper.getExceptionName(rootCauses[0]));
+            assertEquals("exception", OpenSearchException.getExceptionName(rootCauses[0]));
             assertEquals("foo", rootCauses[0].getMessage());
         }
         {
@@ -177,12 +177,12 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             );
             final OpenSearchException[] rootCauses = ex.guessRootCauses();
             assertEquals(rootCauses.length, 2);
-            assertEquals(BaseExceptionsHelper.getExceptionName(rootCauses[0]), "parsing_exception");
+            assertEquals(OpenSearchException.getExceptionName(rootCauses[0]), "parsing_exception");
             assertEquals(rootCauses[0].getMessage(), "foobar");
             assertEquals(1, ((ParsingException) rootCauses[0]).getLineNumber());
             assertEquals(2, ((ParsingException) rootCauses[0]).getColumnNumber());
-            assertEquals("query_shard_exception", BaseExceptionsHelper.getExceptionName(rootCauses[1]));
-            assertEquals("foo1", rootCauses[1].getIndexName());
+            assertEquals("query_shard_exception", OpenSearchException.getExceptionName(rootCauses[1]));
+            assertEquals("foo1", rootCauses[1].getIndex().getName());
             assertEquals("foobar", rootCauses[1].getMessage());
         }
 
@@ -409,7 +409,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             // Test the same exception but with the "rest.exception.stacktrace.skip" parameter disabled: the stack_trace must be present
             // in the JSON. Since the stack can be large, it only checks the beginning of the JSON.
             ToXContent.Params params = new ToXContent.MapParams(
-                Collections.singletonMap(BaseExceptionsHelper.REST_EXCEPTION_SKIP_STACK_TRACE, "false")
+                Collections.singletonMap(OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false")
             );
             String actual;
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
@@ -451,7 +451,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             OpenSearchException ex = new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
             String toXContentString = Strings.toString(XContentType.JSON, ex);
             String throwableString = Strings.toString(XContentType.JSON, (builder, params) -> {
-                BaseExceptionsHelper.generateThrowableXContent(builder, params, ex);
+                OpenSearchException.generateThrowableXContent(builder, params, ex);
                 return builder;
             });
 
@@ -740,7 +740,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }
 
         BytesReference throwableBytes = toShuffledXContent((builder, params) -> {
-            BaseExceptionsHelper.generateThrowableXContent(builder, params, throwable);
+            OpenSearchException.generateThrowableXContent(builder, params, throwable);
             return builder;
         }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
@@ -756,7 +756,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         if (suppressedCount > 0) {
             XContentBuilder builder = XContentBuilder.builder(xContent);
             builder.startObject();
-            BaseExceptionsHelper.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, throwable);
+            OpenSearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, throwable);
             builder.endObject();
             throwableBytes = BytesReference.bytes(builder);
             try (XContentParser parser = createParser(xContent, throwableBytes)) {
@@ -814,7 +814,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }
         assertNotNull(parsedFailure);
 
-        String reason = BaseExceptionsHelper.summaryMessage(failure);
+        String reason = ExceptionsHelper.summaryMessage(failure);
         assertEquals(OpenSearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
         assertEquals(0, parsedFailure.getHeaders().size());
         assertEquals(0, parsedFailure.getMetadata().size());
@@ -983,7 +983,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
     private static void assertExceptionAsJson(Exception e, String expectedJson) throws IOException {
         assertToXContentAsJson((builder, params) -> {
-            BaseExceptionsHelper.generateThrowableXContent(builder, params, e);
+            OpenSearchException.generateThrowableXContent(builder, params, e);
             return builder;
         }, expectedJson);
     }

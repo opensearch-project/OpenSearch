@@ -32,7 +32,7 @@
 
 package org.opensearch.rest;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
@@ -183,7 +183,7 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
             + "\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\","
             + "\"reason\":\"foobar\",\"line\":1,\"col\":2}}]},\"status\":400}";
         assertEquals(expected.trim(), text.trim());
-        String stackTrace = BaseExceptionsHelper.stackTrace(ex);
+        String stackTrace = ExceptionsHelper.stackTrace(ex);
         assertTrue(stackTrace.contains("Caused by: ParsingException[foobar]"));
     }
 

@@ -57,7 +57,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.core.Assertions;
@@ -2213,7 +2212,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 onOperationRecovered.run();
             } catch (Exception e) {
                 // TODO: Don't enable this leniency unless users explicitly opt-in
-                if (origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY && BaseExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
+                if (origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY && ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
                     // mainly for MapperParsingException and Failure to detect xcontent
                     logger.info("ignoring recovery of a corrupt translog entry", e);
                 } else {

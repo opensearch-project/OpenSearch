@@ -32,7 +32,7 @@
 
 package org.opensearch.action.bulk;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
@@ -95,7 +95,7 @@ public class BulkResponseTests extends OpenSearchTestCase {
                 expectedBulkItems[i] = new BulkItemResponse(
                     i,
                     opType,
-                    new BulkItemResponse.Failure(index, id, failures.v2(), BaseExceptionsHelper.status(bulkItemCause))
+                    new BulkItemResponse.Failure(index, id, failures.v2(), ExceptionsHelper.status(bulkItemCause))
                 );
             }
         }

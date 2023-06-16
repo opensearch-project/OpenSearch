@@ -32,7 +32,7 @@
 
 package org.opensearch.action.bulk;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest.OpType;
@@ -94,7 +94,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
             builder.startObject(ERROR);
-            BaseExceptionsHelper.generateThrowableXContent(builder, params, failure.getCause());
+            OpenSearchException.generateThrowableXContent(builder, params, failure.getCause());
             builder.endObject();
         }
         builder.endObject();
@@ -218,7 +218,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 index,
                 id,
                 cause,
-                BaseExceptionsHelper.status(cause),
+                ExceptionsHelper.status(cause),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                 false
@@ -230,7 +230,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 index,
                 id,
                 cause,
-                BaseExceptionsHelper.status(cause),
+                ExceptionsHelper.status(cause),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                 aborted
@@ -243,7 +243,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
         /** For write failures after operation was assigned a sequence number. */
         public Failure(String index, String id, Exception cause, long seqNo, long term) {
-            this(index, id, cause, BaseExceptionsHelper.status(cause), seqNo, term, false);
+            this(index, id, cause, ExceptionsHelper.status(cause), seqNo, term, false);
         }
 
         private Failure(String index, String id, Exception cause, RestStatus status, long seqNo, long term, boolean aborted) {
@@ -268,7 +268,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             }
             id = in.readOptionalString();
             cause = in.readException();
-            status = BaseExceptionsHelper.status(cause);
+            status = ExceptionsHelper.status(cause);
             seqNo = in.readZLong();
             term = in.readVLong();
             aborted = in.readBoolean();
@@ -356,7 +356,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 builder.field(ID_FIELD, id);
             }
             builder.startObject(CAUSE_FIELD);
-            BaseExceptionsHelper.generateThrowableXContent(builder, params, cause);
+            OpenSearchException.generateThrowableXContent(builder, params, cause);
             builder.endObject();
             builder.field(STATUS_FIELD, status.getStatus());
             return builder;

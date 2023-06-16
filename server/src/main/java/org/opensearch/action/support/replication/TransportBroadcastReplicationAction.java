@@ -33,7 +33,7 @@
 package org.opensearch.action.support.replication;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
@@ -122,7 +122,7 @@ public abstract class TransportBroadcastReplicationAction<
                             shardId,
                             null,
                             e,
-                            BaseExceptionsHelper.status(e),
+                            ExceptionsHelper.status(e),
                             true
                         );
                         failures = new ReplicationResponse.ShardInfo.Failure[totalNumCopies];

@@ -32,7 +32,7 @@
 
 package org.opensearch.action;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -90,7 +90,7 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
         this.nodeId = nodeId;
         this.taskId = taskId;
         this.reason = e;
-        status = BaseExceptionsHelper.status(e);
+        status = ExceptionsHelper.status(e);
     }
 
     /**
@@ -144,7 +144,7 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
         if (reason != null) {
             builder.field(REASON);
             builder.startObject();
-            BaseExceptionsHelper.generateThrowableXContent(builder, params, reason);
+            OpenSearchException.generateThrowableXContent(builder, params, reason);
             builder.endObject();
         }
         return builder;
