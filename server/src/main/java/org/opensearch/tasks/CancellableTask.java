@@ -32,6 +32,7 @@
 
 package org.opensearch.tasks;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.unit.TimeValue;
 
@@ -106,11 +107,13 @@ public abstract class CancellableTask extends Task {
         return true;
     }
 
+    @Nullable
     public Long getCancellationStartTime() {
         CancelledInfo info = cancelledInfo.get();
         return (info != null) ? info.cancellationStartTime : null;
     }
 
+    @Nullable
     public Long getCancellationStartTimeNanos() {
         CancelledInfo info = cancelledInfo.get();
         return (info != null) ? info.cancellationStartTimeNanos : null;
@@ -128,6 +131,7 @@ public abstract class CancellableTask extends Task {
     /**
      * The reason the task was cancelled or null if it hasn't been cancelled.
      */
+    @Nullable
     public String getReasonCancelled() {
         CancelledInfo info = cancelledInfo.get();
         return (info != null) ? info.reason : null;
