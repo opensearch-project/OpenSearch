@@ -106,7 +106,7 @@ public class BytesStreamInput extends StreamInput {
     }
 
     @Override
-    public void ensureCanReadBytes(int length) throws EOFException {
+    protected void ensureCanReadBytes(int length) throws EOFException {
         int available = available();
         if (length > available) {
             throw new EOFException("attempting to read " + length + " bytes but only " + available + " bytes are available");
