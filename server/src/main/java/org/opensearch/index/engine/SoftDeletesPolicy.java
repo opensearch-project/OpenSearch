@@ -34,7 +34,7 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;

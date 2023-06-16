@@ -50,7 +50,7 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryShardException;

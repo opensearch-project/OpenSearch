@@ -53,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `io.projectreactor:reactor-core` from 3.5.1 to 3.5.6 in /plugins/repository-azure ([#8016](https://github.com/opensearch-project/OpenSearch/pull/8016))
 - Bump `com.google.guava:guava` from 32.0.0-jre to 32.0.1-jre in /distribution/tools/plugin-cli ([#8012](https://github.com/opensearch-project/OpenSearch/pull/8012))
 - Bumps `org.jboss.resteasy:resteasy-jackson2-provider` from 3.0.19.Final to 6.2.4.Final ([7935](https://github.com/opensearch-project/OpenSearch/pull/7935))
+- Bump all `com.google.guava:guava` to 32.0.1-jre ([#8107](https://github.com/opensearch-project/OpenSearch/pull/8107))
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -93,6 +94,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support OpenSSL Provider with default Netty allocator ([#5460](https://github.com/opensearch-project/OpenSearch/pull/5460))
 - Replaces ZipInputStream with ZipFile to fix Zip Slip vulnerability ([#7230](https://github.com/opensearch-project/OpenSearch/pull/7230))
 - Add missing validation/parsing of SearchBackpressureMode of SearchBackpressureSettings ([#7541](https://github.com/opensearch-project/OpenSearch/pull/7541))
+- Fix mapping char_filter when mapping a hashtag ([#7591](https://github.com/opensearch-project/OpenSearch/pull/7591))
 
 ### Security
 

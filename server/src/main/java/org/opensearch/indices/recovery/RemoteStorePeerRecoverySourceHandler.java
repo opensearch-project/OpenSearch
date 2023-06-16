@@ -13,7 +13,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;

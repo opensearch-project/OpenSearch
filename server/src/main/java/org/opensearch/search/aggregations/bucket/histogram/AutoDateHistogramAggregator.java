@@ -40,7 +40,7 @@ import org.opensearch.common.Rounding.Prepared;
 import org.opensearch.common.util.ByteArray;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
