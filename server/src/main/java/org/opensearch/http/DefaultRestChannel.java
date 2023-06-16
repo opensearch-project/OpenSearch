@@ -50,10 +50,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.RestStatus;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.opensearch.tasks.Task.X_OPAQUE_ID;
 
@@ -78,7 +75,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
-
+    private final Map<String, List<String>> serverHeader;
 
     @Nullable
     private final HttpTracer tracerLog;
@@ -101,6 +98,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
         this.tracerLog = tracerLog;
+        this.serverHeader = new HashMap<>();
     }
 
     @Override
@@ -149,11 +147,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             // Add all custom headers
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
-
-            Map<String, List<String>> serverHeader = new HashMap<>();
-            List<String> serverHeaderString = new ArrayList<>();
-
-            serverHeaderString.add("OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" +   Build.CURRENT.getDistribution() + ")");
 
             serverHeader.put("serverHeader", Arrays.asList("OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")"));
 
