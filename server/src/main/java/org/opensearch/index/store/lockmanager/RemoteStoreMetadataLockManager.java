@@ -49,6 +49,7 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
 
     /**
      * Releases Locks acquired by a given acquirer which is passed in LockInfo Instance.
+     * If the lock file doesn't exist for the acquirer, release will be a no-op.
      * Right now this method is only used to release locks for a given acquirer,
      * This can be extended in future to handle other cases as well, like:
      * - release lock for given fileToLock and AcquirerId
@@ -65,6 +66,7 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
             lockDirectory.deleteFile(lockToRelease);
         } catch (NoSuchFileException e) {
             // Ignoring if the file to be deleted is not present.
+            logger.info("No lock file found for acquirerId: {}", ((FileLockInfo) lockInfo).getAcquirerId());
         }
     }
 

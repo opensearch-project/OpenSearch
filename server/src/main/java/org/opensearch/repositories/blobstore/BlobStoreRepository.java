@@ -572,13 +572,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 sourceMeta.asClone(target.getName(), startTime, threadPool.absoluteTimeInMillis() - startTime),
                 shardContainer,
                 target.getUUID(),
-                compress
+                compressor
             );
             INDEX_SHARD_SNAPSHOTS_FORMAT.write(
                 existingSnapshots.withClone(source.getName(), target.getName()),
                 shardContainer,
                 newGen,
-                compress
+                compressor
             );
             return newGen;
         }));
