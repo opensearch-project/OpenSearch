@@ -39,6 +39,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -71,6 +72,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -234,19 +236,19 @@ public class QueryPhase {
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
-            if (searchContext.queryCollectorManagers().isEmpty() == false) {
-                // plug in additional collectors, like aggregations except global aggregations
-                collectors.add(
-                    createMultiCollectorContext(
-                        searchContext.queryCollectorManagers()
-                            .entrySet()
-                            .stream()
-                            .filter(entry -> !(entry.getKey().equals(GlobalAggCollectorManager.class)))
-                            .map(Map.Entry::getValue)
-                            .collect(Collectors.toList())
-                    )
-                );
+
+            // plug in additional collectors, like aggregations except global aggregations
+            final List<CollectorManager<? extends Collector, ReduceableSearchResult>> managersExceptGlobalAgg = searchContext
+                .queryCollectorManagers()
+                .entrySet()
+                .stream()
+                .filter(entry -> !(entry.getKey().equals(GlobalAggCollectorManager.class)))
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList());
+            if (managersExceptGlobalAgg.isEmpty() == false) {
+                collectors.add(createMultiCollectorContext(managersExceptGlobalAgg));
             }
+
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
