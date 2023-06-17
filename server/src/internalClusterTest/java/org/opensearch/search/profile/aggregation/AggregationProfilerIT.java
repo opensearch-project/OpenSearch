@@ -32,14 +32,19 @@
 
 package org.opensearch.search.profile.aggregation;
 
+import org.hamcrest.core.IsNull;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.sampler.DiversifiedOrdinalsSamplerAggregator;
 import org.opensearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
+import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
+import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
@@ -48,11 +53,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.diversifiedSampler;
+import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
+import static org.opensearch.search.aggregations.AggregationBuilders.stats;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
@@ -95,6 +104,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
     private static final String NUMBER_FIELD = "number";
     private static final String TAG_FIELD = "tag";
     private static final String STRING_FIELD = "string_field";
+    private final int numDocs = 5;
 
     @Override
     protected int numberOfShards() {
@@ -118,7 +128,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             randomStrings[i] = randomAlphaOfLength(10);
         }
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < numDocs; i++) {
             builders.add(
                 client().prepareIndex("idx")
                     .setSource(
@@ -632,5 +642,69 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
         Map<String, ProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(0));
+    }
+
+    public void testGlobalAggWithStatsSubAggregatorProfile() {
+        boolean profileEnabled = true;
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(global("global").subAggregation(stats("value_stats").field(NUMBER_FIELD)))
+            .setProfile(profileEnabled)
+            .get();
+
+        assertSearchResponse(response);
+
+        Global global = response.getAggregations().get("global");
+        assertThat(global, IsNull.notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo((long) numDocs));
+        assertThat((long) ((InternalAggregation) global).getProperty("_count"), equalTo((long) numDocs));
+        assertThat(global.getAggregations().asList().isEmpty(), is(false));
+
+        Stats stats = global.getAggregations().get("value_stats");
+        assertThat((Stats) ((InternalAggregation) global).getProperty("value_stats"), sameInstance(stats));
+        assertThat(stats, IsNull.notNullValue());
+        assertThat(stats.getName(), equalTo("value_stats"));
+
+        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        assertThat(profileResults, notNullValue());
+        assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
+        for (ProfileShardResult profileShardResult : profileResults.values()) {
+            assertThat(profileShardResult, notNullValue());
+            List<QueryProfileShardResult> queryProfileShardResults = profileShardResult.getQueryProfileResults();
+            assertEquals(queryProfileShardResults.size(), 2);
+            // ensure there is no multi collector getting added with only global agg
+            for (QueryProfileShardResult queryProfileShardResult : queryProfileShardResults) {
+                assertEquals(queryProfileShardResult.getQueryResults().size(), 1);
+                if (queryProfileShardResult.getQueryResults().get(0).getQueryName().equals("MatchAllDocsQuery")) {
+                    assertEquals(0, queryProfileShardResult.getQueryResults().get(0).getProfiledChildren().size());
+                    assertEquals("search_top_hits", queryProfileShardResult.getCollectorResult().getReason());
+                    assertEquals(0, queryProfileShardResult.getCollectorResult().getProfiledChildren().size());
+                } else if (queryProfileShardResult.getQueryResults().get(0).getQueryName().equals("ConstantScoreQuery")) {
+                    assertEquals(1, queryProfileShardResult.getQueryResults().get(0).getProfiledChildren().size());
+                    assertEquals("aggregation_global", queryProfileShardResult.getCollectorResult().getReason());
+                    assertEquals(0, queryProfileShardResult.getCollectorResult().getProfiledChildren().size());
+                } else {
+                    fail("unexpected profile shard result in the response");
+                }
+            }
+            AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
+            assertThat(aggProfileResults, notNullValue());
+            List<ProfileResult> aggProfileResultsList = aggProfileResults.getProfileResults();
+            assertThat(aggProfileResultsList, notNullValue());
+            assertEquals(1, aggProfileResultsList.size());
+            ProfileResult globalAggResult = aggProfileResultsList.get(0);
+            assertThat(globalAggResult, notNullValue());
+            assertEquals("GlobalAggregator", globalAggResult.getQueryName());
+            assertEquals("global", globalAggResult.getLuceneDescription());
+            assertEquals(1, globalAggResult.getProfiledChildren().size());
+            assertThat(globalAggResult.getTime(), greaterThan(0L));
+            Map<String, Long> breakdown = globalAggResult.getTimeBreakdown();
+            assertThat(breakdown, notNullValue());
+            assertEquals(BREAKDOWN_KEYS, breakdown.keySet());
+            assertThat(breakdown.get(INITIALIZE), greaterThan(0L));
+            assertThat(breakdown.get(COLLECT), greaterThan(0L));
+            assertThat(breakdown.get(BUILD_AGGREGATION).longValue(), greaterThan(0L));
+            assertEquals(0, breakdown.get(REDUCE).intValue());
+        }
     }
 }
