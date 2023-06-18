@@ -96,7 +96,7 @@ public class TracerManager {
     }
 
     private boolean isTracingDisabled() {
-        return tracerSettings.isTracingEnabled();
+        return !tracerSettings.isTracingEnabled();
     }
 
     private Tracer getOrCreateDefaultTracerInstance() {

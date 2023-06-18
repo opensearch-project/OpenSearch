@@ -53,7 +53,7 @@ public class TracerManagerTests extends OpenSearchTestCase {
     }
 
     public void testGetTracerWithTracingEnabledReturnsDefaultTracer() {
-        Settings settings = Settings.builder().put(TracerSettings.TRACER_LEVEL_SETTING.getKey(), Level.INFO).build();
+        Settings settings = Settings.builder().put(TracerSettings.TRACER_ENABLED_SETTING.getKey(), true).build();
         TracerSettings tracerSettings = new TracerSettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));

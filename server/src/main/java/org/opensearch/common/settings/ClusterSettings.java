@@ -681,6 +681,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         List.of(FeatureFlags.TRACER),
         List.of(
             TracerSettings.TRACER_LEVEL_SETTING,
+            TracerSettings.TRACER_ENABLED_SETTING,
             TracerSettings.TRACER_EXPORTER_DELAY_SETTING,
             TracerSettings.TRACER_EXPORTER_BATCH_SIZE_SETTING,
             TracerSettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,

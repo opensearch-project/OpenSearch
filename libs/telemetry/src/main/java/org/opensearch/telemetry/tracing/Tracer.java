@@ -23,8 +23,9 @@ public interface Tracer extends Closeable {
      *
      * @param spanName span name
      * @param level span tracing level
+     * @return scope of the span, can be used with try-with-resources to close the span
      */
-    void startSpan(String spanName, Level level);
+    Scope startSpan(String spanName, Level level);
 
     /**
      * Ends the current active {@link Span}

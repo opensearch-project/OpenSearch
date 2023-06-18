@@ -9,6 +9,7 @@
 package org.opensearch.telemetry.tracing.noop;
 
 import org.opensearch.telemetry.tracing.Level;
+import org.opensearch.telemetry.tracing.Scope;
 import org.opensearch.telemetry.tracing.Tracer;
 
 /**
@@ -24,8 +25,8 @@ public class NoopTracer implements Tracer {
     private NoopTracer() {}
 
     @Override
-    public void startSpan(String spanName, Level level) {
-
+    public Scope startSpan(String spanName, Level level) {
+        return Scope.NO_OP;
     }
 
     @Override

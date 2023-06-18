@@ -52,10 +52,11 @@ public class DefaultTracer implements Tracer {
     }
 
     @Override
-    public void startSpan(String spanName, Level level) {
+    public Scope startSpan(String spanName, Level level) {
         Span span = createSpan(spanName, getCurrentSpan(), level);
         setCurrentSpanInContext(span);
         addDefaultAttributes(span);
+        return new ScopeImpl(() -> endSpan());
     }
 
     @Override
