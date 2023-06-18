@@ -8,16 +8,11 @@
 
 package org.opensearch.telemetry.tracing;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 /**
  * Default implementation of {@link Span} using Otel span. It keeps a reference of OpenTelemetry Span and handles span
  * lifecycle management by delegating calls to it.
  */
 class OTelSpan extends AbstractSpan {
-
-    private static final Logger logger = LogManager.getLogger(OTelSpan.class);
 
     private final io.opentelemetry.api.trace.Span otelSpan;
 

@@ -96,7 +96,7 @@ public class TracerManager {
     }
 
     private boolean isTracingDisabled() {
-        return Level.DISABLED == tracerSettings.getTracerLevel();
+        return tracerSettings.isTracingEnabled();
     }
 
     private Tracer getOrCreateDefaultTracerInstance() {

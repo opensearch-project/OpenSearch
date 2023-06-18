@@ -24,15 +24,8 @@ import java.util.Arrays;
  *  <li>TRACE(lowest value)</li>
  * </ul>
  *
- * In addition, there is a level DISABLED that can be used to turn off tracing. By default, tracing is disabled.
- *
  */
 public enum Level {
-    /**
-     * DISABLED is a special level that can be used to turn off tracing. This level is initialized to Integer.MAX_VALUE.
-     */
-    DISABLED(Byte.MAX_VALUE),
-
     /**
      * ROOT is a tracing level indicating top level/root spans.
      */

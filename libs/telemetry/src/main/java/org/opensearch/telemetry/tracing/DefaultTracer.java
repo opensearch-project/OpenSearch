@@ -26,12 +26,7 @@ public class DefaultTracer implements Tracer {
      */
     public static final String CURRENT_SPAN = "current_span";
 
-    static final String TRACE_ID = "trace_id";
-    static final String SPAN_ID = "span_id";
-    static final String SPAN_NAME = "span_name";
-    static final String PARENT_SPAN_ID = "p_span_id";
     static final String THREAD_NAME = "th_name";
-    static final String PARENT_SPAN_NAME = "p_span_name";
 
     private final TracingTelemetry tracingTelemetry;
     private final TracerContextStorage<String, Span> tracerContextStorage;
@@ -121,14 +116,7 @@ public class DefaultTracer implements Tracer {
     }
 
     private void addDefaultAttributes(Span span) {
-        span.addAttribute(SPAN_ID, span.getSpanId());
-        span.addAttribute(TRACE_ID, span.getTraceId());
-        span.addAttribute(SPAN_NAME, span.getSpanName());
         span.addAttribute(THREAD_NAME, Thread.currentThread().getName());
-        if (span.getParentSpan() != null) {
-            span.addAttribute(PARENT_SPAN_ID, span.getParentSpan().getSpanId());
-            span.addAttribute(PARENT_SPAN_NAME, span.getParentSpan().getSpanName());
-        }
     }
 
 }

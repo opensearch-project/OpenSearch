@@ -21,7 +21,7 @@ public class LevelTests extends OpenSearchTestCase {
     public void testFromStringWithInValidString() {
         Exception exception = assertThrows(IllegalArgumentException.class, () -> Level.fromString("randomString"));
         assertEquals(
-            "invalid value for tracing level [randomString], must be in [DISABLED, ROOT, TERSE, INFO, DEBUG, TRACE]",
+            "invalid value for tracing level [randomString], must be in [ROOT, TERSE, INFO, DEBUG, TRACE]",
             exception.getMessage()
         );
     }

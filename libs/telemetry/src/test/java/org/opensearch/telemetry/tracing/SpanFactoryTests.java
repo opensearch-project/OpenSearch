@@ -21,7 +21,7 @@ import static org.mockito.Mockito.when;
 public class SpanFactoryTests extends OpenSearchTestCase {
 
     public void testCreateSpanLevelDisabledReturnsNoopSpan() {
-        Supplier<Level> levelSupplier = () -> Level.DISABLED;
+        Supplier<Level> levelSupplier = () -> Level.ROOT;
         SpanFactory spanFactory = new SpanFactory(levelSupplier, null);
 
         assertTrue(spanFactory.createSpan("spanName", null, Level.INFO) instanceof NoopSpan);

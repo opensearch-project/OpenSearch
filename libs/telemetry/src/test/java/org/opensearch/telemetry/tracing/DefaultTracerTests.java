@@ -18,9 +18,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.opensearch.telemetry.tracing.DefaultTracer.CURRENT_SPAN;
-import static org.opensearch.telemetry.tracing.DefaultTracer.SPAN_ID;
-import static org.opensearch.telemetry.tracing.DefaultTracer.SPAN_NAME;
-import static org.opensearch.telemetry.tracing.DefaultTracer.TRACE_ID;
 
 public class DefaultTracerTests extends OpenSearchTestCase {
 
@@ -46,9 +43,6 @@ public class DefaultTracerTests extends OpenSearchTestCase {
 
         defaultTracer.startSpan("span_name", Level.INFO);
 
-        verify(mockSpan).addAttribute(SPAN_ID, "span_id");
-        verify(mockSpan).addAttribute(TRACE_ID, "trace_id");
-        verify(mockSpan).addAttribute(SPAN_NAME, "span_name");
         Assert.assertEquals("span_name", defaultTracer.getCurrentSpan().getSpanName());
     }
 

@@ -44,7 +44,7 @@ public class TracerManagerTests extends OpenSearchTestCase {
     }
 
     public void testGetTracerWithTracingDisabledReturnsNoopTracer() {
-        Settings settings = Settings.builder().put(TracerSettings.TRACER_LEVEL_SETTING.getKey(), Level.DISABLED).build();
+        Settings settings = Settings.builder().put(TracerSettings.TRACER_ENABLED_SETTING.getKey(), false).build();
         TracerSettings tracerSettings = new TracerSettings(settings, new ClusterSettings(settings, getClusterSettings()));
         TracerManager.initTracerManager(tracerSettings, null, mock(ThreadPool.class));
 

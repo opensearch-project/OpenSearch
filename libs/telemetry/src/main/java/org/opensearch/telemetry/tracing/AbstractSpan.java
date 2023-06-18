@@ -16,15 +16,15 @@ public abstract class AbstractSpan implements Span {
     /**
      * name of the span
      */
-    protected final String spanName;
+    private final String spanName;
     /**
      * span's parent span
      */
-    protected final Span parentSpan;
+    private final Span parentSpan;
     /**
      * span's level
      */
-    protected final Level level;
+    private final Level level;
 
     /**
      * Base constructor

@@ -39,13 +39,22 @@ public class TracerSettings {
     );
     public static final Setting<Level> TRACER_LEVEL_SETTING = new Setting<>(
         "tracer.level",
-        Level.DISABLED.name(),
+        Level.ROOT.name(),
         Level::fromString,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> TRACER_ENABLED_SETTING = Setting.boolSetting(
+        "tracer.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile Level tracerLevel;
+
+    private volatile boolean tracingEnabled;
 
     private volatile int exporterBatchSize;
 
@@ -55,11 +64,13 @@ public class TracerSettings {
 
     public TracerSettings(Settings settings, ClusterSettings clusterSettings) {
         this.tracerLevel = TRACER_LEVEL_SETTING.get(settings);
+        this.tracingEnabled = TRACER_ENABLED_SETTING.get(settings);
         this.exporterBatchSize = TRACER_EXPORTER_BATCH_SIZE_SETTING.get(settings);
         this.exporterMaxQueueSize = TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING.get(settings);
         this.exporterDelay = TRACER_EXPORTER_DELAY_SETTING.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(TRACER_LEVEL_SETTING, this::setTracerLevel);
+        clusterSettings.addSettingsUpdateConsumer(TRACER_ENABLED_SETTING, this::setTracingEnabled);
         clusterSettings.addSettingsUpdateConsumer(TRACER_EXPORTER_BATCH_SIZE_SETTING, this::setExporterBatchSize);
         clusterSettings.addSettingsUpdateConsumer(TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING, this::setExporterMaxQueueSize);
         clusterSettings.addSettingsUpdateConsumer(TRACER_EXPORTER_DELAY_SETTING, this::setExporterDelay);
@@ -67,6 +78,10 @@ public class TracerSettings {
 
     public void setTracerLevel(Level tracerLevel) {
         this.tracerLevel = tracerLevel;
+    }
+
+    public void setTracingEnabled(boolean tracingEnabled) {
+        this.tracingEnabled = tracingEnabled;
     }
 
     public void setExporterBatchSize(int exporterBatchSize) {
@@ -83,6 +98,10 @@ public class TracerSettings {
 
     public Level getTracerLevel() {
         return tracerLevel;
+    }
+
+    public boolean isTracingEnabled() {
+        return tracingEnabled;
     }
 
     public int getExporterBatchSize() {

@@ -9,7 +9,7 @@
 package org.opensearch.telemetry.metrics;
 
 /**
- * Interface for tracing telemetry providers
+ * Interface for metrics telemetry providers
  */
 public interface MetricsTelemetry {
 
