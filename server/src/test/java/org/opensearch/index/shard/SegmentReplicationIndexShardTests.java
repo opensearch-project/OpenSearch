@@ -27,7 +27,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.InternalEngine;

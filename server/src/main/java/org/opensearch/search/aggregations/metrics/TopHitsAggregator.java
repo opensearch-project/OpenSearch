@@ -53,7 +53,7 @@ import org.opensearch.action.search.MaxScoreCollector;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.LongObjectPagedHashMap;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.Aggregator;

@@ -57,7 +57,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.node.NodeClosedException;

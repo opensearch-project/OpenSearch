@@ -48,7 +48,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperParsingException;

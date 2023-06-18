@@ -23,7 +23,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
