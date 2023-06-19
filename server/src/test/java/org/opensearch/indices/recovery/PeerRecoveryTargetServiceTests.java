@@ -380,7 +380,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         );
         IndexShard shard = newStartedShard(false);
         final SeqNoStats seqNoStats = populateRandomData(shard);
-        shard.close("test", false);
+        shard.close("test", false, false);
         if (randomBoolean()) {
             shard.store().associateIndexWithNewTranslog(UUIDs.randomBase64UUID());
         } else if (randomBoolean()) {

@@ -300,7 +300,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             dataStreams = in.readStringList();
             source = in.readOptionalWriteable(SnapshotId::new);
             clones = in.readMap(RepositoryShardId::new, ShardSnapshotStatus::readFrom);
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
                 remoteStoreIndexShallowCopy = in.readBoolean();
             } else {
                 remoteStoreIndexShallowCopy = false;
@@ -736,7 +736,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeStringCollection(dataStreams);
             out.writeOptionalWriteable(source);
             out.writeMap(clones, (o, v) -> v.writeTo(o), (o, v) -> v.writeTo(o));
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
                 out.writeBoolean(remoteStoreIndexShallowCopy);
             }
         }

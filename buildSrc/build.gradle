@@ -105,11 +105,11 @@ dependencies {
   api 'commons-codec:commons-codec:1.15'
   api 'org.apache.commons:commons-compress:1.23.0'
   api 'org.apache.ant:ant:1.10.13'
-  api 'com.netflix.nebula:gradle-extra-configurations-plugin:9.0.0'
+  api 'com.netflix.nebula:gradle-extra-configurations-plugin:10.0.0'
   api 'com.netflix.nebula:nebula-publishing-plugin:20.3.0'
   api 'com.netflix.nebula:gradle-info-plugin:12.1.3'
   api 'org.apache.rat:apache-rat:0.15'
-  api 'commons-io:commons-io:2.11.0'
+  api 'commons-io:commons-io:2.13.0'
   api "net.java.dev.jna:jna:5.13.0"
   api 'gradle.plugin.com.github.johnrengelman:shadow:8.0.0'
   api 'org.jdom:jdom2:2.0.6.1'

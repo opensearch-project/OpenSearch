@@ -118,7 +118,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getSearchBackpressureStats(),
                 nodeStats.getClusterManagerThrottlingStats(),
                 nodeStats.getWeightedRoutingStats(),
-                nodeStats.getFileCacheStats()
+                nodeStats.getFileCacheStats(),
+                nodeStats.getTaskCancellationStats()
             );
         }).collect(Collectors.toList());
     }

@@ -588,6 +588,13 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
+        "index.search.concurrent_segment_search.enabled",
+        false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -665,6 +672,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
+    private volatile boolean searchSegmentOrderReversed;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -905,6 +913,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_PIPELINE, this::setDefaultSearchPipeline);
     }
 
+    private void setSearchSegmentOrderReversed(boolean reversed) {
+        this.searchSegmentOrderReversed = reversed;
+    }
+
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
         this.searchIdleAfter = searchIdleAfter;
     }
@@ -1082,6 +1094,13 @@ public final class IndexSettings {
      */
     public Settings getNodeSettings() {
         return nodeSettings;
+    }
+
+    /**
+     * Returns true if index level setting for leaf reverse order search optimization is enabled
+     */
+    public boolean getSearchSegmentOrderReversed() {
+        return this.searchSegmentOrderReversed;
     }
 
     /**
@@ -1590,7 +1609,13 @@ public final class IndexSettings {
         if (FeatureFlags.isEnabled(SEARCH_PIPELINE)) {
             this.defaultSearchPipeline = defaultSearchPipeline;
         } else {
-            throw new SettingsException("Unsupported setting: " + DEFAULT_SEARCH_PIPELINE.getKey());
+            throw new SettingsException(
+                "Unable to update setting: "
+                    + DEFAULT_SEARCH_PIPELINE.getKey()
+                    + ". This is an experimental feature that is currently disabled, please enable the "
+                    + SEARCH_PIPELINE
+                    + " feature flag first."
+            );
         }
     }
 }

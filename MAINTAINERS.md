@@ -22,6 +22,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Owais Kazi               | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
 | Rishikesh Pasham         | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
 | Ryan Bogan               | [ryanbogan](https://github.com/ryanbogan)               | Amazon      |
+| Sachin Kale              | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
 | Sarat Vemulapalli        | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
 | Shweta Thareja           | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
 | Suraj Singh              | [dreamer-89](https://github.com/dreamer-89)             | Amazon      |
