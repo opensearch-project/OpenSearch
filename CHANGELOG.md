@@ -118,6 +118,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.jruby.joni:joni` from 2.1.48 to 2.2.1 (#8015)
 - Bump `com.netflix.nebula:gradle-info-plugin` from 12.1.3 to 12.1.4 (#8139)
 - Bump `com.azure:azure-storage-common` from 12.21.1 to 12.21.2 (#8142)
+- Bump `com.networknt:json-schema-validator` from 1.0.83 to 1.0.84 (#8141)
 
 ### Changed
 - Replace jboss-annotations-api_1.2_spec with jakarta.annotation-api ([#7836](https://github.com/opensearch-project/OpenSearch/pull/7836))
