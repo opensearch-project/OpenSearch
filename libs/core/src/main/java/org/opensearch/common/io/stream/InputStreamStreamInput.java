@@ -32,8 +32,6 @@
 
 package org.opensearch.common.io.stream;
 
-import org.opensearch.core.common.io.StreamsUtil;
-
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,7 +78,7 @@ public class InputStreamStreamInput extends StreamInput {
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         if (len < 0) throw new IndexOutOfBoundsException();
-        final int read = StreamsUtil.readFully(is, b, offset, len);
+        final int read = is.readNBytes(b, offset, len);
         if (read != len) {
             throw new EOFException();
         }

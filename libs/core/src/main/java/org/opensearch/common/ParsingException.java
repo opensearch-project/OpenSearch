@@ -35,7 +35,6 @@ package org.opensearch.common;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;
@@ -112,7 +111,7 @@ public class ParsingException extends OpenSearchException {
     }
 
     @Override
-    protected void metadataToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         if (lineNumber != UNKNOWN_POSITION) {
             builder.field("line", lineNumber);
             builder.field("col", columnNumber);

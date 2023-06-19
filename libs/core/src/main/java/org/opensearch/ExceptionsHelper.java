@@ -72,7 +72,7 @@ import static org.opensearch.OpenSearchException.getExceptionSimpleClassName;
  * @opensearch.internal
  */
 public final class ExceptionsHelper {
-    protected static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
+    private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
 
     // utility class: no ctor
     private ExceptionsHelper() {}

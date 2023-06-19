@@ -82,7 +82,6 @@ import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.RefCounted;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.io.StreamsUtil;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -1240,7 +1239,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final int len = (int) Math.min(1024 * 1024, size); // for safety we limit this to 1MB
             fileHash.grow(len);
             fileHash.setLength(len);
-            final int readBytes = StreamsUtil.readFully(in, fileHash.bytes(), 0, len);
+            final int readBytes = in.readNBytes(fileHash.bytes(), 0, len);
             assert readBytes == len : Integer.toString(readBytes) + " != " + Integer.toString(len);
             assert fileHash.length() == len : Integer.toString(fileHash.length()) + " != " + Integer.toString(len);
         }

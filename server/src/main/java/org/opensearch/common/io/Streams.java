@@ -36,7 +36,6 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStream;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.StreamsUtil;
 
 import java.io.BufferedReader;
 import java.io.FilterInputStream;
@@ -165,7 +164,7 @@ public abstract class Streams {
 
     @Deprecated
     public static int readFully(InputStream reader, byte[] dest) throws IOException {
-        return StreamsUtil.readFully(reader, dest, 0, dest.length);
+        return reader.readNBytes(dest, 0, dest.length);
     }
 
     /**
