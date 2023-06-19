@@ -35,4 +35,37 @@ public class SpanFactoryTests extends OpenSearchTestCase {
 
         assertFalse(spanFactory.createSpan("spanName", null, Level.INFO) instanceof NoopSpan);
     }
+
+    public void testCreateSpanWithSpanLevelLessThanParentSpanLeve() {
+        Supplier<Level> configuredLevelSupplier = () -> Level.INFO;
+        TracingTelemetry mockTracingTelemetry = mock(TracingTelemetry.class);
+        Span mockParentSpan = mock(Span.class);
+        when(mockParentSpan.getLevel()).thenReturn(Level.TERSE);
+        when(mockTracingTelemetry.createSpan(eq("spanName"), any(), eq(Level.INFO))).thenReturn(mock(Span.class));
+        SpanFactory spanFactory = new SpanFactory(configuredLevelSupplier, mockTracingTelemetry);
+
+        assertFalse(spanFactory.createSpan("spanName", mockParentSpan, Level.INFO) instanceof NoopSpan);
+    }
+
+    public void testCreateSpanWithSpanLevelMoreThanParentSpanLeve() {
+        Supplier<Level> configuredLevelSupplier = () -> Level.INFO;
+        TracingTelemetry mockTracingTelemetry = mock(TracingTelemetry.class);
+        Span mockParentSpan = mock(Span.class);
+        when(mockParentSpan.getLevel()).thenReturn(Level.DEBUG);
+        when(mockTracingTelemetry.createSpan(eq("spanName"), any(), eq(Level.INFO))).thenReturn(mock(Span.class));
+        SpanFactory spanFactory = new SpanFactory(configuredLevelSupplier, mockTracingTelemetry);
+
+        assertTrue(spanFactory.createSpan("spanName", mockParentSpan, Level.INFO) instanceof NoopSpan);
+    }
+
+    public void testCreateSpanWithSpanLevelSameAsParentSpanLeve() {
+        Supplier<Level> configuredLevelSupplier = () -> Level.INFO;
+        TracingTelemetry mockTracingTelemetry = mock(TracingTelemetry.class);
+        Span mockParentSpan = mock(Span.class);
+        when(mockParentSpan.getLevel()).thenReturn(Level.TERSE);
+        when(mockTracingTelemetry.createSpan(eq("spanName"), any(), eq(Level.INFO))).thenReturn(mock(Span.class));
+        SpanFactory spanFactory = new SpanFactory(configuredLevelSupplier, mockTracingTelemetry);
+
+        assertFalse(spanFactory.createSpan("spanName", mockParentSpan, Level.INFO) instanceof NoopSpan);
+    }
 }

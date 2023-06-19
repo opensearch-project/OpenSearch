@@ -93,4 +93,16 @@ public enum Level {
         return false;
     }
 
+    /**
+     * Checks if the current level's value is equal or lower than the given level
+     * @param level to compare
+     * @return <code>true</code> if the current level's value is equal or lower than given level's value, <code>false</code> otherwise
+     */
+    public boolean isLessOrEqual(Level level) {
+        if (level != null) {
+            return this.value <= level.value;
+        }
+        return false;
+    }
+
 }

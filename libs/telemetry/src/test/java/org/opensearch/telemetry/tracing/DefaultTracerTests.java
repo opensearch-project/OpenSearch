@@ -127,9 +127,11 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         when(mockSpan.getSpanName()).thenReturn("span_name");
         when(mockSpan.getSpanId()).thenReturn("span_id");
         when(mockSpan.getTraceId()).thenReturn("trace_id");
+        when(mockSpan.getLevel()).thenReturn(Level.INFO);
         when(mockSpan.getParentSpan()).thenReturn(mockParentSpan);
         when(mockParentSpan.getSpanId()).thenReturn("parent_span_id");
         when(mockParentSpan.getTraceId()).thenReturn("trace_id");
+        when(mockParentSpan.getLevel()).thenReturn(Level.INFO);
         when(mockTracerContextStorage.get(CURRENT_SPAN)).thenReturn(mockParentSpan, mockSpan);
         when(mockTracingTelemetry.createSpan("span_name", mockParentSpan, Level.INFO)).thenReturn(mockSpan);
     }

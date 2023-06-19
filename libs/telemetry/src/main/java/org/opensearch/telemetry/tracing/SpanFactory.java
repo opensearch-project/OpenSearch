@@ -39,16 +39,26 @@ public final class SpanFactory {
      * @return span instance
      */
     public Span createSpan(String spanName, Span parentSpan, Level level) {
-        return isLevelEnabled(level) ? createDefaultSpan(spanName, parentSpan, level) : createNoopSpan(spanName, parentSpan, level);
+        return isLevelValid(level, parentSpan)
+            ? createDefaultSpan(spanName, parentSpan, level)
+            : createNoopSpan(spanName, parentSpan, level);
     }
 
-    private boolean isLevelEnabled(Level level) {
+    private boolean isLevelValid(Level level, Span parentSpan) {
         Level configuredLevel = levelSupplier.get();
+        return isLevelEnabled(level, configuredLevel) && isLevelLowerThanParentSpanLevel(level, parentSpan);
+    }
+
+    private boolean isLevelLowerThanParentSpanLevel(Level level, Span parentSpan) {
+        return parentSpan == null || (!(parentSpan instanceof NoopSpan) && level.isLessOrEqual(parentSpan.getLevel()));
+    }
+
+    private boolean isLevelEnabled(Level level, Level configuredLevel) {
         return level.isHigherOrEqual(configuredLevel);
     }
 
     private Span createDefaultSpan(String spanName, Span parentSpan, Level level) {
-        Span telemetrySpan = tracingTelemetry.createSpan(spanName, getLastValidSpanInChain(parentSpan), level);
+        Span telemetrySpan = tracingTelemetry.createSpan(spanName, parentSpan, level);
         return telemetrySpan;
     }
 
@@ -56,10 +66,4 @@ public final class SpanFactory {
         return new NoopSpan(spanName, parentSpan, level);
     }
 
-    private Span getLastValidSpanInChain(Span parentSpan) {
-        while (parentSpan instanceof NoopSpan) {
-            parentSpan = parentSpan.getParentSpan();
-        }
-        return parentSpan;
-    }
 }
