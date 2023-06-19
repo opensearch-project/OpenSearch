@@ -97,7 +97,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits
 public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     @Before
-    public void setup() {
+    private void setup() {
         internalCluster().startClusterManagerOnlyNode();
     }
 

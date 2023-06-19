@@ -47,7 +47,7 @@ public class SegmentReplicationRemoteStoreIT extends SegmentReplicationIT {
     }
 
     @Before
-    public void setup() {
+    private void setup() {
         internalCluster().startClusterManagerOnlyNode();
         Path absolutePath = randomRepoPath().toAbsolutePath();
         assertAcked(
