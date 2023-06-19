@@ -32,7 +32,7 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 
@@ -62,7 +62,7 @@ public class FailedShard {
             + ", message ["
             + message
             + "], failure ["
-            + (failure == null ? "null" : BaseExceptionsHelper.detailedMessage(failure))
+            + (failure == null ? "null" : ExceptionsHelper.detailedMessage(failure))
             + "], markAsStale ["
             + markAsStale
             + "]";

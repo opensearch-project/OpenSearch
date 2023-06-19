@@ -40,7 +40,7 @@ import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteResponse;
@@ -1651,7 +1651,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         final List<Exception> actualErrors = new ArrayList<>();
         for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
-            Throwable t = BaseExceptionsHelper.unwrapCause(tuple.v2());
+            Throwable t = ExceptionsHelper.unwrapCause(tuple.v2());
             if (t instanceof OpenSearchRejectedExecutionException) {
                 logger.debug("Error indexing doc: " + t.getMessage() + ", reindexing.");
                 tuple.v1().execute().actionGet(); // re-index if rejected

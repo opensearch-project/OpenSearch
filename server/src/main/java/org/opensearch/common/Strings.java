@@ -33,7 +33,7 @@
 package org.opensearch.common;
 
 import org.apache.lucene.util.BytesRefBuilder;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.CollectionUtils;
@@ -280,7 +280,7 @@ public class Strings {
                 XContentBuilder builder = createBuilder(mediaType, pretty, human);
                 builder.startObject();
                 builder.field("error", "error building toString out of XContent: " + e.getMessage());
-                builder.field("stack_trace", BaseExceptionsHelper.stackTrace(e));
+                builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
                 builder.endObject();
                 return toString(builder);
             } catch (IOException e2) {

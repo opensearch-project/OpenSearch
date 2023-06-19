@@ -32,7 +32,7 @@
 
 package org.opensearch.cluster.routing;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
@@ -401,7 +401,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (message == null) {
             return null;
         }
-        return message + (failure == null ? "" : ", failure " + BaseExceptionsHelper.detailedMessage(failure));
+        return message + (failure == null ? "" : ", failure " + ExceptionsHelper.detailedMessage(failure));
     }
 
     /**

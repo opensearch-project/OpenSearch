@@ -35,7 +35,6 @@ package org.opensearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.util.ByteArray;
-import org.opensearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 
@@ -47,7 +46,7 @@ import java.io.IOException;
  */
 public class PagedBytesReference extends AbstractBytesReference {
 
-    private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
+    public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
 
     private final ByteArray byteArray;
     private final int offset;
@@ -95,7 +94,7 @@ public class PagedBytesReference extends AbstractBytesReference {
         // we calculate the initial fragment size here to ensure that if this reference is a slice we are still page aligned
         // across the entire iteration. The first page is smaller if our offset != 0 then we start in the middle of the page
         // otherwise we iterate full pages until we reach the last chunk which also might end within a page.
-        final int initialFragmentSize = offset != 0 ? PAGE_SIZE - (offset % PAGE_SIZE) : PAGE_SIZE;
+        final int initialFragmentSize = offset != 0 ? PAGE_SIZE_IN_BYTES - (offset % PAGE_SIZE_IN_BYTES) : PAGE_SIZE_IN_BYTES;
         return new BytesRefIterator() {
             int position = 0;
             int nextFragmentSize = Math.min(length, initialFragmentSize);
@@ -109,7 +108,7 @@ public class PagedBytesReference extends AbstractBytesReference {
                     assert materialized == false : "iteration should be page aligned but array got materialized";
                     position += nextFragmentSize;
                     final int remaining = length - position;
-                    nextFragmentSize = Math.min(remaining, PAGE_SIZE);
+                    nextFragmentSize = Math.min(remaining, PAGE_SIZE_IN_BYTES);
                     return slice;
                 } else {
                     assert nextFragmentSize == 0 : "fragmentSize expected [0] but was: [" + nextFragmentSize + "]";

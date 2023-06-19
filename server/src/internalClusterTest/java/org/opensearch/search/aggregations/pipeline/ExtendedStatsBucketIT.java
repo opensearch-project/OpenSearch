@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -489,7 +489,7 @@ public class ExtendedStatsBucketIT extends OpenSearchIntegTestCase {
                 )
                 .get()
         );
-        Throwable cause = BaseExceptionsHelper.unwrapCause(ex);
+        Throwable cause = ExceptionsHelper.unwrapCause(ex);
         if (cause == null) {
             throw ex;
         } else if (cause instanceof SearchPhaseExecutionException) {

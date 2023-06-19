@@ -11,7 +11,7 @@ package org.opensearch.indices.replication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -444,7 +444,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    Throwable cause = BaseExceptionsHelper.unwrapCause(e);
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
                     if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                         if (onGoingReplications.getTarget(replicationId) != null) {
                             IndexShard indexShard = onGoingReplications.getTarget(replicationId).indexShard();

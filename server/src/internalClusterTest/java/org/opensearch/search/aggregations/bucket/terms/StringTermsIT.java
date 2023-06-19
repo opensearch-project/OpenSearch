@@ -31,7 +31,6 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -421,9 +420,9 @@ public class StringTermsIT extends BaseStringTermsTestCase {
                 .get();
             fail("Expected an exception");
         } catch (SearchPhaseExecutionException e) {
-            BaseOpenSearchException[] rootCauses = e.guessRootCauses();
+            OpenSearchException[] rootCauses = e.guessRootCauses();
             if (rootCauses.length == 1) {
-                BaseOpenSearchException rootCause = rootCauses[0];
+                OpenSearchException rootCause = rootCauses[0];
                 if (rootCause instanceof AggregationExecutionException) {
                     AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
                     assertThat(aggException.getMessage(), startsWith("Invalid aggregation order path"));
