@@ -85,7 +85,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -98,15 +97,16 @@ import static org.hamcrest.Matchers.is;
 public class MasterServiceTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
-    private static Long relativeTimeInMillis;
-
-    private static LongSupplier nanoTimeSupplier() {
-        return () -> relativeTimeInMillis * 1000000L;
-    }
+    private static long timeDiffInMillis;
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new TestThreadPool(MasterServiceTests.class.getName());
+        threadPool = new TestThreadPool(MasterServiceTests.class.getName()) {
+            @Override
+            public long absoluteTimeInNanos() {
+                return timeDiffInMillis * TimeValue.NSEC_PER_MSEC;
+            }
+        };
     }
 
     @AfterClass
@@ -119,7 +119,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
     @Before
     public void randomizeCurrentTime() {
-        relativeTimeInMillis = randomLongBetween(0L, 1L << 50);
+        timeDiffInMillis = randomLongBetween(0L, 1L << 50);
     }
 
     private ClusterManagerService createClusterManagerService(boolean makeClusterManager) {
@@ -130,8 +130,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            nanoTimeSupplier()
+            threadPool
         );
         final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
             .nodes(
@@ -427,7 +426,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 clusterManagerService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        relativeTimeInMillis += TimeValue.timeValueSeconds(1).millis();
+                        timeDiffInMillis += TimeValue.timeValueSeconds(1).millis();
                         return currentState;
                     }
 
@@ -442,7 +441,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 clusterManagerService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        relativeTimeInMillis += TimeValue.timeValueSeconds(2).millis();
+                        timeDiffInMillis += TimeValue.timeValueSeconds(2).millis();
                         throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
                     }
 
@@ -457,13 +456,13 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 clusterManagerService.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        relativeTimeInMillis += TimeValue.timeValueSeconds(3).millis();
+                        timeDiffInMillis += TimeValue.timeValueSeconds(3).millis();
                         return ClusterState.builder(currentState).incrementVersion().build();
                     }
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        relativeTimeInMillis += TimeValue.timeValueSeconds(4).millis();
+                        timeDiffInMillis += TimeValue.timeValueSeconds(4).millis();
                     }
 
                     @Override
@@ -1063,8 +1062,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                         .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                         .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    threadPool,
-                    nanoTimeSupplier()
+                    threadPool
                 )
             ) {
 
@@ -1082,12 +1080,12 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
                 clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
                     if (event.source().contains("test5")) {
-                        relativeTimeInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
+                        timeDiffInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
                             Settings.EMPTY
                         ).millis() + randomLongBetween(1, 1000000);
                     }
                     if (event.source().contains("test6")) {
-                        relativeTimeInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
+                        timeDiffInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
                             Settings.EMPTY
                         ).millis() + randomLongBetween(1, 1000000);
                         throw new OpenSearchException("simulated error during slow publication which should trigger logging");
@@ -1103,7 +1101,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 clusterManagerService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        relativeTimeInMillis += randomLongBetween(
+                        timeDiffInMillis += randomLongBetween(
                             0L,
                             ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
                         );
@@ -1126,7 +1124,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 clusterManagerService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        relativeTimeInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
+                        timeDiffInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
                             Settings.EMPTY
                         ).millis() + randomLongBetween(1, 1000000);
                         throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
@@ -1145,7 +1143,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 clusterManagerService.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        relativeTimeInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
+                        timeDiffInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
                             Settings.EMPTY
                         ).millis() + randomLongBetween(1, 1000000);
                         return ClusterState.builder(currentState).incrementVersion().build();
@@ -1164,7 +1162,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 clusterManagerService.submitStateUpdateTask("test4", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        relativeTimeInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
+                        timeDiffInMillis += ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(
                             Settings.EMPTY
                         ).millis() + randomLongBetween(1, 1000000);
                         return currentState;

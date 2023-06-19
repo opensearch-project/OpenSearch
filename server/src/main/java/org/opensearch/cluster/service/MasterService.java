@@ -79,7 +79,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -132,13 +131,7 @@ public class MasterService extends AbstractLifecycleComponent {
     protected final ClusterManagerTaskThrottler clusterManagerTaskThrottler;
     private final ClusterManagerThrottlingStats throttlingStats;
 
-    private final LongSupplier nanoTimeSupplier;
-
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this(settings, clusterSettings, threadPool, System::nanoTime);
-    }
-
-    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, LongSupplier timeProvider) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
         this.slowTaskLoggingThreshold = CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -155,7 +148,6 @@ public class MasterService extends AbstractLifecycleComponent {
             throttlingStats
         );
         this.threadPool = threadPool;
-        this.nanoTimeSupplier = timeProvider;
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -299,14 +291,14 @@ public class MasterService extends AbstractLifecycleComponent {
             return;
         }
 
-        final long computationStartTime = nanoTimeSupplier.getAsLong();
+        final long computationStartTime = threadPool.absoluteTimeInNanos();
         final TaskOutputs taskOutputs = calculateTaskOutputs(taskInputs, previousClusterState);
         taskOutputs.notifyFailedTasks();
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);
 
         if (taskOutputs.clusterStateUnchanged()) {
-            final long notificationStartTime = nanoTimeSupplier.getAsLong();
+            final long notificationStartTime = threadPool.absoluteTimeInNanos();
             taskOutputs.notifySuccessfulTasksOnUnchangedClusterState();
             final TimeValue executionTime = getTimeSince(notificationStartTime);
             logExecutionTime(executionTime, "notify listeners on unchanged cluster state", summary);
@@ -317,7 +309,7 @@ public class MasterService extends AbstractLifecycleComponent {
             } else {
                 logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), summary);
             }
-            final long publicationStartTime = nanoTimeSupplier.getAsLong();
+            final long publicationStartTime = threadPool.absoluteTimeInNanos();
             try {
                 ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(summary, newClusterState, previousClusterState);
                 // new cluster state, notify all listeners
@@ -344,7 +336,7 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private TimeValue getTimeSince(long startTimeNanos) {
-        return TimeValue.timeValueMillis(TimeValue.nsecToMSec(nanoTimeSupplier.getAsLong() - startTimeNanos));
+        return TimeValue.timeValueMillis(TimeValue.nsecToMSec(threadPool.absoluteTimeInNanos() - startTimeNanos));
     }
 
     protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeMillis) {
@@ -366,7 +358,7 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     void onPublicationSuccess(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs) {
-        final long notificationStartTime = nanoTimeSupplier.getAsLong();
+        final long notificationStartTime = threadPool.absoluteTimeInNanos();
         taskOutputs.processedDifferentClusterState(clusterChangedEvent.previousState(), clusterChangedEvent.state());
 
         try {
