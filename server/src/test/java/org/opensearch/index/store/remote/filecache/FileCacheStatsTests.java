@@ -9,7 +9,7 @@
 package org.opensearch.index.store.remote.filecache;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
 import org.opensearch.test.OpenSearchTestCase;

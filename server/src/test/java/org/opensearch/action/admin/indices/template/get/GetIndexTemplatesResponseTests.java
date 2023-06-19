@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.template.get;
 
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 

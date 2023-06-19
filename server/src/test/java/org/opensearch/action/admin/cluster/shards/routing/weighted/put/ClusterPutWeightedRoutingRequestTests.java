@@ -10,7 +10,7 @@ package org.opensearch.action.admin.cluster.shards.routing.weighted.put;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.routing.WeightedRouting;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 

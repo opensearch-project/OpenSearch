@@ -32,7 +32,7 @@
 
 package org.opensearch.script.mustache;
 
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.RandomSearchRequestGenerator;
 import org.opensearch.search.builder.SearchSourceBuilder;

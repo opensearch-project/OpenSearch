@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.datastream;
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction.Response;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.DataStreamTests;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import java.util.ArrayList;
 import java.util.List;

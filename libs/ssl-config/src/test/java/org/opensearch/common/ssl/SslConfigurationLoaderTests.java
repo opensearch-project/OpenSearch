@@ -33,7 +33,7 @@
 package org.opensearch.common.ssl;
 
 import org.opensearch.common.settings.MockSecureSettings;
-import org.opensearch.common.settings.SecureString;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 

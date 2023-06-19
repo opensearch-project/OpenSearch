@@ -92,7 +92,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
 import static org.opensearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
-import static org.opensearch.rest.RestStatus.CONFLICT;
+import static org.opensearch.core.rest.RestStatus.CONFLICT;
 import static org.opensearch.search.sort.SortBuilders.fieldSort;
 
 /**

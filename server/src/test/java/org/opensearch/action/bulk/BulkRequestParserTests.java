@@ -33,7 +33,7 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;

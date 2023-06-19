@@ -38,6 +38,7 @@ import org.opensearch.core.Assertions;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.FutureUtils;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.IOException;

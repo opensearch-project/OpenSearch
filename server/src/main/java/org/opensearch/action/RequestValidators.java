@@ -33,7 +33,7 @@
 package org.opensearch.action;
 
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 
 import java.util.Collection;
 import java.util.Optional;

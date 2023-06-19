@@ -38,14 +38,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.opensearch.action.ShardOperationFailedException;
+import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.compress.NotXContentException;
+import org.opensearch.core.common.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.index.Index;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.PrintWriter;

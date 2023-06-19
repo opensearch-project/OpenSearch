@@ -45,7 +45,7 @@
  * <ol>
  * <li>First the {@link org.opensearch.snapshots.SnapshotsService} determines the primary shards' assignments for all indices that are
  * being snapshotted and creates a {@code SnapshotsInProgress.Entry} with state {@code STARTED} and adds the map of
- * {@link org.opensearch.index.shard.ShardId} to {@link org.opensearch.cluster.SnapshotsInProgress.ShardSnapshotStatus} that tracks
+ * {@link org.opensearch.core.index.shard.ShardId} to {@link org.opensearch.cluster.SnapshotsInProgress.ShardSnapshotStatus} that tracks
  * the assignment of which node is to snapshot which shard. All shard snapshots are executed on the shard's primary node. Thus all shards
  * for which the primary node was found to have a healthy copy of the shard are marked as being in state {@code INIT} in this map. If the
  * primary for a shard is unassigned, it is marked as {@code MISSING} in this map. In case the primary is initializing at this point, it is

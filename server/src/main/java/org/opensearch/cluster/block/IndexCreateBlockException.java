@@ -8,7 +8,7 @@
 
 package org.opensearch.cluster.block;
 
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Set;
