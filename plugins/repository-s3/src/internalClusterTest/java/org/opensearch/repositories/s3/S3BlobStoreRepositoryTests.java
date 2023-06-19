@@ -86,15 +86,12 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
 
-    private String region;
+    private final String region = "test-region";
     private String signerOverride;
     private String previousOpenSearchPathConf;
 
     @Override
     public void setUp() throws Exception {
-        if (randomBoolean()) {
-            region = "test-region";
-        }
         signerOverride = AwsRequestSigner.VERSION_FOUR_SIGNER.getName();
         previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
@@ -161,9 +158,8 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         if (signerOverride != null) {
             builder.put(S3ClientSettings.SIGNER_OVERRIDE.getConcreteSettingForNamespace("test").getKey(), signerOverride);
         }
-        if (region != null) {
-            builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
-        }
+
+        builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
         return builder.build();
     }
 
@@ -282,7 +278,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             if ("AWS4SignerType".equals(signerOverride)) {
                 assertThat(authorizationHeaderV4, containsString("aws4_request"));
             }
-            if (region != null && authorizationHeaderV4 != null) {
+            if (authorizationHeaderV4 != null) {
                 assertThat(authorizationHeaderV4, containsString("/" + region + "/s3/"));
             }
         }
