@@ -116,6 +116,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return plugins.stream().flatMap(p -> p.v2().getSettingsFilter().stream()).collect(Collectors.toList());
     }
 
+    public PluginsAndModules getPluginsAndModules() {
+        return info;
+    }
+
     /**
      * Constructs a new PluginService
      * @param settings The settings of the system

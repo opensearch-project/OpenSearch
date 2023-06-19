@@ -29,7 +29,6 @@ public class IdentityService {
 
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
-    private List<Principal> applicationList = List.of(); // A list of known application principals
 
     private static IdentityService instance = null;
 
@@ -71,29 +70,6 @@ public class IdentityService {
         }
         return instance;
     }
-
-    /**
-     * Sets the application list known to the IdentityService
-     * @param applicationList A list of all principals for known applications
-     */
-    public void setApplicationList(List<Principal> applicationList) {
-        this.applicationList = List.copyOf(applicationList);
-    }
-
-    /**
-     * Returns a list of the known application principals
-     */
-    public List<Principal> getApplicationList() {
-        return List.copyOf(applicationList);
-    }
-
-    /**
-     * Returns a list of the known application principals
-     */
-    public List<String> getApplicationStrings() {
-        return applicationList.stream().map(Principal::getName).collect(Collectors.toList());
-    }
-
 
     //TODO: Find a way to combine these
     public Set<String> getApplicationScopes(Principal principal) {

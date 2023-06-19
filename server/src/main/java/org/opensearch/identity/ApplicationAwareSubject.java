@@ -10,6 +10,7 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.tokens.AuthToken;
 
@@ -33,7 +34,7 @@ public final class ApplicationAwareSubject implements Subject {
             @Override
             public Boolean apply(Principal principal) {
 
-                return (IdentityService.getInstance().getApplicationStrings().contains(principal.getName()));
+                return (ExtensionsManager.getExtensionManager().getExtensionPrincipals().contains(principal));
             }
         };
     }
@@ -54,8 +55,7 @@ public final class ApplicationAwareSubject implements Subject {
 
     private final Subject wrapped;
 
-    /** Only to be used by IdentityService / tests */
-    public ApplicationAwareSubject(final Subject wrapped) {
+    ApplicationAwareSubject(final Subject wrapped) {
         this.wrapped = wrapped;
     }
 
@@ -90,7 +90,7 @@ public final class ApplicationAwareSubject implements Subject {
         }
 
         final Set<Scope> scopesOfApplication = this.getApplicationScopes().apply(appPrincipal.get());
-        if (scopesOfApplication.contains(ApplicationScope.TRUSTED)) {
+        if (scopesOfApplication.contains(ApplicationScope.SuperUserAccess)) {
             // Applications that are fully trusted automatically pass all checks
             return true;
         }

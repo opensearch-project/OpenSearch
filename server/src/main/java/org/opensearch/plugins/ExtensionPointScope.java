@@ -14,12 +14,15 @@ import org.opensearch.identity.scopes.ScopeEnums.ScopeArea;
 import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
 
 /**
- * scopes associated with extension points, used by plugins/extensions
+ * ExtensionPointScope is an enumerator which implements the Scope interface.
+ *
+ * An ExtensionPointScope confers the ability of an application to extend any of OpenSearch's extension points. An application lacking the
+ * appropriate scope will not be able to extend the actions defined in the interface it extends.
  *
  * @opensearch.experimental
  */
 public enum ExtensionPointScope implements Scope {
-    Action(ScopeArea.EXTENSION_POINT, "ALLOW");
+    Action(ScopeArea.EXTENSION_POINT, "ALLOW"); // Implement the ActionPlugin interface
 
     public final ScopeArea area;
     public final String action;
