@@ -115,4 +115,6 @@ public class NoOpTranslogManager implements TranslogManager {
     public Translog.Location add(Translog.Operation operation) throws IOException {
         return new Translog.Location(0, 0, 0);
     }
+
+    public void onDelete() {}
 }

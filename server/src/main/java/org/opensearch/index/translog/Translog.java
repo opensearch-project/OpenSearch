@@ -1807,6 +1807,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      */
     protected void setMinSeqNoToKeep(long seqNo) {}
 
+    protected void onDelete() {}
+
     /**
      * deletes all files associated with a reader. package-private to be able to simulate node failures at this point
      */

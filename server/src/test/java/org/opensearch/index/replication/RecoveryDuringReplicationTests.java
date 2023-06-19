@@ -161,10 +161,10 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                 new SourceToParse("index", "replica", new BytesArray("{}"), XContentType.JSON)
             );
             shards.promoteReplicaToPrimary(promotedReplica).get();
-            oldPrimary.close("demoted", randomBoolean());
+            oldPrimary.close("demoted", randomBoolean(), false);
             oldPrimary.store().close();
             shards.removeReplica(remainingReplica);
-            remainingReplica.close("disconnected", false);
+            remainingReplica.close("disconnected", false, false);
             remainingReplica.store().close();
             // randomly introduce a conflicting document
             final boolean extra = randomBoolean();
@@ -289,7 +289,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                 newPrimary.flush(new FlushRequest());
             }
 
-            oldPrimary.close("demoted", false);
+            oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
 
             IndexShard newReplica = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
@@ -335,7 +335,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             shards.promoteReplicaToPrimary(newPrimary).get();
             // Recover a replica should rollback the stale documents
             shards.removeReplica(replica);
-            replica.close("recover replica - first time", false);
+            replica.close("recover replica - first time", false, false);
             replica.store().close();
             replica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(replica);
@@ -346,7 +346,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
             // Recover a replica again should also rollback the stale documents.
             shards.removeReplica(replica);
-            replica.close("recover replica - second time", false);
+            replica.close("recover replica - second time", false, false);
             replica.store().close();
             IndexShard anotherReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(anotherReplica);

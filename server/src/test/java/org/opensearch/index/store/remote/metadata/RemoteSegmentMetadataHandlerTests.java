@@ -51,7 +51,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
 
     @After
     public void tearDown() throws Exception {
-        indexShard.close("test tearDown", true);
+        indexShard.close("test tearDown", true, false);
         super.tearDown();
     }
 

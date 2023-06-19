@@ -806,7 +806,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
         } finally {
-            IOUtils.close(() -> shard.close("test", false), shard.store());
+            IOUtils.close(() -> shard.close("test", false, false), shard.store());
         }
     }
 
