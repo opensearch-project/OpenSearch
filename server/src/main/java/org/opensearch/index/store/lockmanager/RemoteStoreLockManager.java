@@ -22,7 +22,7 @@ public interface RemoteStoreLockManager {
      * @param lockInfo lock info instance for which we need to acquire lock.
      * @throws IOException throws exception in case there is a problem with acquiring lock.
      */
-    public void acquire(LockInfo lockInfo) throws IOException;
+    void acquire(LockInfo lockInfo) throws IOException;
 
     /**
      *
@@ -38,4 +38,9 @@ public interface RemoteStoreLockManager {
      * @throws IOException throws exception in case there is a problem in checking if a given file is locked or not.
      */
     Boolean isAcquired(LockInfo lockInfo) throws IOException;
+
+    /*
+    Deletes all lock related files and directories
+     */
+    void delete() throws IOException;
 }

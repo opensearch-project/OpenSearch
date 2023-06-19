@@ -126,7 +126,7 @@ public class GlobalCheckpointListenersIT extends OpenSearchSingleNodeTestCase {
             }
 
         }, null);
-        shard.close("closed", randomBoolean());
+        shard.close("closed", randomBoolean(), false);
         assertBusy(() -> assertTrue(invoked.get()));
     }
 

@@ -254,6 +254,7 @@ setup:
   - do:
       catch:      /cannot use \`collapse\` in conjunction with \`search_after\`/
       search:
+        allow_partial_search_results: false
         rest_total_hits_as_int: true
         index: test
         body:
@@ -267,6 +268,7 @@ setup:
   - do:
       catch:      /cannot use \`collapse\` in conjunction with \`rescore\`/
       search:
+        allow_partial_search_results: false
         rest_total_hits_as_int: true
         index: test
         body:

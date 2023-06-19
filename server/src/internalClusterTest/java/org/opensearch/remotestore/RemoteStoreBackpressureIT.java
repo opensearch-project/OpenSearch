@@ -29,7 +29,7 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
 
     public void testWritesRejected() {
         Path location = randomRepoPath().toAbsolutePath();
-        setup(location, 1d, "metadata");
+        setup(location, 1d, "metadata", Long.MAX_VALUE);
 
         Settings request = Settings.builder().put(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), true).build();
         ClusterUpdateSettingsResponse clusterUpdateResponse = client().admin()

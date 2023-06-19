@@ -21,9 +21,9 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
@@ -40,11 +40,12 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private IndexShard indexShard;
@@ -278,6 +279,32 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertEquals(1, segmentTracker.getTotalUploadsFailed());
     }
 
+    /**
+     * Tests retry flow after snapshot and metadata files have been uploaded to remote store in the failed attempt.
+     * Snapshot and metadata files created in failed attempt should not break retry.
+     * @throws Exception
+     */
+    public void testRefreshSuccessAfterFailureInFirstAttemptAfterSnapshotAndMetadataUpload() throws Exception {
+        int succeedOnAttempt = 1;
+        int checkpointPublishSucceedOnAttempt = 2;
+        // We spy on IndexShard.getReplicationTracker() to validate that we have tried running remote time as per the expectation.
+        CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
+        // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
+        // Value has been set as 6 as during a successful upload IndexShard.getEngine() is hit thrice and here we are running the flow twice
+        CountDownLatch successLatch = new CountDownLatch(3);
+        CountDownLatch reachedCheckpointPublishLatch = new CountDownLatch(0);
+        mockIndexShardWithRetryAndScheduleRefresh(
+            succeedOnAttempt,
+            refreshCountLatch,
+            successLatch,
+            checkpointPublishSucceedOnAttempt,
+            reachedCheckpointPublishLatch
+        );
+        assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
+        assertBusy(() -> assertEquals(0, successLatch.getCount()));
+        assertBusy(() -> assertEquals(0, reachedCheckpointPublishLatch.getCount()));
+    }
+
     public void testRefreshSuccessOnThirdAttemptAttempt() throws Exception {
         // This covers 3 cases - 1) isRetry=false, shouldRetry=true 2) isRetry=true, shouldRetry=false 3) isRetry=True, shouldRetry=true
         // Succeed on 3rd attempt
@@ -340,6 +367,17 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         CountDownLatch refreshCountLatch,
         CountDownLatch successLatch
     ) throws IOException {
+        CountDownLatch noOpLatch = new CountDownLatch(0);
+        return mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, refreshCountLatch, successLatch, 1, noOpLatch);
+    }
+
+    private Tuple<RemoteStoreRefreshListener, RemoteRefreshSegmentPressureService> mockIndexShardWithRetryAndScheduleRefresh(
+        int succeedOnAttempt,
+        CountDownLatch refreshCountLatch,
+        CountDownLatch successLatch,
+        int succeedCheckpointPublishOnAttempt,
+        CountDownLatch reachedCheckpointPublishLatch
+    ) throws IOException {
         // Create index shard that we will be using to mock different methods in IndexShard for the unit test
         indexShard = newStartedShard(
             true,
@@ -401,6 +439,18 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             return indexShard.getEngine();
         }).when(shard).getEngine();
 
+        SegmentReplicationCheckpointPublisher emptyCheckpointPublisher = spy(SegmentReplicationCheckpointPublisher.EMPTY);
+        AtomicLong checkpointPublisherCounter = new AtomicLong();
+        doAnswer(invocation -> {
+            if (checkpointPublisherCounter.incrementAndGet() <= succeedCheckpointPublishOnAttempt - 1) {
+                throw new RuntimeException("Inducing failure after snapshot info snapshot to test if snapshot info file is deleted");
+            }
+            if (Objects.nonNull(reachedCheckpointPublishLatch)) {
+                reachedCheckpointPublishLatch.countDown();
+            }
+            return null;
+        }).when(emptyCheckpointPublisher).publish(any(), any());
+
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -415,21 +465,21 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         remoteRefreshSegmentPressureService.afterIndexShardCreated(shard);
         RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(
             shard,
-            SegmentReplicationCheckpointPublisher.EMPTY,
+            emptyCheckpointPublisher,
             remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(indexShard.shardId())
         );
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteRefreshSegmentPressureService);
     }
 
-    private static class TestFilterDirectory extends FilterDirectory {
+    public static class TestFilterDirectory extends FilterDirectory {
 
         /**
          * Sole constructor, typically called from sub-classes.
          *
          * @param in input directory
          */
-        protected TestFilterDirectory(Directory in) {
+        public TestFilterDirectory(Directory in) {
             super(in);
         }
     }
@@ -448,18 +498,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                     segmentsNFilename = file;
                 }
             }
-        }
-        if (segmentsNFilename != null) {
-            String commitGeneration = segmentsNFilename.substring((IndexFileNames.SEGMENTS + "_").length());
-            assertTrue(
-                uploadedSegments.keySet()
-                    .stream()
-                    .anyMatch(
-                        s -> s.startsWith(
-                            SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + Long.parseLong(commitGeneration, Character.MAX_RADIX)
-                        )
-                    )
-            );
         }
     }
 }

@@ -103,6 +103,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         File jsonSchemaOnDisk = getJsonSchema();
         getLogger().debug("JSON schema : [{}]", jsonSchemaOnDisk.getAbsolutePath());
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
+        config.setEcma262Validator(true);
         JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
         JsonSchema jsonSchema = factory.getSchema(mapper.readTree(jsonSchemaOnDisk), config);
         Map<File, Set<String>> errors = new LinkedHashMap<>();

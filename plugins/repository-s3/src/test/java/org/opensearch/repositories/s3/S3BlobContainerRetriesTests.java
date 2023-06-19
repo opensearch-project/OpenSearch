@@ -31,16 +31,16 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.SdkClientException;
-import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
-import com.amazonaws.util.Base16;
 import org.apache.http.HttpStatus;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.hash.MessageDigests;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
@@ -53,8 +53,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.junit.After;
-import org.junit.Before;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.io.SdkDigestInputStream;
+import software.amazon.awssdk.utils.internal.Base16;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -67,15 +68,16 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
-import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
-import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
-import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
+import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.REGION;
+import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -84,9 +86,11 @@ import static org.hamcrest.Matchers.is;
 public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase implements ConfigPathSupport {
 
     private S3Service service;
+    private String previousOpenSearchPathConf;
 
     @Before
     public void setUp() throws Exception {
+        previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         service = new S3Service(configPath());
         super.setUp();
     }
@@ -94,6 +98,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @After
     public void tearDown() throws Exception {
         IOUtils.close(service);
+        if (previousOpenSearchPathConf != null) {
+            SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
+        } else {
+            SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        }
         super.tearDown();
     }
 
@@ -125,6 +134,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final InetSocketAddress address = httpServer.getAddress();
         final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
+        clientSettings.put(REGION.getConcreteSettingForNamespace(clientName).getKey(), "region");
 
         if (maxRetries != null) {
             clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
@@ -211,7 +221,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
-        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
+        try (InputStream stream = new ByteArrayInputStream(bytes)) {
             blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
         }
         assertThat(countDown.isCountedDown(), is(true));
@@ -287,13 +297,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
                 && exchange.getRequestURI().getQuery().contains("partNumber=")) {
                     // upload part request
-                    MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                    BytesReference bytes = Streams.readFully(md5);
+                    SdkDigestInputStream digestInputStream = new SdkDigestInputStream(exchange.getRequestBody(), MessageDigests.md5());
+                    BytesReference bytes = Streams.readFully(digestInputStream);
                     assertThat((long) bytes.length(), anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
                     assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
 
                     if (countDownUploads.decrementAndGet() % 2 == 0) {
-                        exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                        exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(digestInputStream.getMessageDigest().digest()));
                         exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                         exchange.close();
                         return;
