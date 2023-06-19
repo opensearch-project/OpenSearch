@@ -61,6 +61,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.rest.RestStatus;
@@ -368,6 +369,34 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 .get();
             assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
         });
+    }
+
+    public void testSearchIdle_SegmentReplication() {
+        // fail with replica count > 0
+        int numOfReplicas = 1;
+        internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 1);
+        final Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 500)));
+
+        expectThrows(IllegalArgumentException.class, () -> {
+            assertAcked(prepareCreate("test").setSettings(settings).setMapping("created_date", "type=date,format=yyyy-MM-dd"));
+        });
+
+        // setting allowed with 0 replicas.
+        settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("created_date", "type=date,format=yyyy-MM-dd"));
+
+        // add a replica
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
     }
 
     public void testCircuitBreakerReduceFail() throws Exception {

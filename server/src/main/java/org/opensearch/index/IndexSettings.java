@@ -54,8 +54,10 @@ import org.opensearch.node.Node;
 import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -70,6 +72,7 @@ import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOC
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -122,6 +125,36 @@ public final class IndexSettings {
         "index.search.idle.after",
         TimeValue.timeValueSeconds(30),
         TimeValue.timeValueMinutes(0),
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(TimeValue value) {
+
+            }
+
+            @Override
+            public void validate(TimeValue value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent) {
+                    final Object clusterSettingReplicationType = settings.get(CLUSTER_REPLICATION_TYPE_SETTING);
+                    final Object replicationType = settings.get(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING);
+                    int numReplicas = (int) settings.get(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING);
+                    if ((ReplicationType.SEGMENT.equals(clusterSettingReplicationType) || ReplicationType.SEGMENT.equals(replicationType))
+                        && numReplicas > 0) {
+                        throw new IllegalArgumentException("Shard idle is disabled for indices with replicas using Segment Replication");
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(
+                    CLUSTER_REPLICATION_TYPE_SETTING,
+                    IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
+                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING
+                );
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Dynamic
     );
