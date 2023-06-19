@@ -215,7 +215,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                 }
             }
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(Version.V_3_0_0);
+                in.setVersion(Version.V_2_9_0);
                 actualSnapshotsInProgress = new SnapshotsInProgress(in);
                 assert in.available() == 0;
                 for (Entry curr_entry : actualSnapshotsInProgress.entries()) {

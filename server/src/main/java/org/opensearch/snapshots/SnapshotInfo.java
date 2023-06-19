@@ -420,7 +420,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         includeGlobalState = in.readOptionalBoolean();
         userMetadata = in.readMap();
         dataStreams = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             remoteStoreIndexShallowCopy = in.readOptionalBoolean();
         }
     }
@@ -866,7 +866,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         out.writeOptionalBoolean(includeGlobalState);
         out.writeMap(userMetadata);
         out.writeStringCollection(dataStreams);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalBoolean(remoteStoreIndexShallowCopy);
         }
     }

@@ -30,7 +30,6 @@
 
 import org.opensearch.gradle.info.BuildParams
 
-apply plugin: 'com.netflix.nebula.optional-base'
 apply plugin: 'opensearch.publish'
 
 archivesBaseName = 'opensearch-core'

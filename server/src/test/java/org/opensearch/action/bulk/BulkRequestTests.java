@@ -53,6 +53,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -269,6 +270,51 @@ public class BulkRequestTests extends OpenSearchTestCase {
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead."
             )
+        );
+    }
+
+    public void testBulkRequestInvalidDocIDDuringCreate() {
+        String validDocID = String.join("", Collections.nCopies(512, "a"));
+        String invalidDocID = String.join("", Collections.nCopies(513, "a"));
+
+        // doc id length under limit
+        IndexRequest indexRequest = new IndexRequest("index").id(validDocID).source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(indexRequest);
+        assertNull(bulkRequest.validate());
+
+        // doc id length over limit
+        indexRequest.id(invalidDocID);
+        ActionRequestValidationException validate = bulkRequest.validate();
+        assertThat(validate, notNullValue());
+        assertEquals(
+            1,
+            validate.validationErrors()
+                .stream()
+                .filter(msg -> msg.contains("is too long, must be no longer than 512 bytes but was: "))
+                .count()
+        );
+    }
+
+    public void testBulkRequestInvalidDocIDDuringUpdate() {
+        String validDocID = String.join("", Collections.nCopies(512, "a"));
+        String invalidDocID = String.join("", Collections.nCopies(513, "a"));
+        // doc id length under limit
+        UpdateRequest updateRequest = new UpdateRequest("index", validDocID).doc("reason", "no source");
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(updateRequest);
+        assertNull(bulkRequest.validate());
+
+        // doc id length over limit
+        updateRequest.id(invalidDocID);
+        ActionRequestValidationException validate = bulkRequest.validate();
+        assertThat(validate, notNullValue());
+        assertEquals(
+            1,
+            validate.validationErrors()
+                .stream()
+                .filter(msg -> msg.contains("is too long, must be no longer than 512 bytes but was: "))
+                .count()
         );
     }
 

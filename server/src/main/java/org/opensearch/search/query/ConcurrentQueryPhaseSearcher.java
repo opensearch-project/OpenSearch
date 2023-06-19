@@ -32,6 +32,7 @@ import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsC
  */
 public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     private static final Logger LOGGER = LogManager.getLogger(ConcurrentQueryPhaseSearcher.class);
+    private final AggregationProcessor aggregationProcessor = new ConcurrentAggregationProcessor();
 
     /**
      * Default constructor
@@ -47,14 +48,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        boolean couldUseConcurrentSegmentSearch = allowConcurrentSegmentSearch(searcher);
-
-        if (couldUseConcurrentSegmentSearch) {
-            LOGGER.debug("Using concurrent search over index segments (experimental)");
-            return searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
-        } else {
-            return super.searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
-        }
+        return searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
     }
 
     private static boolean searchWithCollectorManager(
@@ -104,12 +98,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     }
 
     @Override
-    public AggregationProcessor newAggregationProcessor() {
-        return new ConcurrentAggregationProcessor();
+    public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
+        return aggregationProcessor;
     }
-
-    private static boolean allowConcurrentSegmentSearch(final ContextIndexSearcher searcher) {
-        return (searcher.getExecutor() != null);
-    }
-
 }

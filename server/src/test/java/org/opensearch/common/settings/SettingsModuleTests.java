@@ -36,6 +36,8 @@ import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.Setting.Property;
 import org.hamcrest.Matchers;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.search.SearchService;
 import org.opensearch.test.FeatureFlagSetter;
 
 import java.util.Arrays;
@@ -280,6 +282,57 @@ public class SettingsModuleTests extends ModuleTestCase {
         expectThrows(
             SettingsException.class,
             () -> module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope))
+        );
+    }
+
+    public void testConcurrentSegmentSearchClusterSettings() {
+        // Test that we throw an exception without the feature flag
+        Settings settings = Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build();
+        SettingsException ex = expectThrows(SettingsException.class, () -> new SettingsModule(settings));
+        assertEquals(
+            "unknown setting ["
+                + SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()
+                + "] please check that any required plugins are installed, or check the breaking "
+                + "changes documentation for removed settings",
+            ex.getMessage()
+        );
+
+        // Test that the settings updates correctly with the feature flag
+        FeatureFlagSetter.set(FeatureFlags.CONCURRENT_SEGMENT_SEARCH);
+        boolean settingValue = randomBoolean();
+        Settings settingsWithFeatureFlag = Settings.builder()
+            .put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), settingValue)
+            .build();
+        SettingsModule settingsModule = new SettingsModule(settingsWithFeatureFlag);
+        assertEquals(settingValue, SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.get(settingsModule.getSettings()));
+    }
+
+    public void testConcurrentSegmentSearchIndexSettings() {
+        Settings.Builder target = Settings.builder().put(Settings.EMPTY);
+        Settings.Builder update = Settings.builder();
+
+        // Test that we throw an exception without the feature flag
+        SettingsModule module = new SettingsModule(Settings.EMPTY);
+        IndexScopedSettings indexScopedSettings = module.getIndexScopedSettings();
+        expectThrows(
+            SettingsException.class,
+            () -> indexScopedSettings.updateDynamicSettings(
+                Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build(),
+                target,
+                update,
+                "node"
+            )
+        );
+
+        // Test that the settings updates correctly with the feature flag
+        FeatureFlagSetter.set(FeatureFlags.CONCURRENT_SEGMENT_SEARCH);
+        SettingsModule moduleWithFeatureFlag = new SettingsModule(Settings.EMPTY);
+        IndexScopedSettings indexScopedSettingsWithFeatureFlag = moduleWithFeatureFlag.getIndexScopedSettings();
+        indexScopedSettingsWithFeatureFlag.updateDynamicSettings(
+            Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build(),
+            target,
+            update,
+            "node"
         );
     }
 }

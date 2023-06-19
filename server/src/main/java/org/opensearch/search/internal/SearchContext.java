@@ -40,8 +40,8 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.core.common.lease.Releasable;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -365,6 +365,13 @@ public abstract class SearchContext implements Releasable {
      * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
      */
     public abstract Profilers getProfilers();
+
+    /**
+     * Returns concurrent segment search status for the search context
+     */
+    public boolean isConcurrentSegmentSearchEnabled() {
+        return false;
+    }
 
     /**
      * Adds a releasable that will be freed when this context is closed.

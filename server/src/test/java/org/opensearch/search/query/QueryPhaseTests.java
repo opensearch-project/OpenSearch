@@ -411,6 +411,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        if (this.executor != null) {
+            context.setConcurrentSegmentSearchEnabled(true);
+        }
 
         context.terminateAfter(numDocs);
         {

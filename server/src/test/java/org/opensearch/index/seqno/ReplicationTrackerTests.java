@@ -1868,6 +1868,64 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         }
     }
 
+    public void testSegmentReplicationCheckpointTrackingInvalidAllocationIDs() {
+        Settings settings = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        final long initialClusterStateVersion = randomNonNegativeLong();
+        final int numberOfActiveAllocationsIds = randomIntBetween(2, 16);
+        final int numberOfInitializingIds = randomIntBetween(2, 16);
+        final Tuple<Set<AllocationId>, Set<AllocationId>> activeAndInitializingAllocationIds = randomActiveAndInitializingAllocationIds(
+            numberOfActiveAllocationsIds,
+            numberOfInitializingIds
+        );
+        final Set<AllocationId> activeAllocationIds = activeAndInitializingAllocationIds.v1();
+        final Set<AllocationId> initializingIds = activeAndInitializingAllocationIds.v2();
+        AllocationId primaryId = activeAllocationIds.iterator().next();
+        IndexShardRoutingTable routingTable = routingTable(initializingIds, primaryId);
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+
+        tracker.updateFromClusterManager(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        assertThat(tracker.getReplicationGroup().getInSyncAllocationIds(), equalTo(ids(activeAllocationIds)));
+        assertThat(tracker.getReplicationGroup().getRoutingTable(), equalTo(routingTable));
+        assertTrue(activeAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
+
+        // get insync ids, filter out the primary.
+        final Set<String> inSyncAllocationIds = tracker.getReplicationGroup()
+            .getInSyncAllocationIds()
+            .stream()
+            .filter(id -> tracker.shardAllocationId.equals(id) == false)
+            .collect(Collectors.toSet());
+
+        final ReplicationCheckpoint initialCheckpoint = new ReplicationCheckpoint(
+            tracker.shardId(),
+            0L,
+            1,
+            1,
+            1L,
+            Codec.getDefault().getName()
+        );
+        tracker.setLatestReplicationCheckpoint(initialCheckpoint);
+
+        Set<SegmentReplicationShardStats> groupStats = tracker.getSegmentReplicationStats();
+        assertEquals(inSyncAllocationIds.size(), groupStats.size());
+        for (SegmentReplicationShardStats shardStat : groupStats) {
+            assertEquals(1, shardStat.getCheckpointsBehindCount());
+        }
+
+        // simulate replicas moved up to date.
+        final Map<String, ReplicationTracker.CheckpointState> checkpoints = tracker.checkpoints;
+        for (String id : inSyncAllocationIds) {
+            final ReplicationTracker.CheckpointState checkpointState = checkpoints.get(id);
+            assertEquals(1, checkpointState.checkpointTimers.size());
+            tracker.updateVisibleCheckpointForShard(id, initialCheckpoint);
+            assertEquals(0, checkpointState.checkpointTimers.size());
+        }
+
+        // Unknown allocation ID will be ignored.
+        tracker.updateVisibleCheckpointForShard("randomAllocationID", initialCheckpoint);
+        assertThrows(AssertionError.class, () -> tracker.updateVisibleCheckpointForShard(tracker.shardAllocationId, initialCheckpoint));
+    }
+
     public void testPrimaryContextHandoffWithRemoteTranslogEnabled() throws IOException {
         Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);

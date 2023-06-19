@@ -79,6 +79,7 @@ import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.opensearch.search.query.ConcurrentQueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryPhaseSearcher;
+import org.opensearch.search.query.QueryPhaseSearcherWrapper;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.rescore.RescorerBuilder;
@@ -92,6 +93,7 @@ import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.opensearch.search.suggest.term.TermSuggestion;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestSearchContext;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -422,18 +424,21 @@ public class SearchModuleTests extends OpenSearchTestCase {
 
     public void testDefaultQueryPhaseSearcher() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        TestSearchContext searchContext = new TestSearchContext(null);
         QueryPhase queryPhase = searchModule.getQueryPhase();
-        assertTrue(queryPhase.getQueryPhaseSearcher() instanceof QueryPhase.DefaultQueryPhaseSearcher);
-        assertTrue(queryPhase.getAggregationProcessor() instanceof DefaultAggregationProcessor);
+        assertTrue(queryPhase.getQueryPhaseSearcher() instanceof QueryPhaseSearcherWrapper);
+        assertTrue(queryPhase.getQueryPhaseSearcher().aggregationProcessor(searchContext) instanceof DefaultAggregationProcessor);
     }
 
     public void testConcurrentQueryPhaseSearcher() {
         Settings settings = Settings.builder().put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
         FeatureFlags.initializeFeatureFlags(settings);
         SearchModule searchModule = new SearchModule(settings, Collections.emptyList());
+        TestSearchContext searchContext = new TestSearchContext(null);
+        searchContext.setConcurrentSegmentSearchEnabled(true);
         QueryPhase queryPhase = searchModule.getQueryPhase();
-        assertTrue(queryPhase.getQueryPhaseSearcher() instanceof ConcurrentQueryPhaseSearcher);
-        assertTrue(queryPhase.getAggregationProcessor() instanceof ConcurrentAggregationProcessor);
+        assertTrue(queryPhase.getQueryPhaseSearcher() instanceof QueryPhaseSearcherWrapper);
+        assertTrue(queryPhase.getQueryPhaseSearcher().aggregationProcessor(searchContext) instanceof ConcurrentAggregationProcessor);
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
@@ -449,8 +454,9 @@ public class SearchModuleTests extends OpenSearchTestCase {
         };
         SearchModule searchModule = new SearchModule(settings, Collections.singletonList(plugin1));
         QueryPhase queryPhase = searchModule.getQueryPhase();
+        TestSearchContext searchContext = new TestSearchContext(null);
         assertEquals(queryPhaseSearcher, queryPhase.getQueryPhaseSearcher());
-        assertTrue(queryPhase.getAggregationProcessor() instanceof DefaultAggregationProcessor);
+        assertTrue(queryPhaseSearcher.aggregationProcessor(searchContext) instanceof DefaultAggregationProcessor);
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
