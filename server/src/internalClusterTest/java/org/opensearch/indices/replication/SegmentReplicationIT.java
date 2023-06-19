@@ -591,9 +591,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      */
     public void testReplicationPostDeleteAndForceMerge() throws Exception {
         assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
-        final String primary = internalCluster().startNode();
+        internalCluster().startClusterManagerOnlyNode();
+        final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
-        final String replica = internalCluster().startNode();
+        final String replica = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
         final int initialDocCount = scaledRandomIntBetween(10, 200);
         for (int i = 0; i < initialDocCount; i++) {
@@ -743,10 +744,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     public void testReplicaHasDiffFilesThanPrimary() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        final String primaryNode = internalCluster().startNode();
+        final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
         ensureYellow(INDEX_NAME);
-        final String replicaNode = internalCluster().startNode();
+        final String replicaNode = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
 
         final IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
@@ -796,9 +797,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPressureServiceStats() throws Exception {
-        final String primaryNode = internalCluster().startNode();
+        internalCluster().startClusterManagerOnlyNode();
+        final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
-        final String replicaNode = internalCluster().startNode();
+        final String replicaNode = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
 
         int initialDocCount = scaledRandomIntBetween(100, 200);
