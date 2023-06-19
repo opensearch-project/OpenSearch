@@ -6,93 +6,37 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch;
 
-import org.opensearch.action.support.replication.ReplicationOperation;
-import org.opensearch.cluster.action.shard.ShardStateAction;
-import org.opensearch.cluster.routing.NodeWeighedAwayException;
-import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
-import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
-import org.opensearch.cluster.service.ClusterManagerThrottlingException;
-import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.rest.RestStatus;
-import org.opensearch.search.aggregations.MultiBucketConsumerService;
-import org.opensearch.search.pipeline.SearchPipelineProcessingException;
-import org.opensearch.snapshots.SnapshotInUseDeletionException;
-import org.opensearch.transport.TcpTransport;
+import org.opensearch.index.snapshots.IndexShardSnapshotException;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import static org.opensearch.BaseOpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
+import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
+import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
+import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_2_5_0;
 import static org.opensearch.Version.V_2_6_0;
 import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.Version.V_3_0_0;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
 /**
- * A base class for all opensearch exceptions.
+ * Utility class to register server exceptions
  *
  * @opensearch.internal
  */
-public class OpenSearchException extends BaseOpenSearchException implements Writeable {
+public final class OpenSearchServerException {
+
+    private OpenSearchServerException() {
+        // no ctor:
+    }
 
     /**
      * Setting a higher base exception id to avoid conflicts.
      */
     private static final int CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID = 10000;
 
-    static {
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
-                org.opensearch.index.snapshots.IndexShardSnapshotFailedException.class,
-                org.opensearch.index.snapshots.IndexShardSnapshotFailedException::new,
-                0,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
+    public static void registerExceptions() {
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
                 org.opensearch.search.dfs.DfsPhaseExecutionException.class,
@@ -386,14 +330,6 @@ public class OpenSearchException extends BaseOpenSearchException implements Writ
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.common.ParsingException.class,
-                org.opensearch.common.ParsingException::new,
-                40,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
                 org.opensearch.index.shard.IndexShardClosedException.class,
                 org.opensearch.index.shard.IndexShardClosedException::new,
                 41,
@@ -520,14 +456,6 @@ public class OpenSearchException extends BaseOpenSearchException implements Writ
         // 61 used to be for RoutingValidationException
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.common.io.stream.NotSerializableExceptionWrapper.class,
-                org.opensearch.common.io.stream.NotSerializableExceptionWrapper::new,
-                62,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
                 org.opensearch.indices.AliasFilterParsingException.class,
                 org.opensearch.indices.AliasFilterParsingException::new,
                 63,
@@ -560,7 +488,12 @@ public class OpenSearchException extends BaseOpenSearchException implements Writ
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(OpenSearchException.class, OpenSearchException::new, 68, UNKNOWN_VERSION_ADDED)
+            new OpenSearchExceptionHandle(
+                org.opensearch.OpenSearchException.class,
+                org.opensearch.OpenSearchException::new,
+                68,
+                UNKNOWN_VERSION_ADDED
+            )
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
@@ -751,12 +684,7 @@ public class OpenSearchException extends BaseOpenSearchException implements Writ
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
-                org.opensearch.index.snapshots.IndexShardSnapshotException.class,
-                org.opensearch.index.snapshots.IndexShardSnapshotException::new,
-                98,
-                UNKNOWN_VERSION_ADDED
-            )
+            new OpenSearchExceptionHandle(IndexShardSnapshotException.class, IndexShardSnapshotException::new, 98, UNKNOWN_VERSION_ADDED)
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
@@ -889,8 +817,8 @@ public class OpenSearchException extends BaseOpenSearchException implements Writ
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                ReplicationOperation.RetryOnPrimaryException.class,
-                ReplicationOperation.RetryOnPrimaryException::new,
+                org.opensearch.action.support.replication.ReplicationOperation.RetryOnPrimaryException.class,
+                org.opensearch.action.support.replication.ReplicationOperation.RetryOnPrimaryException::new,
                 117,
                 UNKNOWN_VERSION_ADDED
             )
@@ -939,8 +867,8 @@ public class OpenSearchException extends BaseOpenSearchException implements Writ
         // 124 used to be Script.ScriptParseException
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                TcpTransport.HttpRequestOnTransportException.class,
-                TcpTransport.HttpRequestOnTransportException::new,
+                org.opensearch.transport.TcpTransport.HttpRequestOnTransportException.class,
+                org.opensearch.transport.TcpTransport.HttpRequestOnTransportException::new,
                 125,
                 UNKNOWN_VERSION_ADDED
             )
@@ -1045,8 +973,8 @@ public class OpenSearchException extends BaseOpenSearchException implements Writ
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                ShardStateAction.NoLongerPrimaryShardException.class,
-                ShardStateAction.NoLongerPrimaryShardException::new,
+                org.opensearch.cluster.action.shard.ShardStateAction.NoLongerPrimaryShardException.class,
+                org.opensearch.cluster.action.shard.ShardStateAction.NoLongerPrimaryShardException::new,
                 142,
                 UNKNOWN_VERSION_ADDED
             )
@@ -1094,8 +1022,8 @@ public class OpenSearchException extends BaseOpenSearchException implements Writ
         // 148 was UnknownNamedObjectException
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                MultiBucketConsumerService.TooManyBucketsException.class,
-                MultiBucketConsumerService.TooManyBucketsException::new,
+                org.opensearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException.class,
+                org.opensearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException::new,
                 149,
                 UNKNOWN_VERSION_ADDED
             )
@@ -1222,39 +1150,51 @@ public class OpenSearchException extends BaseOpenSearchException implements Writ
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                ClusterManagerThrottlingException.class,
-                ClusterManagerThrottlingException::new,
+                org.opensearch.cluster.service.ClusterManagerThrottlingException.class,
+                org.opensearch.cluster.service.ClusterManagerThrottlingException::new,
                 165,
                 Version.V_2_5_0
             )
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                SnapshotInUseDeletionException.class,
-                SnapshotInUseDeletionException::new,
+                org.opensearch.snapshots.SnapshotInUseDeletionException.class,
+                org.opensearch.snapshots.SnapshotInUseDeletionException::new,
                 166,
                 UNKNOWN_VERSION_ADDED
             )
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                UnsupportedWeightedRoutingStateException.class,
-                UnsupportedWeightedRoutingStateException::new,
+                org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException.class,
+                org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException::new,
                 167,
                 V_2_5_0
             )
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                PreferenceBasedSearchNotAllowedException.class,
-                PreferenceBasedSearchNotAllowedException::new,
+                org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException.class,
+                org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException::new,
                 168,
                 V_2_6_0
             )
         );
-        registerExceptionHandle(new OpenSearchExceptionHandle(NodeWeighedAwayException.class, NodeWeighedAwayException::new, 169, V_2_6_0));
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(SearchPipelineProcessingException.class, SearchPipelineProcessingException::new, 170, V_2_7_0)
+            new OpenSearchExceptionHandle(
+                org.opensearch.cluster.routing.NodeWeighedAwayException.class,
+                org.opensearch.cluster.routing.NodeWeighedAwayException::new,
+                169,
+                V_2_6_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.search.pipeline.SearchPipelineProcessingException.class,
+                org.opensearch.search.pipeline.SearchPipelineProcessingException::new,
+                170,
+                V_2_7_0
+            )
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
@@ -1265,358 +1205,4 @@ public class OpenSearchException extends BaseOpenSearchException implements Writ
             )
         );
     }
-
-    /**
-     * Construct a <code>OpenSearchException</code> with the specified cause exception.
-     */
-    public OpenSearchException(Throwable cause) {
-        super(cause);
-    }
-
-    /**
-     * Construct a <code>OpenSearchException</code> with the specified detail message.
-     *
-     * The message can be parameterized using <code>{}</code> as placeholders for the given
-     * arguments
-     *
-     * @param msg  the detail message
-     * @param args the arguments for the message
-     */
-    public OpenSearchException(String msg, Object... args) {
-        super(msg, args);
-    }
-
-    /**
-     * Construct a <code>OpenSearchException</code> with the specified detail message
-     * and nested exception.
-     *
-     * The message can be parameterized using <code>{}</code> as placeholders for the given
-     * arguments
-     *
-     * @param msg   the detail message
-     * @param cause the nested exception
-     * @param args  the arguments for the message
-     */
-    public OpenSearchException(String msg, Throwable cause, Object... args) {
-        super(msg, cause, args);
-    }
-
-    public OpenSearchException(StreamInput in) throws IOException {
-        super(in.readOptionalString(), in.readException());
-        readStackTrace(this, in);
-        headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-        metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-    }
-
-    /**
-     * Returns the rest status code associated with this exception.
-     */
-    public RestStatus status() {
-        Throwable cause = unwrapCause();
-        if (cause == this) {
-            return RestStatus.INTERNAL_SERVER_ERROR;
-        } else {
-            return ExceptionsHelper.status(cause);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(this.getMessage());
-        out.writeException(this.getCause());
-        writeStackTraces(this, out, StreamOutput::writeException);
-        out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
-    }
-
-    /**
-     * Returns <code>true</code> iff the given class is a registered for an exception to be read.
-     */
-    public static boolean isRegistered(final Class<? extends Throwable> exception, Version version) {
-        return OpenSearchExceptionHandleRegistry.isRegistered(exception, version);
-    }
-
-    static Set<Class<? extends BaseOpenSearchException>> getRegisteredKeys() { // for testing
-        return OpenSearchExceptionHandleRegistry.getRegisteredKeys();
-    }
-
-    /**
-     * Returns the serialization id the given exception.
-     */
-    public static int getId(final Class<? extends OpenSearchException> exception) {
-        return OpenSearchExceptionHandleRegistry.getId(exception);
-    }
-
-    /**
-     * Generate a {@link OpenSearchException} from a {@link XContentParser}. This does not
-     * return the original exception type (ie NodeClosedException for example) but just wraps
-     * the type, the reason and the cause of the exception. It also recursively parses the
-     * tree structure of the cause, returning it as a tree structure of {@link OpenSearchException}
-     * instances.
-     */
-    public static OpenSearchException fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-        return innerFromXContent(parser, false);
-    }
-
-    public static OpenSearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-
-        String type = null, reason = null, stack = null;
-        OpenSearchException cause = null;
-        Map<String, List<String>> metadata = new HashMap<>();
-        Map<String, List<String>> headers = new HashMap<>();
-        List<OpenSearchException> rootCauses = new ArrayList<>();
-        List<OpenSearchException> suppressed = new ArrayList<>();
-
-        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
-            String currentFieldName = parser.currentName();
-            token = parser.nextToken();
-
-            if (token.isValue()) {
-                if (BaseExceptionsHelper.TYPE.equals(currentFieldName)) {
-                    type = parser.text();
-                } else if (BaseExceptionsHelper.REASON.equals(currentFieldName)) {
-                    reason = parser.text();
-                } else if (BaseExceptionsHelper.STACK_TRACE.equals(currentFieldName)) {
-                    stack = parser.text();
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    metadata.put(currentFieldName, Collections.singletonList(parser.text()));
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (BaseExceptionsHelper.CAUSED_BY.equals(currentFieldName)) {
-                    cause = fromXContent(parser);
-                } else if (BaseExceptionsHelper.HEADER.equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else {
-                            List<String> values = headers.getOrDefault(currentFieldName, new ArrayList<>());
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                values.add(parser.text());
-                            } else if (token == XContentParser.Token.START_ARRAY) {
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                    if (token == XContentParser.Token.VALUE_STRING) {
-                                        values.add(parser.text());
-                                    } else {
-                                        parser.skipChildren();
-                                    }
-                                }
-                            } else if (token == XContentParser.Token.START_OBJECT) {
-                                parser.skipChildren();
-                            }
-                            headers.put(currentFieldName, values);
-                        }
-                    }
-                } else {
-                    // Any additional metadata object added by the metadataToXContent method is ignored
-                    // and skipped, so that the parser does not fail on unknown fields. The parser only
-                    // support metadata key-pairs and metadata arrays of values.
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseRootCauses && ROOT_CAUSE.equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        rootCauses.add(fromXContent(parser));
-                    }
-                } else if (BaseExceptionsHelper.SUPPRESSED.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        suppressed.add(fromXContent(parser));
-                    }
-                } else {
-                    // Parse the array and add each item to the corresponding list of metadata.
-                    // Arrays of objects are not supported yet and just ignored and skipped.
-                    List<String> values = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.VALUE_STRING) {
-                            values.add(parser.text());
-                        } else {
-                            parser.skipChildren();
-                        }
-                    }
-                    if (values.size() > 0) {
-                        if (metadata.containsKey(currentFieldName)) {
-                            values.addAll(metadata.get(currentFieldName));
-                        }
-                        metadata.put(currentFieldName, values);
-                    }
-                }
-            }
-        }
-
-        OpenSearchException e = new OpenSearchException(buildMessage(type, reason, stack), cause);
-        for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
-            // subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
-            // parsed back and become part of this metadata set, while objects and arrays are not supported when parsing back.
-            // Those key-value pairs become part of the metadata set and inherit the "opensearch." prefix as that is currently required
-            // by addMetadata. The prefix will get stripped out when printing metadata out so it will be effectively invisible.
-            // TODO move subclasses that print out simple metadata to using addMetadata directly and support also numbers and booleans.
-            // TODO rename metadataToXContent and have only SearchPhaseExecutionException use it, which prints out complex objects
-            e.addMetadata(BaseExceptionsHelper.OPENSEARCH_PREFIX_KEY + entry.getKey(), entry.getValue());
-        }
-        for (Map.Entry<String, List<String>> header : headers.entrySet()) {
-            e.addHeader(header.getKey(), header.getValue());
-        }
-
-        // Adds root causes as suppressed exception. This way they are not lost
-        // after parsing and can be retrieved using getSuppressed() method.
-        for (OpenSearchException rootCause : rootCauses) {
-            e.addSuppressed(rootCause);
-        }
-        for (OpenSearchException s : suppressed) {
-            e.addSuppressed(s);
-        }
-        return e;
-    }
-
-    /**
-     * Parses the output of {@link #generateFailureXContent(XContentBuilder, Params, Exception, boolean)}
-     */
-    public static OpenSearchException failureFromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureFieldName(parser, token, ERROR);
-
-        token = parser.nextToken();
-        if (token.isValue()) {
-            return new OpenSearchException(buildMessage("exception", parser.text(), null));
-        }
-
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        token = parser.nextToken();
-
-        // Root causes are parsed in the innerFromXContent() and are added as suppressed exceptions.
-        return innerFromXContent(parser, true);
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder builder = new StringBuilder();
-        if (metadata.containsKey(INDEX_METADATA_KEY)) {
-            builder.append(getIndex());
-            if (metadata.containsKey(SHARD_METADATA_KEY)) {
-                builder.append('[').append(getShardId()).append(']');
-            }
-            builder.append(' ');
-        }
-        return builder.append(BaseExceptionsHelper.detailedMessage(this).trim()).toString();
-    }
-
-    /**
-     * Deserializes stacktrace elements as well as suppressed exceptions from the given output stream and
-     * adds it to the given exception.
-     */
-    public static <T extends Throwable> T readStackTrace(T throwable, StreamInput in) throws IOException {
-        throwable.setStackTrace(in.readArray(i -> {
-            final String declaringClasss = i.readString();
-            final String fileName = i.readOptionalString();
-            final String methodName = i.readString();
-            final int lineNumber = i.readVInt();
-            return new StackTraceElement(declaringClasss, methodName, fileName, lineNumber);
-        }, StackTraceElement[]::new));
-
-        int numSuppressed = in.readVInt();
-        for (int i = 0; i < numSuppressed; i++) {
-            throwable.addSuppressed(in.readException());
-        }
-        return throwable;
-    }
-
-    /**
-     * Serializes the given exceptions stacktrace elements as well as it's suppressed exceptions to the given output stream.
-     */
-    public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out, Writer<Throwable> exceptionWriter)
-        throws IOException {
-        out.writeArray((o, v) -> {
-            o.writeString(v.getClassName());
-            o.writeOptionalString(v.getFileName());
-            o.writeString(v.getMethodName());
-            o.writeVInt(v.getLineNumber());
-        }, throwable.getStackTrace());
-        out.writeArray(exceptionWriter, throwable.getSuppressed());
-        return throwable;
-    }
-
-    /**
-     * This is the list of Exceptions OpenSearch can throw over the wire or save into a corruption marker. Each value in the enum is a
-     * single exception tying the Class to an id for use of the encode side and the id back to a constructor for use on the decode side. As
-     * such its ok if the exceptions to change names so long as their constructor can still read the exception. Each exception is listed
-     * in id order below. If you want to remove an exception leave a tombstone comment and mark the id as null in
-     * ExceptionSerializationTests.testIds.ids.
-     */
-    protected static class OpenSearchExceptionHandle extends BaseOpenSearchExceptionHandle {
-        <E extends BaseOpenSearchException> OpenSearchExceptionHandle(
-            final Class<E> exceptionClass,
-            final CheckedFunction<StreamInput, E, IOException> constructor,
-            final int id,
-            final Version versionAdded
-        ) {
-            super(exceptionClass, constructor, id, versionAdded);
-            OpenSearchExceptionHandleRegistry.registerExceptionHandle(this);
-        }
-    }
-
-    /**
-     * Returns an array of all registered handle IDs. These are the IDs for every registered
-     * exception.
-     *
-     * @return an array of all registered handle IDs
-     */
-    static int[] ids() {
-        return OpenSearchExceptionHandleRegistry.ids().stream().mapToInt(i -> i).toArray();
-    }
-
-    /**
-     * Returns an array of all registered pairs of handle IDs and exception classes. These pairs are
-     * provided for every registered exception.
-     *
-     * @return an array of all registered pairs of handle IDs and exception classes
-     */
-    static Tuple<Integer, Class<? extends BaseOpenSearchException>>[] classes() {
-        final Tuple<Integer, Class<? extends BaseOpenSearchException>>[] ts = OpenSearchExceptionHandleRegistry.handles()
-            .stream()
-            .map(h -> Tuple.tuple(h.id, h.exceptionClass))
-            .toArray(Tuple[]::new);
-        return ts;
-    }
-
-    public Index getIndex() {
-        List<String> index = getMetadata(INDEX_METADATA_KEY);
-        if (index != null && index.isEmpty() == false) {
-            List<String> index_uuid = getMetadata(INDEX_METADATA_KEY_UUID);
-            return new Index(index.get(0), index_uuid.get(0));
-        }
-
-        return null;
-    }
-
-    public ShardId getShardId() {
-        List<String> shard = getMetadata(SHARD_METADATA_KEY);
-        if (shard != null && shard.isEmpty() == false) {
-            return new ShardId(getIndex(), Integer.parseInt(shard.get(0)));
-        }
-        return null;
-    }
-
-    public void setIndex(Index index) {
-        if (index != null) {
-            addMetadata(INDEX_METADATA_KEY, index.getName());
-            addMetadata(INDEX_METADATA_KEY_UUID, index.getUUID());
-        }
-    }
-
-    public void setIndex(String index) {
-        if (index != null) {
-            setIndex(new Index(index, INDEX_UUID_NA_VALUE));
-        }
-    }
-
-    public void setShard(ShardId shardId) {
-        if (shardId != null) {
-            setIndex(shardId.getIndex());
-            addMetadata(SHARD_METADATA_KEY, Integer.toString(shardId.id()));
-        }
-    }
-
 }

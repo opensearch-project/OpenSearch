@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ActionRunnable;
@@ -719,7 +719,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private static boolean isConflictException(final Exception e) {
-        return BaseExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException;
+        return ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException;
     }
 
     /**

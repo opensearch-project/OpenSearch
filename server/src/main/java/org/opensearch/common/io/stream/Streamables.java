@@ -12,8 +12,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.time.DateUtils;
-import org.opensearch.core.common.io.stream.BaseWriteable.WriteableRegistry;
-import org.opensearch.core.common.io.stream.BaseWriteable;
+import org.opensearch.common.io.stream.Writeable.WriteableRegistry;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.time.Instant;
@@ -47,7 +46,7 @@ public final class Streamables {
      */
     private static void registerWriters() {
         /** {@link ReadableInstant} */
-        WriteableRegistry.<BaseWriteable.Writer<StreamOutput, ?>>registerWriter(ReadableInstant.class, (o, v) -> {
+        WriteableRegistry.registerWriter(ReadableInstant.class, (o, v) -> {
             o.writeByte((byte) 13);
             final ReadableInstant instant = (ReadableInstant) v;
             o.writeString(instant.getZone().getID());
@@ -55,7 +54,7 @@ public final class Streamables {
         });
         WriteableRegistry.registerClassAlias(ReadableInstant.class, ReadableInstant.class);
         /** {@link JodaCompatibleZonedDateTime} */
-        WriteableRegistry.<BaseWriteable.Writer<StreamOutput, ?>>registerWriter(JodaCompatibleZonedDateTime.class, (o, v) -> {
+        WriteableRegistry.registerWriter(JodaCompatibleZonedDateTime.class, (o, v) -> {
             // write the joda compatibility datetime as joda datetime
             o.writeByte((byte) 13);
             final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
@@ -65,7 +64,7 @@ public final class Streamables {
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
         /** {@link GeoPoint} */
-        BaseWriteable.WriteableRegistry.<BaseWriteable.Writer<StreamOutput, ?>>registerWriter(GeoPoint.class, (o, v) -> {
+        WriteableRegistry.registerWriter(GeoPoint.class, (o, v) -> {
             o.writeByte((byte) 22);
             ((GeoPoint) v).writeTo(o);
         });
@@ -78,12 +77,12 @@ public final class Streamables {
      */
     private static void registerReaders() {
         /** {@link JodaCompatibleZonedDateTime */
-        WriteableRegistry.<BaseWriteable.Reader<StreamInput, ?>>registerReader(Byte.valueOf((byte) 13), (i) -> {
+        WriteableRegistry.registerReader(Byte.valueOf((byte) 13), (i) -> {
             final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(i.readString()));
             long millis = i.readLong();
             return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
         });
         /** {@link GeoPoint} */
-        WriteableRegistry.<BaseWriteable.Reader<StreamInput, ?>>registerReader(Byte.valueOf((byte) 22), GeoPoint::new);
+        WriteableRegistry.registerReader(Byte.valueOf((byte) 22), GeoPoint::new);
     }
 }

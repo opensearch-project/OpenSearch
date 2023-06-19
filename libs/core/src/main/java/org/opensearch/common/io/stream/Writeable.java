@@ -5,38 +5,63 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.core.common.io.stream;
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+package org.opensearch.common.io.stream;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Implementers can be written to a {@code StreamOutput} and read from a {@code StreamInput}. This allows them to be "thrown
+ * Implementers can be written to a {@linkplain StreamOutput} and read from a {@linkplain StreamInput}. This allows them to be "thrown
  * across the wire" using OpenSearch's internal protocol. If the implementer also implements equals and hashCode then a copy made by
  * serializing and deserializing must be equal and have the same hashCode. It isn't required that such a copy be entirely unchanged.
  *
  * @opensearch.internal
  */
-public interface BaseWriteable<S extends BaseStreamOutput> {
+public interface Writeable {
     /**
      * A WriteableRegistry registers {@link Writer} methods for writing data types over a
-     * {@link BaseStreamOutput} channel and {@link Reader} methods for reading data from a
-     * {@link BaseStreamInput} channel.
+     * {@link StreamOutput} channel and {@link Reader} methods for reading data from a
+     * {@link StreamInput} channel.
      *
      * @opensearch.internal
      */
     class WriteableRegistry {
-        private static final Map<Class<?>, Writer<? extends BaseStreamOutput, ?>> WRITER_REGISTRY = new ConcurrentHashMap<>();
+        private static final Map<Class<?>, Writer<?>> WRITER_REGISTRY = new ConcurrentHashMap<>();
         private static final Map<Class<?>, Class<?>> WRITER_CUSTOM_CLASS_MAP = new ConcurrentHashMap<>();
-        private static final Map<Byte, Reader<? extends BaseStreamInput, ?>> READER_REGISTRY = new ConcurrentHashMap<>();
+        private static final Map<Byte, Reader<?>> READER_REGISTRY = new ConcurrentHashMap<>();
 
         /**
          * registers a streamable writer
          *
          * @opensearch.internal
          */
-        public static <W extends Writer<? extends BaseStreamOutput, ?>> void registerWriter(final Class<?> clazz, final W writer) {
+        public static <W extends Writer<?>> void registerWriter(final Class<?> clazz, final W writer) {
             if (WRITER_REGISTRY.putIfAbsent(clazz, writer) != null) {
                 throw new IllegalArgumentException("Streamable writer already registered for type [" + clazz.getName() + "]");
             }
@@ -47,7 +72,7 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
          *
          * @opensearch.internal
          */
-        public static <R extends Reader<? extends BaseStreamInput, ?>> void registerReader(final byte ordinal, final R reader) {
+        public static <R extends Reader<?>> void registerReader(final byte ordinal, final R reader) {
             if (READER_REGISTRY.putIfAbsent(ordinal, reader) != null) {
                 throw new IllegalArgumentException("Streamable reader already registered for ordinal [" + (int) ordinal + "]");
             }
@@ -63,7 +88,7 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
          * Returns the registered writer keyed by the class type
          */
         @SuppressWarnings("unchecked")
-        public static <W extends Writer<? extends BaseStreamOutput, ?>> W getWriter(final Class<?> clazz) {
+        public static <W extends Writer<?>> W getWriter(final Class<?> clazz) {
             return (W) WRITER_REGISTRY.get(clazz);
         }
 
@@ -71,7 +96,7 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
          * Returns the ristered reader keyed by the unique ordinal
          */
         @SuppressWarnings("unchecked")
-        public static <R extends Reader<? extends BaseStreamInput, ?>> R getReader(final byte b) {
+        public static <R extends Reader<?>> R getReader(final byte b) {
             return (R) READER_REGISTRY.get(b);
         }
 
@@ -92,18 +117,18 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
     }
 
     /**
-     * Write this into the {@linkplain BaseStreamOutput}.
+     * Write this into the {@linkplain StreamOutput}.
      */
-    void writeTo(final S out) throws IOException;
+    void writeTo(StreamOutput out) throws IOException;
 
     /**
-     * Reference to a method that can write some object to a {@link BaseStreamOutput}.
+     * Reference to a method that can write some object to a {@link StreamOutput}.
      * <p>
-     * By convention this is a method from {@link BaseStreamOutput} itself (e.g., {@code StreamOutput#writeString}). If the value can be
+     * By convention this is a method from {@link StreamOutput} itself (e.g., {@code StreamOutput#writeString}). If the value can be
      * {@code null}, then the "optional" variant of methods should be used!
      * <p>
-     * Most classes should implement {@code Writeable} and the {@code Writeable#writeTo(BaseStreamOutput)} method should <em>use</em>
-     * {@link BaseStreamOutput} methods directly or this indirectly:
+     * Most classes should implement {@code Writeable} and the {@code Writeable#writeTo(StreamOutput)} method should <em>use</em>
+     * {@link StreamOutput} methods directly or this indirectly:
      * <pre><code>
      * public void writeTo(StreamOutput out) throws IOException {
      *     out.writeVInt(someValue);
@@ -112,7 +137,7 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
      * </code></pre>
      */
     @FunctionalInterface
-    interface Writer<S extends BaseStreamOutput, V> {
+    interface Writer<V> {
 
         /**
          * Write {@code V}-type {@code value} to the {@code out}put stream.
@@ -120,12 +145,12 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
          * @param out Output to write the {@code value} too
          * @param value The value to add
          */
-        void write(final S out, V value) throws IOException;
+        void write(final StreamOutput out, V value) throws IOException;
     }
 
     /**
      * Reference to a method that can read some object from a stream. By convention this is a constructor that takes
-     * {@linkplain BaseStreamInput} as an argument for most classes and a static method for things like enums. Returning null from one of these
+     * {@linkplain StreamInput} as an argument for most classes and a static method for things like enums. Returning null from one of these
      * is always wrong - for that we use methods like {@code StreamInput#readOptionalWriteable(Reader)}.
      * <p>
      * As most classes will implement this via a constructor (or a static method in the case of enumerations), it's something that should
@@ -138,13 +163,13 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
      * </code></pre>
      */
     @FunctionalInterface
-    interface Reader<S extends BaseStreamInput, V> {
+    interface Reader<V> {
 
         /**
          * Read {@code V}-type value from a stream.
          *
          * @param in Input to read the value from
          */
-        V read(final S in) throws IOException;
+        V read(final StreamInput in) throws IOException;
     }
 }

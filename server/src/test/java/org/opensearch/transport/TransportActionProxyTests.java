@@ -31,7 +31,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -196,7 +196,7 @@ public class TransportActionProxyTests extends OpenSearchTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     try {
-                        Throwable cause = BaseExceptionsHelper.unwrapCause(exp);
+                        Throwable cause = ExceptionsHelper.unwrapCause(exp);
                         assertEquals("greetings from TS_C", cause.getMessage());
                     } finally {
                         latch.countDown();
