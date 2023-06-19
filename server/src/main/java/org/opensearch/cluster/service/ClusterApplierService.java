@@ -50,13 +50,13 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.StopWatch;
+import org.opensearch.common.StopWatch.TimingHandle;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -444,7 +444,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         final StopWatch stopWatch = new StopWatch();
         final ClusterState newClusterState;
         try {
-            try (Releasable ignored = stopWatch.timing("running task [" + task.source + ']')) {
+            try (TimingHandle ignored = stopWatch.timing("running task [" + task.source + ']')) {
                 newClusterState = task.apply(previousClusterState);
             }
         } catch (Exception e) {
@@ -544,7 +544,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
 
         logger.trace("connecting to nodes of cluster state with version {}", newClusterState.version());
-        try (Releasable ignored = stopWatch.timing("connecting to new nodes")) {
+        try (TimingHandle ignored = stopWatch.timing("connecting to new nodes")) {
             connectToNodesAndWait(newClusterState);
         }
 
@@ -552,7 +552,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metadataChanged()) {
             logger.debug("applying settings from cluster state with version {}", newClusterState.version());
             final Settings incomingSettings = clusterChangedEvent.state().metadata().settings();
-            try (Releasable ignored = stopWatch.timing("applying settings")) {
+            try (TimingHandle ignored = stopWatch.timing("applying settings")) {
                 clusterSettings.applySettings(incomingSettings);
             }
         }
@@ -602,7 +602,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     ) {
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
-            try (Releasable ignored = stopWatch.timing("running applier [" + applier + "]")) {
+            try (TimingHandle ignored = stopWatch.timing("running applier [" + applier + "]")) {
                 applier.applyClusterState(clusterChangedEvent);
             }
         }
@@ -621,7 +621,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateListener listener : listeners) {
             try {
                 logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
-                try (Releasable ignored = stopWatch.timing("notifying listener [" + listener + "]")) {
+                try (TimingHandle ignored = stopWatch.timing("notifying listener [" + listener + "]")) {
                     listener.clusterChanged(clusterChangedEvent);
                 }
             } catch (Exception ex) {

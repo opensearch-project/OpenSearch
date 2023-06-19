@@ -37,7 +37,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
