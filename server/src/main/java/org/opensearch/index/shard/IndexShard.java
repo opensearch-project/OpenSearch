@@ -1579,8 +1579,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.isSegRepEnabled() == false) {
             return null;
         }
+
+        Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> nullSegmentInfosEmptyCheckpoint = new Tuple<>(
+            new GatedCloseable<>(null, () -> {}),
+            ReplicationCheckpoint.empty(shardId, getDefaultCodecName())
+        );
+
         if (getEngineOrNull() == null) {
-            return new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId, getDefaultCodecName()));
+            return nullSegmentInfosEmptyCheckpoint;
         }
         // do not close the snapshot - caller will close it.
         final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot();
@@ -1601,10 +1607,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         getEngine().config().getCodec().getName()
                     )
                 );
-            } catch (IOException e) {
-                throw new OpenSearchException("Error Fetching SegmentInfos and latest checkpoint", e);
+            } catch (IOException | AlreadyClosedException e) {
+                logger.error("Error Fetching SegmentInfos and latest checkpoint", e);
+                try {
+                    snapshot.close();
+                } catch (IOException ex) {
+                    logger.error("Error while closing segmentInfosSnapshot", ex);
+                }
+                return nullSegmentInfosEmptyCheckpoint;
             }
-        }).orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId, getDefaultCodecName())));
+        }).orElseGet(() -> nullSegmentInfosEmptyCheckpoint);
     }
 
     /**
