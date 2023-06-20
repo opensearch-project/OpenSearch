@@ -33,6 +33,8 @@
 package org.opensearch;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -46,6 +48,8 @@ import org.opensearch.index.Index;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -60,12 +64,18 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.opensearch.OpenSearchException.getExceptionSimpleClassName;
+
 /**
  * Helper class for OpenSearch Exceptions
  *
  * @opensearch.internal
  */
-public final class ExceptionsHelper extends BaseExceptionsHelper {
+public final class ExceptionsHelper {
+    private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
+
+    // utility class: no ctor
+    private ExceptionsHelper() {}
 
     public static RuntimeException convertToRuntime(Exception e) {
         if (e instanceof RuntimeException) {
@@ -96,6 +106,77 @@ public final class ExceptionsHelper extends BaseExceptionsHelper {
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    public static String summaryMessage(Throwable t) {
+        if (t != null) {
+            if (t instanceof OpenSearchException) {
+                return getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
+            } else if (t instanceof IllegalArgumentException) {
+                return "Invalid argument";
+            } else if (t instanceof JsonParseException) {
+                return "Failed to parse JSON";
+            } else if (t instanceof OpenSearchRejectedExecutionException) {
+                return "Too many requests";
+            }
+        }
+        return "Internal failure";
+    }
+
+    public static Throwable unwrapCause(Throwable t) {
+        int counter = 0;
+        Throwable result = t;
+        while (result instanceof OpenSearchWrapperException) {
+            if (result.getCause() == null) {
+                return result;
+            }
+            if (result.getCause() == result) {
+                return result;
+            }
+            if (counter++ > 10) {
+                // dear god, if we got more than 10 levels down, WTF? just bail
+                logger.warn("Exception cause unwrapping ran for 10 levels...", t);
+                return result;
+            }
+            result = result.getCause();
+        }
+        return result;
+    }
+
+    /**
+     * @deprecated Don't swallow exceptions, allow them to propagate.
+     */
+    @Deprecated
+    public static String detailedMessage(Throwable t) {
+        if (t == null) {
+            return "Unknown";
+        }
+        if (t.getCause() != null) {
+            StringBuilder sb = new StringBuilder();
+            while (t != null) {
+                sb.append(getExceptionSimpleClassName(t));
+                if (t.getMessage() != null) {
+                    sb.append("[");
+                    sb.append(t.getMessage());
+                    sb.append("]");
+                }
+                sb.append("; ");
+                t = t.getCause();
+                if (t != null) {
+                    sb.append("nested: ");
+                }
+            }
+            return sb.toString();
+        } else {
+            return getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
+        }
+    }
+
+    public static String stackTrace(Throwable e) {
+        StringWriter stackTraceStringWriter = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
+        e.printStackTrace(printWriter);
+        return stackTraceStringWriter.toString();
     }
 
     public static String formatStackTrace(final StackTraceElement[] stackTrace) {
