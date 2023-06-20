@@ -1148,8 +1148,12 @@ public class ActionModule extends AbstractModule {
                 throw new IllegalArgumentException("action [" + route + "] was not registered");
             }
             if (route instanceof NamedRoute) {
-                registeredActionNames.remove(((NamedRoute) route).name());
-                registeredActionNames.remove(((NamedRoute) route).actionNames());
+                NamedRoute nr = (NamedRoute) route;
+                registeredActionNames.remove(nr.name());
+                Set<String> actionNames = nr.actionNames();
+                if (actionNames != null && !actionNames.isEmpty()) {
+                    registeredActionNames.removeAll(actionNames);
+                }
             }
         }
 
