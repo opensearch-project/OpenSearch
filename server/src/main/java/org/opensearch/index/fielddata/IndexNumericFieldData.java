@@ -190,6 +190,14 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     }
 
     /**
+     * Should enable BKD based skipping values sort optimization if target numeric type is matching
+     * @param targetNumericType
+     */
+    public boolean enableSortOptimizationForCustomComparators(NumericType targetNumericType) {
+        return this.getNumericType() == targetNumericType;
+    }
+
+    /**
      * Build a {@link XFieldComparatorSource} matching the parameters.
      */
     private XFieldComparatorSource comparatorSource(
