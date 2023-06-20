@@ -189,6 +189,7 @@ public abstract class BaseStreamTests extends OpenSearchTestCase {
         }
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeGenericValue(write);
+        @SuppressWarnings("unchecked")
         LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>) getStreamInput(out.bytes()).readGenericValue();
         assertEquals(size, read.size());
         int index = 0;
