@@ -111,6 +111,7 @@ public final class ThreadContext implements Writeable {
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
     private final ThreadLocal<ThreadContextStruct> threadLocal;
+    private final ThreadLocal<ThreadContextStruct> durableThreadLocal;
     private final int maxWarningHeaderCount;
     private final long maxWarningHeaderSize;
 
@@ -121,6 +122,7 @@ public final class ThreadContext implements Writeable {
     public ThreadContext(Settings settings) {
         this.defaultHeader = buildDefaultHeaders(settings);
         this.threadLocal = ThreadLocal.withInitial(() -> DEFAULT_CONTEXT);
+        this.durableThreadLocal = ThreadLocal.withInitial(() -> DEFAULT_CONTEXT);
         this.maxWarningHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
         this.maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
     }
@@ -350,6 +352,17 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Returns the durable header for the given key or <code>null</code> if not present - durable headers cannot be stashed
+     */
+    public String getDurableHeader(String key) {
+        String value = durableThreadLocal.get().requestHeaders.get(key);
+        if (value == null) {
+            return defaultHeader.get(key);
+        }
+        return value;
+    }
+
+    /**
      * Returns all of the request headers from the thread's context.<br>
      * <b>Be advised, headers might contain credentials.</b>
      * In order to avoid storing, and erroneously exposing, such headers,
@@ -409,6 +422,20 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Puts a durable header into the context - durable headers cannot be stashed
+     */
+    public void putDurableHeader(String key, String value) {
+        durableThreadLocal.set(durableThreadLocal.get().putRequest(key, value));
+    }
+
+    /**
+     * Puts all of the given headers into this durable context - durable headers cannot be stashed
+     */
+    public void putDurableHeader(Map<String, String> header) {
+        durableThreadLocal.set(durableThreadLocal.get().putHeaders(header));
+    }
+
+    /**
      * Puts a transient header object into this context
      */
     public void putTransient(String key, Object value) {
@@ -421,6 +448,21 @@ public final class ThreadContext implements Writeable {
     @SuppressWarnings("unchecked") // (T)object
     public <T> T getTransient(String key) {
         return (T) threadLocal.get().transientHeaders.get(key);
+    }
+
+    /**
+     * Puts a durable transient header object into this context - durable transient headers cannot be stashed
+     */
+    public void putDurableTransient(String key, Object value) {
+        durableThreadLocal.set(durableThreadLocal.get().putTransient(key, value));
+    }
+
+    /**
+     * Returns a durable transient header object or <code>null</code> if there is no header for the given key - - durable transient headers cannot be stashed
+     */
+    @SuppressWarnings("unchecked") // (T)object
+    public <T> T getDurableTransient(String key) {
+        return (T) durableThreadLocal.get().transientHeaders.get(key);
     }
 
     /**
