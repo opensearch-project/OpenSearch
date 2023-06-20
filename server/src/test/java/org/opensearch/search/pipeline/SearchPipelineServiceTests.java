@@ -36,6 +36,7 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -776,7 +777,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchPipelineService searchPipelineService = createWithProcessors(Collections.emptyMap(), throwingResponseProcessorFactory);
 
         Map<String, Object> pipelineSourceMap = new HashMap<>();
-        pipelineSourceMap.put(Pipeline.RESPONSE_PROCESSORS_KEY, List.of(Map.of("throwing_response", Collections.emptyMap())));
+        pipelineSourceMap.put(Pipeline.RESPONSE_PROCESSORS_KEY, List.of(Map.of("throwing_response", new HashMap<>())));
 
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
         SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
@@ -908,5 +909,61 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
     private static void assertPipelineStats(OperationStats stats, long count, long failed) {
         assertEquals(stats.getCount(), count);
         assertEquals(stats.getFailedCount(), failed);
+    }
+
+    public void testAdHocRejectingProcessor() {
+        String processorType = "ad_hoc_rejecting";
+        Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories = Map.of(processorType, (pf, t, d, c) -> {
+            if (ConfigurationUtils.readBooleanProperty(processorType, t, c, Processor.AD_HOC_PIPELINE, false)) {
+                throw new IllegalArgumentException(processorType + " cannot be created as part of a pipeline defined in a search request");
+            }
+            return new FakeRequestProcessor(processorType, t, d, r -> {});
+        });
+
+        SearchPipelineService searchPipelineService = createWithProcessors(requestProcessorFactories, Collections.emptyMap());
+
+        String id = "_id";
+        SearchPipelineService.PipelineHolder pipeline = searchPipelineService.getPipelines().get(id);
+        assertNull(pipeline);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(
+            id,
+            new BytesArray("{\"request_processors\":[" + " { \"" + processorType + "\": {}}" + "]}"),
+            XContentType.JSON
+        );
+        ClusterState previousClusterState = clusterState;
+        clusterState = SearchPipelineService.innerPut(putRequest, clusterState);
+        // The following line successfully creates the pipeline:
+        searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(Map.of(processorType, Collections.emptyMap())));
+
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+        expectThrows(SearchPipelineProcessingException.class, () -> searchPipelineService.resolvePipeline(searchRequest));
+    }
+
+    public void testExtraParameterInProcessorConfig() {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        Map<String, Object> processorConfig = new HashMap<>(
+            Map.of("score", 1.0f, "tag", "my_tag", "comment", "I just like to add extra parameters so that I feel like I'm being heard.")
+        );
+        pipelineSourceMap.put(Pipeline.RESPONSE_PROCESSORS_KEY, List.of(Map.of("fixed_score", processorConfig)));
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+        try {
+            searchPipelineService.resolvePipeline(searchRequest);
+            fail("Exception should have been thrown");
+        } catch (SearchPipelineProcessingException e) {
+            assertTrue(
+                e.getMessage()
+                    .contains("processor [fixed_score:my_tag] doesn't support one or more provided configuration parameters: [comment]")
+            );
+        } catch (Exception e) {
+            fail("Wrong exception type: " + e.getClass());
+        }
     }
 }
