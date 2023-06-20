@@ -72,8 +72,8 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
     }
 
     private void throwIfNotAllowed() {
-        if (!identity.getSubject().isAllowed(List.of(ExtensionPointScope.Action))) {
-            throw new ExtensionPointScope.ExtensionPointScopeException(ExtensionPointScope.Action);
+        if (!identity.getSubject().isAllowed(List.of(ExtensionPointScope.ACTION))) {
+            throw new ExtensionPointScope.ExtensionPointScopeException(ExtensionPointScope.ACTION);
         }
     }
 

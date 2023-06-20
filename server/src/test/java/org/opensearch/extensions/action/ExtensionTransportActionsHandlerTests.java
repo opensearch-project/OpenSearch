@@ -93,6 +93,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
             Version.fromString("3.0.0"),
+            Collections.emptyList(),
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());

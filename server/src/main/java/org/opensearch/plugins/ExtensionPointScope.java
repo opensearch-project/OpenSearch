@@ -22,7 +22,7 @@ import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
  * @opensearch.experimental
  */
 public enum ExtensionPointScope implements Scope {
-    Action(ScopeArea.EXTENSION_POINT, "ALLOW"); // Implement the ActionPlugin interface
+    ACTION(ScopeArea.EXTENSION_POINT, "ALLOW"); // Implement the ActionPlugin interface
 
     public final ScopeArea area;
     public final String action;

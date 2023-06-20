@@ -112,8 +112,8 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
 
         GetAction getAction = GetAction.INSTANCE;
         MultiGetAction multiGetAction = MultiGetAction.INSTANCE;
-        assertTrue(applicationAwareSubject.isAllowed(getAction.allowedScopes()));
-        assertTrue(applicationAwareSubject.isAllowed(multiGetAction.allowedScopes()));
+        assertTrue(applicationAwareSubject.isAllowed(getAction.getAllowedScopes()));
+        assertTrue(applicationAwareSubject.isAllowed(multiGetAction.getAllowedScopes()));
     }
 
     public void testIsAllowedShouldFail() {
@@ -125,7 +125,7 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
 
         ResizeAction resizeAction = ResizeAction.INSTANCE;
         ClusterStateAction clusterStateAction = ClusterStateAction.INSTANCE;
-        assertFalse(applicationAwareSubject.isAllowed(resizeAction.allowedScopes()));
-        assertFalse(applicationAwareSubject.isAllowed(clusterStateAction.allowedScopes()));
+        assertFalse(applicationAwareSubject.isAllowed(resizeAction.getAllowedScopes()));
+        assertFalse(applicationAwareSubject.isAllowed(clusterStateAction.getAllowedScopes()));
     }
 }

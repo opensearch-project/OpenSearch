@@ -59,7 +59,7 @@ public interface Scope {
                 throw new UnknownScopeException(scopeAsString);
             case EXTENSION_POINT:
                 if (action.equals("ACTION")) {
-                    return ExtensionPointScope.Action;
+                    return ExtensionPointScope.ACTION;
                 }
                 throw new UnknownScopeException(scopeAsString);
             default:

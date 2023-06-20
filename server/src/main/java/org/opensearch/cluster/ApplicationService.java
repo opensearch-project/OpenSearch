@@ -61,10 +61,6 @@ public class ApplicationService {
         return principalScopeMap.get(principal);
     }
 
-    public Set<String> getActionScopes(String principal) {
-
-    }
-
     // This is expensive so should try to avoid doing it. Split into subroutines and then trigger individually?
     private void updatePrincipalScopeMap() {
 

@@ -32,8 +32,10 @@
 
 package org.opensearch.action;
 
+import java.util.List;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.transport.TransportRequestOptions;
 
 /**
@@ -74,6 +76,13 @@ public class ActionType<Response extends ActionResponse> {
      */
     public TransportRequestOptions transportOptions(Settings settings) {
         return TransportRequestOptions.EMPTY;
+    }
+
+    /**
+     * All Actions are executable with the ALL ActionScope
+     */
+    public List<Scope> getAllowedScopes() {
+        return List.of(ActionScope.ALL);
     }
 
     @Override

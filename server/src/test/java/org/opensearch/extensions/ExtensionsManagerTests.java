@@ -507,9 +507,14 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterSettingsRequest() throws Exception {
+<<<<<<< HEAD
 
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
 
+=======
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+        ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir, Set.of());
+>>>>>>> a86364e1133 (Fix precommit)
         initialize(extensionsManager);
 
         String uniqueIdStr = "uniqueid1";
@@ -952,10 +957,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             List.of()
         );
         DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
-        System.out.println("Extensions initialized: " + initializedExtension.getName() + " with ID: " + initializedExtension.getId());
         assertEquals(extension.getName(), initializedExtension.getName());
         assertEquals(extension.getId(), initializedExtension.getId());
-        System.out.println("Extension idMap is : " + extensionsManager.getExtensionIdMap());
         assertTrue(extensionsManager.lookupExtensionSettingsById(extension.getId()).isPresent());
         assertEquals(
             "none",

@@ -8,6 +8,8 @@
 
 package org.opensearch.identity.scopes;
 
+import java.util.Locale;
+
 public class ScopeEnums {
 
     public enum ScopeArea {
@@ -18,7 +20,7 @@ public class ScopeEnums {
         ALL;
 
         public static ScopeArea fromString(String value) {
-            return ScopeArea.valueOf(value.toUpperCase());
+            return ScopeArea.valueOf(value.toUpperCase(Locale.ROOT));
         }
     }
 
@@ -28,7 +30,7 @@ public class ScopeEnums {
         EXTENSION_POINT;
 
         public static ScopeNamespace fromString(String value) {
-            return ScopeNamespace.valueOf(value.toUpperCase());
+            return ScopeNamespace.valueOf(value.toUpperCase(Locale.ROOT));
         }
     }
 }

@@ -40,7 +40,7 @@ public final class ApplicationAwareSubject implements Subject {
 
     private final Subject wrapped;
 
-    ApplicationAwareSubject(final Subject wrapped) {
+    public ApplicationAwareSubject(final Subject wrapped) {
         this.wrapped = wrapped;
     }
 
@@ -60,10 +60,10 @@ public final class ApplicationAwareSubject implements Subject {
 
     /**
      * Checks scopes of the current subject if they are allowed for any of the listed scopes
-     * @param scope The scopes to check against the subject
+     * @param scopes The scopes to check against the subject
      * @return true if allowed, false if none of the scopes are allowed.
      */
-    public boolean isAllowed(final List<Scope> scope) {
+    public boolean isAllowed(final List<Scope> scopes) {
         final Optional<Principal> appPrincipal = wrapped.getApplication();
         if (appPrincipal.isEmpty()) {
             // If there is no application, actions are permitted by default
@@ -83,8 +83,13 @@ public final class ApplicationAwareSubject implements Subject {
             return true;
         }
 
-        // TODO: Decide how to handle resolution of scopes here.
-        // For now returning FALSE as application is not SuperUser
+        if (scopesOfApplication.stream()
+            .map(Scope::parseScopeFromString)
+            .anyMatch(parsedScope -> scopes.stream().anyMatch(parsedScope::equals))) { // Find any matches between scope list and subject's
+                                                                                       // scopes
+            return true;
+        }
+
         return false;
     }
 }
