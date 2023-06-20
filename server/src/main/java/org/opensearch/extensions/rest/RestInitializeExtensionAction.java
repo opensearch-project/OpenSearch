@@ -133,9 +133,9 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
-                builder.field("success", "Extension has been initialized");
+                builder.field("success", "A request to initialize an extension has been sent.");
                 builder.endObject();
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                channel.sendResponse(new BytesRestResponse(RestStatus.ACCEPTED, builder));
             }
         };
 

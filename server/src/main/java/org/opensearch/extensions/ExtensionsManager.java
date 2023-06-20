@@ -314,25 +314,23 @@ public class ExtensionsManager {
 
     }
 
-    private boolean validateExtension(Extension extension) throws IOException {
-        if (Strings.isNullOrEmpty(extension.getName())) {
-            throw new IOException("Required field [name] is missing in the request");
-        } else if (Strings.isNullOrEmpty(extension.getUniqueId())) {
-            throw new IOException("Required field [uniqueId] is missing in the request");
-        } else if (Strings.isNullOrEmpty(extension.getHostAddress())) {
-            throw new IOException("Required field [extension host address] is missing in the request");
-        } else if (Strings.isNullOrEmpty(extension.getPort())) {
-            throw new IOException("Required field [extension port] is missing in the request");
-        } else if (Strings.isNullOrEmpty(extension.getVersion())) {
-            throw new IOException("Required field [extension version] is missing in the request");
-        } else if (Strings.isNullOrEmpty(extension.getOpensearchVersion())) {
-            throw new IOException("Required field [opensearch version] is missing in the request");
-        } else if (Strings.isNullOrEmpty(extension.getMinimumCompatibleVersion())) {
-            throw new IOException("Required field [minimum opensearch version] is missing in the request");
-        } else if (extensionIdMap.containsKey(extension.getUniqueId())) {
+    private void validateField(String fieldName, String value) throws IOException {
+        if (Strings.isNullOrEmpty(value)) {
+            throw new IOException("Required field [" + fieldName + "] is missing in the request");
+        }
+    }
+
+    private void validateExtension(Extension extension) throws IOException {
+        validateField("extension name", extension.getName());
+        validateField("extension uniqueId", extension.getUniqueId());
+        validateField("extension host address", extension.getHostAddress());
+        validateField("extension port", extension.getPort());
+        validateField("extension version", extension.getVersion());
+        validateField("opensearch version", extension.getOpensearchVersion());
+        validateField("minimum opensearch version", extension.getMinimumCompatibleVersion());
+        if (extensionIdMap.containsKey(extension.getUniqueId())) {
             throw new IOException("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
         }
-        return true;
     }
 
     /**
@@ -384,6 +382,7 @@ public class ExtensionsManager {
         transportService.getThreadPool().generic().execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
+                extensionIdMap.remove(extension.getId());
                 if (e.getCause() instanceof ConnectTransportException) {
                     logger.info("No response from extension to request.", e);
                     throw (ConnectTransportException) e.getCause();

@@ -29,6 +29,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -87,7 +88,9 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         ExtensionsManager extensionsManager = mock(ExtensionsManager.class);
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
         final String content =
-            "{\"name\":\"ad-extension\",\"uniqueId\":\"ad-extension\",\"hostAddress\":\"127.0.0.1\",\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\"3.0.0\",\"minimumCompatibleVersion\":\"3.0.0\"}";
+            "{\"name\":\"ad-extension\",\"uniqueId\":\"ad-extension\",\"hostAddress\":\"127.0.0.1\"," +
+                "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\"3.0.0\"," +
+                "\"minimumCompatibleVersion\":\"3.0.0\"}";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
@@ -95,10 +98,8 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         FakeRestChannel channel = new FakeRestChannel(request, false, 0);
         restInitializeExtensionAction.handleRequest(request, channel, null);
 
-        assertEquals(1, channel.responses().get());
-        assertEquals(0, channel.errors().get());
-        assertTrue(channel.capturedResponse().content().utf8ToString().contains("Extension has been initialized"));
-
+        assertEquals(channel.capturedResponse().status(), RestStatus.ACCEPTED);
+        assertTrue(channel.capturedResponse().content().utf8ToString().contains("A request to initialize an extension has been sent."));
     }
 
     public void testRestInitializeExtensionActionFailure() throws Exception {
@@ -106,7 +107,9 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
 
         final String content =
-            "{\"name\":\"ad-extension\",\"uniqueId\":\"\",\"hostAddress\":\"127.0.0.1\",\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\"3.0.0\",\"minimumCompatibleVersion\":\"3.0.0\"}";
+            "{\"name\":\"ad-extension\",\"uniqueId\":\"\",\"hostAddress\":\"127.0.0.1\"," +
+                "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\"3.0.0\"," +
+                "\"minimumCompatibleVersion\":\"3.0.0\"}";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
@@ -115,7 +118,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         restInitializeExtensionAction.handleRequest(request, channel, null);
 
         assertEquals(1, channel.errors().get());
-        assertTrue(channel.capturedResponse().content().utf8ToString().contains("Required field [uniqueId] is missing in the request"));
+        assertTrue(channel.capturedResponse().content().utf8ToString().contains("Required field [extension uniqueId] is missing in the request"));
     }
 
 }
