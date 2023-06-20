@@ -71,20 +71,7 @@ public class IdentityService {
         return instance;
     }
 
-    //TODO: Find a way to combine these
-    public Set<String> getApplicationScopes(Principal principal) {
-
-        Set<String> allScopes = ExtensionsManager.getExtensionManager().getExtensionIdMap().get(principal.getName()).getScopes();
-
-        return allScopes.stream().filter(scope -> {
-            String[] parts = scope.split("\\.");
-            if (parts.length != 3) {
-                throw new IllegalArgumentException("Invalid scope format: " + scope);
-            }
-            ScopeEnums.ScopeNamespace scopeNamespace = ScopeEnums.ScopeNamespace.fromString(parts[0]);
-            return scopeNamespace == ScopeEnums.ScopeNamespace.APPLICATION;
-        }).collect(Collectors.toSet());
-    }
+    // TODO: Find a way to combine these
 
     public Set<String> getActionScopes(Principal principal) {
 

@@ -49,7 +49,6 @@ public class ApplicationService {
         return extensionsManagerList;
     }
 
-
     public ArrayList<PluginsService> getPluginsServiceList() {
         return pluginsServiceList;
     }
@@ -69,14 +68,31 @@ public class ApplicationService {
     // This is expensive so should try to avoid doing it. Split into subroutines and then trigger individually?
     private void updatePrincipalScopeMap() {
 
-        extensionsManagerList.forEach(extensionsManager ->
-            extensionsManager.getExtensionIdMap().forEach((key, value) -> principalScopeMap.put(key, value.getScopes()))
+        extensionsManagerList.forEach(
+            extensionsManager -> extensionsManager.getExtensionIdMap()
+                .forEach((key, value) -> principalScopeMap.put(key, value.getScopes()))
         );
 
-        pluginsServiceList.forEach(pluginsService -> pluginsService.getPluginsAndModules().getPluginInfos().forEach((key) -> principalScopeMap.put(key.getName(), Set.of(
-            ActionScope.ALL.asPermissionString(), ApplicationScope.SuperUserAccess.asPermissionString())))); // Plugins have all scopes
+        pluginsServiceList.forEach(
+            pluginsService -> pluginsService.getPluginsAndModules()
+                .getPluginInfos()
+                .forEach(
+                    (key) -> principalScopeMap.put(
+                        key.getName(),
+                        Set.of(ActionScope.ALL.asPermissionString(), ApplicationScope.SuperUserAccess.asPermissionString())
+                    )
+                )
+        ); // Plugins have all scopes
 
-        pluginsServiceList.forEach(pluginsService -> pluginsService.getPluginsAndModules().getModuleInfos().forEach((key) -> principalScopeMap.put(key.getName(), Set.of(
-            ActionScope.ALL.asPermissionString(), ApplicationScope.SuperUserAccess.asPermissionString())))); // Modules have all scopes
+        pluginsServiceList.forEach(
+            pluginsService -> pluginsService.getPluginsAndModules()
+                .getModuleInfos()
+                .forEach(
+                    (key) -> principalScopeMap.put(
+                        key.getName(),
+                        Set.of(ActionScope.ALL.asPermissionString(), ApplicationScope.SuperUserAccess.asPermissionString())
+                    )
+                )
+        ); // Modules have all scopes
     }
 }

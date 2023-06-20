@@ -19,7 +19,6 @@ import java.util.Set;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * An individual, process, or device that causes information to flow among objects or change to the system state.
@@ -35,20 +34,6 @@ public final class ApplicationAwareSubject implements Subject {
             public Boolean apply(Principal principal) {
 
                 return (ExtensionsManager.getExtensionManager().getExtensionPrincipals().contains(principal));
-            }
-        };
-    }
-
-    private final Function<Principal, Set<Scope>> getApplicationScopes() {
-
-        return new Function<Principal, Set<Scope>>() {
-            @Override
-            public Set<Scope> apply(Principal principal) {
-                return IdentityService.getInstance()
-                    .getApplicationScopes(principal)
-                    .stream()
-                    .map(ApplicationScope::valueOf)
-                    .collect(Collectors.toSet());
             }
         };
     }
@@ -89,14 +74,17 @@ public final class ApplicationAwareSubject implements Subject {
             return false;
         }
 
-        final Set<Scope> scopesOfApplication = this.getApplicationScopes().apply(appPrincipal.get());
-        if (scopesOfApplication.contains(ApplicationScope.SuperUserAccess)) {
+        final Set<String> scopesOfApplication = Scope.getApplicationScopes(appPrincipal.get());
+
+        if (scopesOfApplication.stream()
+            .map(Scope::parseScopeFromString)
+            .anyMatch(parsedScope -> parsedScope.equals(ApplicationScope.SuperUserAccess))) {
             // Applications that are fully trusted automatically pass all checks
             return true;
         }
 
-        //TODO: Decide how to handle resolution of scopes here. Should no longer be TRUSTED/UNTRUSTED
-        // For now returning FALSE as application is not TRUSTED
+        // TODO: Decide how to handle resolution of scopes here.
+        // For now returning FALSE as application is not SuperUser
         return false;
     }
 }

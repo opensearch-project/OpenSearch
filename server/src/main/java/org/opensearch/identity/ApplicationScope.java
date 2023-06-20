@@ -21,7 +21,6 @@ import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
 public enum ApplicationScope implements Scope {
     SuperUserAccess(ScopeArea.ALL, "ALL");
 
-
     public final ScopeArea area;
     public final String action;
 
