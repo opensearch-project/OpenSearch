@@ -52,8 +52,8 @@ import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
-import org.opensearch.telemetry.tracing.TracerModule;
-import org.opensearch.telemetry.tracing.TracerSettings;
+import org.opensearch.telemetry.TelemetryModule;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -678,15 +678,15 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ),
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
         List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING),
-        List.of(FeatureFlags.TRACER),
+        List.of(FeatureFlags.TELEMETRY),
         List.of(
-            TracerSettings.TRACER_LEVEL_SETTING,
-            TracerSettings.TRACER_ENABLED_SETTING,
-            TracerSettings.TRACER_EXPORTER_DELAY_SETTING,
-            TracerSettings.TRACER_EXPORTER_BATCH_SIZE_SETTING,
-            TracerSettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
-            TracerModule.TRACER_TYPE_SETTING,
-            TracerModule.TRACER_DEFAULT_TYPE_SETTING
+            TelemetrySettings.TRACER_LEVEL_SETTING,
+            TelemetrySettings.TRACER_ENABLED_SETTING,
+            TelemetrySettings.TRACER_EXPORTER_DELAY_SETTING,
+            TelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING,
+            TelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
+            TelemetryModule.TELEMETRY_TYPE_SETTING,
+            TelemetryModule.TELEMETRY_DEFAULT_TYPE_SETTING
         )
     );
 }

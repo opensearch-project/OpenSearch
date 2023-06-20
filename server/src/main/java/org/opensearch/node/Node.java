@@ -66,8 +66,8 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
-import org.opensearch.telemetry.tracing.TracerModule;
-import org.opensearch.telemetry.tracing.TracerSettings;
+import org.opensearch.telemetry.TelemetryModule;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.core.Assertions;
 import org.opensearch.Build;
@@ -197,7 +197,7 @@ import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SystemIndexPlugin;
-import org.opensearch.plugins.TracerPlugin;
+import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
@@ -258,7 +258,7 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.SEARCH_PIPELINE;
-import static org.opensearch.common.util.FeatureFlags.TRACER;
+import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
@@ -1025,11 +1025,11 @@ public class Node implements Closeable {
                 searchModule.getIndexSearcherExecutor(threadPool)
             );
 
-            if (FeatureFlags.isEnabled(TRACER)) {
-                final TracerSettings tracerSettings = new TracerSettings(settings, clusterService.getClusterSettings());
-                List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
-                TracerModule tracerModule = new TracerModule(settings, tracerPlugins, tracerSettings);
-                TracerManager.initTracerManager(tracerSettings, tracerModule.getTelemetrySupplier(), threadPool);
+            if (FeatureFlags.isEnabled(TELEMETRY)) {
+                final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
+                List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
+                TelemetryModule telemetryModule = new TelemetryModule(settings, telemetryPlugins, telemetrySettings);
+                TracerManager.initTracerManager(telemetrySettings, telemetryModule.getTelemetry(), threadPool);
                 resourcesToClose.add(TracerManager::closeTracer);
             }
 
@@ -1494,7 +1494,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("node_environment"));
         toClose.add(injector.getInstance(NodeEnvironment.class));
         toClose.add(stopWatch::stop);
-        if (FeatureFlags.isEnabled(TRACER)) {
+        if (FeatureFlags.isEnabled(TELEMETRY)) {
             toClose.add(TracerManager::closeTracer);
         }
 

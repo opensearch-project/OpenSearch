@@ -12,8 +12,8 @@ import org.opensearch.gradle.OS
 import org.opensearch.gradle.info.BuildParams
 
 opensearchplugin {
-  description 'Opentelemetry based Tracer implementation.'
-  classname 'org.opensearch.telemetry.tracing.OTelTracerModulePlugin'
+  description 'Opentelemetry based telemetry implementation.'
+  classname 'org.opensearch.telemetry.OTelTelemetryModulePlugin'
   hasClientJar = true
 }
 

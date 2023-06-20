@@ -11,13 +11,13 @@ package org.opensearch.telemetry.tracing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.Telemetry;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 /**
  * TracerManager represents a single global class that is used to access tracers.
@@ -32,23 +32,20 @@ public class TracerManager {
 
     private volatile Tracer defaultTracer;
     private final Object mutex = new Object();
-    private final TracerSettings tracerSettings;
-    private final Supplier<Telemetry> telemetrySupplier;
+    private final TelemetrySettings telemetrySettings;
+    private final Telemetry telemetry;
     private final ThreadPool threadPool;
 
     /**
      * Initializes the TracerFactory singleton instance
      *
-     * @param tracerSettings       tracer settings instance
+     * @param telemetrySettings       tracer settings instance
+     * @param telemetry            telemetry instance
      * @param threadPool           thread pool instance
      */
-    public static synchronized void initTracerManager(
-        TracerSettings tracerSettings,
-        Supplier<Telemetry> tracerSupplier,
-        ThreadPool threadPool
-    ) {
+    public static synchronized void initTracerManager(TelemetrySettings telemetrySettings, Telemetry telemetry, ThreadPool threadPool) {
         if (INSTANCE == null) {
-            INSTANCE = new TracerManager(tracerSettings, tracerSupplier, threadPool);
+            INSTANCE = new TracerManager(telemetrySettings, telemetry, threadPool);
         } else {
             logger.warn("Trying to double initialize TracerFactory, skipping");
         }
@@ -79,9 +76,9 @@ public class TracerManager {
         }
     }
 
-    public TracerManager(TracerSettings tracerSettings, Supplier<Telemetry> telemetrySupplier, ThreadPool threadPool) {
-        this.tracerSettings = tracerSettings;
-        this.telemetrySupplier = telemetrySupplier;
+    public TracerManager(TelemetrySettings telemetrySettings, Telemetry telemetry, ThreadPool threadPool) {
+        this.telemetrySettings = telemetrySettings;
+        this.telemetry = telemetry;
         this.threadPool = threadPool;
     }
 
@@ -90,13 +87,11 @@ public class TracerManager {
     }
 
     private BiConsumer<Map<String, String>, Map<String, Object>> tracerHeaderInjector() {
-        return isTracingDisabled()
-            ? (x, y) -> {}
-            : telemetrySupplier.get().getTracingTelemetry().getContextPropagator().injectSpanInHeader();
+        return isTracingDisabled() ? (x, y) -> {} : telemetry.getTracingTelemetry().getContextPropagator().inject();
     }
 
     private boolean isTracingDisabled() {
-        return !tracerSettings.isTracingEnabled();
+        return !telemetrySettings.isTracingEnabled();
     }
 
     private Tracer getOrCreateDefaultTracerInstance() {
@@ -104,12 +99,12 @@ public class TracerManager {
             synchronized (mutex) {
                 if (defaultTracer == null) {
                     logger.info("Creating Otel tracer...");
-                    TracingTelemetry tracingTelemetry = telemetrySupplier.get().getTracingTelemetry();
+                    TracingTelemetry tracingTelemetry = telemetry.getTracingTelemetry();
                     TracerContextStorage tracerContextStorage = new ThreadContextBasedTracerContextStorage(
                         threadPool.getThreadContext(),
                         tracingTelemetry
                     );
-                    defaultTracer = new DefaultTracer(tracingTelemetry, tracerContextStorage, () -> tracerSettings.getTracerLevel());
+                    defaultTracer = new DefaultTracer(tracingTelemetry, tracerContextStorage, () -> telemetrySettings.getTracerLevel());
                 }
             }
         }

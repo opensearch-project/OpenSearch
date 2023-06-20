@@ -9,16 +9,17 @@
 package org.opensearch.plugins;
 
 import org.opensearch.telemetry.Telemetry;
-import org.opensearch.telemetry.tracing.TracerSettings;
+import org.opensearch.telemetry.TelemetrySettings;
 
-import java.util.Map;
-import java.util.function.Supplier;
+import java.util.Optional;
 
 /**
  * Plugin for extending telemetry related classes
  */
-public interface TracerPlugin {
+public interface TelemetryPlugin {
 
-    Map<String, Supplier<Telemetry>> getTelemetries(TracerSettings tracerSettings);
+    Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings);
+
+    String getName();
 
 }

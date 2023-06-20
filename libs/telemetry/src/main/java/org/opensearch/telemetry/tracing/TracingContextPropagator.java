@@ -17,16 +17,16 @@ import java.util.function.BiConsumer;
 public interface TracingContextPropagator {
 
     /**
-     * Extracts current span from header
-     * @param header Headers map
+     * Extracts current span from context
+     * @param props properties
      * @return current span
      */
-    Span extractSpanFromHeader(Map<String, String> header);
+    Span extract(Map<String, String> props);
 
     /**
-     * Injects current span in header
-     * @return consumer to add current span in header map
+     * Injects tracing context in map
+     * @return consumer to add tracing context in map
      */
-    BiConsumer<Map<String, String>, Map<String, Object>> injectSpanInHeader();
+    BiConsumer<Map<String, String>, Map<String, Object>> inject();
 
 }

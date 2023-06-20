@@ -6,39 +6,40 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing;
+package org.opensearch.telemetry;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.telemetry.tracing.Level;
 
 /**
  * Wrapper class to encapsulate tracing related settings
  */
-public class TracerSettings {
+public class TelemetrySettings {
     public static final Setting<Integer> TRACER_EXPORTER_BATCH_SIZE_SETTING = Setting.intSetting(
-        "tracer.exporter.batch_size",
+        "telemetry.tracer.exporter.batch_size",
         512,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     public static final Setting<Integer> TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING = Setting.intSetting(
-        "tracer.exporter.max_queue_size",
+        "telemetry.tracer.exporter.max_queue_size",
         2048,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     public static final Setting<TimeValue> TRACER_EXPORTER_DELAY_SETTING = Setting.timeSetting(
-        "tracer.exporter.delay",
+        "telemetry.tracer.exporter.delay",
         TimeValue.timeValueSeconds(2),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     public static final Setting<Level> TRACER_LEVEL_SETTING = new Setting<>(
-        "tracer.level",
+        "telemetry.tracer.level",
         Level.ROOT.name(),
         Level::fromString,
         Setting.Property.NodeScope,
@@ -46,7 +47,7 @@ public class TracerSettings {
     );
 
     public static final Setting<Boolean> TRACER_ENABLED_SETTING = Setting.boolSetting(
-        "tracer.enabled",
+        "telemetry.tracer.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -62,7 +63,7 @@ public class TracerSettings {
 
     private volatile TimeValue exporterDelay;
 
-    public TracerSettings(Settings settings, ClusterSettings clusterSettings) {
+    public TelemetrySettings(Settings settings, ClusterSettings clusterSettings) {
         this.tracerLevel = TRACER_LEVEL_SETTING.get(settings);
         this.tracingEnabled = TRACER_ENABLED_SETTING.get(settings);
         this.exporterBatchSize = TRACER_EXPORTER_BATCH_SIZE_SETTING.get(settings);

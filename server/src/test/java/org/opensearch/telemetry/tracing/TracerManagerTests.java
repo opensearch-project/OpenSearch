@@ -15,6 +15,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.telemetry.Telemetry;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -44,20 +45,20 @@ public class TracerManagerTests extends OpenSearchTestCase {
     }
 
     public void testGetTracerWithTracingDisabledReturnsNoopTracer() {
-        Settings settings = Settings.builder().put(TracerSettings.TRACER_ENABLED_SETTING.getKey(), false).build();
-        TracerSettings tracerSettings = new TracerSettings(settings, new ClusterSettings(settings, getClusterSettings()));
-        TracerManager.initTracerManager(tracerSettings, null, mock(ThreadPool.class));
+        Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
+        TracerManager.initTracerManager(telemetrySettings, null, mock(ThreadPool.class));
 
         Tracer tracer = TracerManager.getTracer();
         assertTrue(tracer instanceof NoopTracer);
     }
 
     public void testGetTracerWithTracingEnabledReturnsDefaultTracer() {
-        Settings settings = Settings.builder().put(TracerSettings.TRACER_ENABLED_SETTING.getKey(), true).build();
-        TracerSettings tracerSettings = new TracerSettings(settings, new ClusterSettings(settings, getClusterSettings()));
+        Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
-        TracerManager.initTracerManager(tracerSettings, () -> mockTelemetry, mock(ThreadPool.class));
+        TracerManager.initTracerManager(telemetrySettings, mockTelemetry, mock(ThreadPool.class));
 
         Tracer tracer = TracerManager.getTracer();
         assertTrue(tracer instanceof DefaultTracer);
@@ -66,7 +67,7 @@ public class TracerManagerTests extends OpenSearchTestCase {
 
     private Set<Setting<?>> getClusterSettings() {
         Set<Setting<?>> allTracerSettings = new HashSet<>();
-        ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TRACER)).stream().forEach((allTracerSettings::add));
+        ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));
         return allTracerSettings;
     }
 }

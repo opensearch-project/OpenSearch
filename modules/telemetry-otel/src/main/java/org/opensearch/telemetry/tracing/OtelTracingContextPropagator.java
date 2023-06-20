@@ -25,7 +25,7 @@ import static org.opensearch.telemetry.tracing.DefaultTracer.CURRENT_SPAN;
  */
 public class OtelTracingContextPropagator implements TracingContextPropagator {
 
-    private static final String ROOT_SPAN = "root_span";
+    private static final String PROPAGATED_SPAN = "propagated_span";
 
     private final OpenTelemetry openTelemetry;
 
@@ -38,17 +38,17 @@ public class OtelTracingContextPropagator implements TracingContextPropagator {
     }
 
     @Override
-    public Span extractSpanFromHeader(Map<String, String> header) {
-        Context context = openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), header, TEXT_MAP_GETTER);
+    public Span extract(Map<String, String> props) {
+        Context context = openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), props, TEXT_MAP_GETTER);
         if (context != null) {
             io.opentelemetry.api.trace.Span span = io.opentelemetry.api.trace.Span.fromContext(context);
-            return new OTelSpan(ROOT_SPAN, span, null, Level.ROOT);
+            return new OTelSpan(PROPAGATED_SPAN, span, null, Level.ROOT);
         }
         return null;
     }
 
     @Override
-    public BiConsumer<Map<String, String>, Map<String, Object>> injectSpanInHeader() {
+    public BiConsumer<Map<String, String>, Map<String, Object>> inject() {
         return (requestHeaders, transientHeaders) -> {
             if (transientHeaders != null && transientHeaders.containsKey(CURRENT_SPAN)) {
                 if (transientHeaders.get(CURRENT_SPAN) instanceof AtomicReference) {

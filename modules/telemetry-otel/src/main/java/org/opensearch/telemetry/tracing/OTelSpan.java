@@ -8,15 +8,17 @@
 
 package org.opensearch.telemetry.tracing;
 
+import io.opentelemetry.api.trace.Span;
+
 /**
  * Default implementation of {@link Span} using Otel span. It keeps a reference of OpenTelemetry Span and handles span
  * lifecycle management by delegating calls to it.
  */
 class OTelSpan extends AbstractSpan {
 
-    private final io.opentelemetry.api.trace.Span otelSpan;
+    private final Span otelSpan;
 
-    public OTelSpan(String spanName, io.opentelemetry.api.trace.Span span, Span parentSpan, Level level) {
+    public OTelSpan(String spanName, Span span, org.opensearch.telemetry.tracing.Span parentSpan, Level level) {
         super(spanName, parentSpan, level);
         this.otelSpan = span;
     }

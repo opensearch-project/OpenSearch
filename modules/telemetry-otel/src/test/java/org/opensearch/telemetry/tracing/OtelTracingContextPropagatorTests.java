@@ -42,7 +42,7 @@ public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
         TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
 
-        tracingContextPropagator.injectSpanInHeader().accept(requestHeaders, transientHeaders);
+        tracingContextPropagator.inject().accept(requestHeaders, transientHeaders);
         assertEquals("00-" + TRACE_ID + "-" + SPAN_ID + "-00", requestHeaders.get("traceparent"));
     }
 
@@ -57,7 +57,7 @@ public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
         TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
-        tracingContextPropagator.injectSpanInHeader().accept(requestHeaders, transientHeaders);
+        tracingContextPropagator.inject().accept(requestHeaders, transientHeaders);
         assertEquals("00-" + TRACE_ID + "-" + SPAN_ID + "-00", requestHeaders.get("traceparent"));
     }
 
@@ -67,7 +67,7 @@ public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
         TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
-        org.opensearch.telemetry.tracing.Span span = tracingContextPropagator.extractSpanFromHeader(requestHeaders);
+        org.opensearch.telemetry.tracing.Span span = tracingContextPropagator.extract(requestHeaders);
         assertEquals(TRACE_ID, span.getTraceId());
         assertEquals(SPAN_ID, span.getSpanId());
     }

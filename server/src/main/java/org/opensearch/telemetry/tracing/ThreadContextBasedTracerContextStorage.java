@@ -56,6 +56,6 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
     }
 
     private Span spanFromHeader() {
-        return tracingTelemetry.getContextPropagator().extractSpanFromHeader(threadContext.getHeaders());
+        return tracingTelemetry.getContextPropagator().extract(threadContext.getHeaders());
     }
 }
