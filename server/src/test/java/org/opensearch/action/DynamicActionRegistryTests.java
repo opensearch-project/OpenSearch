@@ -26,7 +26,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 
@@ -100,8 +99,8 @@ public class DynamicActionRegistryTests extends OpenSearchTestCase {
     public void testDynamicActionRegistryWithNamedRoutesAndLegacyActionNames() {
         RestSendToExtensionAction action = mock(RestSendToExtensionAction.class);
         RestSendToExtensionAction action2 = mock(RestSendToExtensionAction.class);
-        NamedRoute r1 = new NamedRoute(RestRequest.Method.GET, "/foo", "foo", Set.of("cluster:admin/opensearch/abc/foo"));
-        NamedRoute r2 = new NamedRoute(RestRequest.Method.GET, "/bar", "bar", Set.of("cluster:admin/opensearch/xyz/bar"));
+        NamedRoute r1 = new NamedRoute(RestRequest.Method.GET, "/foo", "foo", Collections.singleton("cluster:admin/opensearch/abc/foo"));
+        NamedRoute r2 = new NamedRoute(RestRequest.Method.GET, "/bar", "bar", Collections.singleton("cluster:admin/opensearch/xyz/bar"));
 
         DynamicActionRegistry registry = new DynamicActionRegistry();
         registry.registerDynamicRoute(r1, action);

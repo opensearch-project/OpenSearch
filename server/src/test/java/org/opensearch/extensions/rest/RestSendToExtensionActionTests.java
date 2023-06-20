@@ -298,7 +298,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
     public void testRestSendToExtensionMultipleRoutesWithSameMethodAndPathWithDifferentPathParams() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("GET /foo/{path_param1}", "GET /foo/{path_param2}"),
+            List.of("GET /foo/{path_param1} fooWithParam", "GET /foo/{path_param2} listFooWithParam"),
             List.of()
         );
         expectThrows(
@@ -310,9 +310,10 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
     public void testRestSendToExtensionMultipleRoutesWithSameMethodAndPathWithPathParams() {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("GET /foo/{path_param}", "GET /foo/{path_param}/list"),
+            List.of("GET /foo/{path_param} fooWithParam", "GET /foo/{path_param}/list listFooWithParam"),
             List.of()
         );
+
         try {
             new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, dynamicActionRegistry);
         } catch (IllegalArgumentException e) {
@@ -357,8 +358,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
     public void testRestSendToExtensionActionFilterHeaders() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("GET /foo", "PUT /bar", "POST /baz"),
-            List.of("GET /deprecated/foo", "It's deprecated!")
+            List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz"),
+            List.of("GET /deprecated/foo foo-deprecated", "It's deprecated!")
         );
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
