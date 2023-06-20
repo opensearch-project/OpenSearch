@@ -12,7 +12,6 @@ import org.junit.Assert;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -25,7 +24,6 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     private TracerContextStorage<String, Span> mockTracerContextStorage;
     private Span mockSpan;
     private Span mockParentSpan;
-    private Supplier<Level> levelSupplier;
 
     @Override
     public void setUp() throws Exception {
@@ -39,16 +37,16 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testCreateSpan() {
-        DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage, levelSupplier);
+        DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
 
-        defaultTracer.startSpan("span_name", Level.INFO);
+        defaultTracer.startSpan("span_name");
 
         Assert.assertEquals("span_name", defaultTracer.getCurrentSpan().getSpanName());
     }
 
     public void testEndSpan() {
-        DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage, levelSupplier);
-        defaultTracer.startSpan("span_name", Level.INFO);
+        DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
+        defaultTracer.startSpan("span_name");
         verify(mockTracerContextStorage).put(CURRENT_SPAN, mockSpan);
 
         defaultTracer.endSpan();
@@ -57,16 +55,16 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testEndSpanByClosingScope() {
-        DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage, levelSupplier);
-        try (Scope scope = defaultTracer.startSpan("span_name", Level.INFO)) {
+        DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
+        try (Scope scope = defaultTracer.startSpan("span_name")) {
             verify(mockTracerContextStorage).put(CURRENT_SPAN, mockSpan);
         }
         verify(mockTracerContextStorage).put(CURRENT_SPAN, mockParentSpan);
     }
 
     public void testAddSpanAttributeString() {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage, levelSupplier);
-        defaultTracer.startSpan("span_name", Level.INFO);
+        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
+        defaultTracer.startSpan("span_name");
 
         defaultTracer.addSpanAttribute("key", "value");
 
@@ -74,8 +72,8 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testAddSpanAttributeLong() {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage, levelSupplier);
-        defaultTracer.startSpan("span_name", Level.INFO);
+        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
+        defaultTracer.startSpan("span_name");
 
         defaultTracer.addSpanAttribute("key", 1L);
 
@@ -83,8 +81,8 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testAddSpanAttributeDouble() {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage, levelSupplier);
-        defaultTracer.startSpan("span_name", Level.INFO);
+        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
+        defaultTracer.startSpan("span_name");
 
         defaultTracer.addSpanAttribute("key", 1.0);
 
@@ -92,8 +90,8 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testAddSpanAttributeBoolean() {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage, levelSupplier);
-        defaultTracer.startSpan("span_name", Level.INFO);
+        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
+        defaultTracer.startSpan("span_name");
 
         defaultTracer.addSpanAttribute("key", true);
 
@@ -101,8 +99,8 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testAddEvent() {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage, levelSupplier);
-        defaultTracer.startSpan("span_name", Level.INFO);
+        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
+        defaultTracer.startSpan("span_name");
 
         defaultTracer.addSpanEvent("eventName");
 
@@ -110,7 +108,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     public void testClose() throws IOException {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage, levelSupplier);
+        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
 
         defaultTracer.close();
 
@@ -119,7 +117,6 @@ public class DefaultTracerTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     private void setupMocks() {
-        levelSupplier = () -> Level.INFO;
         mockTracingTelemetry = mock(TracingTelemetry.class);
         mockSpan = mock(Span.class);
         mockParentSpan = mock(Span.class);
@@ -127,12 +124,10 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         when(mockSpan.getSpanName()).thenReturn("span_name");
         when(mockSpan.getSpanId()).thenReturn("span_id");
         when(mockSpan.getTraceId()).thenReturn("trace_id");
-        when(mockSpan.getLevel()).thenReturn(Level.INFO);
         when(mockSpan.getParentSpan()).thenReturn(mockParentSpan);
         when(mockParentSpan.getSpanId()).thenReturn("parent_span_id");
         when(mockParentSpan.getTraceId()).thenReturn("trace_id");
-        when(mockParentSpan.getLevel()).thenReturn(Level.INFO);
         when(mockTracerContextStorage.get(CURRENT_SPAN)).thenReturn(mockParentSpan, mockSpan);
-        when(mockTracingTelemetry.createSpan("span_name", mockParentSpan, Level.INFO)).thenReturn(mockSpan);
+        when(mockTracingTelemetry.createSpan("span_name", mockParentSpan)).thenReturn(mockSpan);
     }
 }

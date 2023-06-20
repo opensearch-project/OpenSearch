@@ -18,8 +18,8 @@ class OTelSpan extends AbstractSpan {
 
     private final Span otelSpan;
 
-    public OTelSpan(String spanName, Span span, org.opensearch.telemetry.tracing.Span parentSpan, Level level) {
-        super(spanName, parentSpan, level);
+    public OTelSpan(String spanName, Span span, org.opensearch.telemetry.tracing.Span parentSpan) {
+        super(spanName, parentSpan);
         this.otelSpan = span;
     }
 

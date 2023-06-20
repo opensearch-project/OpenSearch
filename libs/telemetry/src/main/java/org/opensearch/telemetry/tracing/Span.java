@@ -31,11 +31,6 @@ public interface Span {
     String getSpanName();
 
     /**
-     * Returns {@link Level} of the {@link Span}
-     */
-    Level getLevel();
-
-    /**
      * Adds string type attribute in the span
      *
      * @param key of the attribute

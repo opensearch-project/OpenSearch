@@ -680,7 +680,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING),
         List.of(FeatureFlags.TELEMETRY),
         List.of(
-            TelemetrySettings.TRACER_LEVEL_SETTING,
             TelemetrySettings.TRACER_ENABLED_SETTING,
             TelemetrySettings.TRACER_EXPORTER_DELAY_SETTING,
             TelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING,

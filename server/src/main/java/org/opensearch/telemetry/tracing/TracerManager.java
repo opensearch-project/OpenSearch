@@ -104,7 +104,7 @@ public class TracerManager {
                         threadPool.getThreadContext(),
                         tracingTelemetry
                     );
-                    defaultTracer = new DefaultTracer(tracingTelemetry, tracerContextStorage, () -> telemetrySettings.getTracerLevel());
+                    defaultTracer = new DefaultTracer(tracingTelemetry, tracerContextStorage);
                 }
             }
         }

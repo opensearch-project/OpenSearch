@@ -25,14 +25,14 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testEndSpanTest() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, Level.INFO);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.endSpan();
         verify(mockSpan).end();
     }
 
     public void testAddAttributeString() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, Level.INFO);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.addAttribute("key", "value");
 
         verify(mockSpan).setAttribute("key", "value");
@@ -40,7 +40,7 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testAddAttributeLong() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, Level.INFO);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.addAttribute("key", 1L);
 
         verify(mockSpan).setAttribute("key", 1L);
@@ -48,7 +48,7 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testAddAttributeDouble() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, Level.INFO);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.addAttribute("key", 1.0);
 
         verify(mockSpan).setAttribute("key", 1.0);
@@ -56,7 +56,7 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testAddAttributeBoolean() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, Level.INFO);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.addAttribute("key", true);
 
         verify(mockSpan).setAttribute("key", true);
@@ -64,7 +64,7 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testAddEvent() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, Level.INFO);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.addEvent("eventName");
 
         verify(mockSpan).addEvent("eventName");
@@ -72,14 +72,14 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testGetTraceId() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, Level.INFO);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
 
         assertEquals(TRACE_ID, oTelSpan.getTraceId());
     }
 
     public void testGetSpanId() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, Level.INFO);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
 
         assertEquals(SPAN_ID, oTelSpan.getSpanId());
     }

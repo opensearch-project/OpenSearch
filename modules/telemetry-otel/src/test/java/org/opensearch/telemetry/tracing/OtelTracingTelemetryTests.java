@@ -30,7 +30,7 @@ public class OtelTracingTelemetryTests extends OpenSearchTestCase {
         when(mockSpanBuilder.startSpan()).thenReturn(mock(io.opentelemetry.api.trace.Span.class));
 
         TracingTelemetry tracingTelemetry = new OtelTracingTelemetry(mockOpenTelemetry);
-        Span span = tracingTelemetry.createSpan("span_name", null, Level.INFO);
+        Span span = tracingTelemetry.createSpan("span_name", null);
 
         verify(mockSpanBuilder, never()).setParent(any());
         assertNull(span.getParentSpan());
@@ -45,10 +45,10 @@ public class OtelTracingTelemetryTests extends OpenSearchTestCase {
         when(mockSpanBuilder.setParent(any())).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.startSpan()).thenReturn(mock(io.opentelemetry.api.trace.Span.class));
 
-        Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null, Level.INFO);
+        Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null);
 
         TracingTelemetry tracingTelemetry = new OtelTracingTelemetry(mockOpenTelemetry);
-        Span span = tracingTelemetry.createSpan("span_name", parentSpan, Level.INFO);
+        Span span = tracingTelemetry.createSpan("span_name", parentSpan);
 
         verify(mockSpanBuilder).setParent(any());
         assertNotNull(span.getParentSpan());

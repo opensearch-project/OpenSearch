@@ -19,10 +19,9 @@ public interface TracingTelemetry extends Closeable {
      * Creates span with provided arguments
      * @param spanName name of the span
      * @param parentSpan span's parent span
-     * @param level span's level
      * @return span instance
      */
-    Span createSpan(String spanName, Span parentSpan, Level level);
+    Span createSpan(String spanName, Span parentSpan);
 
     /**
      * provides tracing context propagator

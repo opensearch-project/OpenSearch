@@ -46,8 +46,8 @@ public class OtelTracingTelemetry implements TracingTelemetry {
     }
 
     @Override
-    public Span createSpan(String spanName, Span parentSpan, Level level) {
-        return createOtelSpan(spanName, parentSpan, level);
+    public Span createSpan(String spanName, Span parentSpan) {
+        return createOtelSpan(spanName, parentSpan);
     }
 
     @Override
@@ -55,12 +55,12 @@ public class OtelTracingTelemetry implements TracingTelemetry {
         return new OtelTracingContextPropagator(openTelemetry);
     }
 
-    private Span createOtelSpan(String spanName, Span parentSpan, Level level) {
-        io.opentelemetry.api.trace.Span otelSpan = createOtelSpan(spanName, parentSpan);
-        return new OTelSpan(spanName, otelSpan, parentSpan, level);
+    private Span createOtelSpan(String spanName, Span parentSpan) {
+        io.opentelemetry.api.trace.Span otelSpan = otelSpan(spanName, parentSpan);
+        return new OTelSpan(spanName, otelSpan, parentSpan);
     }
 
-    io.opentelemetry.api.trace.Span createOtelSpan(String spanName, Span parentOTelSpan) {
+    io.opentelemetry.api.trace.Span otelSpan(String spanName, Span parentOTelSpan) {
         return parentOTelSpan == null || !(parentOTelSpan instanceof OTelSpan)
             ? otelTracer.spanBuilder(spanName).startSpan()
             : otelTracer.spanBuilder(spanName).setParent(Context.current().with(((OTelSpan) parentOTelSpan).getOtelSpan())).startSpan();

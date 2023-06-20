@@ -19,13 +19,12 @@ import java.io.Closeable;
 public interface Tracer extends Closeable {
 
     /**
-     * Starts the {@link Span} with given name and level
+     * Starts the {@link Span} with given name
      *
      * @param spanName span name
-     * @param level span tracing level
      * @return scope of the span, can be used with try-with-resources to close the span
      */
-    Scope startSpan(String spanName, Level level);
+    Scope startSpan(String spanName);
 
     /**
      * Ends the current active {@link Span}

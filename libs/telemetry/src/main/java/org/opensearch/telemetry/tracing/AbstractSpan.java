@@ -21,21 +21,15 @@ public abstract class AbstractSpan implements Span {
      * span's parent span
      */
     private final Span parentSpan;
-    /**
-     * span's level
-     */
-    private final Level level;
 
     /**
      * Base constructor
      * @param spanName name of the span
      * @param parentSpan span's parent span
-     * @param level span's level
      */
-    protected AbstractSpan(String spanName, Span parentSpan, Level level) {
+    protected AbstractSpan(String spanName, Span parentSpan) {
         this.spanName = spanName;
         this.parentSpan = parentSpan;
-        this.level = level;
     }
 
     @Override
@@ -48,8 +42,4 @@ public abstract class AbstractSpan implements Span {
         return spanName;
     }
 
-    @Override
-    public Level getLevel() {
-        return level;
-    }
 }

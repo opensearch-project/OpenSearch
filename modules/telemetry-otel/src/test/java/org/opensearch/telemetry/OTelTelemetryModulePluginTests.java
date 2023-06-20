@@ -13,7 +13,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.telemetry.tracing.Level;
 import org.opensearch.telemetry.tracing.OtelTracingTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.test.OpenSearchTestCase;
@@ -47,7 +46,7 @@ public class OTelTelemetryModulePluginTests extends OpenSearchTestCase {
     public void testGetTelemetry() throws IOException {
         Set<Setting<?>> allTracerSettings = new HashSet<>();
         ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));
-        Settings settings = Settings.builder().put(TelemetrySettings.TRACER_LEVEL_SETTING.getKey(), Level.INFO).build();
+        Settings settings = Settings.builder().build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, allTracerSettings);
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterSettings);
         OTelTelemetryModulePlugin oTelTracerModulePlugin = new OTelTelemetryModulePlugin();

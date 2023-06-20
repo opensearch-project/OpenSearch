@@ -10,7 +10,6 @@ package org.opensearch.telemetry.tracing;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  *
@@ -30,30 +29,21 @@ public class DefaultTracer implements Tracer {
 
     private final TracingTelemetry tracingTelemetry;
     private final TracerContextStorage<String, Span> tracerContextStorage;
-    private final Supplier<Level> levelSupplier;
-    private final SpanFactory spanFactory;
 
     /**
      * Creates DefaultTracer instance
      *
      * @param tracingTelemetry tracing telemetry instance
      * @param tracerContextStorage storage used for storing current span context
-     * @param levelSupplier configured level supplier
      */
-    public DefaultTracer(
-        TracingTelemetry tracingTelemetry,
-        TracerContextStorage<String, Span> tracerContextStorage,
-        Supplier<Level> levelSupplier
-    ) {
+    public DefaultTracer(TracingTelemetry tracingTelemetry, TracerContextStorage<String, Span> tracerContextStorage) {
         this.tracingTelemetry = tracingTelemetry;
         this.tracerContextStorage = tracerContextStorage;
-        this.levelSupplier = levelSupplier;
-        this.spanFactory = new SpanFactory(levelSupplier, tracingTelemetry);
     }
 
     @Override
-    public Scope startSpan(String spanName, Level level) {
-        Span span = createSpan(spanName, getCurrentSpan(), level);
+    public Scope startSpan(String spanName) {
+        Span span = createSpan(spanName, getCurrentSpan());
         setCurrentSpanInContext(span);
         addDefaultAttributes(span);
         return new ScopeImpl(() -> endSpan());
@@ -108,8 +98,8 @@ public class DefaultTracer implements Tracer {
         return tracerContextStorage.get(CURRENT_SPAN);
     }
 
-    private Span createSpan(String spanName, Span parentSpan, Level level) {
-        return spanFactory.createSpan(spanName, parentSpan, level);
+    private Span createSpan(String spanName, Span parentSpan) {
+        return tracingTelemetry.createSpan(spanName, parentSpan);
     }
 
     private void setCurrentSpanInContext(Span span) {

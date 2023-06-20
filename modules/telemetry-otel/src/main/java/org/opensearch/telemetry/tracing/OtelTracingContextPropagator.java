@@ -42,7 +42,7 @@ public class OtelTracingContextPropagator implements TracingContextPropagator {
         Context context = openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), props, TEXT_MAP_GETTER);
         if (context != null) {
             io.opentelemetry.api.trace.Span span = io.opentelemetry.api.trace.Span.fromContext(context);
-            return new OTelSpan(PROPAGATED_SPAN, span, null, Level.ROOT);
+            return new OTelSpan(PROPAGATED_SPAN, span, null);
         }
         return null;
     }
