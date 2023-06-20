@@ -34,6 +34,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -63,6 +64,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
 
         public static final String GET_CHECKPOINT_INFO = "internal:index/shard/replication/get_checkpoint_info";
         public static final String GET_SEGMENT_FILES = "internal:index/shard/replication/get_segment_files";
+        public static final String UPDATE_VISIBLE_CHECKPOINT = "internal:index/shard/replication/update_visible_checkpoint";
     }
 
     private final OngoingSegmentReplications ongoingSegmentReplications;
@@ -88,6 +90,12 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             ThreadPool.Names.GENERIC,
             GetSegmentFilesRequest::new,
             new GetSegmentFilesRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            Actions.UPDATE_VISIBLE_CHECKPOINT,
+            ThreadPool.Names.GENERIC,
+            UpdateVisibleCheckpointRequest::new,
+            new UpdateVisibleCheckpointRequestHandler()
         );
     }
 
@@ -139,6 +147,20 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         @Override
         public void messageReceived(GetSegmentFilesRequest request, TransportChannel channel, Task task) throws Exception {
             ongoingSegmentReplications.startSegmentCopy(request, new ChannelActionListener<>(channel, Actions.GET_SEGMENT_FILES, request));
+        }
+    }
+
+    private class UpdateVisibleCheckpointRequestHandler implements TransportRequestHandler<UpdateVisibleCheckpointRequest> {
+        @Override
+        public void messageReceived(UpdateVisibleCheckpointRequest request, TransportChannel channel, Task task) throws Exception {
+            try {
+                IndexService indexService = indicesService.indexServiceSafe(request.getPrimaryShardId().getIndex());
+                IndexShard indexShard = indexService.getShard(request.getPrimaryShardId().id());
+                indexShard.updateVisibleCheckpointForShard(request.getTargetAllocationId(), request.getCheckpoint());
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            } catch (Exception e) {
+                channel.sendResponse(e);
+            }
         }
     }
 

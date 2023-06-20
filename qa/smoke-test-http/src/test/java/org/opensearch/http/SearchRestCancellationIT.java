@@ -83,6 +83,7 @@ import static org.opensearch.index.query.QueryBuilders.scriptQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.awaitLatch;
 
 public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
@@ -183,6 +184,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
             }
         });
 
+        latch.await(2, TimeUnit.SECONDS);
         awaitForBlock(plugins);
         cancellable.cancel();
         ensureSearchTaskIsCancelled(searchAction, nodeIdToName::get);

@@ -35,6 +35,7 @@ package org.opensearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchServerException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
@@ -57,7 +58,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.node.NodeClosedException;
@@ -168,6 +169,7 @@ public class TransportService extends AbstractLifecycleComponent
          * over the {@link StreamOutput} and {@link StreamInput} wire
          */
         Streamables.registerStreamables();
+        OpenSearchServerException.registerExceptions();
     }
 
     /** does nothing. easy way to ensure class is loaded so the above static block is called to register the streamables */
@@ -300,7 +302,12 @@ public class TransportService extends AbstractLifecycleComponent
 
         if (remoteClusterClient) {
             // here we start to connect to the remote clusters
-            remoteClusterService.initializeRemoteClusters();
+            remoteClusterService.initializeRemoteClusters(
+                ActionListener.wrap(
+                    r -> logger.info("Remote clusters initialized successfully."),
+                    e -> logger.error("Remote clusters initialization failed partially", e)
+                )
+            );
         }
     }
 

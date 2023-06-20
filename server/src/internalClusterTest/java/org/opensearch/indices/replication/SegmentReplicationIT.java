@@ -46,7 +46,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
@@ -796,10 +796,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPressureServiceStats() throws Exception {
-        assumeFalse(
-            "Skipping the test as pressure service is not compatible with SegRep and Remote store yet.",
-            segmentReplicationWithRemoteEnabled()
-        );
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
         final String replicaNode = internalCluster().startNode();

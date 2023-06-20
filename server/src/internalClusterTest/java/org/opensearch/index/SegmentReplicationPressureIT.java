@@ -14,7 +14,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -123,9 +123,9 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             assertEquals(perGroupStats.getRejectedRequestCount(), 2L);
         }
         refresh(INDEX_NAME);
-        // wait for the replicas to catch up after block is released.
-        waitForSearchableDocs(totalDocs.get(), replicaNodes.toArray(new String[] {}));
 
+        // wait for the replicas to catch up after block is released.
+        assertReplicaCheckpointUpdated(primaryShard);
         // index another doc showing there is no pressure enforced.
         indexDoc();
         refresh(INDEX_NAME);
@@ -179,7 +179,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         }
         refresh(INDEX_NAME);
         // wait for the replicas to catch up after block is released.
-        waitForSearchableDocs(totalDocs.get(), replicaNodes.toArray(new String[] {}));
+        assertReplicaCheckpointUpdated(primaryShard);
 
         // index another doc showing there is no pressure enforced.
         indexDoc();
@@ -258,6 +258,10 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
     }
 
     public void testWithDocumentReplicationEnabledIndex() throws Exception {
+        assumeTrue(
+            "Can't create DocRep index with remote store enabled. Skipping.",
+            indexSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false) == false
+        );
         Settings settings = Settings.builder().put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build();
         // Starts a primary and replica node.
         final String primaryNode = internalCluster().startNode(settings);
@@ -313,7 +317,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         }
         refresh(INDEX_NAME);
         // wait for the replicas to catch up after block is released.
-        waitForSearchableDocs(totalDocs, replicaNodes.toArray(new String[] {}));
+        assertReplicaCheckpointUpdated(primaryShard);
 
         // index another doc showing there is no pressure enforced.
         executeBulkRequest(nodes, totalDocs);

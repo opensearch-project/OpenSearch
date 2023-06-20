@@ -134,7 +134,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
@@ -1103,7 +1103,8 @@ public class Node implements Closeable {
                                 recoverySettings,
                                 transportService,
                                 new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
-                                indicesService
+                                indicesService,
+                                clusterService
                             )
                         );
                     b.bind(SegmentReplicationSourceService.class)

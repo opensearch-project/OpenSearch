@@ -35,7 +35,7 @@ package org.opensearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.core.Assertions;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceAlreadyExistsException;
@@ -71,7 +71,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressureService;
@@ -325,7 +325,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                         @Override
                         public void onFailure(Exception e) {
-                            if (!(BaseExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
+                            if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
                                 // fail all requests involving this index, if create didn't work
                                 for (int i = 0; i < bulkRequest.requests.size(); i++) {
                                     DocWriteRequest<?> request = bulkRequest.requests.get(i);

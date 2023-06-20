@@ -39,6 +39,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -63,14 +64,15 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.profile.query.InternalProfileCollector;
-import org.opensearch.search.rescore.RescorePhase;
+import org.opensearch.search.rescore.RescoreProcessor;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.search.suggest.SuggestPhase;
+import org.opensearch.search.suggest.SuggestProcessor;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -94,8 +96,8 @@ public class QueryPhase {
     public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("opensearch.search.rewrite_sort", "true"));
     public static final QueryPhaseSearcher DEFAULT_QUERY_PHASE_SEARCHER = new DefaultQueryPhaseSearcher();
     private final QueryPhaseSearcher queryPhaseSearcher;
-    private final SuggestPhase suggestPhase;
-    private final RescorePhase rescorePhase;
+    private final SuggestProcessor suggestProcessor;
+    private final RescoreProcessor rescoreProcessor;
 
     public QueryPhase() {
         this(DEFAULT_QUERY_PHASE_SEARCHER);
@@ -103,8 +105,8 @@ public class QueryPhase {
 
     public QueryPhase(QueryPhaseSearcher queryPhaseSearcher) {
         this.queryPhaseSearcher = Objects.requireNonNull(queryPhaseSearcher, "QueryPhaseSearcher is required");
-        this.suggestPhase = new SuggestPhase();
-        this.rescorePhase = new RescorePhase();
+        this.suggestProcessor = new SuggestProcessor();
+        this.rescoreProcessor = new RescoreProcessor();
     }
 
     public void preProcess(SearchContext context) {
@@ -130,7 +132,7 @@ public class QueryPhase {
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
-            suggestPhase.execute(searchContext);
+            suggestProcessor.process(searchContext);
             searchContext.queryResult()
                 .topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
@@ -151,9 +153,9 @@ public class QueryPhase {
         boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
 
         if (rescore) { // only if we do a regular search
-            rescorePhase.execute(searchContext);
+            rescoreProcessor.process(searchContext);
         }
-        suggestPhase.execute(searchContext);
+        suggestProcessor.process(searchContext);
         aggregationProcessor.postProcess(searchContext);
 
         if (searchContext.getProfilers() != null) {
@@ -234,19 +236,19 @@ public class QueryPhase {
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
-            if (searchContext.queryCollectorManagers().isEmpty() == false) {
-                // plug in additional collectors, like aggregations except global aggregations
-                collectors.add(
-                    createMultiCollectorContext(
-                        searchContext.queryCollectorManagers()
-                            .entrySet()
-                            .stream()
-                            .filter(entry -> !(entry.getKey().equals(GlobalAggCollectorManager.class)))
-                            .map(Map.Entry::getValue)
-                            .collect(Collectors.toList())
-                    )
-                );
+
+            // plug in additional collectors, like aggregations except global aggregations
+            final List<CollectorManager<? extends Collector, ReduceableSearchResult>> managersExceptGlobalAgg = searchContext
+                .queryCollectorManagers()
+                .entrySet()
+                .stream()
+                .filter(entry -> !(entry.getKey().equals(GlobalAggCollectorManager.class)))
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList());
+            if (managersExceptGlobalAgg.isEmpty() == false) {
+                collectors.add(createMultiCollectorContext(managersExceptGlobalAgg));
             }
+
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));

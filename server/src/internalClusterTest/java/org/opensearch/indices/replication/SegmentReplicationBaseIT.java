@@ -18,11 +18,12 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
+import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -38,6 +39,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -204,7 +206,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                 node
             ));
             mockTargetTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES)) {
+                if (action.equals(SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT)) {
                     try {
                         latch.countDown();
                         pauseReplicationLatch.await();
@@ -222,4 +224,13 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         };
     }
 
+    protected void assertReplicaCheckpointUpdated(IndexShard primaryShard) throws Exception {
+        assertBusy(() -> {
+            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStats();
+            assertEquals(primaryShard.indexSettings().getNumberOfReplicas(), groupStats.size());
+            for (SegmentReplicationShardStats shardStat : groupStats) {
+                assertEquals(0, shardStat.getCheckpointsBehindCount());
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
 }
