@@ -73,7 +73,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private final Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories;
     private final Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories;
 
-    private final Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> phaseInjectorProcessorFactories;
+    private final Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseInjectorProcessorFactories;
     private volatile Map<String, PipelineHolder> pipelines = Collections.emptyMap();
     private final ThreadPool threadPool;
     private final List<Consumer<ClusterState>> searchPipelineClusterStateListeners = new CopyOnWriteArrayList<>();
@@ -114,7 +114,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         );
         this.requestProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getRequestProcessors(parameters));
         this.responseProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getResponseProcessors(parameters));
-        this.phaseInjectorProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getPhaseInjectorProcessors(parameters));
+        this.phaseInjectorProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getPhaseResultsProcessors(parameters));
         putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_SEARCH_PIPELINE_KEY, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SEARCH_PIPELINE_KEY, true);
         this.isEnabled = isEnabled;

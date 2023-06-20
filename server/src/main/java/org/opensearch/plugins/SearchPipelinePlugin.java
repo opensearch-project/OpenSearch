@@ -9,7 +9,7 @@
 package org.opensearch.plugins;
 
 import org.opensearch.search.pipeline.Processor;
-import org.opensearch.search.pipeline.SearchPhaseInjectorProcessor;
+import org.opensearch.search.pipeline.SearchPhaseResultsProcessor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 
@@ -51,7 +51,7 @@ public interface SearchPipelinePlugin {
      * in pipeline configurations, and the value is a {@link org.opensearch.search.pipeline.Processor.Factory}
      * to create the processor from a given pipeline configuration.
      */
-    default Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> getPhaseInjectorProcessors(Processor.Parameters parameters) {
+    default Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getPhaseResultsProcessors(Processor.Parameters parameters) {
         return Collections.emptyMap();
     }
 }

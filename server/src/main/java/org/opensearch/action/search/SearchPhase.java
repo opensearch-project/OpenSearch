@@ -73,7 +73,8 @@ public abstract class SearchPhase implements CheckedRunnable<IOException> {
         QUERY("query"),
         FETCH("fetch"),
         DFS_QUERY("dfs_query"),
-        EXPAND("expand");
+        EXPAND("expand"),
+        CAN_MATCH("can_match");
 
         private final String name;
 

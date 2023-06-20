@@ -84,7 +84,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> getPhaseInjectorProcessors(Processor.Parameters parameters) {
+        public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getPhaseResultsProcessors(Processor.Parameters parameters) {
             return Map.of("zoe", (factories, tag, description, config) -> null);
         }
     };
@@ -263,10 +263,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
     }
 
-    private static class FakeSearchPhaseInjectorProcessor extends FakeProcessor implements SearchPhaseInjectorProcessor {
+    private static class FakeSearchPhaseResultsProcessor extends FakeProcessor implements SearchPhaseResultsProcessor {
         private Consumer<SearchPhaseResult> querySearchResultConsumer;
 
-        public FakeSearchPhaseInjectorProcessor(
+        public FakeSearchPhaseResultsProcessor(
             String type,
             String tag,
             String description,
@@ -277,7 +277,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public <Result extends SearchPhaseResult> SearchPhaseResults<Result> execute(
+        public <Result extends SearchPhaseResult> SearchPhaseResults<Result> process(
             SearchPhaseResults<Result> searchPhaseResult,
             SearchPhaseContext searchPhaseContext
         ) {
@@ -315,11 +315,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             return new FakeResponseProcessor("fixed_score", tag, description, rsp -> rsp.getHits().forEach(h -> h.score(score)));
         });
 
-        Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> searchPhaseProcessors = new HashMap<>();
+        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> searchPhaseProcessors = new HashMap<>();
         searchPhaseProcessors.put("max_score", (processorFactories, tag, description, config) -> {
             final float finalScore = config.containsKey("score") ? ((Number) config.remove("score")).floatValue() : 100f;
             final Consumer<SearchPhaseResult> querySearchResultConsumer = (result) -> result.queryResult().topDocs().maxScore = finalScore;
-            return new FakeSearchPhaseInjectorProcessor("max_score", tag, description, querySearchResultConsumer);
+            return new FakeSearchPhaseResultsProcessor("max_score", tag, description, querySearchResultConsumer);
         });
 
         return createWithProcessors(requestProcessors, responseProcessors, searchPhaseProcessors);
@@ -334,7 +334,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
     private SearchPipelineService createWithProcessors(
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessors,
         Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessors,
-        Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> phaseProcessors
+        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseProcessors
     ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -361,7 +361,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public Map<String, Processor.Factory<SearchPhaseInjectorProcessor>> getPhaseInjectorProcessors(
+                public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getPhaseResultsProcessors(
                     Processor.Parameters parameters
                 ) {
                     return phaseProcessors;
@@ -386,7 +386,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 "{ "
                     + "\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ], "
                     + "\"response_processors\" : [ { \"fixed_score\" : { \"score\" : 1.0 } } ],"
-                    + "\"phase_injector_processors\" : [ { \"max_score\" : { \"score\": 100 } } ]"
+                    + "\"phase_results_processors\" : [ { \"max_score\" : { \"score\": 100 } } ]"
                     + "}"
             ),
             XContentType.JSON
@@ -404,10 +404,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             "scale_request_size",
             searchPipelineService.getPipelines().get("_id").pipeline.getSearchRequestProcessors().get(0).getType()
         );
-        assertEquals(1, searchPipelineService.getPipelines().get("_id").pipeline.getSearchPhaseInjectorProcessors().size());
+        assertEquals(1, searchPipelineService.getPipelines().get("_id").pipeline.getSearchPhaseResultsProcessors().size());
         assertEquals(
             "max_score",
-            searchPipelineService.getPipelines().get("_id").pipeline.getSearchPhaseInjectorProcessors().get(0).getType()
+            searchPipelineService.getPipelines().get("_id").pipeline.getSearchPhaseResultsProcessors().get(0).getType()
         );
         assertEquals(1, searchPipelineService.getPipelines().get("_id").pipeline.getSearchResponseProcessors().size());
         assertEquals(
@@ -446,7 +446,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals("empty pipeline", pipeline.pipeline.getDescription());
         assertEquals(0, pipeline.pipeline.getSearchRequestProcessors().size());
         assertEquals(0, pipeline.pipeline.getSearchResponseProcessors().size());
-        assertEquals(0, pipeline.pipeline.getSearchPhaseInjectorProcessors().size());
+        assertEquals(0, pipeline.pipeline.getSearchPhaseResultsProcessors().size());
     }
 
     public void testPutInvalidPipeline() throws IllegalAccessException {
@@ -650,7 +650,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 "p1",
                 new PipelineConfiguration(
                     "p1",
-                    new BytesArray("{\"phase_injector_processors\" : [ { \"max_score\" : { } } ]}"),
+                    new BytesArray("{\"phase_results_processors\" : [ { \"max_score\" : { } } ]}"),
                     XContentType.JSON
                 )
             )
@@ -745,7 +745,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 "p3",
                 new PipelineConfiguration(
                     "p3",
-                    new BytesArray("{\"phase_injector_processors\" : [ { \"max_score\" : { } } ]}"),
+                    new BytesArray("{\"phase_results_processors\" : [ { \"max_score\" : { } } ]}"),
                     XContentType.JSON
                 )
             )
@@ -802,7 +802,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 "{"
                     + "\"request_processors\": [{ \"scale_request_size\": { \"scale\" : 2 } }],"
                     + "\"response_processors\": [{ \"fixed_score\": { \"score\" : 2 } }],"
-                    + "\"phase_injector_processors\" : [ { \"max_score\" : { } } ]"
+                    + "\"phase_results_processors\" : [ { \"max_score\" : { } } ]"
                     + "}"
             ),
             XContentType.JSON
