@@ -12,7 +12,6 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.context.propagation.TextMapSetter;
-import org.opensearch.telemetry.tracing.noop.NoopSpan;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,8 +54,11 @@ public class OtelTracingContextPropagator implements TracingContextPropagator {
                     @SuppressWarnings("unchecked")
                     AtomicReference<Span> currentSpanRef = (AtomicReference<Span>) transientHeaders.get(CURRENT_SPAN);
                     Span currentSpan = currentSpanRef.get();
-                    OTelSpan oTelSpan = getLastValidSpanInChain(currentSpan);
-                    openTelemetry.getPropagators().getTextMapPropagator().inject(context(oTelSpan), requestHeaders, TEXT_MAP_SETTER);
+                    if (currentSpan instanceof OTelSpan) {
+                        openTelemetry.getPropagators()
+                            .getTextMapPropagator()
+                            .inject(context((OTelSpan) currentSpan), requestHeaders, TEXT_MAP_SETTER);
+                    }
                 }
             }
         };
@@ -64,13 +66,6 @@ public class OtelTracingContextPropagator implements TracingContextPropagator {
 
     private static Context context(OTelSpan oTelSpan) {
         return Context.current().with(io.opentelemetry.api.trace.Span.wrap(oTelSpan.getOtelSpan().getSpanContext()));
-    }
-
-    private static OTelSpan getLastValidSpanInChain(Span span) {
-        while (span instanceof NoopSpan) {
-            span = span.getParentSpan();
-        }
-        return (OTelSpan) span;
     }
 
     private static final TextMapSetter<Map<String, String>> TEXT_MAP_SETTER = (carrier, key, value) -> {
