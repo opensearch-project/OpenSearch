@@ -13,6 +13,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.rest.RestStatus;
 
+/**
+ * This exception is thrown when there is an attempt to use an unrecognized scope
+ */
 public class UnknownScopeException extends OpenSearchException {
 
     public UnknownScopeException(String scope) {

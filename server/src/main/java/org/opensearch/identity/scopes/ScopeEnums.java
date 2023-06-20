@@ -10,8 +10,14 @@ package org.opensearch.identity.scopes;
 
 import java.util.Locale;
 
+/**
+ * This class is used as a holder for the different enums associated with Scopes.
+ */
 public class ScopeEnums {
 
+    /**
+     * This enum tracks the constants for the different ScopeAreas
+     */
     public enum ScopeArea {
         APPLICATION,
         CLUSTER,
@@ -24,6 +30,9 @@ public class ScopeEnums {
         }
     }
 
+    /**
+     * This enum tracks the constants for the different ScopeNamespaces
+     */
     public enum ScopeNamespace {
         ACTION,
         APPLICATION,
