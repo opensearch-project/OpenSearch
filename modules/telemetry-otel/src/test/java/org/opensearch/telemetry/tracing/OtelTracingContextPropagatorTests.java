@@ -15,7 +15,6 @@ import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
-import org.opensearch.telemetry.tracing.noop.NoopSpan;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -42,21 +41,6 @@ public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
         TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
 
-        tracingContextPropagator.inject().accept(requestHeaders, transientHeaders);
-        assertEquals("00-" + TRACE_ID + "-" + SPAN_ID + "-00", requestHeaders.get("traceparent"));
-    }
-
-    public void testAddTracerContextToHeaderWithNoopSpan() {
-        Span mockSpan = mock(Span.class);
-        when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));
-        OTelSpan span = new OTelSpan("spanName", mockSpan, null);
-        NoopSpan noopSpan = new NoopSpan("noopSpanName", span);
-        AtomicReference<org.opensearch.telemetry.tracing.Span> spanHolder = new AtomicReference<>(noopSpan);
-        Map<String, Object> transientHeaders = Map.of(CURRENT_SPAN, spanHolder);
-        Map<String, String> requestHeaders = new HashMap<>();
-        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
-        when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
-        TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
         tracingContextPropagator.inject().accept(requestHeaders, transientHeaders);
         assertEquals("00-" + TRACE_ID + "-" + SPAN_ID + "-00", requestHeaders.get("traceparent"));
     }

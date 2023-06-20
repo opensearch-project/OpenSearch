@@ -25,13 +25,11 @@ import java.util.Optional;
 public class TelemetryModule {
 
     private static final String TELEMETRY_TYPE_DEFAULT = "telemetry.type.default";
-    private static final String TELEMETRY_TYPE = "telemetry.type";
 
     public static final Setting<String> TELEMETRY_DEFAULT_TYPE_SETTING = Setting.simpleString(
         TELEMETRY_TYPE_DEFAULT,
         Setting.Property.NodeScope
     );
-    public static final Setting<String> TELEMETRY_TYPE_SETTING = Setting.simpleString(TELEMETRY_TYPE, Setting.Property.NodeScope);
 
     private final Settings settings;
     private final Map<String, Telemetry> telemetryFactories = new HashMap<>();
@@ -40,7 +38,7 @@ public class TelemetryModule {
         this.settings = settings;
 
         for (TelemetryPlugin telemetryPlugin : telemetryPlugins) {
-            Optional<Telemetry> telemetry = telemetryPlugin.getTelemetry(telemetrySettings);
+            Optional<Telemetry> telemetry = telemetryPlugin.getTelemetry(settings);
             if (telemetry.isPresent()) {
                 registerTelemetry(telemetryPlugin.getName(), telemetry.get());
             }
@@ -48,20 +46,25 @@ public class TelemetryModule {
     }
 
     public Telemetry getTelemetry() {
-        final String telemetryType = getTelemetryType();
-        return telemetryFactories.get(telemetryType);
-    }
-
-    private String getTelemetryType() {
-        final String telemetryType = TELEMETRY_TYPE_SETTING.exists(settings)
-            ? TELEMETRY_TYPE_SETTING.get(settings)
-            : TELEMETRY_DEFAULT_TYPE_SETTING.get(settings);
-        return telemetryType;
+        // if only default(Otel) telemetry is registered, return it
+        if (telemetryFactories.size() == 1) {
+            return telemetryFactories.values().stream().findFirst().get();
+        }
+        // if custom telemetry is also registered, return custom telemetry
+        return telemetryFactories.entrySet()
+            .stream()
+            .filter(entry -> !entry.getValue().equals(TELEMETRY_DEFAULT_TYPE_SETTING.get(settings)))
+            .map(entry -> entry.getValue())
+            .findFirst()
+            .get();
     }
 
     private void registerTelemetry(String key, Telemetry factory) {
         if (telemetryFactories.putIfAbsent(key, factory) != null) {
             throw new IllegalArgumentException("telemetry for name: " + key + " is already registered");
+        }
+        if (telemetryFactories.size() == 3) {
+            throw new IllegalArgumentException("Cannot register more than one custom telemetry");
         }
     }
 

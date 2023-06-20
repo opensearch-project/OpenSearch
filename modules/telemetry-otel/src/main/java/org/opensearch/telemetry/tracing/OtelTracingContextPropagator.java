@@ -24,8 +24,6 @@ import static org.opensearch.telemetry.tracing.DefaultTracer.CURRENT_SPAN;
  */
 public class OtelTracingContextPropagator implements TracingContextPropagator {
 
-    private static final String PROPAGATED_SPAN = "propagated_span";
-
     private final OpenTelemetry openTelemetry;
 
     /**
@@ -41,7 +39,7 @@ public class OtelTracingContextPropagator implements TracingContextPropagator {
         Context context = openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), props, TEXT_MAP_GETTER);
         if (context != null) {
             io.opentelemetry.api.trace.Span span = io.opentelemetry.api.trace.Span.fromContext(context);
-            return new OTelSpan(PROPAGATED_SPAN, span, null);
+            return new PropagatedSpan(span);
         }
         return null;
     }

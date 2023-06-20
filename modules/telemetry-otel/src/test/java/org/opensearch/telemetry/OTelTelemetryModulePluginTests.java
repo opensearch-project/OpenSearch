@@ -17,7 +17,6 @@ import org.opensearch.telemetry.tracing.OtelTracingTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -43,14 +42,12 @@ public class OTelTelemetryModulePluginTests extends OpenSearchTestCase {
         assertFalse(settings.isEmpty());
     }
 
-    public void testGetTelemetry() throws IOException {
+    public void testGetTelemetry() {
         Set<Setting<?>> allTracerSettings = new HashSet<>();
         ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));
         Settings settings = Settings.builder().build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, allTracerSettings);
-        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterSettings);
         OTelTelemetryModulePlugin oTelTracerModulePlugin = new OTelTelemetryModulePlugin();
-        Optional<Telemetry> tracer = oTelTracerModulePlugin.getTelemetry(telemetrySettings);
+        Optional<Telemetry> tracer = oTelTracerModulePlugin.getTelemetry(settings);
 
         assertEquals(OTEL_TRACER_NAME, oTelTracerModulePlugin.getName());
         TracingTelemetry tracingTelemetry = tracer.get().getTracingTelemetry();

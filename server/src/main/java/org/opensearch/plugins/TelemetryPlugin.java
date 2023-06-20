@@ -8,8 +8,8 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.Telemetry;
-import org.opensearch.telemetry.TelemetrySettings;
 
 import java.util.Optional;
 
@@ -18,7 +18,7 @@ import java.util.Optional;
  */
 public interface TelemetryPlugin {
 
-    Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings);
+    Optional<Telemetry> getTelemetry(Settings settings);
 
     String getName();
 

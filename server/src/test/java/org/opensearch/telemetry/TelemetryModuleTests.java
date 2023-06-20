@@ -25,7 +25,6 @@ import java.util.Set;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.telemetry.TelemetryModule.TELEMETRY_DEFAULT_TYPE_SETTING;
-import static org.opensearch.telemetry.TelemetryModule.TELEMETRY_TYPE_SETTING;
 
 public class TelemetryModuleTests extends OpenSearchTestCase {
 
@@ -33,10 +32,8 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(TELEMETRY_DEFAULT_TYPE_SETTING.getKey(), "otel").build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         TelemetryPlugin telemetryPlugin1 = mock(TelemetryPlugin.class);
-        TelemetryPlugin telemetryPlugin2 = mock(TelemetryPlugin.class);
         TracingTelemetry tracingTelemetry1 = mock(TracingTelemetry.class);
-        TracingTelemetry tracingTelemetry2 = mock(TracingTelemetry.class);
-        when(telemetryPlugin1.getTelemetry(telemetrySettings)).thenReturn(Optional.of(new Telemetry() {
+        when(telemetryPlugin1.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
             @Override
             public TracingTelemetry getTracingTelemetry() {
                 return tracingTelemetry1;
@@ -48,19 +45,7 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
             }
         }));
         when(telemetryPlugin1.getName()).thenReturn("otel");
-        when(telemetryPlugin2.getTelemetry(telemetrySettings)).thenReturn(Optional.of(new Telemetry() {
-            @Override
-            public TracingTelemetry getTracingTelemetry() {
-                return tracingTelemetry2;
-            }
-
-            @Override
-            public MetricsTelemetry getMetricsTelemetry() {
-                return null;
-            }
-        }));
-        when(telemetryPlugin2.getName()).thenReturn("foo");
-        List<TelemetryPlugin> telemetryPlugins = List.of(telemetryPlugin1, telemetryPlugin2);
+        List<TelemetryPlugin> telemetryPlugins = List.of(telemetryPlugin1);
 
         TelemetryModule telemetryModule = new TelemetryModule(settings, telemetryPlugins, telemetrySettings);
 
@@ -68,17 +53,14 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
     }
 
     public void testGetTelemetryCustom() {
-        Settings settings = Settings.builder()
-            .put(TELEMETRY_DEFAULT_TYPE_SETTING.getKey(), "otel")
-            .put(TELEMETRY_TYPE_SETTING.getKey(), "foo")
-            .build();
+        Settings settings = Settings.builder().put(TELEMETRY_DEFAULT_TYPE_SETTING.getKey(), "otel").build();
         Set<Setting<?>> clusterSettings = getClusterSettings();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, clusterSettings));
         TelemetryPlugin telemetryPlugin1 = mock(TelemetryPlugin.class);
         TelemetryPlugin telemetryPlugin2 = mock(TelemetryPlugin.class);
         TracingTelemetry tracingTelemetry1 = mock(TracingTelemetry.class);
         TracingTelemetry tracingTelemetry2 = mock(TracingTelemetry.class);
-        when(telemetryPlugin1.getTelemetry(telemetrySettings)).thenReturn(Optional.of(new Telemetry() {
+        when(telemetryPlugin1.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
             @Override
             public TracingTelemetry getTracingTelemetry() {
                 return tracingTelemetry1;
@@ -90,7 +72,7 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
             }
         }));
         when(telemetryPlugin1.getName()).thenReturn("otel");
-        when(telemetryPlugin2.getTelemetry(telemetrySettings)).thenReturn(Optional.of(new Telemetry() {
+        when(telemetryPlugin2.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
             @Override
             public TracingTelemetry getTracingTelemetry() {
                 return tracingTelemetry2;
@@ -107,6 +89,62 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
         TelemetryModule telemetryModule = new TelemetryModule(settings, telemetryPlugins, telemetrySettings);
 
         assertEquals(tracingTelemetry2, telemetryModule.getTelemetry().getTracingTelemetry());
+    }
+
+    public void testGetTelemetryWithMoreThanOneCustomTelemetry() {
+        Settings settings = Settings.builder().put(TELEMETRY_DEFAULT_TYPE_SETTING.getKey(), "otel").build();
+        Set<Setting<?>> clusterSettings = getClusterSettings();
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, clusterSettings));
+        TelemetryPlugin telemetryPlugin1 = mock(TelemetryPlugin.class);
+        TelemetryPlugin telemetryPlugin2 = mock(TelemetryPlugin.class);
+        TelemetryPlugin telemetryPlugin3 = mock(TelemetryPlugin.class);
+        TracingTelemetry tracingTelemetry1 = mock(TracingTelemetry.class);
+        TracingTelemetry tracingTelemetry2 = mock(TracingTelemetry.class);
+        TracingTelemetry tracingTelemetry3 = mock(TracingTelemetry.class);
+        when(telemetryPlugin1.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
+            @Override
+            public TracingTelemetry getTracingTelemetry() {
+                return tracingTelemetry1;
+            }
+
+            @Override
+            public MetricsTelemetry getMetricsTelemetry() {
+                return null;
+            }
+        }));
+        when(telemetryPlugin1.getName()).thenReturn("otel");
+        when(telemetryPlugin2.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
+            @Override
+            public TracingTelemetry getTracingTelemetry() {
+                return tracingTelemetry2;
+            }
+
+            @Override
+            public MetricsTelemetry getMetricsTelemetry() {
+                return null;
+            }
+        }));
+        when(telemetryPlugin2.getName()).thenReturn("foo");
+        when(telemetryPlugin3.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
+            @Override
+            public TracingTelemetry getTracingTelemetry() {
+                return tracingTelemetry3;
+            }
+
+            @Override
+            public MetricsTelemetry getMetricsTelemetry() {
+                return null;
+            }
+        }));
+        when(telemetryPlugin3.getName()).thenReturn("bar");
+        try {
+            List<TelemetryPlugin> telemetryPlugins = List.of(telemetryPlugin1, telemetryPlugin2, telemetryPlugin3);
+            TelemetryModule telemetryModule = new TelemetryModule(settings, telemetryPlugins, telemetrySettings);
+        } catch (Exception e) {
+            assertTrue(e instanceof IllegalArgumentException);
+            assertEquals("Cannot register more than one custom telemetry", e.getMessage());
+        }
+
     }
 
     private Set<Setting<?>> getClusterSettings() {
