@@ -38,7 +38,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
-public class CodecIT extends OpenSearchIntegTestCase {
+public class MultiCodecMergeIT extends OpenSearchIntegTestCase {
 
     public void testForceMergeMultipleCodecs() throws ExecutionException, InterruptedException {
 
@@ -62,7 +62,7 @@ public class CodecIT extends OpenSearchIntegTestCase {
     private void forceMergeMultipleCodecs(String finalCodec, String finalCodecMode, Map<String, String> codecMap) throws ExecutionException,
         InterruptedException {
 
-        internalCluster().ensureAtLeastNumDataNodes(2);
+        internalCluster().ensureAtLeastNumDataNodes(1);
         final String index = "test-index" + finalCodec;
 
         // creating index
@@ -70,23 +70,32 @@ public class CodecIT extends OpenSearchIntegTestCase {
             index,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.codec", "default")
+                .put("index.merge.policy.max_merged_segment", "1b")
                 .build()
         );
         ensureGreen(index);
-
         // ingesting and asserting segment codec mode for all four codecs
         for (Map.Entry<String, String> codec : codecMap.entrySet()) {
-            assertSegmentCodec(index, codec.getKey(), codec.getValue());
+            useCodec(index, codec.getKey());
+            ingestDocs(index);
         }
 
+        assertTrue(
+            getSegments(index).stream()
+                .flatMap(s -> s.getAttributes().values().stream())
+                .collect(Collectors.toSet())
+                .containsAll(codecMap.values())
+        );
+
         // force merge into final codec
-        assertSegmentCodec(index, finalCodec, finalCodecMode);
+        useCodec(index, finalCodec);
+        flushAndRefreshIndex(index);
         final ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
 
         assertThat(forceMergeResponse.getFailedShards(), is(0));
-        assertThat(forceMergeResponse.getSuccessfulShards(), is(2));
+        assertThat(forceMergeResponse.getSuccessfulShards(), is(1));
 
         flushAndRefreshIndex(index);
 
@@ -95,8 +104,7 @@ public class CodecIT extends OpenSearchIntegTestCase {
         assertTrue(segments.stream().findFirst().get().attributes.containsValue(finalCodecMode));
     }
 
-    private void assertSegmentCodec(String index, String codec, String codecMode) throws InterruptedException, ExecutionException {
-
+    private void useCodec(String index, String codec) throws ExecutionException, InterruptedException {
         assertAcked(client().admin().indices().prepareClose(index));
 
         assertAcked(
@@ -107,11 +115,11 @@ public class CodecIT extends OpenSearchIntegTestCase {
         );
 
         assertAcked(client().admin().indices().prepareOpen(index));
+    }
 
+    private void ingestDocs(String index) throws InterruptedException {
         ingest(index);
         flushAndRefreshIndex(index);
-
-        assertTrue(getSegments(index).stream().anyMatch(segment -> segment.attributes.containsValue(codecMode)));
     }
 
     private ArrayList<Segment> getSegments(String index) {

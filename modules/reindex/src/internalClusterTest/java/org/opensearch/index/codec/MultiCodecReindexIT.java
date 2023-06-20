@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
@@ -37,10 +38,10 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_AL
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
-public class ReindexCodecIT extends ReindexTestCase {
+public class MultiCodecReindexIT extends ReindexTestCase {
 
     public void testReindexingMultipleCodecs() throws InterruptedException, ExecutionException {
-        internalCluster().ensureAtLeastNumDataNodes(2);
+        internalCluster().ensureAtLeastNumDataNodes(1);
         Map<String, String> codecMap = Map.of(
             "best_compression",
             "BEST_COMPRESSION",
@@ -71,6 +72,7 @@ public class ReindexCodecIT extends ReindexTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.codec", "default")
+                .put("index.merge.policy.max_merged_segment", "1b")
                 .build()
         );
         ensureGreen(index);
@@ -79,8 +81,16 @@ public class ReindexCodecIT extends ReindexTestCase {
 
         // indexing with all 4 codecs
         for (Map.Entry<String, String> codec : codecMap.entrySet()) {
-            indexWithDifferentCodecs(index, codec.getKey(), codec.getValue(), nbDocs);
+            useCodec(index, codec.getKey());
+            ingestDocs(index, nbDocs);
         }
+
+        assertTrue(
+            getSegments(index).stream()
+                .flatMap(s -> s.getAttributes().values().stream())
+                .collect(Collectors.toSet())
+                .containsAll(codecMap.values())
+        );
 
         // creating destination index with destination codec
         createIndex(
@@ -98,8 +108,8 @@ public class ReindexCodecIT extends ReindexTestCase {
             .waitForActiveShards(ActiveShardCount.ONE)
             .get();
 
-        assertEquals(4 * nbDocs, bulkResponse.getCreated());
-        assertEquals(4 * nbDocs, bulkResponse.getTotal());
+        assertEquals(codecMap.size() * nbDocs, bulkResponse.getCreated());
+        assertEquals(codecMap.size() * nbDocs, bulkResponse.getTotal());
         assertEquals(0, bulkResponse.getDeleted());
         assertEquals(0, bulkResponse.getNoops());
         assertEquals(0, bulkResponse.getVersionConflicts());
@@ -108,6 +118,19 @@ public class ReindexCodecIT extends ReindexTestCase {
         assertEquals(0, bulkResponse.getBulkFailures().size());
         assertEquals(0, bulkResponse.getSearchFailures().size());
         assertTrue(getSegments(destIndex).stream().allMatch(segment -> segment.attributes.containsValue(destCodecMode)));
+    }
+
+    private void useCodec(String index, String codec) throws ExecutionException, InterruptedException {
+        assertAcked(client().admin().indices().prepareClose(index));
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .updateSettings(new UpdateSettingsRequest(index).settings(Settings.builder().put("index.codec", codec)))
+                .get()
+        );
+
+        assertAcked(client().admin().indices().prepareOpen(index));
     }
 
     private void flushAndRefreshIndex(String index) {
@@ -135,19 +158,7 @@ public class ReindexCodecIT extends ReindexTestCase {
         }
     }
 
-    private void indexWithDifferentCodecs(String index, String codec, String codecMode, int nbDocs) throws InterruptedException,
-        ExecutionException {
-
-        assertAcked(client().admin().indices().prepareClose(index));
-
-        assertAcked(
-            client().admin()
-                .indices()
-                .updateSettings(new UpdateSettingsRequest(index).settings(Settings.builder().put("index.codec", codec)))
-                .get()
-        );
-
-        assertAcked(client().admin().indices().prepareOpen(index));
+    private void ingestDocs(String index, int nbDocs) throws InterruptedException {
 
         indexRandom(
             randomBoolean(),
@@ -158,7 +169,6 @@ public class ReindexCodecIT extends ReindexTestCase {
                 .collect(toList())
         );
         flushAndRefreshIndex(index);
-        assertTrue(getSegments(index).stream().anyMatch(segment -> segment.attributes.containsValue(codecMode)));
     }
 
     private ArrayList<Segment> getSegments(String index) {
