@@ -4321,7 +4321,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
      * a new set of segments.
      */
-    private boolean isSearchIdleSupported() {
+    public final boolean isSearchIdleSupported() {
         return indexSettings.isSegRepEnabled() == false || indexSettings.getNumberOfReplicas() == 0;
     }
 
