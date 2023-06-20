@@ -930,6 +930,9 @@ public final class IndexSettings {
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
+        if (this.replicationType == ReplicationType.SEGMENT && this.getNumberOfReplicas() > 0) {
+            logger.warn("Search idle is disabled for indices with replicas using the Segment Replication strategy");
+        }
         this.searchIdleAfter = searchIdleAfter;
     }
 
