@@ -32,7 +32,7 @@
 
 package org.opensearch.index.shard;
 
-import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.core.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -109,7 +109,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
         }
         String indexName = shardIdString.substring(1, splitPosition);
         int shardId = Integer.parseInt(shardIdString.substring(splitPosition + 2, shardIdString.length() - 1));
-        return new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId);
+        return new ShardId(new Index(indexName, Strings.UNKNOWN_UUID_VALUE), shardId);
     }
 
     @Override

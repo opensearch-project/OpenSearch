@@ -31,7 +31,7 @@
 
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -77,7 +77,7 @@ public class GeoTileGridParserTests extends OpenSearchTestCase {
             () -> GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid")
         );
         assertThat(
-            BaseExceptionsHelper.detailedMessage(e),
+            ExceptionsHelper.detailedMessage(e),
             containsString("[geotile_grid] precision doesn't support values of type: VALUE_BOOLEAN")
         );
     }

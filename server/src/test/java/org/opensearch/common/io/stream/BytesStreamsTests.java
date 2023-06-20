@@ -931,7 +931,7 @@ public class BytesStreamsTests extends OpenSearchTestCase {
 
         BytesStreamOutput prodOut = new BytesStreamOutput() {
             @Override
-            boolean failOnTooManyNestedExceptions(Throwable throwable) {
+            public boolean failOnTooManyNestedExceptions(Throwable throwable) {
                 assertThat(throwable, sameInstance(rootEx));
                 return true;
             }
