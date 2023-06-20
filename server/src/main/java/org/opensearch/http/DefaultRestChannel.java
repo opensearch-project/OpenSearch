@@ -55,7 +55,6 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Arrays;
 
-
 import static org.opensearch.tasks.Task.X_OPAQUE_ID;
 
 /**
@@ -152,9 +151,12 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
 
-            serverHeader.put("serverHeader", Arrays.asList("OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")"));
+            serverHeader.put(
+                "serverHeader",
+                Arrays.asList("OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")")
+            );
 
-            addCustomHeaders(httpResponse,  serverHeader);
+            addCustomHeaders(httpResponse, serverHeader);
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
