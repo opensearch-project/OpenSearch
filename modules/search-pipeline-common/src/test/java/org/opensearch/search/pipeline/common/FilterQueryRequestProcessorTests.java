@@ -16,6 +16,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.AbstractBuilderTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 public class FilterQueryRequestProcessorTests extends AbstractBuilderTestCase {
@@ -37,12 +38,8 @@ public class FilterQueryRequestProcessorTests extends AbstractBuilderTestCase {
 
     public void testFactory() throws Exception {
         FilterQueryRequestProcessor.Factory factory = new FilterQueryRequestProcessor.Factory(this.xContentRegistry());
-        FilterQueryRequestProcessor processor = factory.create(
-            Collections.emptyMap(),
-            null,
-            null,
-            Map.of("query", Map.of("term", Map.of("field", "value")))
-        );
+        Map<String, Object> configMap = new HashMap<>(Map.of("query", Map.of("term", Map.of("field", "value"))));
+        FilterQueryRequestProcessor processor = factory.create(Collections.emptyMap(), null, null, configMap);
         assertEquals(new TermQueryBuilder("field", "value"), processor.filterQuery);
 
         // Missing "query" parameter:

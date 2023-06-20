@@ -33,6 +33,12 @@ import java.util.function.LongSupplier;
  * @opensearch.internal
  */
 public interface Processor {
+    /**
+     * Processor configuration key to let the factory know that the pipeline is defined in a search request.
+     * For processors whose creation is expensive (e.g. creates a connection pool), the factory can reject
+     * the request or create a more lightweight (but possibly less efficient) version of the processor.
+     */
+    String AD_HOC_PIPELINE = "ad_hoc_pipeline";
 
     /**
      * Gets the type of processor
