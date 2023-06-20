@@ -382,7 +382,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPool,
             this::getEngine,
             indexSettings.isRemoteTranslogStoreEnabled(),
-            indexSettings.getRemoteTranslogUploadBufferInterval()
+            indexSettings::getRemoteTranslogUploadBufferInterval
         );
         this.mapperService = mapperService;
         this.indexCache = indexCache;
@@ -4027,7 +4027,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ThreadPool threadPool,
         Supplier<Engine> engineSupplier,
         boolean bufferAsyncIoProcessor,
-        TimeValue bufferInterval
+        Supplier<TimeValue> bufferIntervalSupplier
     ) {
         ThreadContext threadContext = threadPool.getThreadContext();
         CheckedConsumer<List<Tuple<Translog.Location, Consumer<Exception>>>, IOException> writeConsumer = candidates -> {
@@ -4042,7 +4042,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
         if (bufferAsyncIoProcessor) {
-            return new BufferedAsyncIOProcessor<>(logger, 102400, threadContext, threadPool, bufferInterval) {
+            return new BufferedAsyncIOProcessor<>(logger, 102400, threadContext, threadPool, bufferIntervalSupplier) {
                 @Override
                 protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
                     writeConsumer.accept(candidates);
