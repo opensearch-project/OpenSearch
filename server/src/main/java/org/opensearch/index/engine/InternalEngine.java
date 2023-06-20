@@ -65,7 +65,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.core.Assertions;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
@@ -86,7 +86,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
@@ -313,7 +313,7 @@ public class InternalEngine extends Engine {
             } catch (AssertionError e) {
                 // IndexWriter throws AssertionError on init, if asserts are enabled, if any files don't exist, but tests that
                 // randomly throw FNFE/NSFE can also hit this:
-                if (BaseExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+                if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
                     throw new EngineCreationFailureException(shardId, "failed to create engine", e);
                 } else {
                     throw e;
@@ -2322,6 +2322,9 @@ public class InternalEngine extends Engine {
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
         }
+        if (config().getLeafSorter() != null) {
+            iwc.setLeafSorter(config().getLeafSorter()); // The default segment search order
+        }
         return iwc;
     }
 
@@ -2519,7 +2522,7 @@ public class InternalEngine extends Engine {
              * If assertions are enabled, IndexWriter throws AssertionError on commit if any files don't exist, but tests that randomly
              * throw FileNotFoundException or NoSuchFileException can also hit this.
              */
-            if (BaseExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+            if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
                 final EngineException engineException = new EngineException(shardId, "failed to commit engine", e);
                 try {
                     failEngine("lucene commit failed", engineException);
@@ -2760,6 +2763,13 @@ public class InternalEngine extends Engine {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
     }
 
+    /**
+     * Returns the current local checkpoint getting refreshed internally.
+     */
+    public final long currentOngoingRefreshCheckpoint() {
+        return lastRefreshedCheckpointListener.pendingCheckpoint;
+    }
+
     private final Object refreshIfNeededMutex = new Object();
 
     /**
@@ -2777,10 +2787,11 @@ public class InternalEngine extends Engine {
 
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
         final AtomicLong refreshedCheckpoint;
-        private long pendingCheckpoint;
+        volatile long pendingCheckpoint;
 
         LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
             this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
+            this.pendingCheckpoint = initialLocalCheckpoint;
         }
 
         @Override

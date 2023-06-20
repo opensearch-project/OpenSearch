@@ -11,9 +11,11 @@ package org.opensearch.indices.replication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
@@ -26,6 +28,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.ForceSyncRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
@@ -36,6 +39,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
@@ -44,6 +48,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT;
 
 /**
  * Service class that orchestrates replication events on replicas.
@@ -66,6 +72,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     protected final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = ConcurrentCollections.newConcurrentMap();
 
     private final IndicesService indicesService;
+    private final ClusterService clusterService;
+    private final TransportService transportService;
 
     public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
         return onGoingReplications.get(replicationId);
@@ -86,7 +94,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         final RecoverySettings recoverySettings,
         final TransportService transportService,
         final SegmentReplicationSourceFactory sourceFactory,
-        final IndicesService indicesService
+        final IndicesService indicesService,
+        final ClusterService clusterService
     ) {
         this(
             threadPool,
@@ -94,6 +103,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             transportService,
             sourceFactory,
             indicesService,
+            clusterService,
             new ReplicationCollection<>(logger, threadPool)
         );
     }
@@ -104,6 +114,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         final TransportService transportService,
         final SegmentReplicationSourceFactory sourceFactory,
         final IndicesService indicesService,
+        final ClusterService clusterService,
         final ReplicationCollection<SegmentReplicationTarget> ongoingSegmentReplications
     ) {
         this.threadPool = threadPool;
@@ -111,6 +122,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         this.onGoingReplications = ongoingSegmentReplications;
         this.sourceFactory = sourceFactory;
         this.indicesService = indicesService;
+        this.clusterService = clusterService;
+        this.transportService = transportService;
 
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
@@ -240,6 +253,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                                 state.getTimingData()
                             )
                         );
+
+                        // update visible checkpoint to primary
+                        updateVisibleCheckpoint(state.getReplicationId(), replicaShard);
+
                         // if we received a checkpoint during the copy event that is ahead of this
                         // try and process it.
                         processLatestReceivedCheckpoint(replicaShard, thread);
@@ -272,6 +289,61 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 () -> new ParameterizedMessage("Ignoring checkpoint, shard not started {} {}", receivedCheckpoint, replicaShard.state())
             );
         }
+    }
+
+    protected void updateVisibleCheckpoint(long replicationId, IndexShard replicaShard) {
+        ShardRouting primaryShard = clusterService.state().routingTable().shardRoutingTable(replicaShard.shardId()).primaryShard();
+
+        final UpdateVisibleCheckpointRequest request = new UpdateVisibleCheckpointRequest(
+            replicationId,
+            replicaShard.routingEntry().allocationId().getId(),
+            primaryShard.shardId(),
+            getPrimaryNode(primaryShard),
+            replicaShard.getLatestReplicationCheckpoint()
+        );
+
+        final TransportRequestOptions options = TransportRequestOptions.builder()
+            .withTimeout(recoverySettings.internalActionTimeout())
+            .build();
+        logger.debug("Updating replication checkpoint to {}", request.getCheckpoint());
+        RetryableTransportClient transportClient = new RetryableTransportClient(
+            transportService,
+            getPrimaryNode(primaryShard),
+            recoverySettings.internalActionRetryTimeout(),
+            logger
+        );
+        final ActionListener<Void> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.debug(
+                    "Successfully updated replication checkpoint {} for replica {}",
+                    replicaShard.shardId(),
+                    request.getCheckpoint()
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(
+                    "Failed to update visible checkpoint for replica {}, {}: {}",
+                    replicaShard.shardId(),
+                    request.getCheckpoint(),
+                    e
+                );
+            }
+        };
+
+        transportClient.executeRetryableAction(
+            UPDATE_VISIBLE_CHECKPOINT,
+            request,
+            options,
+            ActionListener.map(listener, r -> null),
+            in -> TransportResponse.Empty.INSTANCE
+        );
+    }
+
+    private DiscoveryNode getPrimaryNode(ShardRouting primaryShard) {
+        return clusterService.state().nodes().get(primaryShard.currentNodeId());
     }
 
     // visible to tests
@@ -372,7 +444,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    Throwable cause = BaseExceptionsHelper.unwrapCause(e);
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
                     if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                         if (onGoingReplications.getTarget(replicationId) != null) {
                             IndexShard indexShard = onGoingReplications.getTarget(replicationId).indexShard();
@@ -436,6 +508,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                         // Promote engine type for primary target
                         if (indexShard.recoveryState().getPrimary() == true) {
                             indexShard.resetToWriteableEngine();
+                        } else {
+                            // Update the replica's checkpoint on primary's replication tracker.
+                            updateVisibleCheckpoint(state.getReplicationId(), indexShard);
                         }
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
                     } catch (InterruptedException | TimeoutException | IOException e) {

@@ -36,7 +36,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.common.util.BytesRefHash;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;

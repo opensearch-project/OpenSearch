@@ -41,8 +41,8 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BytesRefHash;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
-import org.opensearch.core.common.lease.Releasable;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 
 import java.io.IOException;
 

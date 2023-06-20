@@ -74,7 +74,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
@@ -806,7 +806,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
         } finally {
-            IOUtils.close(() -> shard.close("test", false), shard.store());
+            IOUtils.close(() -> shard.close("test", false, false), shard.store());
         }
     }
 
@@ -1302,7 +1302,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexShard primaryShard,
         IndexShard target,
         TransportService transportService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        ClusterService clusterService
     ) {
         final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
         final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
@@ -1310,7 +1311,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transportService,
             sourceFactory,
-            indicesService
+            indicesService,
+            clusterService
         );
         final SegmentReplicationSource replicationSource = new TestReplicationSource() {
             @Override
@@ -1339,7 +1341,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 try (
@@ -1379,7 +1381,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 primaryShard,
                 replica,
                 mock(TransportService.class),
-                mock(IndicesService.class)
+                mock(IndicesService.class),
+                mock(ClusterService.class)
             );
             final SegmentReplicationTarget target = targetService.startReplication(
                 replica,

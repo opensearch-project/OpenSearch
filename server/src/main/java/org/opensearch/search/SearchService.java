@@ -67,8 +67,8 @@ import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.lease.Releasable;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
@@ -243,6 +243,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.max_open_pit_context",
         300,
         0,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
+        "search.concurrent_segment_search.enabled",
+        true,
         Property.Dynamic,
         Property.NodeScope
     );

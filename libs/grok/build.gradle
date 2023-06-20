@@ -29,7 +29,7 @@
  */
 
 dependencies {
-  api 'org.jruby.joni:joni:2.1.48'
+  api 'org.jruby.joni:joni:2.2.1'
   // joni dependencies:
   api 'org.jruby.jcodings:jcodings:1.0.58'
 

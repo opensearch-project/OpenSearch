@@ -48,6 +48,7 @@ import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
+import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
@@ -649,7 +650,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT,
                 RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
                 RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
-                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE
+                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE,
+
+                // Related to monitoring of task cancellation
+                TaskCancellationMonitoringSettings.IS_ENABLED_SETTING,
+                TaskCancellationMonitoringSettings.DURATION_MILLIS_SETTING
             )
         )
     );
@@ -668,6 +673,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING,
             IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
             IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
-        )
+        ),
+        List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
+        List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
     );
 }

@@ -20,24 +20,25 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
-import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.HashMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -137,8 +138,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @return Map of segment filename to uploaded filename with checksum
      * @throws IOException if there were any failures in reading the metadata file
      */
-    private RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
-        Map<String, UploadedSegmentMetadata> segmentMetadataMap = new HashMap<>();
+    public RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
         RemoteSegmentMetadata remoteSegmentMetadata = null;
 
         Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
@@ -198,6 +198,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         public static UploadedSegmentMetadata fromString(String uploadedFilename) {
             String[] values = uploadedFilename.split(SEPARATOR);
             return new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
+        }
+
+        public String getOriginalFilename() {
+            return originalFilename;
         }
     }
 
@@ -461,32 +465,50 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 segmentInfosSnapshot.getGeneration(),
                 this.commonFilenameSuffix
             );
-            IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
-            Map<String, String> uploadedSegments = new HashMap<>();
-            for (String file : segmentFiles) {
-                if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                    uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
-                } else {
-                    throw new NoSuchFileException(file);
+            try {
+                IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
+                Map<String, String> uploadedSegments = new HashMap<>();
+                for (String file : segmentFiles) {
+                    if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                        uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
+                    } else {
+                        throw new NoSuchFileException(file);
+                    }
                 }
+
+                ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
+                segmentInfosSnapshot.write(new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos"));
+                byte[] segmentInfoSnapshotByteArray = byteBuffersIndexOutput.toArrayCopy();
+
+                metadataStreamWrapper.writeStream(
+                    indexOutput,
+                    new RemoteSegmentMetadata(
+                        RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
+                        segmentInfoSnapshotByteArray,
+                        segmentInfosSnapshot.getGeneration()
+                    )
+                );
+                indexOutput.close();
+                storeDirectory.sync(Collections.singleton(metadataFilename));
+                remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
+            } finally {
+                tryAndDeleteLocalFile(metadataFilename, storeDirectory);
             }
+        }
+    }
 
-            ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
-            segmentInfosSnapshot.write(new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos"));
-            byte[] segmentInfoSnapshotByteArray = byteBuffersIndexOutput.toArrayCopy();
-
-            metadataStreamWrapper.writeStream(
-                indexOutput,
-                new RemoteSegmentMetadata(
-                    RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
-                    segmentInfoSnapshotByteArray,
-                    segmentInfosSnapshot.getGeneration()
-                )
-            );
-            indexOutput.close();
-            storeDirectory.sync(Collections.singleton(metadataFilename));
-            remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
-            storeDirectory.deleteFile(metadataFilename);
+    /**
+     * Try to delete file from local store. Fails silently on failures
+     * @param filename: name of the file to be deleted
+     */
+    private void tryAndDeleteLocalFile(String filename, Directory directory) {
+        try {
+            logger.trace("Deleting file: " + filename);
+            directory.deleteFile(filename);
+        } catch (NoSuchFileException | FileNotFoundException e) {
+            logger.trace("Exception while deleting. Missing file : " + filename, e);
+        } catch (IOException e) {
+            logger.warn("Exception while deleting: " + filename, e);
         }
     }
 
@@ -613,5 +635,33 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 remoteMetadataDirectory.deleteFile(metadataFile);
             }
         }
+    }
+
+    /*
+    Tries to delete shard level directory if it is empty
+    Return true if it deleted it successfully
+     */
+    private boolean deleteIfEmpty() throws IOException {
+        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
+        if (metadataFiles.size() != 0) {
+            logger.info("Remote directory still has files , not deleting the path");
+            return false;
+        }
+
+        try {
+            remoteDataDirectory.delete();
+            remoteMetadataDirectory.delete();
+            mdLockManager.delete();
+        } catch (Exception e) {
+            logger.error("Exception occurred while deleting directory", e);
+            return false;
+        }
+
+        return true;
+    }
+
+    public void close() throws IOException {
+        deleteStaleSegments(0);
+        deleteIfEmpty();
     }
 }

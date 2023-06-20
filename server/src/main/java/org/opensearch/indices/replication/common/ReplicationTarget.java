@@ -10,7 +10,7 @@ package org.opensearch.indices.replication.common;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ChannelActionListener;
@@ -176,7 +176,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
                 notifyListener(e, sendShardFailure);
             } finally {
                 try {
-                    cancellableThreads.cancel("failed" + description() + "[" + BaseExceptionsHelper.stackTrace(e) + "]");
+                    cancellableThreads.cancel("failed" + description() + "[" + ExceptionsHelper.stackTrace(e) + "]");
                 } finally {
                     // release the initial reference. replication files will be cleaned as soon as ref count goes to zero, potentially now
                     decRef();

@@ -37,7 +37,7 @@ import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
