@@ -43,7 +43,7 @@ dependencies {
   providedCompile 'javax.enterprise:cdi-api:2.0'
   providedCompile "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
   providedCompile 'jakarta.ws.rs:jakarta.ws.rs-api:2.1.3'
-  api('org.jboss.resteasy:resteasy-jackson2-provider:3.0.26.Final') {
+  api('org.jboss.resteasy:resteasy-jackson2-provider:6.2.4.Final') {
     exclude module: 'jackson-annotations'
     exclude module: 'jackson-core'
     exclude module: 'jackson-databind'
