@@ -13,6 +13,10 @@ package org.opensearch.telemetry.tracing;
  */
 public class PropagatedSpan extends OTelSpan {
 
+    /**
+     * Creates PropagatedSpan
+     * @param span otel propagated span
+     */
     public PropagatedSpan(io.opentelemetry.api.trace.Span span) {
         super(null, span, null);
     }

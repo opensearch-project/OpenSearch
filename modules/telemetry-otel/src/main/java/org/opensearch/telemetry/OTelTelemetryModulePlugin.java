@@ -31,21 +31,21 @@ public class OTelTelemetryModulePlugin extends Plugin implements TelemetryPlugin
 
     static final String OTEL_TRACER_NAME = "otel";
 
-    public static final Setting<Integer> TRACER_EXPORTER_BATCH_SIZE_SETTING = Setting.intSetting(
+    static final Setting<Integer> TRACER_EXPORTER_BATCH_SIZE_SETTING = Setting.intSetting(
         "telemetry.tracer.exporter.batch_size",
         512,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    public static final Setting<Integer> TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING = Setting.intSetting(
+    static final Setting<Integer> TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING = Setting.intSetting(
         "telemetry.tracer.exporter.max_queue_size",
         2048,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    public static final Setting<TimeValue> TRACER_EXPORTER_DELAY_SETTING = Setting.timeSetting(
+    static final Setting<TimeValue> TRACER_EXPORTER_DELAY_SETTING = Setting.timeSetting(
         "telemetry.tracer.exporter.delay",
         TimeValue.timeValueSeconds(2),
         Setting.Property.NodeScope,
