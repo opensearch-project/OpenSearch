@@ -316,7 +316,6 @@ final class Security {
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.extensionDir(), "read,readlink", false);
         addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink", false);
         // read-write dirs
         addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
