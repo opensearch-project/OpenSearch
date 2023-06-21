@@ -57,14 +57,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return this.checkpoint;
     }
 
-    public SegmentReplicationTarget(
-        ReplicationCheckpoint checkpoint,
-        IndexShard indexShard,
-        SegmentReplicationSource source,
-        ReplicationListener listener
-    ) {
+    public SegmentReplicationTarget(IndexShard indexShard, SegmentReplicationSource source, ReplicationListener listener) {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
-        this.checkpoint = checkpoint;
+        this.checkpoint = indexShard.getLatestReplicationCheckpoint();
         this.source = source;
         this.state = new SegmentReplicationState(
             indexShard.routingEntry(),
@@ -101,7 +96,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     public SegmentReplicationTarget retryCopy() {
-        return new SegmentReplicationTarget(checkpoint, indexShard, source, listener);
+        return new SegmentReplicationTarget(indexShard, source, listener);
     }
 
     @Override
@@ -209,10 +204,18 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         // always send a req even if not fetching files so the primary can clear the copyState for this shard.
         state.setStage(SegmentReplicationState.Stage.GET_FILES);
         cancellableThreads.checkForCancel();
-        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), diff.missing, store, getFilesListener);
+        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), diff.missing, indexShard, getFilesListener);
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {
+        // TODO: Refactor the logic so that finalize doesn't have to be invoked for remote store as source
+        if (source instanceof RemoteStoreReplicationSource) {
+            ActionListener.completeWith(listener, () -> {
+                state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
+                return null;
+            });
+            return;
+        }
         ActionListener.completeWith(listener, () -> {
             cancellableThreads.checkForCancel();
             state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);

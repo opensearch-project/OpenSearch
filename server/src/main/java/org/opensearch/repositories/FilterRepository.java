@@ -183,6 +183,31 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public void snapshotRemoteStoreIndexShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        long primaryTerm,
+        long startTime,
+        ActionListener<String> listener
+    ) {
+        in.snapshotRemoteStoreIndexShard(
+            store,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            primaryTerm,
+            startTime,
+            listener
+        );
+    }
+
+    @Override
     public void restoreShard(
         Store store,
         SnapshotId snapshotId,

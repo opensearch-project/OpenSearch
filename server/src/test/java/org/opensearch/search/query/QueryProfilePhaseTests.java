@@ -161,6 +161,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_count"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), empty());
         });
 
@@ -171,9 +178,23 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertProfileData(context, collector -> {
             assertThat(collector.getReason(), equalTo("search_post_filter"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), hasSize(1));
             assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_count"));
             assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
         }, (query) -> {
             assertThat(query.getQueryName(), equalTo("MatchNoDocsQuery"));
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
@@ -224,12 +245,33 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertProfileData(context, collector -> {
                 assertThat(collector.getReason(), equalTo("search_post_filter"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), hasSize(1));
                 assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren().get(0).getProfiledChildren(), hasSize(1));
                 assertThat(collector.getProfiledChildren().get(0).getProfiledChildren().get(0).getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getProfiledChildren().get(0).getProfiledChildren().get(0).getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getProfiledChildren().get(0).getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getProfiledChildren().get(0).getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             }, (query) -> {
                 assertThat(query.getQueryName(), equalTo("TermQuery"));
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
@@ -277,6 +319,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_count"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), empty());
         });
 
@@ -293,9 +342,23 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_min_score"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), hasSize(1));
             assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_count"));
             assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
         });
 
         reader.close();
@@ -338,6 +401,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), empty());
         });
 
@@ -359,6 +429,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), hasSize(0));
         });
 
@@ -404,9 +481,23 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), hasSize(1));
                 assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             });
 
             context.setSize(0);
@@ -425,9 +516,23 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), hasSize(1));
                 assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_count"));
                 assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             });
         }
 
@@ -446,9 +551,23 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), hasSize(1));
                 assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             });
         }
         {
@@ -481,9 +600,23 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), hasSize(1));
                 assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             });
             context.setSize(0);
             context.parsedQuery(new ParsedQuery(bq));
@@ -529,9 +662,23 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), hasSize(1));
                 assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_count"));
                 assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             });
         }
 
@@ -571,9 +718,23 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), hasSize(1));
                 assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             });
         }
 
@@ -624,6 +785,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), empty());
         });
 
@@ -638,9 +806,23 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertProfileData(context, collector -> {
                 assertThat(collector.getReason(), equalTo("search_post_filter"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), hasSize(1));
                 assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             }, (query) -> {
                 assertThat(query.getQueryName(), equalTo("MinDocQuery"));
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
@@ -680,6 +862,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), empty());
             });
 
@@ -699,6 +888,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), empty());
             });
         }
@@ -756,6 +952,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), empty());
             });
 
@@ -785,6 +988,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getTime(), greaterThan(0L));
+                if (collector.getName().contains("CollectorManager")) {
+                    assertThat(collector.getReduceTime(), greaterThan(0L));
+                }
+                assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+                assertThat(collector.getMinSliceTime(), greaterThan(0L));
+                assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+                assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
                 assertThat(collector.getProfiledChildren(), empty());
             });
             FieldDoc firstDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[0];
@@ -848,6 +1058,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), empty());
         });
 
@@ -869,6 +1086,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), empty());
         });
 
@@ -924,9 +1148,23 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_min_score"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), hasSize(1));
             assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_top_hits"));
             assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getProfiledChildren().get(0).getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getProfiledChildren().get(0).getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren().get(0).getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren().get(0).getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
         });
 
         reader.close();
@@ -987,6 +1225,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), empty());
         });
 
@@ -1015,6 +1260,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), empty());
         });
 
@@ -1068,6 +1320,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), empty());
         });
 
@@ -1088,6 +1347,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
+            if (collector.getName().contains("CollectorManager")) {
+                assertThat(collector.getReduceTime(), greaterThan(0L));
+            }
+            assertThat(collector.getMaxSliceTime(), greaterThan(0L));
+            assertThat(collector.getMinSliceTime(), greaterThan(0L));
+            assertThat(collector.getAvgSliceTime(), greaterThan(0L));
+            assertThat(collector.getSliceCount(), greaterThanOrEqualTo(1));
             assertThat(collector.getProfiledChildren(), empty());
         });
 

@@ -9,6 +9,7 @@
 package org.opensearch.remotestore;
 
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.PlainActionFuture;
@@ -23,6 +24,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -30,11 +32,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteStoreIT extends RemoteStoreBaseIT {
+public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
     private static final String TOTAL_OPERATIONS = "total-operations";
@@ -50,22 +53,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIT {
     @Override
     public Settings indexSettings() {
         return remoteStoreIndexSettings(0);
-    }
-
-    private Settings remoteStoreIndexSettings(int numberOfReplicas) {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-            .build();
-    }
-
-    private Settings remoteTranslogIndexSettings(int numberOfReplicas) {
-        return Settings.builder()
-            .put(remoteStoreIndexSettings(numberOfReplicas))
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
-            .build();
     }
 
     private IndexResponse indexSingleDoc() {
@@ -256,5 +243,38 @@ public class RemoteStoreIT extends RemoteStoreBaseIT {
 
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogRefresh() throws Exception {
         testPeerRecovery(true, randomIntBetween(2, 5), false);
+    }
+
+    private void verifyRemoteStoreCleanup(boolean remoteTranslog) throws Exception {
+        internalCluster().startDataOnlyNodes(3);
+        if (remoteTranslog) {
+            createIndex(INDEX_NAME, remoteTranslogIndexSettings(1));
+        } else {
+            createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
+        }
+
+        indexData(5, randomBoolean());
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+        Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID);
+        assertTrue(getFileCount(indexPath) > 0);
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
+        // Delete is async. Give time for it
+        assertBusy(() -> {
+            try {
+                assertThat(getFileCount(indexPath), comparesEqualTo(0));
+            } catch (Exception e) {}
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testRemoteSegmentCleanup() throws Exception {
+        verifyRemoteStoreCleanup(false);
+    }
+
+    public void testRemoteTranslogCleanup() throws Exception {
+        verifyRemoteStoreCleanup(true);
     }
 }

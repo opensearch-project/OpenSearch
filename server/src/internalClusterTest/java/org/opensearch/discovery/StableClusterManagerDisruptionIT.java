@@ -71,6 +71,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.junit.Assume.assumeThat;
 
 /**
  * Tests relating to the loss of the cluster-manager, but which work with the default fault detection settings which are rather lenient and will
@@ -195,6 +197,8 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
      * following another elected cluster-manager node. These nodes should reject this cluster state and prevent them from following the stale cluster-manager.
      */
     public void testStaleClusterManagerNotHijackingMajority() throws Exception {
+        assumeThat("Thread::resume / Thread::suspend are not supported anymore", Runtime.version(), lessThan(Runtime.Version.parse("20")));
+
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()

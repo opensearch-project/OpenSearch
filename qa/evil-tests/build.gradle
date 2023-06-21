@@ -33,7 +33,7 @@
  * integration, change default filesystem impl, mess with arbitrary
  * threads, etc.
  */
- 
+
 import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.testclusters'

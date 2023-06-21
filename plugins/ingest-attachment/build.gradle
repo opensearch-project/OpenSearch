@@ -57,7 +57,7 @@ dependencies {
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   // Other dependencies
   api 'org.tukaani:xz:1.9'
-  api 'commons-io:commons-io:2.11.0'
+  api 'commons-io:commons-io:2.13.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -126,7 +126,6 @@ thirdPartyAudit {
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'com.google.common.hash.Striped64',
     'com.google.common.hash.Striped64$1',
     'com.google.common.hash.Striped64$Cell',

@@ -243,9 +243,9 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
             pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
             pressureSettings.getUploadTimeMovingAverageWindowSize()
         );
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(1, pressureTracker.getTotalUploadsSucceeded());
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(2, pressureTracker.getTotalUploadsSucceeded());
     }
 
@@ -260,7 +260,7 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         assertEquals(1, pressureTracker.getInflightUploads());
         pressureTracker.incrementTotalUploadsStarted();
         assertEquals(2, pressureTracker.getInflightUploads());
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(1, pressureTracker.getInflightUploads());
         pressureTracker.incrementTotalUploadsFailed();
         assertEquals(0, pressureTracker.getInflightUploads());
@@ -290,7 +290,7 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         assertEquals(1, pressureTracker.getConsecutiveFailureCount());
         pressureTracker.incrementTotalUploadsFailed();
         assertEquals(2, pressureTracker.getConsecutiveFailureCount());
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(0, pressureTracker.getConsecutiveFailureCount());
     }
 
@@ -309,17 +309,17 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         pressureTracker.setLatestLocalFileNameLengthMap(fileSizeMap);
         assertEquals(205L, pressureTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadFiles("a");
+        pressureTracker.addToLatestUploadedFiles("a");
         assertEquals(105L, pressureTracker.getBytesLag());
 
         fileSizeMap.put("c", 115L);
         pressureTracker.setLatestLocalFileNameLengthMap(fileSizeMap);
         assertEquals(220L, pressureTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadFiles("b");
+        pressureTracker.addToLatestUploadedFiles("b");
         assertEquals(115L, pressureTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadFiles("c");
+        pressureTracker.addToLatestUploadedFiles("c");
         assertEquals(0L, pressureTracker.getBytesLag());
     }
 
@@ -411,9 +411,8 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         pressureTracker = constructTracker();
         RemoteRefreshSegmentTracker.Stats pressureTrackerStats = pressureTracker.stats();
         assertEquals(pressureTracker.getShardId(), pressureTrackerStats.shardId);
-        assertEquals(pressureTracker.getLocalRefreshTimeMs(), (int) pressureTrackerStats.localRefreshTimeMs);
+        assertEquals(pressureTracker.getTimeMsLag(), (int) pressureTrackerStats.refreshTimeLagMs);
         assertEquals(pressureTracker.getLocalRefreshSeqNo(), (int) pressureTrackerStats.localRefreshNumber);
-        assertEquals(pressureTracker.getRemoteRefreshTimeMs(), (int) pressureTrackerStats.remoteRefreshTimeMs);
         assertEquals(pressureTracker.getRemoteRefreshSeqNo(), (int) pressureTrackerStats.remoteRefreshNumber);
         assertEquals(pressureTracker.getBytesLag(), (int) pressureTrackerStats.bytesLag);
         assertEquals(pressureTracker.getRejectionCount(), (int) pressureTrackerStats.rejectionCount);
@@ -441,9 +440,8 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 RemoteRefreshSegmentTracker.Stats deserializedStats = new RemoteRefreshSegmentTracker.Stats(in);
                 assertEquals(deserializedStats.shardId, pressureTrackerStats.shardId);
-                assertEquals((int) deserializedStats.localRefreshTimeMs, (int) pressureTrackerStats.localRefreshTimeMs);
+                assertEquals((int) deserializedStats.refreshTimeLagMs, (int) pressureTrackerStats.refreshTimeLagMs);
                 assertEquals((int) deserializedStats.localRefreshNumber, (int) pressureTrackerStats.localRefreshNumber);
-                assertEquals((int) deserializedStats.remoteRefreshTimeMs, (int) pressureTrackerStats.remoteRefreshTimeMs);
                 assertEquals((int) deserializedStats.remoteRefreshNumber, (int) pressureTrackerStats.remoteRefreshNumber);
                 assertEquals((int) deserializedStats.bytesLag, (int) pressureTrackerStats.bytesLag);
                 assertEquals((int) deserializedStats.rejectionCount, (int) pressureTrackerStats.rejectionCount);

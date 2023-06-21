@@ -42,7 +42,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -453,7 +453,7 @@ final class StoreRecovery {
         remoteStore.incRef();
         try {
             // Download segments from remote segment store
-            indexShard.syncSegmentsFromRemoteSegmentStore(true);
+            indexShard.syncSegmentsFromRemoteSegmentStore(true, true, true);
 
             if (store.directory().listAll().length == 0) {
                 store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
@@ -500,7 +500,7 @@ final class StoreRecovery {
                         files = Arrays.toString(store.directory().listAll());
                     } catch (Exception inner) {
                         inner.addSuppressed(e);
-                        files += " (failure=" + BaseExceptionsHelper.detailedMessage(inner) + ")";
+                        files += " (failure=" + ExceptionsHelper.detailedMessage(inner) + ")";
                     }
                     if (indexShouldExists) {
                         throw new IndexShardRecoveryException(

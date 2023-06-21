@@ -67,7 +67,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -269,7 +268,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private static SegmentInfos readSegmentInfosExtendedCompatibility(Directory directory, org.opensearch.Version minimumVersion)
         throws IOException {
         try {
-            return Lucene.readSegmentInfosExtendedCompatibility(directory, minimumVersion);
+            return Lucene.readSegmentInfos(directory, minimumVersion);
         } catch (EOFException eof) {
             // TODO this should be caught by lucene - EOF is almost certainly an index corruption
             throw new CorruptIndexException("Read past EOF while reading segment infos", "<latest-commit>", eof);
@@ -399,7 +398,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 missing.add(value);
             } else {
                 final StoreFileMetadata fileMetadata = target.get(value.name());
-                if (fileMetadata.isSame(value)) {
+                // match segments using checksum
+                if (fileMetadata.checksum().equals(value.checksum())) {
                     identical.add(value);
                 } else {
                     different.add(value);
@@ -1239,7 +1239,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final int len = (int) Math.min(1024 * 1024, size); // for safety we limit this to 1MB
             fileHash.grow(len);
             fileHash.setLength(len);
-            final int readBytes = Streams.readFully(in, fileHash.bytes(), 0, len);
+            final int readBytes = in.readNBytes(fileHash.bytes(), 0, len);
             assert readBytes == len : Integer.toString(readBytes) + " != " + Integer.toString(len);
             assert fileHash.length() == len : Integer.toString(fileHash.length()) + " != " + Integer.toString(len);
         }

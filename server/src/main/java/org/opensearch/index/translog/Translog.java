@@ -42,12 +42,12 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
@@ -1806,6 +1806,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     This might be required when segments are persisted via other mechanism than flush.
      */
     protected void setMinSeqNoToKeep(long seqNo) {}
+
+    protected void onDelete() {}
 
     /**
      * deletes all files associated with a reader. package-private to be able to simulate node failures at this point

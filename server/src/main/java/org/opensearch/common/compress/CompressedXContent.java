@@ -85,7 +85,7 @@ public final class CompressedXContent {
      */
     public CompressedXContent(ToXContent xcontent, ToXContent.Params params) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        OutputStream compressedStream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream);
+        OutputStream compressedStream = CompressorFactory.defaultCompressor().threadLocalOutputStream(bStream);
         CRC32 crc32 = new CRC32();
         OutputStream checkedStream = new CheckedOutputStream(compressedStream, crc32);
         try (XContentBuilder builder = XContentFactory.jsonBuilder(checkedStream)) {
@@ -113,7 +113,7 @@ public final class CompressedXContent {
             this.bytes = BytesReference.toBytes(data);
             this.crc32 = crc32(uncompressed());
         } else {
-            this.bytes = BytesReference.toBytes(CompressorFactory.COMPRESSOR.compress(data));
+            this.bytes = BytesReference.toBytes(CompressorFactory.defaultCompressor().compress(data));
             this.crc32 = crc32(data);
         }
         assertConsistent();

@@ -37,7 +37,6 @@ import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
@@ -50,8 +49,6 @@ import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -61,6 +58,8 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
@@ -132,6 +131,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private volatile boolean taskResourceConsumersEnabled;
     private final Set<Consumer<Task>> taskResourceConsumer;
+    private final List<TaskEventListeners> taskEventListeners = new ArrayList<>();
 
     public static TaskManager createTaskManagerWithClusterSettings(
         Settings settings,
@@ -150,6 +150,19 @@ public class TaskManager implements ClusterStateApplier {
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.taskResourceConsumersEnabled = TASK_RESOURCE_CONSUMERS_ENABLED.get(settings);
         taskResourceConsumer = new HashSet<>();
+    }
+
+    /**
+     * Listener that gets invoked during an event such as task cancellation/completion.
+     */
+    public interface TaskEventListeners {
+        default void onTaskCancelled(CancellableTask task) {}
+
+        default void onTaskCompleted(Task task) {}
+    }
+
+    public void addTaskEventListeners(TaskEventListeners taskEventListeners) {
+        this.taskEventListeners.add(taskEventListeners);
     }
 
     public void registerTaskResourceConsumer(Consumer<Task> consumer) {
@@ -261,6 +274,17 @@ public class TaskManager implements ClusterStateApplier {
      */
     public void cancel(CancellableTask task, String reason, Runnable listener) {
         CancellableTaskHolder holder = cancellableTasks.get(task.getId());
+        List<Exception> exceptions = new ArrayList<>();
+        for (TaskEventListeners taskEventListener : taskEventListeners) {
+            try {
+                taskEventListener.onTaskCancelled(task);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+        }
+        // Throwing exception in case any of the cancellation listener results into exception.
+        // Should we just swallow such exceptions?
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
         if (holder != null) {
             logger.trace("cancelling task with id {}", task.getId());
             holder.cancel(reason, listener);
@@ -274,6 +298,15 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
+        List<Exception> exceptions = new ArrayList<>();
+        for (TaskEventListeners taskEventListener : taskEventListeners) {
+            try {
+                taskEventListener.onTaskCompleted(task);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
 
         // Decrement the task's self-thread as part of unregistration.
         task.decrementResourceTrackingThreads();
@@ -336,7 +369,7 @@ public class TaskManager implements ClusterStateApplier {
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
-            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", BaseExceptionsHelper.detailedMessage(error)), ex);
+            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
             listener.onFailure(ex);
             return;
         }
@@ -348,7 +381,7 @@ public class TaskManager implements ClusterStateApplier {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", BaseExceptionsHelper.detailedMessage(error)), e);
+                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), e);
                 listener.onFailure(e);
             }
         });

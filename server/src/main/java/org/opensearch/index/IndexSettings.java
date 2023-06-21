@@ -48,7 +48,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
@@ -589,6 +588,13 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
+        "index.search.concurrent_segment_search.enabled",
+        false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -765,13 +771,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        if (FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL)
-            && indexMetadata.isSystem() == false
-            && settings.get(IndexMetadata.SETTING_REPLICATION_TYPE) == null) {
-            replicationType = IndicesService.CLUSTER_REPLICATION_TYPE_SETTING.get(settings);
-        } else {
-            replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
-        }
+        replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
@@ -1609,7 +1609,13 @@ public final class IndexSettings {
         if (FeatureFlags.isEnabled(SEARCH_PIPELINE)) {
             this.defaultSearchPipeline = defaultSearchPipeline;
         } else {
-            throw new SettingsException("Unsupported setting: " + DEFAULT_SEARCH_PIPELINE.getKey());
+            throw new SettingsException(
+                "Unable to update setting: "
+                    + DEFAULT_SEARCH_PIPELINE.getKey()
+                    + ". This is an experimental feature that is currently disabled, please enable the "
+                    + SEARCH_PIPELINE
+                    + " feature flag first."
+            );
         }
     }
 }

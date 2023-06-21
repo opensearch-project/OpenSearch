@@ -54,7 +54,7 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
     MappingCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
 
-        List<MappingRule<String, String>> rules = Analysis.parseWordList(env, settings, "mappings", this::parse);
+        List<MappingRule<String, String>> rules = Analysis.parseWordList(env, settings, "mappings", this::parse, false);
         if (rules == null) {
             throw new IllegalArgumentException("mapping requires either `mappings` or `mappings_path` to be configured");
         }

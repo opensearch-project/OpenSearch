@@ -33,9 +33,9 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongHash;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;

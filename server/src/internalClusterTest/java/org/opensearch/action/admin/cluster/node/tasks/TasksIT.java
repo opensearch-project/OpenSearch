@@ -511,6 +511,17 @@ public class TasksIT extends AbstractTasksIT {
             .get();
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
+        // Tasks are marked as cancelled at this point but not yet completed.
+        List<TaskInfo> taskInfoList = client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setActions(TestTaskPlugin.TestTaskAction.NAME + "*")
+            .get()
+            .getTasks();
+        for (TaskInfo taskInfo : taskInfoList) {
+            assertTrue(taskInfo.isCancelled());
+            assertNotNull(taskInfo.getCancellationStartTime());
+        }
         future.get();
 
         logger.info("--> checking that test tasks are not running");

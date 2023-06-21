@@ -48,6 +48,11 @@ public class RemoteRefreshSegmentTracker {
     private volatile long localRefreshTimeMs;
 
     /**
+     * The refresh time(clock) of the most recent refresh.
+     */
+    private volatile long localRefreshClockTimeMs;
+
+    /**
      * Sequence number of the most recent remote refresh.
      */
     private volatile long remoteRefreshSeqNo;
@@ -56,6 +61,11 @@ public class RemoteRefreshSegmentTracker {
      * The refresh time of most recent remote refresh.
      */
     private volatile long remoteRefreshTimeMs;
+
+    /**
+     * The refresh time(clock) of most recent remote refresh.
+     */
+    private volatile long remoteRefreshClockTimeMs;
 
     /**
      * Keeps the seq no lag computed so that we do not compute it for every request.
@@ -120,7 +130,7 @@ public class RemoteRefreshSegmentTracker {
     /**
      * Set of names of segment files that were uploaded as part of the most recent remote refresh.
      */
-    private final Set<String> latestUploadFiles = new HashSet<>();
+    private final Set<String> latestUploadedFiles = new HashSet<>();
 
     /**
      * Keeps the bytes lag computed so that we do not compute it for every request.
@@ -167,9 +177,12 @@ public class RemoteRefreshSegmentTracker {
     ) {
         this.shardId = shardId;
         // Both the local refresh time and remote refresh time are set with current time to give consistent view of time lag when it arises.
+        long currentClockTimeMs = System.currentTimeMillis();
         long currentTimeMs = System.nanoTime() / 1_000_000L;
         localRefreshTimeMs = currentTimeMs;
         remoteRefreshTimeMs = currentTimeMs;
+        localRefreshClockTimeMs = currentClockTimeMs;
+        remoteRefreshClockTimeMs = currentClockTimeMs;
         uploadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesMovingAverageWindowSize));
         uploadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesPerSecMovingAverageWindowSize));
         uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
@@ -181,42 +194,50 @@ public class RemoteRefreshSegmentTracker {
         return shardId;
     }
 
-    long getLocalRefreshSeqNo() {
+    public long getLocalRefreshSeqNo() {
         return localRefreshSeqNo;
     }
 
-    void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
-        assert localRefreshSeqNo > this.localRefreshSeqNo : "newLocalRefreshSeqNo="
+    public void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
+        assert localRefreshSeqNo >= this.localRefreshSeqNo : "newLocalRefreshSeqNo="
             + localRefreshSeqNo
-            + ">="
+            + " < "
             + "currentLocalRefreshSeqNo="
             + this.localRefreshSeqNo;
         this.localRefreshSeqNo = localRefreshSeqNo;
         computeRefreshSeqNoLag();
     }
 
-    long getLocalRefreshTimeMs() {
+    public long getLocalRefreshTimeMs() {
         return localRefreshTimeMs;
     }
 
-    void updateLocalRefreshTimeMs(long localRefreshTimeMs) {
-        assert localRefreshTimeMs > this.localRefreshTimeMs : "newLocalRefreshTimeMs="
+    public long getLocalRefreshClockTimeMs() {
+        return localRefreshClockTimeMs;
+    }
+
+    public void updateLocalRefreshTimeMs(long localRefreshTimeMs) {
+        assert localRefreshTimeMs >= this.localRefreshTimeMs : "newLocalRefreshTimeMs="
             + localRefreshTimeMs
-            + ">="
+            + " < "
             + "currentLocalRefreshTimeMs="
             + this.localRefreshTimeMs;
         this.localRefreshTimeMs = localRefreshTimeMs;
         computeTimeMsLag();
     }
 
+    public void updateLocalRefreshClockTimeMs(long localRefreshClockTimeMs) {
+        this.localRefreshClockTimeMs = localRefreshClockTimeMs;
+    }
+
     long getRemoteRefreshSeqNo() {
         return remoteRefreshSeqNo;
     }
 
-    void updateRemoteRefreshSeqNo(long remoteRefreshSeqNo) {
-        assert remoteRefreshSeqNo > this.remoteRefreshSeqNo : "newRemoteRefreshSeqNo="
+    public void updateRemoteRefreshSeqNo(long remoteRefreshSeqNo) {
+        assert remoteRefreshSeqNo >= this.remoteRefreshSeqNo : "newRemoteRefreshSeqNo="
             + remoteRefreshSeqNo
-            + ">="
+            + " < "
             + "currentRemoteRefreshSeqNo="
             + this.remoteRefreshSeqNo;
         this.remoteRefreshSeqNo = remoteRefreshSeqNo;
@@ -227,21 +248,29 @@ public class RemoteRefreshSegmentTracker {
         return remoteRefreshTimeMs;
     }
 
-    void updateRemoteRefreshTimeMs(long remoteRefreshTimeMs) {
-        assert remoteRefreshTimeMs > this.remoteRefreshTimeMs : "newRemoteRefreshTimeMs="
+    long getRemoteRefreshClockTimeMs() {
+        return remoteRefreshClockTimeMs;
+    }
+
+    public void updateRemoteRefreshTimeMs(long remoteRefreshTimeMs) {
+        assert remoteRefreshTimeMs >= this.remoteRefreshTimeMs : "newRemoteRefreshTimeMs="
             + remoteRefreshTimeMs
-            + ">="
+            + " < "
             + "currentRemoteRefreshTimeMs="
             + this.remoteRefreshTimeMs;
         this.remoteRefreshTimeMs = remoteRefreshTimeMs;
         computeTimeMsLag();
     }
 
+    public void updateRemoteRefreshClockTimeMs(long remoteRefreshClockTimeMs) {
+        this.remoteRefreshClockTimeMs = remoteRefreshClockTimeMs;
+    }
+
     private void computeRefreshSeqNoLag() {
         refreshSeqNoLag = localRefreshSeqNo - remoteRefreshSeqNo;
     }
 
-    long getRefreshSeqNoLag() {
+    public long getRefreshSeqNoLag() {
         return refreshSeqNoLag;
     }
 
@@ -249,73 +278,73 @@ public class RemoteRefreshSegmentTracker {
         timeMsLag = localRefreshTimeMs - remoteRefreshTimeMs;
     }
 
-    long getTimeMsLag() {
+    public long getTimeMsLag() {
         return timeMsLag;
     }
 
-    long getBytesLag() {
+    public long getBytesLag() {
         return bytesLag;
     }
 
-    long getUploadBytesStarted() {
+    public long getUploadBytesStarted() {
         return uploadBytesStarted;
     }
 
-    void addUploadBytesStarted(long size) {
+    public void addUploadBytesStarted(long size) {
         uploadBytesStarted += size;
     }
 
-    long getUploadBytesFailed() {
+    public long getUploadBytesFailed() {
         return uploadBytesFailed;
     }
 
-    void addUploadBytesFailed(long size) {
+    public void addUploadBytesFailed(long size) {
         uploadBytesFailed += size;
     }
 
-    long getUploadBytesSucceeded() {
+    public long getUploadBytesSucceeded() {
         return uploadBytesSucceeded;
     }
 
-    void addUploadBytesSucceeded(long size) {
+    public void addUploadBytesSucceeded(long size) {
         uploadBytesSucceeded += size;
     }
 
-    long getInflightUploadBytes() {
+    public long getInflightUploadBytes() {
         return uploadBytesStarted - uploadBytesFailed - uploadBytesSucceeded;
     }
 
-    long getTotalUploadsStarted() {
+    public long getTotalUploadsStarted() {
         return totalUploadsStarted;
     }
 
-    void incrementTotalUploadsStarted() {
+    public void incrementTotalUploadsStarted() {
         totalUploadsStarted += 1;
     }
 
-    long getTotalUploadsFailed() {
+    public long getTotalUploadsFailed() {
         return totalUploadsFailed;
     }
 
-    void incrementTotalUploadsFailed() {
+    public void incrementTotalUploadsFailed() {
         totalUploadsFailed += 1;
         failures.record(true);
     }
 
-    long getTotalUploadsSucceeded() {
+    public long getTotalUploadsSucceeded() {
         return totalUploadsSucceeded;
     }
 
-    void incrementTotalUploadSucceeded() {
+    public void incrementTotalUploadsSucceeded() {
         totalUploadsSucceeded += 1;
         failures.record(false);
     }
 
-    long getInflightUploads() {
+    public long getInflightUploads() {
         return totalUploadsStarted - totalUploadsFailed - totalUploadsSucceeded;
     }
 
-    long getRejectionCount() {
+    public long getRejectionCount() {
         return rejectionCount.get();
     }
 
@@ -325,6 +354,7 @@ public class RemoteRefreshSegmentTracker {
 
     void incrementRejectionCount(String rejectionReason) {
         rejectionCountMap.computeIfAbsent(rejectionReason, k -> new AtomicLong()).incrementAndGet();
+        incrementRejectionCount();
     }
 
     long getRejectionCount(String rejectionReason) {
@@ -335,13 +365,19 @@ public class RemoteRefreshSegmentTracker {
         return latestLocalFileNameLengthMap;
     }
 
-    void setLatestLocalFileNameLengthMap(Map<String, Long> latestLocalFileNameLengthMap) {
+    public void setLatestLocalFileNameLengthMap(Map<String, Long> latestLocalFileNameLengthMap) {
         this.latestLocalFileNameLengthMap = latestLocalFileNameLengthMap;
         computeBytesLag();
     }
 
-    void addToLatestUploadFiles(String file) {
-        this.latestUploadFiles.add(file);
+    public void addToLatestUploadedFiles(String file) {
+        this.latestUploadedFiles.add(file);
+        computeBytesLag();
+    }
+
+    public void setLatestUploadedFiles(Set<String> files) {
+        this.latestUploadedFiles.clear();
+        this.latestUploadedFiles.addAll(files);
         computeBytesLag();
     }
 
@@ -351,7 +387,7 @@ public class RemoteRefreshSegmentTracker {
         }
         Set<String> filesNotYetUploaded = latestLocalFileNameLengthMap.keySet()
             .stream()
-            .filter(f -> !latestUploadFiles.contains(f))
+            .filter(f -> !latestUploadedFiles.contains(f))
             .collect(Collectors.toSet());
         this.bytesLag = filesNotYetUploaded.stream().map(latestLocalFileNameLengthMap::get).mapToLong(Long::longValue).sum();
     }
@@ -368,7 +404,7 @@ public class RemoteRefreshSegmentTracker {
         return uploadBytesMovingAverageReference.get().getAverage();
     }
 
-    void addUploadBytes(long size) {
+    public void addUploadBytes(long size) {
         lastSuccessfulRemoteRefreshBytes = size;
         synchronized (uploadBytesMutex) {
             this.uploadBytesMovingAverageReference.get().record(size);
@@ -394,7 +430,7 @@ public class RemoteRefreshSegmentTracker {
         return uploadBytesPerSecMovingAverageReference.get().getAverage();
     }
 
-    void addUploadBytesPerSec(long bytesPerSec) {
+    public void addUploadBytesPerSec(long bytesPerSec) {
         synchronized (uploadBytesPerSecMutex) {
             this.uploadBytesPerSecMovingAverageReference.get().record(bytesPerSec);
         }
@@ -419,7 +455,7 @@ public class RemoteRefreshSegmentTracker {
         return uploadTimeMsMovingAverageReference.get().getAverage();
     }
 
-    void addUploadTimeMs(long timeMs) {
+    public void addUploadTimeMs(long timeMs) {
         synchronized (uploadTimeMsMutex) {
             this.uploadTimeMsMovingAverageReference.get().record(timeMs);
         }
@@ -439,10 +475,11 @@ public class RemoteRefreshSegmentTracker {
     public RemoteRefreshSegmentTracker.Stats stats() {
         return new RemoteRefreshSegmentTracker.Stats(
             shardId,
+            localRefreshClockTimeMs,
+            remoteRefreshClockTimeMs,
+            timeMsLag,
             localRefreshSeqNo,
-            localRefreshTimeMs,
             remoteRefreshSeqNo,
-            remoteRefreshTimeMs,
             uploadBytesStarted,
             uploadBytesSucceeded,
             uploadBytesFailed,
@@ -467,10 +504,11 @@ public class RemoteRefreshSegmentTracker {
     public static class Stats implements Writeable {
 
         public final ShardId shardId;
+        public final long localRefreshClockTimeMs;
+        public final long remoteRefreshClockTimeMs;
+        public final long refreshTimeLagMs;
         public final long localRefreshNumber;
-        public final long localRefreshTimeMs;
         public final long remoteRefreshNumber;
-        public final long remoteRefreshTimeMs;
         public final long uploadBytesStarted;
         public final long uploadBytesFailed;
         public final long uploadBytesSucceeded;
@@ -487,10 +525,11 @@ public class RemoteRefreshSegmentTracker {
 
         public Stats(
             ShardId shardId,
+            long localRefreshClockTimeMs,
+            long remoteRefreshClockTimeMs,
+            long refreshTimeLagMs,
             long localRefreshNumber,
-            long localRefreshTimeMs,
             long remoteRefreshNumber,
-            long remoteRefreshTimeMs,
             long uploadBytesStarted,
             long uploadBytesSucceeded,
             long uploadBytesFailed,
@@ -506,10 +545,11 @@ public class RemoteRefreshSegmentTracker {
             long bytesLag
         ) {
             this.shardId = shardId;
+            this.localRefreshClockTimeMs = localRefreshClockTimeMs;
+            this.remoteRefreshClockTimeMs = remoteRefreshClockTimeMs;
+            this.refreshTimeLagMs = refreshTimeLagMs;
             this.localRefreshNumber = localRefreshNumber;
-            this.localRefreshTimeMs = localRefreshTimeMs;
             this.remoteRefreshNumber = remoteRefreshNumber;
-            this.remoteRefreshTimeMs = remoteRefreshTimeMs;
             this.uploadBytesStarted = uploadBytesStarted;
             this.uploadBytesFailed = uploadBytesFailed;
             this.uploadBytesSucceeded = uploadBytesSucceeded;
@@ -528,10 +568,11 @@ public class RemoteRefreshSegmentTracker {
         public Stats(StreamInput in) throws IOException {
             try {
                 this.shardId = new ShardId(in);
+                this.localRefreshClockTimeMs = in.readLong();
+                this.remoteRefreshClockTimeMs = in.readLong();
+                this.refreshTimeLagMs = in.readLong();
                 this.localRefreshNumber = in.readLong();
-                this.localRefreshTimeMs = in.readLong();
                 this.remoteRefreshNumber = in.readLong();
-                this.remoteRefreshTimeMs = in.readLong();
                 this.uploadBytesStarted = in.readLong();
                 this.uploadBytesFailed = in.readLong();
                 this.uploadBytesSucceeded = in.readLong();
@@ -553,10 +594,11 @@ public class RemoteRefreshSegmentTracker {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
+            out.writeLong(localRefreshClockTimeMs);
+            out.writeLong(remoteRefreshClockTimeMs);
+            out.writeLong(refreshTimeLagMs);
             out.writeLong(localRefreshNumber);
-            out.writeLong(localRefreshTimeMs);
             out.writeLong(remoteRefreshNumber);
-            out.writeLong(remoteRefreshTimeMs);
             out.writeLong(uploadBytesStarted);
             out.writeLong(uploadBytesFailed);
             out.writeLong(uploadBytesSucceeded);
