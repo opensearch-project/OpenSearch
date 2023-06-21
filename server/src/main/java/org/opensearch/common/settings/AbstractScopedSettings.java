@@ -249,7 +249,7 @@ public abstract class AbstractScopedSettings {
             throw new SettingsException("Setting is not registered for key [" + setting.getKey() + "]");
         }
         addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
-        }
+    }
 
     /**
      * Adds a settings consumer that is only executed if any setting in the supplied list of settings is changed. In that case all the

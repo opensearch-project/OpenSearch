@@ -87,17 +87,16 @@ public class AddSettingsUpdateConsumerRequestHandler {
 
                 // Register setting update consumer with callback method to extension
                 if (setting.hasIndexScope()) {
-                    clusterService.getClusterSettings()
-                        .addSettingsUpdateConsumer(settingForUpdateConsumer, (data) -> {
-                            logger.debug("Sending extension request type: " + updateSettingsRequestType);
-                            UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
-                            transportService.sendRequest(
-                                extensionNode,
-                                updateSettingsRequestType,
-                                new UpdateSettingsRequest(settingType, setting, data),
-                                updateSettingsResponseHandler
-                            );
-                        });
+                    clusterService.getClusterSettings().addSettingsUpdateConsumer(settingForUpdateConsumer, (data) -> {
+                        logger.debug("Sending extension request type: " + updateSettingsRequestType);
+                        UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
+                        transportService.sendRequest(
+                            extensionNode,
+                            updateSettingsRequestType,
+                            new UpdateSettingsRequest(settingType, setting, data),
+                            updateSettingsResponseHandler
+                        );
+                    });
                 }
                 if (setting.hasNodeScope()) {
                     clusterService.getClusterSettings()
