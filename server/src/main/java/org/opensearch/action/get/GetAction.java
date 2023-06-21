@@ -32,7 +32,10 @@
 
 package org.opensearch.action.get;
 
+import java.util.List;
+import org.opensearch.action.ActionScope;
 import org.opensearch.action.ActionType;
+import org.opensearch.identity.scopes.Scope;
 
 /**
  * Transport action to get a document
@@ -46,6 +49,11 @@ public class GetAction extends ActionType<GetResponse> {
 
     private GetAction() {
         super(NAME, GetResponse::new);
+    }
+
+    @Override
+    public List<Scope> getAllowedScopes() {
+        return List.of(ActionScope.READ, ActionScope.ALL);
     }
 
 }

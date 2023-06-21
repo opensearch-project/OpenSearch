@@ -18,30 +18,31 @@ import java.security.Principal;
 import java.util.Set;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * An individual, process, or device that causes information to flow among objects or change to the system state.
  *
  * @opensearch.experimental
  */
-public final class ApplicationAwareSubject implements Subject {
+public class ApplicationAwareSubject implements Subject {
 
-    private final Function<Principal, Boolean> checkApplicationExists() {
-
-        return new Function<Principal, Boolean>() {
-            @Override
-            public Boolean apply(Principal principal) {
-
-                return (ExtensionsManager.getExtensionManager().getExtensionPrincipals().contains(principal));
-            }
-        };
+    public boolean checkApplicationExists(Principal principal) {
+        return (ExtensionsManager.getExtensionManager().getExtensionPrincipals().contains(principal));
     }
 
     private final Subject wrapped;
 
     public ApplicationAwareSubject(final Subject wrapped) {
         this.wrapped = wrapped;
+    }
+
+    /**
+     * This wrapped call allows for testing
+     * @param principal The principal of the target application
+     * @return The set of all of the application's scopes
+     */
+    public Set<String> checkApplicationScopes(Principal principal) {
+        return Scope.getApplicationScopes(principal);
     }
 
     // Passthroughs for wrapped subject
@@ -64,32 +65,40 @@ public final class ApplicationAwareSubject implements Subject {
      * @return true if allowed, false if none of the scopes are allowed.
      */
     public boolean isAllowed(final List<Scope> scopes) {
-        final Optional<Principal> appPrincipal = wrapped.getApplication();
-        if (appPrincipal.isEmpty()) {
-            // If there is no application, actions are permitted by default
+        System.out.println("At top of is allowed with scopes: " + scopes);
+        final Optional<Principal> optionalPrincipal = wrapped.getApplication();
+
+        if (optionalPrincipal.isEmpty()) {
+            System.out.println("Returning true because no application");
+            // If there is no application, actions are allowed by default
             return true;
         }
 
-        if (!this.checkApplicationExists().apply(appPrincipal.get())) {
+        final Principal appPrincipal = optionalPrincipal.get();
+
+        if (!this.checkApplicationExists(appPrincipal)) {
+            System.out.println("Returning false because application does not exist");
             return false;
         }
 
-        final Set<String> scopesOfApplication = Scope.getApplicationScopes(appPrincipal.get());
+        final Set<String> scopesOfApplication = checkApplicationScopes(appPrincipal);
 
         if (scopesOfApplication.stream()
             .map(Scope::parseScopeFromString)
             .anyMatch(parsedScope -> parsedScope.equals(ApplicationScope.SuperUserAccess))) {
             // Applications that are fully trusted automatically pass all checks
+            System.out.println("Returning true because superuser");
             return true;
         }
 
         if (scopesOfApplication.stream()
             .map(Scope::parseScopeFromString)
             .anyMatch(parsedScope -> scopes.stream().anyMatch(parsedScope::equals))) { // Find any matches between scope list and subject's
-                                                                                       // scopes
+            System.out.println("Returning true because matching scope");                                            // scopes
             return true;
         }
 
+        System.out.println("Returning false because no matching scopes");
         return false;
     }
 }

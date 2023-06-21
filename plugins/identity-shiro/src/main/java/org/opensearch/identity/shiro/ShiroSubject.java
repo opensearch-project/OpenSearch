@@ -23,18 +23,18 @@ import org.opensearch.identity.tokens.AuthToken;
  */
 public class ShiroSubject implements Subject {
     private final ShiroTokenManager authTokenHandler;
-    private final org.apache.shiro.subject.Subject shiroSubject;
+    private final org.apache.shiro.subject.Subject wrappedSubject;
     private List<Scope> scopes;
 
     /**
      * Creates a new shiro subject for use with the IdentityPlugin
      * Cannot return null
      * @param authTokenHandler Used to extract auth header info
-     * @param subject The specific subject being authc/z'd
+     * @param shiroBackedSubject The specific subject being authc/z'd
      */
-    public ShiroSubject(final ShiroTokenManager authTokenHandler, final org.apache.shiro.subject.Subject subject) {
+    public ShiroSubject(final ShiroTokenManager authTokenHandler, final org.apache.shiro.subject.Subject shiroBackedSubject) {
         this.authTokenHandler = Objects.requireNonNull(authTokenHandler);
-        this.shiroSubject = Objects.requireNonNull(subject);
+        this.wrappedSubject = Objects.requireNonNull(shiroBackedSubject);
         this.scopes = List.of();
     }
 
@@ -45,7 +45,7 @@ public class ShiroSubject implements Subject {
      */
     @Override
     public Principal getPrincipal() {
-        final Object o = shiroSubject.getPrincipal();
+        final Object o = wrappedSubject.getPrincipal();
         if (o == null) return null;
         if (o instanceof Principal) return (Principal) o;
         return () -> o.toString();
@@ -89,13 +89,14 @@ public class ShiroSubject implements Subject {
      */
     public void authenticate(AuthToken authenticationToken) {
         final org.apache.shiro.authc.AuthenticationToken authToken = authTokenHandler.translateAuthToken(authenticationToken)
-            .orElseThrow(() -> new UnsupportedAuthenticationToken());
-        shiroSubject.login(authToken);
+            .orElseThrow(UnsupportedAuthenticationToken::new);
+        wrappedSubject.login(authToken);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Optional<Principal> getApplication() {
-        return Optional.empty();
+        return Optional.of((Principal) this.wrappedSubject.getPrincipal());
     }
 
     /**
