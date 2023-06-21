@@ -307,7 +307,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         extensionsManager.loadExtension(firstExtension);
         IOException exception = expectThrows(IOException.class, () -> extensionsManager.loadExtension(secondExtension));
         assertEquals(
-            "Duplicate uniqueId uniqueid1. Did not load extension: Extension [name=secondExtension, uniqueId=uniqueid1, hostAddress=127.0.0.0, port=9300, version=0.0.7, opensearchVersion=3.0.0, minimumCompatibleVersion=3.0.0]",
+            "Duplicate uniqueId [uniqueid1]. Did not load extension: Extension [name=secondExtension, uniqueId=uniqueid1, hostAddress=127.0.0.0, port=9300, version=0.0.7, opensearchVersion=3.0.0, minimumCompatibleVersion=3.0.0]",
             exception.getMessage()
         );
 
