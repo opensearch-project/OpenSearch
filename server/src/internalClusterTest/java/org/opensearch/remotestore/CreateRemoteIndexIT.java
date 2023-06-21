@@ -56,7 +56,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
     protected Settings nodeSettings(int nodeOriginal) {
         Settings settings = super.nodeSettings(nodeOriginal);
         Settings.Builder builder = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
+            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
             .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
