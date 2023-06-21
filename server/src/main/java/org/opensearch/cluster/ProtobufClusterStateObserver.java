@@ -1,0 +1,379 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.cluster;
+
+import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
+import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.threadpool.ThreadPool;
+
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+
+/**
+ * A utility class which simplifies interacting with the cluster state in cases where
+ * one tries to take action based on the current state but may want to wait for a new state
+ * and retry upon failure.
+ *
+ * @opensearch.internal
+ */
+public class ProtobufClusterStateObserver {
+
+    protected final Logger logger;
+
+    private final Predicate<ProtobufClusterState> MATCH_ALL_CHANGES_PREDICATE = state -> true;
+
+    private final ClusterApplierService clusterApplierService;
+    private final ThreadPool threadPool;
+    private final ThreadContext contextHolder;
+    volatile TimeValue timeOutValue;
+
+    final AtomicReference<StoredState> lastObservedState;
+    final ProtobufTimeoutClusterStateListener clusterStateListener = new ObserverClusterStateListener();
+    // observingContext is not null when waiting on cluster state changes
+    final AtomicReference<ObservingContext> observingContext = new AtomicReference<>(null);
+    volatile Long startTimeMS;
+    volatile boolean timedOut;
+
+    public ProtobufClusterStateObserver(ClusterService clusterService, Logger logger, ThreadContext contextHolder) {
+        this(clusterService, new TimeValue(60000), logger, contextHolder);
+    }
+
+    /**
+     * @param timeout        a global timeout for this observer. After it has expired the observer
+     *                       will fail any existing or new #waitForNextChange calls. Set to null
+     *                       to wait indefinitely
+     */
+    public ProtobufClusterStateObserver(ClusterService clusterService, @Nullable TimeValue timeout, Logger logger, ThreadContext contextHolder) {
+        this(clusterService.protobufState(), clusterService, timeout, logger, contextHolder);
+    }
+
+    /**
+     * @param timeout        a global timeout for this observer. After it has expired the observer
+     *                       will fail any existing or new #waitForNextChange calls. Set to null
+     *                       to wait indefinitely
+     */
+    public ProtobufClusterStateObserver(
+        ProtobufClusterState initialState,
+        ClusterService clusterService,
+        @Nullable TimeValue timeout,
+        Logger logger,
+        ThreadContext contextHolder
+    ) {
+        this(initialState, clusterService.getClusterApplierService(), timeout, logger, contextHolder);
+    }
+
+    public ProtobufClusterStateObserver(
+        ProtobufClusterState initialState,
+        ClusterApplierService clusterApplierService,
+        @Nullable TimeValue timeout,
+        Logger logger,
+        ThreadContext contextHolder
+    ) {
+        this.clusterApplierService = clusterApplierService;
+        this.threadPool = clusterApplierService.threadPool();
+        this.lastObservedState = new AtomicReference<>(new StoredState(initialState));
+        this.timeOutValue = timeout;
+        if (timeOutValue != null) {
+            this.startTimeMS = threadPool.relativeTimeInMillis();
+        }
+        this.logger = logger;
+        this.contextHolder = contextHolder;
+    }
+
+    /** sets the last observed state to the currently applied cluster state and returns it */
+    public ProtobufClusterState setAndGetObservedState() {
+        if (observingContext.get() != null) {
+            throw new OpenSearchException("cannot set current cluster state while waiting for a cluster state change");
+        }
+        ProtobufClusterState clusterState = clusterApplierService.protobufState();
+        lastObservedState.set(new StoredState(clusterState));
+        return clusterState;
+    }
+
+    /** indicates whether this observer has timed out */
+    public boolean isTimedOut() {
+        return timedOut;
+    }
+
+    public void waitForNextChange(Listener listener) {
+        waitForNextChange(listener, MATCH_ALL_CHANGES_PREDICATE);
+    }
+
+    public void waitForNextChange(Listener listener, @Nullable TimeValue timeOutValue) {
+        waitForNextChange(listener, MATCH_ALL_CHANGES_PREDICATE, timeOutValue);
+    }
+
+    public void waitForNextChange(Listener listener, Predicate<ProtobufClusterState> statePredicate) {
+        waitForNextChange(listener, statePredicate, null);
+    }
+
+    /**
+     * Wait for the next cluster state which satisfies statePredicate
+     *
+     * @param listener        callback listener
+     * @param statePredicate predicate to check whether cluster state changes are relevant and the callback should be called
+     * @param timeOutValue    a timeout for waiting. If null the global observer timeout will be used.
+     */
+    public void waitForNextChange(Listener listener, Predicate<ProtobufClusterState> statePredicate, @Nullable TimeValue timeOutValue) {
+        listener = new ContextPreservingListener(listener, contextHolder.newRestorableContext(false));
+        if (observingContext.get() != null) {
+            throw new OpenSearchException("already waiting for a cluster state change");
+        }
+
+        Long timeoutTimeLeftMS;
+        if (timeOutValue == null) {
+            timeOutValue = this.timeOutValue;
+            if (timeOutValue != null) {
+                long timeSinceStartMS = threadPool.relativeTimeInMillis() - startTimeMS;
+                timeoutTimeLeftMS = timeOutValue.millis() - timeSinceStartMS;
+                if (timeoutTimeLeftMS <= 0L) {
+                    // things have timeout while we were busy -> notify
+                    logger.trace(
+                        "observer timed out. notifying listener. timeout setting [{}], time since start [{}]",
+                        timeOutValue,
+                        new TimeValue(timeSinceStartMS)
+                    );
+                    // update to latest, in case people want to retry
+                    timedOut = true;
+                    lastObservedState.set(new StoredState(clusterApplierService.protobufState()));
+                    listener.onTimeout(timeOutValue);
+                    return;
+                }
+            } else {
+                timeoutTimeLeftMS = null;
+            }
+        } else {
+            this.startTimeMS = threadPool.relativeTimeInMillis();
+            this.timeOutValue = timeOutValue;
+            timeoutTimeLeftMS = timeOutValue.millis();
+            timedOut = false;
+        }
+
+        // sample a new state. This state maybe *older* than the supplied state if we are called from an applier,
+        // which wants to wait for something else to happen
+        ProtobufClusterState newState = clusterApplierService.protobufState();
+        if (lastObservedState.get().isOlderOrDifferentClusterManager(newState) && statePredicate.test(newState)) {
+            // good enough, let's go.
+            logger.trace("observer: sampled state accepted by predicate ({})", newState);
+            lastObservedState.set(new StoredState(newState));
+            listener.onNewClusterState(newState);
+        } else {
+            logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
+            final ObservingContext context = new ObservingContext(listener, statePredicate);
+            if (!observingContext.compareAndSet(null, context)) {
+                throw new OpenSearchException("already waiting for a cluster state change");
+            }
+            // clusterApplierService.addTimeoutListener(
+            //     timeoutTimeLeftMS == null ? null : new TimeValue(timeoutTimeLeftMS),
+            //     clusterStateListener
+            // );
+        }
+    }
+
+    /**
+     * An observer of the cluster state for changes.
+     *
+     * @opensearch.internal
+     */
+    class ObserverClusterStateListener implements ProtobufTimeoutClusterStateListener {
+
+        @Override
+        public void clusterChanged(ProtobufClusterChangedEvent event) {
+            ObservingContext context = observingContext.get();
+            if (context == null) {
+                // No need to remove listener as it is the responsibility of the thread that set observingContext to null
+                return;
+            }
+            final ProtobufClusterState state = event.state();
+            if (context.statePredicate.test(state)) {
+                if (observingContext.compareAndSet(context, null)) {
+                    // clusterApplierService.removeTimeoutListener(this);
+                    logger.trace("observer: accepting cluster state change ({})", state);
+                    lastObservedState.set(new StoredState(state));
+                    context.listener.onNewClusterState(state);
+                } else {
+                    logger.trace(
+                        "observer: predicate approved change but observing context has changed "
+                            + "- ignoring (new cluster state version [{}])",
+                        state.version()
+                    );
+                }
+            } else {
+                logger.trace("observer: predicate rejected change (new cluster state version [{}])", state.version());
+            }
+        }
+
+        @Override
+        public void postAdded() {
+            ObservingContext context = observingContext.get();
+            if (context == null) {
+                // No need to remove listener as it is the responsibility of the thread that set observingContext to null
+                return;
+            }
+            ProtobufClusterState newState = clusterApplierService.protobufState();
+            if (lastObservedState.get().isOlderOrDifferentClusterManager(newState) && context.statePredicate.test(newState)) {
+                // double check we're still listening
+                if (observingContext.compareAndSet(context, null)) {
+                    logger.trace("observer: post adding listener: accepting current cluster state ({})", newState);
+                    // clusterApplierService.removeTimeoutListener(this);
+                    lastObservedState.set(new StoredState(newState));
+                    context.listener.onNewClusterState(newState);
+                } else {
+                    logger.trace(
+                        "observer: postAdded - predicate approved state but observing context has changed - ignoring ({})",
+                        newState
+                    );
+                }
+            } else {
+                logger.trace("observer: postAdded - predicate rejected state ({})", newState);
+            }
+        }
+
+        @Override
+        public void onClose() {
+            ObservingContext context = observingContext.getAndSet(null);
+
+            if (context != null) {
+                logger.trace("observer: cluster service closed. notifying listener.");
+                // clusterApplierService.removeTimeoutListener(this);
+                context.listener.onClusterServiceClose();
+            }
+        }
+
+        @Override
+        public void onTimeout(TimeValue timeout) {
+            ObservingContext context = observingContext.getAndSet(null);
+            if (context != null) {
+                // clusterApplierService.removeTimeoutListener(this);
+                long timeSinceStartMS = threadPool.relativeTimeInMillis() - startTimeMS;
+                logger.trace(
+                    "observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]",
+                    timeOutValue,
+                    new TimeValue(timeSinceStartMS)
+                );
+                // update to latest, in case people want to retry
+                lastObservedState.set(new StoredState(clusterApplierService.protobufState()));
+                timedOut = true;
+                context.listener.onTimeout(timeOutValue);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "ProtobufClusterStateObserver[" + observingContext.get() + "]";
+        }
+    }
+
+    /**
+     * The observer considers two cluster states to be the same if they have the same version and cluster-manager node id (i.e. null or set)
+     *
+     * @opensearch.internal
+     */
+    private static class StoredState {
+        private final String clusterManagerNodeId;
+        private final long version;
+
+        StoredState(ProtobufClusterState clusterState) {
+            this.clusterManagerNodeId = clusterState.nodes().getClusterManagerNodeId();
+            this.version = clusterState.version();
+        }
+
+        /**
+         * returns true if stored state is older then given state or they are from a different cluster-manager, meaning they can't be compared
+         * */
+        public boolean isOlderOrDifferentClusterManager(ProtobufClusterState clusterState) {
+            return version < clusterState.version()
+                || Objects.equals(clusterManagerNodeId, clusterState.nodes().getClusterManagerNodeId()) == false;
+        }
+    }
+
+    /**
+     * Listener for the observer.
+     *
+     * @opensearch.internal
+     */
+    public interface Listener {
+
+        /** called when a new state is observed */
+        void onNewClusterState(ProtobufClusterState state);
+
+        /** called when the cluster service is closed */
+        void onClusterServiceClose();
+
+        void onTimeout(TimeValue timeout);
+    }
+
+    /**
+     * Context for the observer.
+     *
+     * @opensearch.internal
+     */
+    static class ObservingContext {
+        public final Listener listener;
+        public final Predicate<ProtobufClusterState> statePredicate;
+
+        ObservingContext(Listener listener, Predicate<ProtobufClusterState> statePredicate) {
+            this.listener = listener;
+            this.statePredicate = statePredicate;
+        }
+
+        @Override
+        public String toString() {
+            return "ObservingContext[" + listener + "]";
+        }
+    }
+
+    /**
+     * A context preserving listener.
+     *
+     * @opensearch.internal
+     */
+    private static final class ContextPreservingListener implements Listener {
+        private final Listener delegate;
+        private final Supplier<ThreadContext.StoredContext> contextSupplier;
+
+        private ContextPreservingListener(Listener delegate, Supplier<ThreadContext.StoredContext> contextSupplier) {
+            this.contextSupplier = contextSupplier;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void onNewClusterState(ProtobufClusterState state) {
+            try (ThreadContext.StoredContext context = contextSupplier.get()) {
+                delegate.onNewClusterState(state);
+            }
+        }
+
+        @Override
+        public void onClusterServiceClose() {
+            try (ThreadContext.StoredContext context = contextSupplier.get()) {
+                delegate.onClusterServiceClose();
+            }
+        }
+
+        @Override
+        public void onTimeout(TimeValue timeout) {
+            try (ThreadContext.StoredContext context = contextSupplier.get()) {
+                delegate.onTimeout(timeout);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "ContextPreservingListener[" + delegate + "]";
+        }
+    }
+}

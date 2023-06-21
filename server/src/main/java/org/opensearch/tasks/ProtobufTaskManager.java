@@ -36,7 +36,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
 import java.io.IOException;
@@ -85,7 +85,7 @@ public class ProtobufTaskManager implements ProtobufClusterStateApplier {
      * Rest headers that are copied to the task
     */
     private final List<String> taskHeaders;
-    private final ProtobufThreadPool threadPool;
+    private final ThreadPool threadPool;
 
     private final ConcurrentMapLong<ProtobufTask> tasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
@@ -111,7 +111,7 @@ public class ProtobufTaskManager implements ProtobufClusterStateApplier {
     public static ProtobufTaskManager createTaskManagerWithClusterSettings(
         Settings settings,
         ClusterSettings clusterSettings,
-        ProtobufThreadPool threadPool,
+        ThreadPool threadPool,
         Set<String> taskHeaders
     ) {
         final ProtobufTaskManager taskManager = new ProtobufTaskManager(settings, threadPool, taskHeaders);
@@ -119,7 +119,7 @@ public class ProtobufTaskManager implements ProtobufClusterStateApplier {
         return taskManager;
     }
 
-    public ProtobufTaskManager(Settings settings, ProtobufThreadPool threadPool, Set<String> taskHeaders) {
+    public ProtobufTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
@@ -479,7 +479,7 @@ public class ProtobufTaskManager implements ProtobufClusterStateApplier {
     }
 
     @Override
-    public void applyClusterState(ProtobufClusterChangedEvent event) {
+    public void applyProtobufClusterState(ProtobufClusterChangedEvent event) {
         lastDiscoveryNodes = event.state().getNodes();
         if (event.nodesRemoved()) {
             synchronized (banedParents) {

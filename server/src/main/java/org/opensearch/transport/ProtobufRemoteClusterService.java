@@ -26,7 +26,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -185,7 +185,7 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
     *
     * @throws IllegalArgumentException if the remote cluster is unknown
     */
-    public ProtobufTransport.Connection getConnection(ProtobufDiscoveryNode node, String cluster) {
+    public Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode node, String cluster) {
         return getRemoteClusterConnection(cluster).getConnection(node);
     }
 
@@ -204,7 +204,7 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
         return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
     }
 
-    public ProtobufTransport.Connection getConnection(String cluster) {
+    public Transport.ProtobufConnection getConnection(String cluster) {
         return getRemoteClusterConnection(cluster).getConnection();
     }
 
@@ -392,11 +392,11 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
     *
-    * @param threadPool   the {@link ProtobufThreadPool} for the client
+    * @param threadPool   the {@link ThreadPool} for the client
     * @param clusterAlias the cluster alias the remote cluster is registered under
     * @throws IllegalArgumentException if the given clusterAlias doesn't exist
     */
-    public ProtobufClient getRemoteClusterClient(ProtobufThreadPool threadPool, String clusterAlias) {
+    public ProtobufClient getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"

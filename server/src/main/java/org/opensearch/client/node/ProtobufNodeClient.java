@@ -18,12 +18,12 @@ import org.opensearch.action.support.ProtobufTransportAction;
 import org.opensearch.client.ProtobufClient;
 import org.opensearch.client.support.ProtobufAbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.ProtobufNamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.tasks.ProtobufTaskListener;
-import org.opensearch.threadpool.ProtobufThreadPool;
-import org.opensearch.transport.ProtobufRemoteClusterService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.RemoteClusterService;
 
 import java.util.function.Supplier;
 
@@ -40,18 +40,18 @@ public class ProtobufNodeClient extends ProtobufAbstractClient {
     * {@link #executeLocally(ProtobufActionType, ProtobufActionRequest, ProtobufTaskListener)}.
     */
     private Supplier<String> localNodeId;
-    private ProtobufRemoteClusterService remoteClusterService;
-    private ProtobufNamedWriteableRegistry namedWriteableRegistry;
+    private RemoteClusterService remoteClusterService;
+    private NamedWriteableRegistry namedWriteableRegistry;
 
-    public ProtobufNodeClient(Settings settings, ProtobufThreadPool threadPool) {
+    public ProtobufNodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
     }
 
     public void initialize(
         ProtobufDynamicActionRegistry actionRegistry,
         Supplier<String> localNodeId,
-        ProtobufRemoteClusterService remoteClusterService,
-        ProtobufNamedWriteableRegistry namedWriteableRegistry
+        RemoteClusterService remoteClusterService,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.actionRegistry = actionRegistry;
         this.localNodeId = localNodeId;
@@ -130,10 +130,10 @@ public class ProtobufNodeClient extends ProtobufAbstractClient {
 
     @Override
     public ProtobufClient getRemoteClusterClient(String clusterAlias) {
-        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
+        return remoteClusterService.getRemoteClusterClientProtobuf(threadPool(), clusterAlias);
     }
 
-    public ProtobufNamedWriteableRegistry getNamedWriteableRegistry() {
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
     }
 }

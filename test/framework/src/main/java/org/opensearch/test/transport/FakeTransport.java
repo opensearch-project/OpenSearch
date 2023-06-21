@@ -34,17 +34,24 @@ package org.opensearch.test.transport;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.ProtobufDiscoveryNode;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.ProtobufBoundTransportAddress;
+import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.transport.CloseableConnection;
 import org.opensearch.transport.ConnectionProfile;
+import org.opensearch.transport.ProtobufConnectionProfile;
+import org.opensearch.transport.ProtobufTransportMessageListener;
+import org.opensearch.transport.ProtobufTransportStats;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportStats;
 
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -129,5 +136,54 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
     @Override
     protected void doClose() {
 
+    }
+
+    @Override
+    public void setMessageListener(ProtobufTransportMessageListener listener) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'setMessageListener'");
+    }
+
+    @Override
+    public ProtobufBoundTransportAddress boundProtobufAddress() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'boundProtobufAddress'");
+    }
+
+    @Override
+    public Map<String, ProtobufBoundTransportAddress> profileProtobufBoundAddresses() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'profileProtobufBoundAddresses'");
+    }
+
+    @Override
+    public ProtobufTransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'addressesFromStringProtobuf'");
+    }
+
+    @Override
+    public void openProtobufConnection(ProtobufDiscoveryNode node, ProtobufConnectionProfile profile,
+            ActionListener<ProtobufConnection> listener) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'openProtobufConnection'");
+    }
+
+    @Override
+    public ProtobufTransportStats getProtobufStats() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getProtobufStats'");
+    }
+
+    @Override
+    public ProtobufResponseHandlers getProtobufResponseHandlers() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getProtobufResponseHandlers'");
+    }
+
+    @Override
+    public ProtobufRequestHandlers getProtobufRequestHandlers() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getProtobufRequestHandlers'");
     }
 }

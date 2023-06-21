@@ -13,7 +13,7 @@ import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.action.ProtobufActionType;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 /**
  * Interface for an OpenSearch client implementation
@@ -54,6 +54,6 @@ public interface ProtobufOpenSearchClient {
     /**
      * Returns the threadpool used to execute requests on this client
     */
-    ProtobufThreadPool threadPool();
+    ThreadPool threadPool();
 
 }

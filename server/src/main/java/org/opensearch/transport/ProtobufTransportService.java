@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ProtobufActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ProtobufClusterName;
@@ -40,9 +41,9 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.node.ProtobufNodeClosedException;
 import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.tasks.ProtobufTask;
-import org.opensearch.tasks.ProtobufTaskManager;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.Scheduler;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -79,15 +80,15 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
 
     private final AtomicBoolean handleIncomingRequests = new AtomicBoolean();
     private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
-    protected final ProtobufTransport transport;
+    protected final Transport transport;
     protected final ProtobufConnectionManager connectionManager;
-    protected final ProtobufThreadPool threadPool;
+    protected final ThreadPool threadPool;
     protected final ProtobufClusterName clusterName;
-    protected final ProtobufTaskManager taskManager;
+    protected final TaskManager taskManager;
     private final ProtobufTransportInterceptor.AsyncSender asyncSender;
     private final Function<ProtobufBoundTransportAddress, ProtobufDiscoveryNode> localNodeFactory;
     private final boolean remoteClusterClient;
-    private final ProtobufTransport.ResponseHandlers responseHandlers;
+    private final Transport.ProtobufResponseHandlers responseHandlers;
     private final ProtobufTransportInterceptor interceptor;
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
@@ -111,11 +112,11 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
 
-    private final ProtobufRemoteClusterService remoteClusterService;
+    private final RemoteClusterService remoteClusterService;
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile ProtobufDiscoveryNode localNode = null;
-    private final ProtobufTransport.Connection localNodeConnection = new ProtobufTransport.Connection() {
+    private final Transport.ProtobufConnection localNodeConnection = new Transport.ProtobufConnection() {
         @Override
         public ProtobufDiscoveryNode getNode() {
             return localNode;
@@ -147,8 +148,8 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     */
     public ProtobufTransportService(
         Settings settings,
-        ProtobufTransport transport,
-        ProtobufThreadPool threadPool,
+        Transport transport,
+        ThreadPool threadPool,
         ProtobufTransportInterceptor transportInterceptor,
         Function<ProtobufBoundTransportAddress, ProtobufDiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
@@ -168,8 +169,8 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
 
     public ProtobufTransportService(
         Settings settings,
-        ProtobufTransport transport,
-        ProtobufThreadPool threadPool,
+        Transport transport,
+        ThreadPool threadPool,
         ProtobufTransportInterceptor transportInterceptor,
         Function<ProtobufBoundTransportAddress, ProtobufDiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
@@ -189,8 +190,8 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = ProtobufDiscoveryNode.isRemoteClusterClient(settings);
-        remoteClusterService = new ProtobufRemoteClusterService(settings, this);
-        responseHandlers = transport.getResponseHandlers();
+        remoteClusterService = new RemoteClusterService(settings, this);
+        responseHandlers = transport.getProtobufResponseHandlers();
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
@@ -201,7 +202,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
-            ProtobufThreadPool.Names.SAME,
+            ThreadPool.Names.SAME,
             false,
             false,
             HandshakeRequest::new,
@@ -209,7 +210,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         );
     }
 
-    public ProtobufRemoteClusterService getRemoteClusterService() {
+    public RemoteClusterService getRemoteClusterService() {
         return remoteClusterService;
     }
 
@@ -217,20 +218,20 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         return localNode;
     }
 
-    public ProtobufTaskManager getTaskManager() {
+    public TaskManager getTaskManager() {
         return taskManager;
     }
 
-    protected ProtobufTaskManager createTaskManager(
+    protected TaskManager createTaskManager(
         Settings settings,
         ClusterSettings clusterSettings,
-        ProtobufThreadPool threadPool,
+        ThreadPool threadPool,
         Set<String> taskHeaders
     ) {
         if (clusterSettings != null) {
-            return ProtobufTaskManager.createTaskManagerWithClusterSettings(settings, clusterSettings, threadPool, taskHeaders);
+            return TaskManager.createTaskManagerWithClusterSettings(settings, clusterSettings, threadPool, taskHeaders);
         } else {
-            return new ProtobufTaskManager(settings, threadPool, taskHeaders);
+            return new TaskManager(settings, threadPool, taskHeaders);
         }
     }
 
@@ -258,11 +259,11 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
-            for (Map.Entry<String, ProtobufBoundTransportAddress> entry : transport.profileBoundAddresses().entrySet()) {
+            for (Map.Entry<String, ProtobufBoundTransportAddress> entry : transport.profileProtobufBoundAddresses().entrySet()) {
                 logger.info("profile [{}]: {}", entry.getKey(), entry.getValue());
             }
         }
-        localNode = localNodeFactory.apply(transport.boundAddress());
+        localNode = localNodeFactory.apply(transport.boundProtobufAddress());
 
         if (remoteClusterClient) {
             // here we start to connect to the remote clusters
@@ -279,7 +280,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         } finally {
             // in case the transport is not connected to our local node (thus cleaned on node disconnect)
             // make sure to clean any leftover on going handles
-            for (final ProtobufTransport.ResponseContext holderToNotify : responseHandlers.prune(h -> true)) {
+            for (final Transport.ProtobufResponseContext holderToNotify : responseHandlers.prune(h -> true)) {
                 // callback that an exception happened, but on a different thread since we don't
                 // want handlers to worry about stack overflows
                 getExecutorService().execute(new AbstractRunnable() {
@@ -335,16 +336,16 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     }
 
     @Override
-    public ProtobufTransportInfo info() {
+    public ProtobufTransportInfo protobufInfo() {
         ProtobufBoundTransportAddress boundTransportAddress = boundAddress();
         if (boundTransportAddress == null) {
             return null;
         }
-        return new ProtobufTransportInfo(boundTransportAddress, transport.profileBoundAddresses());
+        return new ProtobufTransportInfo(boundTransportAddress, transport.profileProtobufBoundAddresses());
     }
 
-    public TransportStats stats() {
-        return transport.getStats();
+    public ProtobufTransportStats stats() {
+        return transport.getProtobufStats();
     }
 
     public boolean isTransportSecure() {
@@ -352,7 +353,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     }
 
     public ProtobufBoundTransportAddress boundAddress() {
-        return transport.boundAddress();
+        return transport.boundProtobufAddress();
     }
 
     public List<String> getDefaultSeedAddresses() {
@@ -474,7 +475,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     * @param node the node to connect to
     * @param connectionProfile the connection profile to use
     */
-    public ProtobufTransport.Connection openConnection(final ProtobufDiscoveryNode node, ProtobufConnectionProfile connectionProfile) {
+    public Transport.ProtobufConnection openConnection(final ProtobufDiscoveryNode node, ProtobufConnectionProfile connectionProfile) {
         return PlainActionFuture.get(fut -> openConnection(node, connectionProfile, fut));
     }
 
@@ -489,7 +490,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     public void openConnection(
         final ProtobufDiscoveryNode node,
         ProtobufConnectionProfile connectionProfile,
-        ActionListener<ProtobufTransport.Connection> listener
+        ActionListener<Transport.ProtobufConnection> listener
     ) {
         if (isLocalNode(node)) {
             listener.onResponse(localNodeConnection);
@@ -512,7 +513,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     * @throws IllegalStateException if the handshake failed
     */
     public void handshake(
-        final ProtobufTransport.Connection connection,
+        final Transport.ProtobufConnection connection,
         final long handshakeTimeout,
         final ActionListener<ProtobufDiscoveryNode> listener
     ) {
@@ -538,7 +539,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     * @throws IllegalStateException if the handshake failed
     */
     public void handshake(
-        final ProtobufTransport.Connection connection,
+        final Transport.ProtobufConnection connection,
         final long handshakeTimeout,
         Predicate<ProtobufClusterName> clusterNamePredicate,
         final ActionListener<HandshakeResponse> listener
@@ -584,7 +585,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
-            }, HandshakeResponse::new, ProtobufThreadPool.Names.GENERIC)
+            }, HandshakeResponse::new, ThreadPool.Names.GENERIC)
         );
     }
 
@@ -691,7 +692,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     ) throws ProtobufTransportException {
         ProtobufPlainTransportFuture<T> futureHandler = new ProtobufPlainTransportFuture<>(handler);
         try {
-            ProtobufTransport.Connection connection = getConnection(node);
+            Transport.ProtobufConnection connection = getConnection(node);
             sendRequest(connection, action, request, options, futureHandler);
         } catch (ProtobufNodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
@@ -706,7 +707,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         final ProtobufTransportRequest request,
         final ProtobufTransportResponseHandler<T> handler
     ) {
-        final ProtobufTransport.Connection connection;
+        final Transport.ProtobufConnection connection;
         try {
             connection = getConnection(node);
         } catch (final ProtobufNodeNotConnectedException ex) {
@@ -724,7 +725,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         ProtobufTransportResponseHandler<T> handler
     ) {
-        final ProtobufTransport.Connection connection;
+        final Transport.ProtobufConnection connection;
         try {
             connection = getConnection(node);
         } catch (final ProtobufNodeNotConnectedException ex) {
@@ -746,7 +747,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     * @param <T>        the type of the transport response
     */
     public final <T extends ProtobufTransportResponse> void sendRequest(
-        final ProtobufTransport.Connection connection,
+        final Transport.ProtobufConnection connection,
         final String action,
         final ProtobufTransportRequest request,
         final TransportRequestOptions options,
@@ -757,7 +758,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
             final ProtobufTransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
-                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
+                final Releasable unregisterChildNode = taskManager.registerProtobufChildNode(request.getParentTask().getId(), connection.getNode());
                 delegate = new ProtobufTransportResponseHandler<T>() {
                     @Override
                     public void handleResponse(T response) {
@@ -806,7 +807,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
      * Returns either a real transport connection or a local node connection if we are using the local node optimization.
     * @throws ProtobufNodeNotConnectedException if the given node is not connected
     */
-    public ProtobufTransport.Connection getConnection(ProtobufDiscoveryNode node) {
+    public Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode node) {
         if (isLocalNode(node)) {
             return localNodeConnection;
         } else {
@@ -822,7 +823,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final ProtobufTransportResponseHandler<T> handler
     ) {
-        final ProtobufTransport.Connection connection;
+        final Transport.ProtobufConnection connection;
         try {
             connection = getConnection(node);
         } catch (final ProtobufNodeNotConnectedException ex) {
@@ -834,7 +835,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     }
 
     public <T extends ProtobufTransportResponse> void sendChildRequest(
-        final ProtobufTransport.Connection connection,
+        final Transport.ProtobufConnection connection,
         final String action,
         final ProtobufTransportRequest request,
         final ProtobufTask parentTask,
@@ -844,7 +845,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     }
 
     public <T extends ProtobufTransportResponse> void sendChildRequest(
-        final ProtobufTransport.Connection connection,
+        final Transport.ProtobufConnection connection,
         final String action,
         final ProtobufTransportRequest request,
         final ProtobufTask parentTask,
@@ -856,7 +857,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     }
 
     private <T extends ProtobufTransportResponse> void sendRequestInternal(
-        final ProtobufTransport.Connection connection,
+        final Transport.ProtobufConnection connection,
         final String action,
         final ProtobufTransportRequest request,
         final TransportRequestOptions options,
@@ -870,7 +871,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         Supplier<ThreadContext.StoredContext> storedContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         ContextRestoreResponseHandler<T> responseHandler = new ContextRestoreResponseHandler<>(storedContextSupplier, handler);
         // TODO we can probably fold this entire request ID dance into connection.sendReqeust but it will be a bigger refactoring
-        final long requestId = responseHandlers.add(new ProtobufTransport.ResponseContext<>(responseHandler, connection, action));
+        final long requestId = responseHandlers.add(new Transport.ProtobufResponseContext<>(responseHandler, connection, action));
         final TimeoutHandler timeoutHandler;
         if (options.timeout() != null) {
             timeoutHandler = new TimeoutHandler(requestId, connection.getNode(), action);
@@ -894,7 +895,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         } catch (final Exception e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
-            final ProtobufTransport.ResponseContext<? extends ProtobufTransportResponse> contextToNotify = responseHandlers.remove(
+            final Transport.ProtobufResponseContext<? extends ProtobufTransportResponse> contextToNotify = responseHandlers.remove(
                 requestId
             );
             // If holderToNotify == null then handler has already been taken care of.
@@ -910,7 +911,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
                     action,
                     e
                 );
-                final String executor = lifecycle.stoppedOrClosed() ? ProtobufThreadPool.Names.SAME : ProtobufThreadPool.Names.GENERIC;
+                final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
                 threadPool.executor(executor).execute(new AbstractRunnable() {
                     @Override
                     public void onRejection(Exception e) {
@@ -961,7 +962,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
             final String executor = reg.getExecutor();
-            if (ProtobufThreadPool.Names.SAME.equals(executor)) {
+            if (ThreadPool.Names.SAME.equals(executor)) {
                 // noinspection unchecked
                 reg.processMessageReceived(request, channel);
             } else {
@@ -1024,7 +1025,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     }
 
     public ProtobufTransportAddress[] addressesFromString(String address) throws UnknownHostException {
-        return transport.addressesFromString(address);
+        return transport.addressesFromStringProtobuf(address);
     }
 
     /**
@@ -1095,7 +1096,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
             false,
             true
         );
-        transport.registerRequestHandler(reg);
+        transport.registerProtobufRequestHandler(reg);
     }
 
     /**
@@ -1127,11 +1128,11 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
             forceExecution,
             canTripCircuitBreaker
         );
-        transport.registerRequestHandler(reg);
+        transport.registerProtobufRequestHandler(reg);
     }
 
     /**
-     * called by the {@link ProtobufTransport} implementation when an incoming request arrives but before
+     * called by the {@link Transport} implementation when an incoming request arrives but before
     * any parsing of it has happened (with the exception of the requestId and action)
     */
     @Override
@@ -1145,7 +1146,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         messageListener.onRequestReceived(requestId, action);
     }
 
-    /** called by the {@link ProtobufTransport} implementation once a request has been sent */
+    /** called by the {@link Transport} implementation once a request has been sent */
     @Override
     public void onRequestSent(
         ProtobufDiscoveryNode node,
@@ -1161,7 +1162,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     }
 
     @Override
-    public void onResponseReceived(long requestId, ProtobufTransport.ResponseContext holder) {
+    public void onResponseReceived(long requestId, Transport.ProtobufResponseContext holder) {
         if (holder == null) {
             checkForTimeout(requestId);
         } else if (tracerLog.isTraceEnabled() && shouldTraceAction(holder.action())) {
@@ -1170,7 +1171,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         messageListener.onResponseReceived(requestId, holder);
     }
 
-    /** called by the {@link ProtobufTransport} implementation once a response was sent to calling node */
+    /** called by the {@link Transport} implementation once a response was sent to calling node */
     @Override
     public void onResponseSent(long requestId, String action, ProtobufTransportResponse response) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
@@ -1179,7 +1180,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         messageListener.onResponseSent(requestId, action, response);
     }
 
-    /** called by the {@link ProtobufTransport} implementation after an exception was sent as a response to an incoming request */
+    /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
     @Override
     public void onResponseSent(long requestId, String action, Exception e) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
@@ -1189,7 +1190,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     }
 
     public ProtobufRequestHandlerRegistry<? extends ProtobufTransportRequest> getRequestHandler(String action) {
-        return transport.getRequestHandlers().getHandler(action);
+        return transport.getProtobufRequestHandlers().getHandler(action);
     }
 
     private void checkForTimeout(long requestId) {
@@ -1229,9 +1230,9 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     }
 
     @Override
-    public void onConnectionClosed(ProtobufTransport.Connection connection) {
+    public void onConnectionClosed(Transport.ProtobufConnection connection) {
         try {
-            List<ProtobufTransport.ResponseContext<? extends ProtobufTransportResponse>> pruned = responseHandlers.prune(
+            List<Transport.ProtobufResponseContext<? extends ProtobufTransportResponse>> pruned = responseHandlers.prune(
                 h -> h.connection().getCacheKey().equals(connection.getCacheKey())
             );
             // callback that an exception happened, but on a different thread since we don't
@@ -1239,7 +1240,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
             getExecutorService().execute(new Runnable() {
                 @Override
                 public void run() {
-                    for (ProtobufTransport.ResponseContext holderToNotify : pruned) {
+                    for (Transport.ProtobufResponseContext holderToNotify : pruned) {
                         holderToNotify.handler()
                             .handleException(new ProtobufNodeDisconnectedException(connection.getNode(), holderToNotify.action()));
                     }
@@ -1275,7 +1276,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
                 long timeoutTime = threadPool.relativeTimeInMillis();
                 timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(node, action, sentTime, timeoutTime));
                 // now that we have the information visible via timeoutInfoHandlers, we try to remove the request id
-                final ProtobufTransport.ResponseContext<? extends ProtobufTransportResponse> holder = responseHandlers.remove(requestId);
+                final Transport.ProtobufResponseContext<? extends ProtobufTransportResponse> holder = responseHandlers.remove(requestId);
                 if (holder != null) {
                     assert holder.action().equals(action);
                     assert holder.connection().getNode().equals(node);
@@ -1313,7 +1314,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         }
 
         private void scheduleTimeout(TimeValue timeout) {
-            this.cancellable = threadPool.schedule(this, timeout, ProtobufThreadPool.Names.GENERIC);
+            this.cancellable = threadPool.schedule(this, timeout, ThreadPool.Names.GENERIC);
         }
     }
 
@@ -1424,14 +1425,14 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         private final String action;
         private final long requestId;
         final ProtobufTransportService service;
-        final ProtobufThreadPool threadPool;
+        final ThreadPool threadPool;
 
         DirectResponseChannel(
             ProtobufDiscoveryNode localNode,
             String action,
             long requestId,
             ProtobufTransportService service,
-            ProtobufThreadPool threadPool
+            ThreadPool threadPool
         ) {
             this.localNode = localNode;
             this.action = action;
@@ -1452,7 +1453,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
             // ignore if its null, the service logs it
             if (handler != null) {
                 final String executor = handler.executor();
-                if (ProtobufThreadPool.Names.SAME.equals(executor)) {
+                if (ThreadPool.Names.SAME.equals(executor)) {
                     processResponse(handler, response);
                 } else {
                     threadPool.executor(executor).execute(new Runnable() {
@@ -1487,7 +1488,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
             if (handler != null) {
                 final ProtobufRemoteTransportException rtx = wrapInRemote(exception);
                 final String executor = handler.executor();
-                if (ProtobufThreadPool.Names.SAME.equals(executor)) {
+                if (ThreadPool.Names.SAME.equals(executor)) {
                     processException(handler, rtx);
                 } else {
                     threadPool.executor(handler.executor()).execute(new Runnable() {
@@ -1537,7 +1538,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
     /**
      * Returns the internal thread pool
     */
-    public ProtobufThreadPool getThreadPool() {
+    public ThreadPool getThreadPool() {
         return threadPool;
     }
 
@@ -1584,7 +1585,7 @@ public class ProtobufTransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public void onResponseReceived(long requestId, ProtobufTransport.ResponseContext holder) {
+        public void onResponseReceived(long requestId, Transport.ProtobufResponseContext holder) {
             for (ProtobufTransportMessageListener listener : listeners) {
                 listener.onResponseReceived(requestId, holder);
             }

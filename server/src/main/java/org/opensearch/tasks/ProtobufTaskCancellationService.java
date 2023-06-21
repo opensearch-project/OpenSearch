@@ -19,7 +19,7 @@ import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ProtobufChannelActionListener;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.cluster.node.ProtobufDiscoveryNode;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ProtobufEmptyTransportResponseHandler;
 import org.opensearch.transport.ProtobufTransportChannel;
 import org.opensearch.transport.ProtobufTransportException;
@@ -41,14 +41,14 @@ public class ProtobufTaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
     private static final Logger logger = LogManager.getLogger(ProtobufTaskCancellationService.class);
     private final ProtobufTransportService transportService;
-    private final ProtobufTaskManager taskManager;
+    private final TaskManager taskManager;
 
     public ProtobufTaskCancellationService(ProtobufTransportService transportService) {
         this.transportService = transportService;
         this.taskManager = transportService.getTaskManager();
         transportService.registerRequestHandler(
             BAN_PARENT_ACTION_NAME,
-            ProtobufThreadPool.Names.SAME,
+            ThreadPool.Names.SAME,
             BanParentTaskRequest::new,
             new BanParentRequestHandler()
         );
@@ -64,11 +64,11 @@ public class ProtobufTaskCancellationService {
             logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();
             GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(completedListener, r -> null), 3);
-            Collection<ProtobufDiscoveryNode> childrenNodes = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
+            Collection<ProtobufDiscoveryNode> childrenNodes = taskManager.startBanOnChildrenNodesProtobuf(task.getId(), () -> {
                 logger.trace("child tasks of parent [{}] are completed", taskId);
                 groupedListener.onResponse(null);
             });
-            taskManager.cancel(task, reason, () -> {
+            taskManager.cancelProtobufTask(task, reason, () -> {
                 logger.trace("task [{}] is cancelled", taskId);
                 groupedListener.onResponse(null);
             });
@@ -92,9 +92,9 @@ public class ProtobufTaskCancellationService {
         } else {
             logger.trace("task [{}] doesn't have any children that should be cancelled", taskId);
             if (waitForCompletion) {
-                taskManager.cancel(task, reason, () -> listener.onResponse(null));
+                taskManager.cancelProtobufTask(task, reason, () -> listener.onResponse(null));
             } else {
-                taskManager.cancel(task, reason, () -> {});
+                taskManager.cancelProtobufTask(task, reason, () -> {});
                 listener.onResponse(null);
             }
         }
@@ -123,7 +123,7 @@ public class ProtobufTaskCancellationService {
                 node,
                 BAN_PARENT_ACTION_NAME,
                 banRequest,
-                new ProtobufEmptyTransportResponseHandler(ProtobufThreadPool.Names.SAME) {
+                new ProtobufEmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(ProtobufTransportResponse.Empty response) {
                         logger.trace("sent ban for tasks with the parent [{}] to the node [{}]", taskId, node);
@@ -151,7 +151,7 @@ public class ProtobufTaskCancellationService {
                 node,
                 BAN_PARENT_ACTION_NAME,
                 request,
-                new ProtobufEmptyTransportResponseHandler(ProtobufThreadPool.Names.SAME) {
+                new ProtobufEmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleException(ProtobufTransportException exp) {
                         assert ExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
@@ -222,7 +222,7 @@ public class ProtobufTaskCancellationService {
                     localNodeId(),
                     request.reason
                 );
-                final List<ProtobufCancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason);
+                final List<ProtobufCancellableTask> childTasks = taskManager.setBanProtobuf(request.parentTaskId, request.reason);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                     ActionListener.map(
                         new ProtobufChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request),
@@ -236,7 +236,7 @@ public class ProtobufTaskCancellationService {
                 listener.onResponse(null);
             } else {
                 logger.debug("Removing ban for the parent [{}] on the node [{}]", request.parentTaskId, localNodeId());
-                taskManager.removeBan(request.parentTaskId);
+                taskManager.removeBanProtobuf(request.parentTaskId);
                 channel.sendResponse(ProtobufTransportResponse.Empty.INSTANCE);
             }
         }

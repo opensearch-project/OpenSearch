@@ -32,16 +32,22 @@
 
 package org.opensearch.threadpool;
 
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
+import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ProtobufSizeValue;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -52,10 +58,12 @@ import org.opensearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
+import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -79,7 +87,7 @@ import static java.util.Collections.unmodifiableMap;
  *
  * @opensearch.internal
  */
-public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
+public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, ProtobufReportingService<ProtobufThreadPoolInfo> {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
@@ -329,6 +337,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return threadPoolInfo;
     }
 
+    @Override
+    public ProtobufThreadPoolInfo protobufInfo() {
+        List<ThreadPool.Info> threadPoolInfos = new ArrayList<>();
+        threadPoolInfo.iterator().forEachRemaining(threadPoolInfos::add);
+        return new ProtobufThreadPoolInfo(threadPoolInfos);
+    }
+
     public Info info(String name) {
         ExecutorHolder holder = executors.get(name);
         if (holder == null) {
@@ -366,6 +381,37 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed));
         }
         return new ThreadPoolStats(stats);
+    }
+
+    public ProtobufThreadPoolStats protobufStats() {
+        List<ProtobufThreadPoolStats.Stats> stats = new ArrayList<>();
+        for (ExecutorHolder holder : executors.values()) {
+            final String name = holder.info.getName();
+            // no need to have info on "same" thread pool
+            if ("same".equals(name)) {
+                continue;
+            }
+            int threads = -1;
+            int queue = -1;
+            int active = -1;
+            long rejected = -1;
+            int largest = -1;
+            long completed = -1;
+            if (holder.executor() instanceof ThreadPoolExecutor) {
+                ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) holder.executor();
+                threads = threadPoolExecutor.getPoolSize();
+                queue = threadPoolExecutor.getQueue().size();
+                active = threadPoolExecutor.getActiveCount();
+                largest = threadPoolExecutor.getLargestPoolSize();
+                completed = threadPoolExecutor.getCompletedTaskCount();
+                RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
+                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
+                    rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
+                }
+            }
+            stats.add(new ProtobufThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed));
+        }
+        return new ProtobufThreadPoolStats(stats);
     }
 
     /**
@@ -691,7 +737,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      *
      * @opensearch.internal
      */
-    public static class Info implements Writeable, ToXContentFragment {
+    public static class Info implements Writeable, ToXContentFragment, ProtobufWriteable {
 
         private final String name;
         private final ThreadPoolType type;
@@ -746,6 +792,40 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             out.writeInt(max);
             out.writeOptionalTimeValue(keepAlive);
             out.writeOptionalWriteable(queueSize);
+        }
+
+        public Info(CodedInputStream in) throws IOException {
+            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+            name = in.readString();
+            final String typeStr = in.readString();
+            // Opensearch on or after 3.0.0 version doesn't know about "fixed_auto_queue_size" thread pool. Convert it to RESIZABLE.
+            if (typeStr.equalsIgnoreCase("fixed_auto_queue_size")) {
+                type = ThreadPoolType.RESIZABLE;
+            } else {
+                type = ThreadPoolType.fromType(typeStr);
+            }
+            min = in.readInt32();
+            max = in.readInt32();
+            keepAlive = protobufStreamInput.readOptionalTimeValue();
+            ProtobufSizeValue protobufQueueSize = protobufStreamInput.readOptionalWriteable(ProtobufSizeValue::new);
+            queueSize = new SizeValue(protobufQueueSize.getSize(), protobufQueueSize.getSizeUnit());
+        }
+
+        @Override
+        public void writeTo(CodedOutputStream out) throws IOException {
+            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+            out.writeStringNoTag(name);
+            if (type == ThreadPoolType.RESIZABLE && protobufStreamOutput.getVersion().before(Version.V_3_0_0)) {
+                // Opensearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
+                // to avoid serialization/de-serization issue between nodes with different OpenSearch version
+                out.writeStringNoTag(ThreadPoolType.FIXED.getType());
+            } else {
+                out.writeStringNoTag(type.getType());
+            }
+            out.writeInt32NoTag(min);
+            out.writeInt32NoTag(max);
+            protobufStreamOutput.writeOptionalTimeValue(keepAlive);
+            protobufStreamOutput.writeOptionalWriteable(new ProtobufSizeValue(queueSize.getSize(), queueSize.getSizeUnit()));
         }
 
         public String getName() {

@@ -13,7 +13,7 @@ import com.google.protobuf.CodedOutputStream;
 import org.opensearch.cluster.node.ProtobufDiscoveryNode;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.tasks.ProtobufTask;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -104,7 +104,7 @@ public final class ProtobufTransportActionProxy {
 
         @Override
         public String executor() {
-            return ProtobufThreadPool.Names.SAME;
+            return ThreadPool.Names.SAME;
         }
     }
 
@@ -148,7 +148,7 @@ public final class ProtobufTransportActionProxy {
         ProtobufRequestHandlerRegistry<? extends ProtobufTransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(
             getProxyAction(action),
-            ProtobufThreadPool.Names.SAME,
+            ThreadPool.Names.SAME,
             true,
             false,
             in -> new ProxyRequest<>(in, requestHandler::newRequest),
@@ -168,7 +168,7 @@ public final class ProtobufTransportActionProxy {
         ProtobufRequestHandlerRegistry<? extends ProtobufTransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(
             getProxyAction(action),
-            ProtobufThreadPool.Names.SAME,
+            ThreadPool.Names.SAME,
             true,
             false,
             in -> new ProxyRequest<>(in, requestHandler::newRequest),

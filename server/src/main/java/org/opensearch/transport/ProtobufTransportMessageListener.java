@@ -65,5 +65,5 @@ public interface ProtobufTransportMessageListener {
     * @param requestId the request id for this reponse
     * @param context the response context or null if the context was already processed ie. due to a timeout.
     */
-    default void onResponseReceived(long requestId, ProtobufTransport.ResponseContext context) {}
+    default void onResponseReceived(long requestId, Transport.ProtobufResponseContext context) {}
 }

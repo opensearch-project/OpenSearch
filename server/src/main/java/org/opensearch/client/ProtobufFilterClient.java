@@ -14,7 +14,7 @@ import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.client.support.ProtobufAbstractClient;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 /**
  * A {@link ProtobufClient} that contains another {@link ProtobufClient} which it
@@ -41,7 +41,7 @@ public abstract class ProtobufFilterClient extends ProtobufAbstractClient {
      * A Constructor that allows to pass settings and threadpool separately. This is useful if the
     * client is a proxy and not yet fully constructed ie. both dependencies are not available yet.
     */
-    protected ProtobufFilterClient(Settings settings, ProtobufThreadPool threadPool, ProtobufClient in) {
+    protected ProtobufFilterClient(Settings settings, ThreadPool threadPool, ProtobufClient in) {
         super(settings, threadPool);
         this.in = in;
     }

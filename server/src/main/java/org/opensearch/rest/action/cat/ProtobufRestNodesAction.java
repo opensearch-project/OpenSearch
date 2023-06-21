@@ -70,17 +70,17 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cat/nodes"));
+        return singletonList(new Route(GET, "/_cat/nodes_protobuf"));
     }
 
     @Override
     public String getName() {
-        return "cat_nodes_action";
+        return "cat_nodes_protobuf_action";
     }
 
     @Override
     protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/nodes\n");
+        sb.append("/_cat/nodes_protobuf\n");
     }
 
     @Override

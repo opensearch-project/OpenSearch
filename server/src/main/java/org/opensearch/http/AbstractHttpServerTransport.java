@@ -369,6 +369,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
+        System.out.println("HttpServerTransport.handleIncomingRequest");
         if (exception == null) {
             HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
             if (earlyResponse != null) {
@@ -442,6 +443,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             channel = innerChannel;
         }
 
+        System.out.println("RestRequest " + restRequest);
         dispatchRequest(restRequest, channel, badRequestCause);
     }
 

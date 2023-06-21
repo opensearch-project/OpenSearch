@@ -23,21 +23,21 @@ public interface ProtobufTransportConnectionListener {
      * Called once a connection was opened
     * @param connection the connection
     */
-    default void onConnectionOpened(ProtobufTransport.Connection connection) {}
+    default void onConnectionOpened(Transport.ProtobufConnection connection) {}
 
     /**
      * Called once a connection ws closed.
     * @param connection the closed connection
     */
-    default void onConnectionClosed(ProtobufTransport.Connection connection) {}
+    default void onConnectionClosed(Transport.ProtobufConnection connection) {}
 
     /**
      * Called once a node connection is opened and registered.
     */
-    default void onNodeConnected(ProtobufDiscoveryNode node, ProtobufTransport.Connection connection) {}
+    default void onNodeConnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {}
 
     /**
      * Called once a node connection is closed and unregistered.
     */
-    default void onNodeDisconnected(ProtobufDiscoveryNode node, ProtobufTransport.Connection connection) {}
+    default void onNodeDisconnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {}
 }

@@ -216,7 +216,7 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         controller.registerAsDeprecatedHandler(method, path, handler, deprecationMessage);
 
-        verify(controller).registerHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
+        verify(controller).registerProtobufHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
     }
 
     public void testRegisterWithDeprecatedHandler() {
@@ -243,7 +243,7 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         controller.registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath);
 
-        verify(controller).registerHandler(method, path, handler);
+        verify(controller).registerProtobufHandler(method, path, handler);
         verify(controller).registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
     }
 

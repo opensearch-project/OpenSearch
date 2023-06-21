@@ -16,7 +16,7 @@ import org.opensearch.common.io.stream.ProtobufWriteable;
 * @opensearch.internal
 */
 public interface ProtobufReportingService<I extends ProtobufReportingService.ProtobufInfo> {
-    I info();
+    I protobufInfo();
 
     /**
      * Information interface.

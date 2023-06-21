@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 * @opensearch.api
 */
 @FunctionalInterface
-public interface ProtobufRestHandler extends ClientAgnosticRestHandler<ProtobufNodeClient> {
+public interface ProtobufRestHandler {
 
     /**
      * Handles a rest request.

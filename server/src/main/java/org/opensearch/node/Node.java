@@ -70,17 +70,22 @@ import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
+import org.opensearch.action.ActionModule.ProtobufDynamicActionRegistry;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.ProtobufActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchTransportService;
+import org.opensearch.action.support.ProtobufTransportAction;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
+import org.opensearch.client.ProtobufClient;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.client.node.ProtobufNodeClient;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
@@ -99,6 +104,7 @@ import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.opensearch.cluster.metadata.TemplateUpgradeService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.ProtobufDiscoveryNode;
 import org.opensearch.cluster.routing.BatchedRerouteService;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.DiskThresholdMonitor;
@@ -127,6 +133,7 @@ import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.ProtobufBoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -185,6 +192,7 @@ import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.plugins.ProtobufActionPlugin;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPlugin;
@@ -211,6 +219,8 @@ import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskResultsService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ProtobufTransportInterceptor;
+import org.opensearch.transport.ProtobufTransportService;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -364,9 +374,12 @@ public class Node implements Closeable {
     private final PluginsService pluginsService;
     private final ExtensionsManager extensionsManager;
     private final NodeClient client;
+    private final ProtobufNodeClient protobufClient;
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
+    private final ProtobufLocalNodeFactory protobufLocalNodeFactory;
     private final NodeService nodeService;
+    private final ProtobufNodeService protobufNodeService;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
     private FileCache fileCache;
@@ -488,6 +501,7 @@ public class Node implements Closeable {
             );
             resourcesToClose.add(nodeEnvironment);
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
+            protobufLocalNodeFactory = new ProtobufLocalNodeFactory(settings, nodeEnvironment.nodeId());
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
@@ -512,6 +526,19 @@ public class Node implements Closeable {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
             client = new NodeClient(settings, threadPool);
+
+            // final ProtobufThreadPool protobufThreadPool = new ProtobufThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ProtobufExecutorBuilder[0]));
+            // resourcesToClose.add(() -> ProtobufThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+            // final ResourceWatcherService resourceWatcherServiceProtobuf = new ResourceWatcherService(settings, protobufThreadPool);
+            // resourcesToClose.add(resourceWatcherServiceProtobuf);
+            // // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
+            // HeaderWarning.setThreadContext(protobufThreadPool.getThreadContext());
+            // resourcesToClose.add(() -> HeaderWarning.removeThreadContext(protobufThreadPool.getThreadContext()));
+
+            // for (final ProtobufExecutorBuilder<?> builder : protobufThreadPool.builders()) {
+            //     additionalSettings.addAll(builder.getRegisteredSettings());
+            // }
+            protobufClient = new ProtobufNodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
             final ScriptService scriptService = newScriptService(settings, scriptModule.engines, scriptModule.contexts);
@@ -801,22 +828,40 @@ public class Node implements Closeable {
                 )
                 .collect(Collectors.toList());
 
-            ActionModule actionModule = new ActionModule(
+            // ActionModule actionModule = new ActionModule(
+            //     settings,
+            //     clusterModule.getIndexNameExpressionResolver(),
+            //     settingsModule.getIndexScopedSettings(),
+            //     settingsModule.getClusterSettings(),
+            //     settingsModule.getSettingsFilter(),
+            //     threadPool,
+            //     pluginsService.filterPlugins(ActionPlugin.class),
+            //     client,
+            //     circuitBreakerService,
+            //     usageService,
+            //     systemIndices
+            // );
+            // modules.add(actionModule);
+
+            ActionModule protobufActionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
+                clusterModule.getProtobufIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(),
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),
                 threadPool,
                 pluginsService.filterPlugins(ActionPlugin.class),
                 client,
+                pluginsService.filterPlugins(ProtobufActionPlugin.class),
+                protobufClient,
                 circuitBreakerService,
                 usageService,
                 systemIndices
             );
-            modules.add(actionModule);
+            modules.add(protobufActionModule);
 
-            final RestController restController = actionModule.getRestController();
+            final RestController restController = protobufActionModule.getRestController();
 
             final NetworkModule networkModule = new NetworkModule(
                 settings,
@@ -861,18 +906,27 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings(),
                 taskHeaders
             );
+            final ProtobufTransportService protobufTransportService = newProtobufTransportService(
+                settings,
+                transport,
+                threadPool,
+                networkModule.getProtobufTransportInterceptor(),
+                protobufLocalNodeFactory,
+                settingsModule.getClusterSettings(),
+                taskHeaders
+            );
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());
             transportService.getTaskManager().registerTaskResourceConsumer(taskConsumer);
-            if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                this.extensionsManager.initializeServicesAndRestHandler(
-                    actionModule,
-                    settingsModule,
-                    transportService,
-                    clusterService,
-                    environment.settings(),
-                    client
-                );
-            }
+            // if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+            //     this.extensionsManager.initializeServicesAndRestHandler(
+            //         actionModule,
+            //         settingsModule,
+            //         transportService,
+            //         clusterService,
+            //         environment.settings(),
+            //         client
+            //     );
+            // }
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(
@@ -921,7 +975,7 @@ public class Node implements Closeable {
                 clusterModule.getIndexNameExpressionResolver(),
                 repositoryService,
                 transportService,
-                actionModule.getActionFilters()
+                protobufActionModule.getActionFilters()
             );
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
                 settings,
@@ -935,7 +989,7 @@ public class Node implements Closeable {
                 clusterService,
                 transportService,
                 snapshotShardsService,
-                actionModule.getActionFilters()
+                protobufActionModule.getActionFilters()
             );
             RestoreService restoreService = new RestoreService(
                 clusterService,
@@ -1007,6 +1061,28 @@ public class Node implements Closeable {
                 searchPipelineService,
                 fileCache
             );
+            this.protobufNodeService = new ProtobufNodeService(
+                settings,
+                threadPool,
+                monitorService,
+                discoveryModule.getDiscovery(),
+                protobufTransportService,
+                indicesService,
+                pluginsService,
+                circuitBreakerService,
+                scriptService,
+                httpServerTransport,
+                ingestService,
+                clusterService,
+                settingsModule.getSettingsFilter(),
+                responseCollectorService,
+                searchTransportService,
+                indexingPressureService,
+                searchModule.getValuesSourceRegistry().getUsageService(),
+                searchBackpressureService,
+                searchPipelineService,
+                fileCache
+            );
 
             final SearchService searchService = newSearchService(
                 clusterService,
@@ -1048,10 +1124,13 @@ public class Node implements Closeable {
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
                 b.bind(NodeService.class).toInstance(nodeService);
+                b.bind(ProtobufNodeService.class).toInstance(protobufNodeService);
                 b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
                 b.bind(PluginsService.class).toInstance(pluginsService);
                 b.bind(Client.class).toInstance(client);
                 b.bind(NodeClient.class).toInstance(client);
+                b.bind(ProtobufClient.class).toInstance(protobufClient);
+                b.bind(ProtobufNodeClient.class).toInstance(protobufClient);
                 b.bind(Environment.class).toInstance(this.environment);
                 b.bind(ExtensionsManager.class).toInstance(this.extensionsManager);
                 b.bind(ThreadPool.class).toInstance(threadPool);
@@ -1084,6 +1163,7 @@ public class Node implements Closeable {
                     .toInstance(new SearchPhaseController(namedWriteableRegistry, searchService::aggReduceContextBuilder));
                 b.bind(Transport.class).toInstance(transport);
                 b.bind(TransportService.class).toInstance(transportService);
+                b.bind(ProtobufTransportService.class).toInstance(protobufTransportService);
                 b.bind(NetworkService.class).toInstance(networkService);
                 b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService));
                 b.bind(MetadataIndexUpgradeService.class).toInstance(metadataIndexUpgradeService);
@@ -1144,7 +1224,7 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            DynamicActionRegistry dynamicActionRegistry = actionModule.getDynamicActionRegistry();
+            DynamicActionRegistry dynamicActionRegistry = protobufActionModule.getDynamicActionRegistry();
             dynamicActionRegistry.registerUnmodifiableActionMap(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
             }));
             client.initialize(
@@ -1155,8 +1235,19 @@ public class Node implements Closeable {
             );
             this.namedWriteableRegistry = namedWriteableRegistry;
 
+            ProtobufDynamicActionRegistry protobufDynamicActionRegistry = protobufActionModule.getProtobufDynamicActionRegistry();
+            protobufDynamicActionRegistry.registerUnmodifiableActionMap(injector.getInstance(new Key<Map<ProtobufActionType, ProtobufTransportAction>>() {
+            }));
+            protobufClient.initialize(
+                protobufDynamicActionRegistry,
+                () -> clusterService.localNode().getId(),
+                protobufTransportService.getRemoteClusterService(),
+                namedWriteableRegistry
+            );
+
             logger.debug("initializing HTTP handlers ...");
-            actionModule.initRestHandlers(() -> clusterService.state().nodes());
+            protobufActionModule.initRestHandlers(() -> clusterService.state().nodes());
+            protobufActionModule.initProtobufRestHandlers();
             logger.info("initialized");
 
             success = true;
@@ -1179,6 +1270,18 @@ public class Node implements Closeable {
         Set<String> taskHeaders
     ) {
         return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+    }
+
+    protected ProtobufTransportService newProtobufTransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        ProtobufTransportInterceptor interceptor,
+        Function<ProtobufBoundTransportAddress, ProtobufDiscoveryNode> localNodeFactory,
+        ClusterSettings clusterSettings,
+        Set<String> taskHeaders
+    ) {
+        return new ProtobufTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
     }
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
@@ -1690,6 +1793,28 @@ public class Node implements Closeable {
         }
 
         DiscoveryNode getNode() {
+            assert localNode.get() != null;
+            return localNode.get();
+        }
+    }
+
+    private static class ProtobufLocalNodeFactory implements Function<ProtobufBoundTransportAddress, ProtobufDiscoveryNode> {
+        private final SetOnce<ProtobufDiscoveryNode> localNode = new SetOnce<>();
+        private final String persistentNodeId;
+        private final Settings settings;
+
+        private ProtobufLocalNodeFactory(Settings settings, String persistentNodeId) {
+            this.persistentNodeId = persistentNodeId;
+            this.settings = settings;
+        }
+
+        @Override
+        public ProtobufDiscoveryNode apply(ProtobufBoundTransportAddress boundTransportAddress) {
+            localNode.set(ProtobufDiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));
+            return localNode.get();
+        }
+
+        ProtobufDiscoveryNode getNode() {
             assert localNode.get() != null;
             return localNode.get();
         }

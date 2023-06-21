@@ -41,6 +41,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.ProtobufDiscoveryNode;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.opensearch.common.breaker.CircuitBreaker;
@@ -59,6 +60,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.PortsRange;
+import org.opensearch.common.transport.ProtobufBoundTransportAddress;
+import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -151,6 +154,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final InboundHandler inboundHandler;
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final RequestHandlers requestHandlers = new RequestHandlers();
+    private final ProtobufResponseHandlers protobufResponseHandlers = new ProtobufResponseHandlers();
+    private final ProtobufRequestHandlers protobufRequestHandlers = new ProtobufRequestHandlers();
 
     private final AtomicLong outboundConnectionCount = new AtomicLong(); // also used as a correlation ID for open/close logs
 
@@ -1015,6 +1020,53 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     @Override
     public final RequestHandlers getRequestHandlers() {
         return requestHandlers;
+    }
+
+    @Override
+    public void setMessageListener(ProtobufTransportMessageListener listener) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'setMessageListener'");
+    }
+
+    @Override
+    public ProtobufBoundTransportAddress boundProtobufAddress() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'boundProtobufAddress'");
+    }
+
+    @Override
+    public Map<String, ProtobufBoundTransportAddress> profileProtobufBoundAddresses() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'profileProtobufBoundAddresses'");
+    }
+
+    @Override
+    public ProtobufTransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'addressesFromStringProtobuf'");
+    }
+
+    @Override
+    public void openProtobufConnection(ProtobufDiscoveryNode node, ProtobufConnectionProfile profile,
+            ActionListener<ProtobufConnection> listener) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'openProtobufConnection'");
+    }
+
+    @Override
+    public ProtobufTransportStats getProtobufStats() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getProtobufStats'");
+    }
+
+    @Override
+    public ProtobufResponseHandlers getProtobufResponseHandlers() {
+        return protobufResponseHandlers;
+    }
+
+    @Override
+    public ProtobufRequestHandlers getProtobufRequestHandlers() {
+        return protobufRequestHandlers;
     }
 
     private final class ChannelsConnectedListener implements ActionListener<Void> {

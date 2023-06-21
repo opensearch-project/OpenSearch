@@ -36,12 +36,12 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
         this.delegate = delegate;
         this.delegate.addListener(new ProtobufTransportConnectionListener() {
             @Override
-            public void onNodeConnected(ProtobufDiscoveryNode node, ProtobufTransport.Connection connection) {
+            public void onNodeConnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {
                 addConnectedNode(node);
             }
 
             @Override
-            public void onNodeDisconnected(ProtobufDiscoveryNode node, ProtobufTransport.Connection connection) {
+            public void onNodeDisconnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {
                 removeConnectedNode(node);
             }
         });
@@ -71,13 +71,13 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
     public void openConnection(
         ProtobufDiscoveryNode node,
         ProtobufConnectionProfile profile,
-        ActionListener<ProtobufTransport.Connection> listener
+        ActionListener<Transport.ProtobufConnection> listener
     ) {
         delegate.openConnection(node, profile, listener);
     }
 
     @Override
-    public ProtobufTransport.Connection getConnection(ProtobufDiscoveryNode node) {
+    public Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode node) {
         try {
             return delegate.getConnection(node);
         } catch (NodeNotConnectedException e) {
@@ -100,7 +100,7 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
         return delegate.getConnectionProfile();
     }
 
-    public ProtobufTransport.Connection getAnyRemoteConnection() {
+    public Transport.ProtobufConnection getAnyRemoteConnection() {
         List<ProtobufDiscoveryNode> localConnectedNodes = this.connectedNodes;
         long curr;
         while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE)
@@ -164,11 +164,11 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
         this.connectedNodes = Collections.unmodifiableList(newConnectedNodes);
     }
 
-    static final class ProxyConnection implements ProtobufTransport.Connection {
-        private final ProtobufTransport.Connection connection;
+    static final class ProxyConnection implements Transport.ProtobufConnection {
+        private final Transport.ProtobufConnection connection;
         private final ProtobufDiscoveryNode targetNode;
 
-        private ProxyConnection(ProtobufTransport.Connection connection, ProtobufDiscoveryNode targetNode) {
+        private ProxyConnection(Transport.ProtobufConnection connection, ProtobufDiscoveryNode targetNode) {
             this.connection = connection;
             this.targetNode = targetNode;
         }

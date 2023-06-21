@@ -361,7 +361,7 @@ public abstract class ProtobufRemoteConnectionStrategy implements ProtobufTransp
     protected abstract ProtobufConnectionStrategy strategyType();
 
     @Override
-    public void onNodeDisconnected(ProtobufDiscoveryNode node, ProtobufTransport.Connection connection) {
+    public void onNodeDisconnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(
