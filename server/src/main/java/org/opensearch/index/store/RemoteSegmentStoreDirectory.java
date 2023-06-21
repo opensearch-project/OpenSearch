@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.CorruptIndexException;
@@ -603,10 +604,28 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             );
             try {
                 try (IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT)) {
+                    Map<String, Version> segmentToLuceneVersion = new HashMap<>();
+                    for (SegmentCommitInfo segmentCommitInfo : segmentInfosSnapshot) {
+                        SegmentInfo info = segmentCommitInfo.info;
+                        Set<String> segFiles = info.files();
+                        for (String file : segFiles) {
+                            segmentToLuceneVersion.put(file, info.getVersion());
+                        }
+                    }
+
                     Map<String, String> uploadedSegments = new HashMap<>();
                     for (String file : segmentFiles) {
                         if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                            uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
+                            UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
+                            if (segmentToLuceneVersion.containsKey(metadata.originalFilename)) {
+                                metadata.setWrittenBy(segmentToLuceneVersion.get(metadata.originalFilename));
+                            } else if (metadata.originalFilename.equals(segmentInfosSnapshot.getSegmentsFileName())) {
+                                metadata.setWrittenBy(segmentInfosSnapshot.getCommitLuceneVersion());
+                            } else {
+                                throw new CorruptIndexException("Lucene version is missing for segment file", metadata.originalFilename);
+                            }
+
+                            uploadedSegments.put(file, metadata.toString());
                         } else {
                             throw new NoSuchFileException(file);
                         }
