@@ -24,7 +24,7 @@ import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Set;
@@ -42,7 +42,7 @@ final class ProtobufOutboundHandler {
     private final Version version;
     private final String[] features;
     private final StatsTracker statsTracker;
-    private final ProtobufThreadPool threadPool;
+    private final ThreadPool threadPool;
     // private final BigArrays bigArrays;
     private final byte[] bytes;
     private volatile ProtobufTransportMessageListener messageListener = ProtobufTransportMessageListener.NOOP_LISTENER;
@@ -52,7 +52,7 @@ final class ProtobufOutboundHandler {
         Version version,
         String[] features,
         StatsTracker statsTracker,
-        ProtobufThreadPool threadPool,
+        ThreadPool threadPool,
         byte[] bytes
     ) {
         this.nodeName = nodeName;

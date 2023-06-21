@@ -17,7 +17,7 @@ import org.opensearch.client.ProtobufClient;
 import org.opensearch.client.support.ProtobufAbstractClient;
 import org.opensearch.cluster.node.ProtobufDiscoveryNode;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 /**
  * ProtobufClient that is aware of remote clusters
@@ -28,11 +28,11 @@ final class ProtobufRemoteClusterAwareClient extends ProtobufAbstractClient {
 
     private final ProtobufTransportService service;
     private final String clusterAlias;
-    private final ProtobufRemoteClusterService remoteClusterService;
+    private final RemoteClusterService remoteClusterService;
 
     ProtobufRemoteClusterAwareClient(
         Settings settings,
-        ProtobufThreadPool threadPool,
+        ThreadPool threadPool,
         ProtobufTransportService service,
         String clusterAlias
     ) {
@@ -49,12 +49,12 @@ final class ProtobufRemoteClusterAwareClient extends ProtobufAbstractClient {
         ActionListener<Response> listener
     ) {
         remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(v -> {
-            ProtobufTransport.Connection connection;
+            Transport.ProtobufConnection connection;
             if (request instanceof ProtobufRemoteClusterAwareRequest) {
                 ProtobufDiscoveryNode preferredTargetNode = ((ProtobufRemoteClusterAwareRequest) request).getPreferredTargetNode();
-                connection = remoteClusterService.getConnection(preferredTargetNode, clusterAlias);
+                connection = remoteClusterService.getConnectionProtobuf(preferredTargetNode, clusterAlias);
             } else {
-                connection = remoteClusterService.getConnection(clusterAlias);
+                connection = remoteClusterService.getConnectionProtobuf(clusterAlias);
             }
             service.sendRequest(
                 connection,
@@ -73,6 +73,6 @@ final class ProtobufRemoteClusterAwareClient extends ProtobufAbstractClient {
 
     @Override
     public ProtobufClient getRemoteClusterClient(String clusterAlias) {
-        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
+        return remoteClusterService.getRemoteClusterClientProtobuf(threadPool(), clusterAlias);
     }
 }

@@ -53,6 +53,7 @@ package org.opensearch.usage;
 
 import org.opensearch.action.admin.cluster.node.usage.NodeUsage;
 import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.ProtobufBaseRestHandler;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -67,9 +68,11 @@ import java.util.Objects;
 public class UsageService {
 
     private final Map<String, BaseRestHandler> handlers;
+    private final Map<String, ProtobufBaseRestHandler> protobufHandlers;
 
     public UsageService() {
         this.handlers = new HashMap<>();
+        this.protobufHandlers = new HashMap<>();
     }
 
     /**
@@ -83,6 +86,34 @@ public class UsageService {
             throw new IllegalArgumentException("handler of type [" + handler.getClass().getName() + "] does not have a name");
         }
         final BaseRestHandler maybeHandler = handlers.put(handler.getName(), handler);
+        /*
+         * Handlers will be registered multiple times, once for each route that the handler handles. This means that we will see handlers
+         * multiple times, so we do not have a conflict if we are seeing the same instance multiple times. So, we only reject if a handler
+         * with the same name was registered before, and it is not the same instance as before.
+         */
+        if (maybeHandler != null && maybeHandler != handler) {
+            final String message = String.format(
+                Locale.ROOT,
+                "handler of type [%s] conflicts with handler of type [%s] as they both have the same name [%s]",
+                handler.getClass().getName(),
+                maybeHandler.getClass().getName(),
+                handler.getName()
+            );
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    /**
+     * Add a REST handler to this service.
+     *
+     * @param handler the {@link ProtobufBaseRestHandler} to add to the usage service.
+     */
+    public void addProtobufRestHandler(ProtobufBaseRestHandler handler) {
+        Objects.requireNonNull(handler);
+        if (handler.getName() == null) {
+            throw new IllegalArgumentException("handler of type [" + handler.getClass().getName() + "] does not have a name");
+        }
+        final ProtobufBaseRestHandler maybeHandler = protobufHandlers.put(handler.getName(), handler);
         /*
          * Handlers will be registered multiple times, once for each route that the handler handles. This means that we will see handlers
          * multiple times, so we do not have a conflict if we are seeing the same instance multiple times. So, we only reject if a handler

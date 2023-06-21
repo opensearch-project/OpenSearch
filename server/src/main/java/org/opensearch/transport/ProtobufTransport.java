@@ -82,7 +82,7 @@ public interface ProtobufTransport extends LifecycleComponent {
         ActionListener<ProtobufTransport.Connection> listener
     );
 
-    TransportStats getStats();
+    ProtobufTransportStats getStats();
 
     ResponseHandlers getResponseHandlers();
 
@@ -241,7 +241,7 @@ public interface ProtobufTransport extends LifecycleComponent {
             final ProtobufTransportMessageListener listener
         ) {
             ResponseContext<? extends ProtobufTransportResponse> context = handlers.remove(requestId);
-            listener.onResponseReceived(requestId, context);
+            // listener.onResponseReceived(requestId, context);
             if (context == null) {
                 return null;
             } else {

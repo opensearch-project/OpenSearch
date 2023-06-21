@@ -29,7 +29,7 @@ public interface ProtobufConnectionManager extends Closeable {
     void openConnection(
         ProtobufDiscoveryNode node,
         ProtobufConnectionProfile connectionProfile,
-        ActionListener<ProtobufTransport.Connection> listener
+        ActionListener<Transport.ProtobufConnection> listener
     );
 
     void connectToNode(
@@ -39,7 +39,7 @@ public interface ProtobufConnectionManager extends Closeable {
         ActionListener<Void> listener
     ) throws ConnectTransportException;
 
-    ProtobufTransport.Connection getConnection(ProtobufDiscoveryNode node);
+    Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode node);
 
     boolean nodeConnected(ProtobufDiscoveryNode node);
 
@@ -63,7 +63,7 @@ public interface ProtobufConnectionManager extends Closeable {
     */
     @FunctionalInterface
     interface ConnectionValidator {
-        void validate(ProtobufTransport.Connection connection, ProtobufConnectionProfile profile, ActionListener<Void> listener);
+        void validate(Transport.ProtobufConnection connection, ProtobufConnectionProfile profile, ActionListener<Void> listener);
     }
 
     /**
@@ -76,28 +76,28 @@ public interface ProtobufConnectionManager extends Closeable {
         private final CopyOnWriteArrayList<ProtobufTransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
-        public void onNodeDisconnected(ProtobufDiscoveryNode key, ProtobufTransport.Connection connection) {
+        public void onNodeDisconnected(ProtobufDiscoveryNode key, Transport.ProtobufConnection connection) {
             for (ProtobufTransportConnectionListener listener : listeners) {
                 listener.onNodeDisconnected(key, connection);
             }
         }
 
         @Override
-        public void onNodeConnected(ProtobufDiscoveryNode node, ProtobufTransport.Connection connection) {
+        public void onNodeConnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {
             for (ProtobufTransportConnectionListener listener : listeners) {
                 listener.onNodeConnected(node, connection);
             }
         }
 
         @Override
-        public void onConnectionOpened(ProtobufTransport.Connection connection) {
+        public void onConnectionOpened(Transport.ProtobufConnection connection) {
             for (ProtobufTransportConnectionListener listener : listeners) {
                 listener.onConnectionOpened(connection);
             }
         }
 
         @Override
-        public void onConnectionClosed(ProtobufTransport.Connection connection) {
+        public void onConnectionClosed(Transport.ProtobufConnection connection) {
             for (ProtobufTransportConnectionListener listener : listeners) {
                 listener.onConnectionClosed(connection);
             }

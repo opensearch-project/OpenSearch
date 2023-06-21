@@ -45,11 +45,11 @@ public interface ProtobufTransportInterceptor {
 
     /**
      * A simple interface to decorate
-    * {@link #sendRequest(ProtobufTransport.Connection, String, ProtobufTransportRequest, TransportRequestOptions, ProtobufTransportResponseHandler)}
+    * {@link #sendRequest(Transport.ProtobufConnection, String, ProtobufTransportRequest, TransportRequestOptions, ProtobufTransportResponseHandler)}
     */
     interface AsyncSender {
         <T extends ProtobufTransportResponse> void sendRequest(
-            ProtobufTransport.Connection connection,
+            Transport.ProtobufConnection connection,
             String action,
             ProtobufTransportRequest request,
             TransportRequestOptions options,

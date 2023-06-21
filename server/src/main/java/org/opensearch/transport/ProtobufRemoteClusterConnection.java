@@ -20,7 +20,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -47,7 +47,7 @@ final class ProtobufRemoteClusterConnection implements Closeable {
     private final ProtobufRemoteConnectionManager remoteConnectionManager;
     private final ProtobufRemoteConnectionStrategy connectionStrategy;
     private final String clusterAlias;
-    private final ProtobufThreadPool threadPool;
+    private final ThreadPool threadPool;
     private volatile boolean skipUnavailable;
     private final TimeValue initialConnectionTimeout;
 
@@ -127,7 +127,7 @@ final class ProtobufRemoteClusterConnection implements Closeable {
                 request.clear();
                 request.nodes(true);
                 request.local(true); // run this on the node that gets the request it's as good as any other
-                ProtobufTransport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
+                Transport.ProtobufConnection connection = remoteConnectionManager.getAnyRemoteConnection();
                 transportService.sendRequest(
                     connection,
                     ClusterStateAction.NAME,
@@ -153,7 +153,7 @@ final class ProtobufRemoteClusterConnection implements Closeable {
 
                         @Override
                         public String executor() {
-                            return ProtobufThreadPool.Names.SAME;
+                            return ThreadPool.Names.SAME;
                         }
                     }
                 );
@@ -175,11 +175,11 @@ final class ProtobufRemoteClusterConnection implements Closeable {
      * Returns a connection to the remote cluster, preferably a direct connection to the provided {@link ProtobufDiscoveryNode}.
     * If such node is not connected, the returned connection will be a proxy connection that redirects to it.
     */
-    ProtobufTransport.Connection getConnection(ProtobufDiscoveryNode remoteClusterNode) {
+    Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode remoteClusterNode) {
         return remoteConnectionManager.getConnection(remoteClusterNode);
     }
 
-    ProtobufTransport.Connection getConnection() {
+    Transport.ProtobufConnection getConnection() {
         return remoteConnectionManager.getAnyRemoteConnection();
     }
 

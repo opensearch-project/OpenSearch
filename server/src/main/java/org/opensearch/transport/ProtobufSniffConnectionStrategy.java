@@ -33,7 +33,7 @@ import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -256,7 +256,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
 
             final ProtobufDiscoveryNode seedNode = seedNodes.next().get();
             logger.trace("[{}] opening transient connection to seed node: [{}]", clusterAlias, seedNode);
-            final StepListener<ProtobufTransport.Connection> openConnectionStep = new StepListener<>();
+            final StepListener<Transport.ProtobufConnection> openConnectionStep = new StepListener<>();
             try {
                 connectionManager.openConnection(seedNode, null, openConnectionStep);
             } catch (Exception e) {
@@ -296,7 +296,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                     fullConnectionStep.onResponse(null);
                 }
             }, e -> {
-                final ProtobufTransport.Connection connection = openConnectionStep.result();
+                final Transport.ProtobufConnection connection = openConnectionStep.result();
                 final ProtobufDiscoveryNode node = connection.getNode();
                 logger.debug(() -> new ParameterizedMessage("[{}] failed to handshake with seed node: [{}]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(connection);
@@ -309,7 +309,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                     assert handshakeResponse.getClusterName().value() != null;
                     remoteClusterName.set(handshakeResponse.getClusterName());
                 }
-                final ProtobufTransport.Connection connection = openConnectionStep.result();
+                final Transport.ProtobufConnection connection = openConnectionStep.result();
 
                 ProtobufClusterStateRequest request = new ProtobufClusterStateRequest();
                 request.clear();
@@ -317,7 +317,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                 // here we pass on the connection since we can only close it once the sendRequest returns otherwise
                 // due to the async nature (it will return before it's actually sent) this can cause the request to fail
                 // due to an already closed connection.
-                ProtobufThreadPool threadPool = transportService.getThreadPool();
+                ThreadPool threadPool = transportService.getThreadPool();
                 ThreadContext threadContext = threadPool.getThreadContext();
                 ProtobufTransportService.ContextRestoreResponseHandler<ProtobufClusterStateResponse> responseHandler =
                     new ProtobufTransportService.ContextRestoreResponseHandler<>(
@@ -337,7 +337,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                     );
                 }
             }, e -> {
-                final ProtobufTransport.Connection connection = openConnectionStep.result();
+                final Transport.ProtobufConnection connection = openConnectionStep.result();
                 final ProtobufDiscoveryNode node = connection.getNode();
                 logger.debug(
                     () -> new ParameterizedMessage("[{}] failed to open managed connection to seed node: [{}]", clusterAlias, node),
@@ -354,12 +354,12 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
     /* This class handles the _state response from the remote cluster when sniffing nodes to connect to */
     private class SniffClusterStateResponseHandler implements ProtobufTransportResponseHandler<ProtobufClusterStateResponse> {
 
-        private final ProtobufTransport.Connection connection;
+        private final Transport.ProtobufConnection connection;
         private final ActionListener<Void> listener;
         private final Iterator<Supplier<ProtobufDiscoveryNode>> seedNodes;
 
         SniffClusterStateResponseHandler(
-            ProtobufTransport.Connection connection,
+            Transport.ProtobufConnection connection,
             ActionListener<Void> listener,
             Iterator<Supplier<ProtobufDiscoveryNode>> seedNodes
         ) {
@@ -447,7 +447,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
 
         @Override
         public String executor() {
-            return ProtobufThreadPool.Names.MANAGEMENT;
+            return ThreadPool.Names.MANAGEMENT;
         }
     }
 

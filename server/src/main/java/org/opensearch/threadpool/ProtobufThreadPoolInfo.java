@@ -25,17 +25,17 @@ import java.util.List;
 *
 * @opensearch.internal
 */
-public class ProtobufThreadPoolInfo implements ProtobufReportingService.ProtobufInfo, Iterable<ProtobufThreadPool.Info> {
+public class ProtobufThreadPoolInfo implements ProtobufReportingService.ProtobufInfo, Iterable<ThreadPool.Info> {
 
-    private final List<ProtobufThreadPool.Info> infos;
+    private final List<ThreadPool.Info> infos;
 
-    public ProtobufThreadPoolInfo(List<ProtobufThreadPool.Info> infos) {
+    public ProtobufThreadPoolInfo(List<ThreadPool.Info> infos) {
         this.infos = Collections.unmodifiableList(infos);
     }
 
     public ProtobufThreadPoolInfo(CodedInputStream in) throws IOException {
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        this.infos = Collections.unmodifiableList(protobufStreamInput.readList(ProtobufThreadPool.Info::new));
+        this.infos = Collections.unmodifiableList(protobufStreamInput.readList(ThreadPool.Info::new));
     }
 
     @Override
@@ -45,7 +45,7 @@ public class ProtobufThreadPoolInfo implements ProtobufReportingService.Protobuf
     }
 
     @Override
-    public Iterator<ProtobufThreadPool.Info> iterator() {
+    public Iterator<ThreadPool.Info> iterator() {
         return infos.iterator();
     }
 }

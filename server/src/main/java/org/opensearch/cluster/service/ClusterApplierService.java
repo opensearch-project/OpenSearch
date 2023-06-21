@@ -44,6 +44,7 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.ProtobufClusterState;
 import org.opensearch.cluster.TimeoutClusterStateListener;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -114,6 +115,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private final Map<TimeoutClusterStateListener, NotifyTimeout> timeoutClusterStateListeners = new ConcurrentHashMap<>();
 
     private final AtomicReference<ClusterState> state; // last applied state
+    private final AtomicReference<ProtobufClusterState> protobufState; // last applied state
 
     private final String nodeName;
 
@@ -123,6 +125,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
+        this.protobufState = new AtomicReference<>();
         this.nodeName = nodeName;
 
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -210,6 +213,17 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     public ClusterState state() {
         assert assertNotCalledFromClusterStateApplier("the applied cluster state is not yet available");
         ClusterState clusterState = this.state.get();
+        assert clusterState != null : "initial cluster state not set yet";
+        return clusterState;
+    }
+
+    /**
+     * The current cluster state.
+     * Should be renamed to appliedClusterState
+     */
+    public ProtobufClusterState protobufState() {
+        assert assertNotCalledFromClusterStateApplier("the applied cluster state is not yet available");
+        ProtobufClusterState clusterState = this.protobufState.get();
         assert clusterState != null : "initial cluster state not set yet";
         return clusterState;
     }

@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.opensearch.cluster.metadata.DataStreamMetadata;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ProtobufIndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
@@ -129,6 +130,7 @@ public class ClusterModule extends AbstractModule {
 
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ProtobufIndexNameExpressionResolver protobufIndexNameExpressionResolver;
     private final AllocationDeciders allocationDeciders;
     private final AllocationService allocationService;
     private final List<ClusterPlugin> clusterPlugins;
@@ -150,6 +152,7 @@ public class ClusterModule extends AbstractModule {
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
+        this.protobufIndexNameExpressionResolver = new ProtobufIndexNameExpressionResolver(threadContext);
         this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
     }
 
@@ -342,6 +345,10 @@ public class ClusterModule extends AbstractModule {
         return indexNameExpressionResolver;
     }
 
+    public ProtobufIndexNameExpressionResolver getProtobufIndexNameExpressionResolver() {
+        return protobufIndexNameExpressionResolver;
+    }
+
     // TODO: this is public so allocation benchmark can access the default deciders...can we do that in another way?
     /** Return a new {@link AllocationDecider} instance with builtin deciders as well as those from plugins. */
     public static Collection<AllocationDecider> createAllocationDeciders(
@@ -425,6 +432,7 @@ public class ClusterModule extends AbstractModule {
         bind(MetadataUpdateSettingsService.class).asEagerSingleton();
         bind(MetadataIndexTemplateService.class).asEagerSingleton();
         bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);
+        bind(ProtobufIndexNameExpressionResolver.class).toInstance(protobufIndexNameExpressionResolver);
         bind(DelayedAllocationService.class).asEagerSingleton();
         bind(ShardStateAction.class).asEagerSingleton();
         bind(NodeMappingRefreshAction.class).asEagerSingleton();

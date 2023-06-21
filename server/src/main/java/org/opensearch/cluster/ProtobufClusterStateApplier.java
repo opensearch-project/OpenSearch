@@ -25,5 +25,5 @@ public interface ProtobufClusterStateApplier {
     * reached all the other appliers, and will likely result in another attempt to apply the same (or very similar) cluster state which
     * might continue until this node is removed from the cluster.
     */
-    void applyClusterState(ProtobufClusterChangedEvent event);
+    void applyProtobufClusterState(ProtobufClusterChangedEvent event);
 }

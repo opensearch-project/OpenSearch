@@ -39,16 +39,16 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
 
     private static final Logger logger = LogManager.getLogger(ProtobufClusterConnectionManager.class);
 
-    private final ConcurrentMap<ProtobufDiscoveryNode, ProtobufTransport.Connection> connectedNodes = ConcurrentCollections
+    private final ConcurrentMap<ProtobufDiscoveryNode, Transport.ProtobufConnection> connectedNodes = ConcurrentCollections
         .newConcurrentMap();
     private final ConcurrentMap<ProtobufDiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections
         .newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
-            Iterator<Map.Entry<ProtobufDiscoveryNode, ProtobufTransport.Connection>> iterator = connectedNodes.entrySet().iterator();
+            Iterator<Map.Entry<ProtobufDiscoveryNode, Transport.ProtobufConnection>> iterator = connectedNodes.entrySet().iterator();
             while (iterator.hasNext()) {
-                Map.Entry<ProtobufDiscoveryNode, ProtobufTransport.Connection> next = iterator.next();
+                Map.Entry<ProtobufDiscoveryNode, Transport.ProtobufConnection> next = iterator.next();
                 try {
                     IOUtils.closeWhileHandlingException(next.getValue());
                 } finally {
@@ -58,17 +58,17 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
             closeLatch.countDown();
         }
     };
-    private final ProtobufTransport transport;
+    private final Transport transport;
     private final ProtobufConnectionProfile defaultProfile;
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
-    public ProtobufClusterConnectionManager(Settings settings, ProtobufTransport transport) {
+    public ProtobufClusterConnectionManager(Settings settings, Transport transport) {
         this(ProtobufConnectionProfile.buildDefaultConnectionProfile(settings), transport);
     }
 
-    public ProtobufClusterConnectionManager(ProtobufConnectionProfile connectionProfile, ProtobufTransport transport) {
+    public ProtobufClusterConnectionManager(ProtobufConnectionProfile connectionProfile, Transport transport) {
         this.transport = transport;
         this.defaultProfile = connectionProfile;
     }
@@ -87,7 +87,7 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
     public void openConnection(
         ProtobufDiscoveryNode node,
         ProtobufConnectionProfile connectionProfile,
-        ActionListener<ProtobufTransport.Connection> listener
+        ActionListener<Transport.ProtobufConnection> listener
     ) {
         ProtobufConnectionProfile resolvedProfile = ProtobufConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
         internalOpenConnection(node, resolvedProfile, listener);
@@ -149,7 +149,7 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
                         try {
                             connectionListener.onNodeConnected(node, conn);
                         } finally {
-                            final ProtobufTransport.Connection finalConnection = conn;
+                            final Transport.ProtobufConnection finalConnection = conn;
                             conn.addCloseListener(ActionListener.wrap(() -> {
                                 logger.trace("unregistering {} after connection close and marking as disconnected", node);
                                 connectedNodes.remove(node, finalConnection);
@@ -183,8 +183,8 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
     * @see #connectToNode(ProtobufDiscoveryNode, ProtobufConnectionProfile, ConnectionValidator, ActionListener)
     */
     @Override
-    public ProtobufTransport.Connection getConnection(ProtobufDiscoveryNode node) {
-        ProtobufTransport.Connection connection = connectedNodes.get(node);
+    public Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode node) {
+        Transport.ProtobufConnection connection = connectedNodes.get(node);
         if (connection == null) {
             throw new ProtobufNodeNotConnectedException(node, "Node not connected");
         }
@@ -204,7 +204,7 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
     */
     @Override
     public void disconnectFromNode(ProtobufDiscoveryNode node) {
-        ProtobufTransport.Connection nodeChannels = connectedNodes.remove(node);
+        Transport.ProtobufConnection nodeChannels = connectedNodes.remove(node);
         if (nodeChannels != null) {
             // if we found it and removed it we close
             nodeChannels.close();
@@ -252,9 +252,9 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
     private void internalOpenConnection(
         ProtobufDiscoveryNode node,
         ProtobufConnectionProfile connectionProfile,
-        ActionListener<ProtobufTransport.Connection> listener
+        ActionListener<Transport.ProtobufConnection> listener
     ) {
-        transport.openConnection(node, connectionProfile, ActionListener.map(listener, connection -> {
+        transport.openProtobufConnection(node, connectionProfile, ActionListener.map(listener, connection -> {
             assert Transports.assertNotTransportThread("internalOpenConnection success");
             try {
                 connectionListener.onConnectionOpened(connection);

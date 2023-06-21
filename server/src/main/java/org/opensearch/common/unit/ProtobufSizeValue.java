@@ -46,6 +46,14 @@ public class ProtobufSizeValue implements ProtobufWriteable {
         out.writeInt64NoTag(singles());
     }
 
+    public long getSize() {
+        return size;
+    }
+
+    public SizeUnit getSizeUnit() {
+        return sizeUnit;
+    }
+
     public long singles() {
         return sizeUnit.toSingles(size);
     }

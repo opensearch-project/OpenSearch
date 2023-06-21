@@ -15,7 +15,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.ProtobufCancellableTask;
 import org.opensearch.tasks.ProtobufTask;
-import org.opensearch.tasks.ProtobufTaskManager;
+import org.opensearch.tasks.TaskManager;
 
 import java.io.IOException;
 
@@ -31,13 +31,13 @@ public final class ProtobufRequestHandlerRegistry<Request extends ProtobufTransp
     private final boolean forceExecution;
     private final boolean canTripCircuitBreaker;
     private final String executor;
-    private final ProtobufTaskManager taskManager;
+    private final TaskManager taskManager;
     private final ProtobufWriteable.Reader<Request> requestReader;
 
     public ProtobufRequestHandlerRegistry(
         String action,
         ProtobufWriteable.Reader<Request> requestReader,
-        ProtobufTaskManager taskManager,
+        TaskManager taskManager,
         ProtobufTransportRequestHandler<Request> handler,
         String executor,
         boolean forceExecution,
@@ -61,10 +61,10 @@ public final class ProtobufRequestHandlerRegistry<Request extends ProtobufTransp
     }
 
     public void processMessageReceived(Request request, ProtobufTransportChannel channel) throws Exception {
-        final ProtobufTask task = taskManager.register(channel.getChannelType(), action, request);
-        ThreadContext.StoredContext contextToRestore = taskManager.taskExecutionStarted(task);
+        final ProtobufTask task = taskManager.registerProtobuf(channel.getChannelType(), action, request);
+        ThreadContext.StoredContext contextToRestore = taskManager.protobufTaskExecutionStarted(task);
 
-        Releasable unregisterTask = () -> taskManager.unregister(task);
+        Releasable unregisterTask = () -> taskManager.unregisterProtobufTask(task);
         try {
             if (channel instanceof ProtobufTcpTransportChannel && task instanceof ProtobufCancellableTask) {
                 // if (request instanceof ShardSearchRequest) {
@@ -74,7 +74,7 @@ public final class ProtobufRequestHandlerRegistry<Request extends ProtobufTransp
                 // );
                 // }
                 final TcpChannel tcpChannel = ((ProtobufTcpTransportChannel) channel).getChannel();
-                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (ProtobufCancellableTask) task);
+                final Releasable stopTracking = taskManager.startProtobufTrackingCancellableChannelTask(tcpChannel, (ProtobufCancellableTask) task);
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
             final ProtobufTaskTransportChannel taskTransportChannel = new ProtobufTaskTransportChannel(channel, unregisterTask);

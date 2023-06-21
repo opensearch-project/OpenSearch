@@ -19,8 +19,8 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.tasks.ProtobufTaskId;
-import org.opensearch.tasks.ProtobufTaskManager;
 import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.ProtobufTaskListener;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -33,14 +33,14 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
 
     public final String actionName;
     private final ProtobufActionFilter[] filters;
-    protected final ProtobufTaskManager taskManager;
+    protected final TaskManager taskManager;
     /**
      * @deprecated declare your own logger.
     */
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
 
-    protected ProtobufTransportAction(String actionName, ProtobufActionFilters actionFilters, ProtobufTaskManager taskManager) {
+    protected ProtobufTransportAction(String actionName, ProtobufActionFilters actionFilters, TaskManager taskManager) {
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;
@@ -48,7 +48,7 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
 
     private Releasable registerChildNode(ProtobufTaskId parentTask) {
         if (parentTask.isSet()) {
-            return taskManager.registerChildNode(parentTask.getId(), taskManager.localNode());
+            return taskManager.registerProtobufChildNode(parentTask.getId(), taskManager.localProtobufNode());
         } else {
             return () -> {};
         }
@@ -71,19 +71,19 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
         final ProtobufTask task;
 
         try {
-            task = taskManager.register("transport", actionName, request);
+            task = taskManager.registerProtobuf("transport", actionName, request);
         } catch (TaskCancelledException e) {
             unregisterChildNode.close();
             throw e;
         }
 
-        ThreadContext.StoredContext storedContext = taskManager.taskExecutionStarted(task);
+        ThreadContext.StoredContext storedContext = taskManager.protobufTaskExecutionStarted(task);
         try {
             execute(task, request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
                     try {
-                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregisterProtobufTask(task));
                     } finally {
                         listener.onResponse(response);
                     }
@@ -92,7 +92,7 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
                 @Override
                 public void onFailure(Exception e) {
                     try {
-                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregisterProtobufTask(task));
                     } finally {
                         listener.onFailure(e);
                     }
@@ -113,18 +113,18 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
         final ProtobufTask task;
         try {
-            task = taskManager.register("transport", actionName, request);
+            task = taskManager.registerProtobuf("transport", actionName, request);
         } catch (TaskCancelledException e) {
             unregisterChildNode.close();
             throw e;
         }
-        ThreadContext.StoredContext storedContext = taskManager.taskExecutionStarted(task);
+        ThreadContext.StoredContext storedContext = taskManager.protobufTaskExecutionStarted(task);
         try {
             execute(task, request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
                     try {
-                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregisterProtobufTask(task));
                     } finally {
                         listener.onResponse(task, response);
                     }
@@ -133,7 +133,7 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
                 @Override
                 public void onFailure(Exception e) {
                     try {
-                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregisterProtobufTask(task));
                     } finally {
                         listener.onFailure(task, e);
                     }
@@ -210,9 +210,9 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
     private static class TaskResultStoringActionListener<Response extends ProtobufActionResponse> implements ActionListener<Response> {
         private final ActionListener<Response> delegate;
         private final ProtobufTask task;
-        private final ProtobufTaskManager taskManager;
+        private final TaskManager taskManager;
 
-        private TaskResultStoringActionListener(ProtobufTaskManager taskManager, ProtobufTask task, ActionListener<Response> delegate) {
+        private TaskResultStoringActionListener(TaskManager taskManager, ProtobufTask task, ActionListener<Response> delegate) {
             this.taskManager = taskManager;
             this.task = task;
             this.delegate = delegate;
@@ -221,7 +221,7 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
         @Override
         public void onResponse(Response response) {
             try {
-                taskManager.storeResult(task, response, delegate);
+                taskManager.storeResultProtobuf(task, response, delegate);
             } catch (Exception e) {
                 delegate.onFailure(e);
             }
@@ -230,7 +230,7 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
         @Override
         public void onFailure(Exception e) {
             try {
-                taskManager.storeResult(task, e, delegate);
+                taskManager.storeResultProtobuf(task, e, delegate);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 delegate.onFailure(inner);

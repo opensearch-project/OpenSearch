@@ -47,12 +47,23 @@ final class MethodHandlers {
 
     private final String path;
     private final Map<RestRequest.Method, RestHandler> methodHandlers;
+    private final Map<RestRequest.Method, ProtobufRestHandler> protobufMethodHandlers;
 
     MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
         this.path = path;
         this.methodHandlers = new HashMap<>(methods.length);
+        this.protobufMethodHandlers = new HashMap<>(methods.length);
         for (RestRequest.Method method : methods) {
             methodHandlers.put(method, handler);
+        }
+    }
+
+    MethodHandlers(String path, ProtobufRestHandler handler, RestRequest.Method... methods) {
+        this.path = path;
+        this.methodHandlers = new HashMap<>(methods.length);
+        this.protobufMethodHandlers = new HashMap<>(methods.length);
+        for (RestRequest.Method method : methods) {
+            protobufMethodHandlers.put(method, handler);
         }
     }
 
@@ -71,11 +82,33 @@ final class MethodHandlers {
     }
 
     /**
+     * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
+     * does not allow replacing the handler for an already existing method.
+     */
+    MethodHandlers addProtobufMethods(ProtobufRestHandler handler, RestRequest.Method... methods) {
+        for (RestRequest.Method method : methods) {
+            ProtobufRestHandler existing = protobufMethodHandlers.putIfAbsent(method, handler);
+            if (existing != null) {
+                throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
+            }
+        }
+        return this;
+    }
+
+    /**
      * Returns the handler for the given method or {@code null} if none exists.
      */
     @Nullable
     RestHandler getHandler(RestRequest.Method method) {
         return methodHandlers.get(method);
+    }
+
+    /**
+     * Returns the handler for the given method or {@code null} if none exists.
+     */
+    @Nullable
+    ProtobufRestHandler getProtobufHandler(RestRequest.Method method) {
+        return protobufMethodHandlers.get(method);
     }
 
     /**

@@ -22,7 +22,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
@@ -53,11 +53,11 @@ public class ProtobufTaskResourceTrackingService implements RunnableTaskExecutio
     private final ConcurrentMapLong<ProtobufTask> resourceAwareTasks = ConcurrentCollections
         .newConcurrentMapLongWithAggressiveConcurrency();
     private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
-    private final ProtobufThreadPool threadPool;
+    private final ThreadPool threadPool;
     private volatile boolean taskResourceTrackingEnabled;
 
     @Inject
-    public ProtobufTaskResourceTrackingService(Settings settings, ClusterSettings clusterSettings, ProtobufThreadPool threadPool) {
+    public ProtobufTaskResourceTrackingService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.taskResourceTrackingEnabled = TASK_RESOURCE_TRACKING_ENABLED.get(settings);
         this.threadPool = threadPool;
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_TRACKING_ENABLED, this::setTaskResourceTrackingEnabled);

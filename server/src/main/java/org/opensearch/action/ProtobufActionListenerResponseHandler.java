@@ -10,7 +10,7 @@ package org.opensearch.action;
 
 import com.google.protobuf.CodedInputStream;
 import org.opensearch.common.io.stream.ProtobufWriteable;
-import org.opensearch.threadpool.ProtobufThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ProtobufTransportResponseHandler;
 import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.ProtobufTransportResponse;
@@ -43,7 +43,7 @@ public class ProtobufActionListenerResponseHandler<Response extends ProtobufTran
     }
 
     public ProtobufActionListenerResponseHandler(ActionListener<? super Response> listener, ProtobufWriteable.Reader<Response> reader) {
-        this(listener, reader, ProtobufThreadPool.Names.SAME);
+        this(listener, reader, ThreadPool.Names.SAME);
     }
 
     @Override
