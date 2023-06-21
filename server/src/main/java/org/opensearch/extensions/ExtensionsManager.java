@@ -16,7 +16,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -292,26 +291,19 @@ public class ExtensionsManager {
      * @param extension The extension to be loaded
      */
     public void loadExtension(Extension extension) throws IOException {
-        try {
-            validateExtension(extension);
-            DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
-                extension.getName(),
-                extension.getUniqueId(),
-                new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
-                new HashMap<String, String>(),
-                Version.fromString(extension.getOpensearchVersion()),
-                Version.fromString(extension.getMinimumCompatibleVersion()),
-                extension.getDependencies()
-            );
-            extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
-            extensionSettingsMap.put(extension.getUniqueId(), extension);
-            logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
-        } catch (IOException e) {
-            throw e;
-        } catch (IllegalArgumentException e) {
-            throw e;
-        }
-
+        validateExtension(extension);
+        DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
+            extension.getName(),
+            extension.getUniqueId(),
+            new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
+            new HashMap<String, String>(),
+            Version.fromString(extension.getOpensearchVersion()),
+            Version.fromString(extension.getMinimumCompatibleVersion()),
+            extension.getDependencies()
+        );
+        extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
+        extensionSettingsMap.put(extension.getUniqueId(), extension);
+        logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
     }
 
     private void validateField(String fieldName, String value) throws IOException {
@@ -329,7 +321,7 @@ public class ExtensionsManager {
         validateField("opensearch version", extension.getOpensearchVersion());
         validateField("minimum opensearch version", extension.getMinimumCompatibleVersion());
         if (extensionIdMap.containsKey(extension.getUniqueId())) {
-            throw new IOException("Duplicate uniqueId " + extension.getUniqueId() + ". Did not load extension: " + extension);
+            throw new IOException("Duplicate uniqueId [" + extension.getUniqueId() + "]. Did not load extension: " + extension);
         }
     }
 
@@ -404,7 +396,6 @@ public class ExtensionsManager {
                     new InitializeExtensionRequest(transportService.getLocalNode(), extension),
                     initializeExtensionResponseHandler
                 );
-                inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
             }
         });
     }

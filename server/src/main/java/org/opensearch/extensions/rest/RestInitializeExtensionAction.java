@@ -86,14 +86,12 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
                 } else if ("dependencies".equals(currentFieldName)) {
                     ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        try {
-                            dependencies.add(ExtensionDependency.parse(parser));
-                        } catch (IOException e) {
-                            throw e;
-                        }
+                        dependencies.add(ExtensionDependency.parse(parser));
                     }
                 }
             }
+        } catch (IOException e) {
+            throw new IOException("Missing attribute", e);
         }
 
         Extension extension = new Extension(
