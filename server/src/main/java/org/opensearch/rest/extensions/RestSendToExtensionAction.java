@@ -227,6 +227,10 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             @Override
             public void handleException(TransportException exp) {
                 logger.debug("REST request failed", exp);
+                // On failure the original request params and content aren't consumed
+                // which gives misleading error messages, so we just consume them here
+                request.params().keySet().stream().forEach(p -> request.param(p));
+                request.content();
                 inProgressFuture.completeExceptionally(exp);
             }
 
