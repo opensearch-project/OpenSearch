@@ -951,7 +951,13 @@ public class MetadataCreateIndexService {
         }
         if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings) && INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
+            return;
         }
+        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == true) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, INDEX_REPLICATION_TYPE_SETTING.get(requestSettings));
+            return;
+        }
+        settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
     }
 
     /**
@@ -967,20 +973,19 @@ public class MetadataCreateIndexService {
                 return;
             }
 
-            // Verify REPLICATION_TYPE cluster level setting is not conflicting with Remote Store
-            if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false
-                && CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings).equals(ReplicationType.DOCUMENT)) {
+            // Verify replication type of index is not DOCUMENT
+            if (settingsBuilder.get(SETTING_REPLICATION_TYPE).equals(ReplicationType.DOCUMENT.toString())) {
                 throw new IllegalArgumentException(
                     "Cannot enable ["
                         + SETTING_REMOTE_STORE_ENABLED
                         + "] when ["
-                        + CLUSTER_REPLICATION_TYPE_SETTING.getKey()
+                        + SETTING_REPLICATION_TYPE
                         + "] is "
                         + ReplicationType.DOCUMENT
                 );
             }
 
-            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).put(SETTING_REMOTE_STORE_ENABLED, true);
+            settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true);
 
             String remoteStoreRepo;
             if (Objects.equals(requestSettings.get(INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()), "true")) {
