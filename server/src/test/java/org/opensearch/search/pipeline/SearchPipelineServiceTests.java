@@ -24,6 +24,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -32,6 +33,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.SearchHit;
@@ -58,8 +60,12 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
     private static final SearchPipelinePlugin DUMMY_PLUGIN = new SearchPipelinePlugin() {
         @Override
-        public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        public Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessors(Processor.Parameters parameters) {
             return Map.of("foo", (factories, tag, description, config) -> null);
+        }
+
+        public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Processor.Parameters parameters) {
+            return Map.of("bar", (factories, tag, description, config) -> null);
         }
     };
 
@@ -87,9 +93,14 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             client,
             false
         );
-        Map<String, Processor.Factory> factories = searchPipelineService.getProcessorFactories();
-        assertEquals(1, factories.size());
-        assertTrue(factories.containsKey("foo"));
+        Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories = searchPipelineService
+            .getRequestProcessorFactories();
+        assertEquals(1, requestProcessorFactories.size());
+        assertTrue(requestProcessorFactories.containsKey("foo"));
+        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories = searchPipelineService
+            .getResponseProcessorFactories();
+        assertEquals(1, responseProcessorFactories.size());
+        assertTrue(responseProcessorFactories.containsKey("bar"));
     }
 
     public void testSearchPipelinePluginDuplicate() {
@@ -132,6 +143,47 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             () -> searchPipelineService.resolvePipeline(searchRequest)
         );
         assertTrue(e.getMessage(), e.getMessage().contains(" not defined"));
+    }
+
+    public void testResolveIndexDefaultPipeline() throws Exception {
+        SearchPipelineService service = createWithProcessors();
+
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "p1",
+                new PipelineConfiguration(
+                    "p1",
+                    new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
+                    XContentType.JSON
+                )
+            )
+        );
+        Settings defaultPipelineSetting = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            .put(IndexSettings.DEFAULT_SEARCH_PIPELINE.getKey(), "p1")
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("my_index").settings(defaultPipelineSetting).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousState = clusterState;
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder().put(indexMetadata, false).putCustom(SearchPipelineMetadata.TYPE, metadata))
+            .build();
+
+        ClusterChangedEvent cce = new ClusterChangedEvent("", clusterState, previousState);
+        service.applyClusterState(cce);
+
+        SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest);
+        assertEquals("p1", pipelinedRequest.getPipeline().getId());
+        assertEquals(10, pipelinedRequest.transformedRequest().source().size());
+
+        // Bypass the default pipeline
+        searchRequest.pipeline("_none");
+        pipelinedRequest = service.resolvePipeline(searchRequest);
+        assertEquals("_none", pipelinedRequest.getPipeline().getId());
+        assertEquals(5, pipelinedRequest.transformedRequest().source().size());
     }
 
     private static abstract class FakeProcessor implements Processor {
@@ -192,8 +244,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
     }
 
     private SearchPipelineService createWithProcessors() {
-        Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put("scale_request_size", (processorFactories, tag, description, config) -> {
+        Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessors = new HashMap<>();
+        requestProcessors.put("scale_request_size", (processorFactories, tag, description, config) -> {
             float scale = ((Number) config.remove("scale")).floatValue();
             return new FakeRequestProcessor(
                 "scale_request_size",
@@ -202,11 +254,12 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 req -> req.source().size((int) (req.source().size() * scale))
             );
         });
-        processors.put("fixed_score", (processorFactories, tag, description, config) -> {
+        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessors = new HashMap<>();
+        responseProcessors.put("fixed_score", (processorFactories, tag, description, config) -> {
             float score = ((Number) config.remove("score")).floatValue();
             return new FakeResponseProcessor("fixed_score", tag, description, rsp -> rsp.getHits().forEach(h -> h.score(score)));
         });
-        return createWithProcessors(processors);
+        return createWithProcessors(requestProcessors, responseProcessors);
     }
 
     @Override
@@ -215,7 +268,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
-    private SearchPipelineService createWithProcessors(Map<String, Processor.Factory> processors) {
+    private SearchPipelineService createWithProcessors(
+        Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessors,
+        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessors
+    ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
@@ -231,8 +287,13 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             this.writableRegistry(),
             Collections.singletonList(new SearchPipelinePlugin() {
                 @Override
-                public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-                    return processors;
+                public Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessors(Processor.Parameters parameters) {
+                    return requestProcessors;
+                }
+
+                @Override
+                public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Processor.Parameters parameters) {
+                    return responseProcessors;
                 }
             }),
             client,
@@ -576,13 +637,14 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             XContentType.JSON
         );
 
+        SearchPipelineInfo completePipelineInfo = new SearchPipelineInfo(
+            Map.of(Pipeline.REQUEST_PROCESSORS_KEY, List.of(reqProcessor), Pipeline.RESPONSE_PROCESSORS_KEY, List.of(rspProcessor))
+        );
+        SearchPipelineInfo incompletePipelineInfo = new SearchPipelineInfo(Map.of(Pipeline.REQUEST_PROCESSORS_KEY, List.of(reqProcessor)));
         // One node is missing a processor
         expectThrows(
             OpenSearchParseException.class,
-            () -> searchPipelineService.validatePipeline(
-                Map.of(n1, new SearchPipelineInfo(List.of(reqProcessor, rspProcessor)), n2, new SearchPipelineInfo(List.of(reqProcessor))),
-                putRequest
-            )
+            () -> searchPipelineService.validatePipeline(Map.of(n1, completePipelineInfo, n2, incompletePipelineInfo), putRequest)
         );
 
         // Discovery failed, no infos passed.
@@ -601,27 +663,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         );
         expectThrows(
             ClassCastException.class,
-            () -> searchPipelineService.validatePipeline(
-                Map.of(
-                    n1,
-                    new SearchPipelineInfo(List.of(reqProcessor, rspProcessor)),
-                    n2,
-                    new SearchPipelineInfo(List.of(reqProcessor, rspProcessor))
-                ),
-                badPutRequest
-            )
+            () -> searchPipelineService.validatePipeline(Map.of(n1, completePipelineInfo, n2, completePipelineInfo), badPutRequest)
         );
 
         // Success
-        searchPipelineService.validatePipeline(
-            Map.of(
-                n1,
-                new SearchPipelineInfo(List.of(reqProcessor, rspProcessor)),
-                n2,
-                new SearchPipelineInfo(List.of(reqProcessor, rspProcessor))
-            ),
-            putRequest
-        );
+        searchPipelineService.validatePipeline(Map.of(n1, completePipelineInfo, n2, completePipelineInfo), putRequest);
     }
 
     /**
@@ -634,12 +680,12 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         requestProcessorConfig.put("scale", 2);
         Map<String, Object> requestProcessorObject = new HashMap<>();
         requestProcessorObject.put("scale_request_size", requestProcessorConfig);
-        pipelineSourceMap.put("request_processors", List.of(requestProcessorObject));
+        pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(requestProcessorObject));
         Map<String, Object> responseProcessorConfig = new HashMap<>();
         responseProcessorConfig.put("score", 2);
         Map<String, Object> responseProcessorObject = new HashMap<>();
         responseProcessorObject.put("fixed_score", responseProcessorConfig);
-        pipelineSourceMap.put("response_processors", List.of(responseProcessorObject));
+        pipelineSourceMap.put(Pipeline.RESPONSE_PROCESSORS_KEY, List.of(responseProcessorObject));
 
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
         SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
@@ -674,7 +720,70 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
     public void testInfo() {
         SearchPipelineService searchPipelineService = createWithProcessors();
         SearchPipelineInfo info = searchPipelineService.info();
-        assertTrue(info.containsProcessor("scale_request_size"));
-        assertTrue(info.containsProcessor("fixed_score"));
+        assertTrue(info.containsProcessor(Pipeline.REQUEST_PROCESSORS_KEY, "scale_request_size"));
+        assertTrue(info.containsProcessor(Pipeline.RESPONSE_PROCESSORS_KEY, "fixed_score"));
+    }
+
+    public void testExceptionOnPipelineCreation() {
+        Map<String, Processor.Factory<SearchRequestProcessor>> badFactory = Map.of(
+            "bad_factory",
+            (pf, t, f, c) -> { throw new RuntimeException(); }
+        );
+        SearchPipelineService searchPipelineService = createWithProcessors(badFactory, Collections.emptyMap());
+
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(Map.of("bad_factory", Collections.emptyMap())));
+
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+
+        // Exception thrown when creating the pipeline
+        expectThrows(SearchPipelineProcessingException.class, () -> searchPipelineService.resolvePipeline(searchRequest));
+
+    }
+
+    public void testExceptionOnRequestProcessing() {
+        SearchRequestProcessor throwingRequestProcessor = new FakeRequestProcessor("throwing_request", null, null, r -> {
+            throw new RuntimeException();
+        });
+        Map<String, Processor.Factory<SearchRequestProcessor>> throwingRequestProcessorFactory = Map.of(
+            "throwing_request",
+            (pf, t, f, c) -> throwingRequestProcessor
+        );
+
+        SearchPipelineService searchPipelineService = createWithProcessors(throwingRequestProcessorFactory, Collections.emptyMap());
+
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(Map.of("throwing_request", Collections.emptyMap())));
+
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+
+        // Exception thrown when processing the request
+        expectThrows(SearchPipelineProcessingException.class, () -> searchPipelineService.resolvePipeline(searchRequest));
+    }
+
+    public void testExceptionOnResponseProcessing() throws Exception {
+        SearchResponseProcessor throwingResponseProcessor = new FakeResponseProcessor("throwing_response", null, null, r -> {
+            throw new RuntimeException();
+        });
+        Map<String, Processor.Factory<SearchResponseProcessor>> throwingResponseProcessorFactory = Map.of(
+            "throwing_response",
+            (pf, t, f, c) -> throwingResponseProcessor
+        );
+
+        SearchPipelineService searchPipelineService = createWithProcessors(Collections.emptyMap(), throwingResponseProcessorFactory);
+
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        pipelineSourceMap.put(Pipeline.RESPONSE_PROCESSORS_KEY, List.of(Map.of("throwing_response", Collections.emptyMap())));
+
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
+
+        SearchResponse response = new SearchResponse(null, null, 0, 0, 0, 0, null, null);
+        // Exception thrown when processing response
+        expectThrows(SearchPipelineProcessingException.class, () -> pipelinedRequest.transformResponse(response));
     }
 }

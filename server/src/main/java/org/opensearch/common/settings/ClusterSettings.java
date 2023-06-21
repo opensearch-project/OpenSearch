@@ -48,6 +48,7 @@ import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
+import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
@@ -258,6 +259,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
                 IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
                 IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
+                IndicesService.CLUSTER_REPLICATION_TYPE_SETTING,
                 MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
                 MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
                 Metadata.SETTING_READ_ONLY_SETTING,
@@ -643,13 +645,16 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
-                RemoteRefreshSegmentPressureSettings.MIN_SEQ_NO_LAG_LIMIT,
                 RemoteRefreshSegmentPressureSettings.BYTES_LAG_VARIANCE_FACTOR,
                 RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR,
                 RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT,
                 RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
                 RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
-                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE
+                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE,
+
+                // Related to monitoring of task cancellation
+                TaskCancellationMonitoringSettings.IS_ENABLED_SETTING,
+                TaskCancellationMonitoringSettings.DURATION_MILLIS_SETTING
             )
         )
     );
@@ -662,14 +667,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
      */
     public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
-        List.of(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL),
-        List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING),
         List.of(FeatureFlags.REMOTE_STORE),
         List.of(
             IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
             IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING,
             IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
             IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
-        )
+        ),
+        List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
+        List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
     );
 }

@@ -52,6 +52,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.dfs.DfsSearchResult;
@@ -114,6 +115,14 @@ public class TestSearchContext extends SearchContext {
     private FieldDoc searchAfter;
     private Profilers profilers;
     private CollapseContext collapse;
+    protected boolean concurrentSegmentSearchEnabled;
+
+    /**
+     * Sets the concurrent segment search enabled field
+     */
+    public void setConcurrentSegmentSearchEnabled(boolean concurrentSegmentSearchEnabled) {
+        this.concurrentSegmentSearchEnabled = concurrentSegmentSearchEnabled;
+    }
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
@@ -604,6 +613,14 @@ public class TestSearchContext extends SearchContext {
         return profilers;
     }
 
+    /**
+     * Returns concurrent segment search status for the search context
+     */
+    @Override
+    public boolean isConcurrentSegmentSearchEnabled() {
+        return concurrentSegmentSearchEnabled;
+    }
+
     @Override
     public Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers() {
         return queryCollectorManagers;
@@ -637,6 +654,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public InternalAggregation.ReduceContext partial() {
+        return InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction();
     }
 
     /**

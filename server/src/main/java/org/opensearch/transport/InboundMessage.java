@@ -34,9 +34,9 @@ package org.opensearch.transport;
 
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 

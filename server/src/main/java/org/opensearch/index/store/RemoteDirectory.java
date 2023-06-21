@@ -18,6 +18,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,7 +36,7 @@ import java.util.Set;
  */
 public class RemoteDirectory extends Directory {
 
-    private final BlobContainer blobContainer;
+    protected final BlobContainer blobContainer;
 
     public RemoteDirectory(BlobContainer blobContainer) {
         this.blobContainer = blobContainer;
@@ -100,7 +101,15 @@ public class RemoteDirectory extends Directory {
      */
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        return new RemoteIndexInput(name, blobContainer.readBlob(name), fileLength(name));
+        InputStream inputStream = null;
+        try {
+            inputStream = blobContainer.readBlob(name);
+            return new RemoteIndexInput(name, inputStream, fileLength(name));
+        } catch (Exception e) {
+            // Incase the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
+            if (inputStream != null) inputStream.close();
+            throw e;
+        }
     }
 
     /**
@@ -200,5 +209,9 @@ public class RemoteDirectory extends Directory {
     @Override
     public Lock obtainLock(String name) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    public void delete() throws IOException {
+        blobContainer.delete();
     }
 }

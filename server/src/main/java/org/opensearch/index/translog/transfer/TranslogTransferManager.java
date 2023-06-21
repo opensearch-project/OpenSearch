@@ -12,10 +12,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -47,9 +52,11 @@ import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.ge
  */
 public class TranslogTransferManager {
 
+    private final ShardId shardId;
     private final TransferService transferService;
-    private final BlobPath remoteBaseTransferPath;
+    private final BlobPath remoteDataTransferPath;
     private final BlobPath remoteMetadataTransferPath;
+    private final BlobPath remoteBaseTransferPath;
     private final FileTransferTracker fileTransferTracker;
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
@@ -57,16 +64,30 @@ public class TranslogTransferManager {
     private static final Logger logger = LogManager.getLogger(TranslogTransferManager.class);
 
     private final static String METADATA_DIR = "metadata";
+    private final static String DATA_DIR = "data";
+
+    private static final VersionedCodecStreamWrapper<TranslogTransferMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
+        new TranslogTransferMetadataHandler(),
+        TranslogTransferMetadata.CURRENT_VERSION,
+        TranslogTransferMetadata.METADATA_CODEC
+    );
 
     public TranslogTransferManager(
+        ShardId shardId,
         TransferService transferService,
         BlobPath remoteBaseTransferPath,
         FileTransferTracker fileTransferTracker
     ) {
+        this.shardId = shardId;
         this.transferService = transferService;
         this.remoteBaseTransferPath = remoteBaseTransferPath;
+        this.remoteDataTransferPath = remoteBaseTransferPath.add(DATA_DIR);
         this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferTracker = fileTransferTracker;
+    }
+
+    public ShardId getShardId() {
+        return this.shardId;
     }
 
     public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
@@ -102,7 +123,7 @@ public class TranslogTransferManager {
                 fileSnapshot -> transferService.uploadBlobAsync(
                     ThreadPool.Names.TRANSLOG_TRANSFER,
                     fileSnapshot,
-                    remoteBaseTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
+                    remoteDataTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
                     latchedActionListener
                 )
             );
@@ -156,7 +177,7 @@ public class TranslogTransferManager {
         if (Files.exists(filePath)) {
             Files.delete(filePath);
         }
-        try (InputStream inputStream = transferService.downloadBlob(remoteBaseTransferPath.add(primaryTerm), fileName)) {
+        try (InputStream inputStream = transferService.downloadBlob(remoteDataTransferPath.add(primaryTerm), fileName)) {
             Files.copy(inputStream, filePath);
         }
         // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
@@ -165,9 +186,9 @@ public class TranslogTransferManager {
 
     public TranslogTransferMetadata readMetadata() throws IOException {
         return transferService.listAll(remoteMetadataTransferPath).stream().max(METADATA_FILENAME_COMPARATOR).map(filename -> {
-            try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename);) {
+            try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename)) {
                 IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
-                return new TranslogTransferMetadata(indexInput);
+                return metadataStreamWrapper.readStream(indexInput);
             } catch (IOException e) {
                 logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
                 return null;
@@ -188,11 +209,38 @@ public class TranslogTransferManager {
             );
         TranslogTransferMetadata translogTransferMetadata = transferSnapshot.getTranslogTransferMetadata();
         translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
+
         return new TransferFileSnapshot(
             getFileName(translogTransferMetadata.getPrimaryTerm(), translogTransferMetadata.getGeneration()),
-            translogTransferMetadata.createMetadataBytes(),
+            getMetadataBytes(translogTransferMetadata),
             translogTransferMetadata.getPrimaryTerm()
         );
+    }
+
+    /**
+     * Get the metadata bytes for a {@link TranslogTransferMetadata} object
+     *
+     * @param metadata The object to be parsed
+     * @return Byte representation for the given metadata
+     */
+    public byte[] getMetadataBytes(TranslogTransferMetadata metadata) throws IOException {
+        byte[] metadataBytes;
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            try (
+                OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
+                    "translog transfer metadata " + metadata.getPrimaryTerm(),
+                    getFileName(metadata.getPrimaryTerm(), metadata.getGeneration()),
+                    output,
+                    TranslogTransferMetadata.BUFFER_SIZE
+                )
+            ) {
+                metadataStreamWrapper.writeStream(indexOutput, metadata);
+            }
+            metadataBytes = BytesReference.toBytes(output.bytes());
+        }
+
+        return metadataBytes;
     }
 
     /**
@@ -229,8 +277,8 @@ public class TranslogTransferManager {
      * @param minPrimaryTermToKeep all primary terms below this primary term are deleted.
      */
     public void deletePrimaryTermsAsync(long minPrimaryTermToKeep) {
-        logger.info("Deleting primary terms from remote store lesser than {}", minPrimaryTermToKeep);
-        transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteBaseTransferPath, new ActionListener<>() {
+        logger.info("Deleting primary terms from remote store lesser than {} for {}", minPrimaryTermToKeep, shardId);
+        transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteDataTransferPath, new ActionListener<>() {
             @Override
             public void onResponse(Set<String> folders) {
                 Set<Long> primaryTermsInRemote = folders.stream().filter(folderName -> {
@@ -263,11 +311,11 @@ public class TranslogTransferManager {
     private void deletePrimaryTermAsync(long primaryTerm) {
         transferService.deleteAsync(
             ThreadPool.Names.REMOTE_PURGE,
-            remoteBaseTransferPath.add(String.valueOf(primaryTerm)),
+            remoteDataTransferPath.add(String.valueOf(primaryTerm)),
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
-                    logger.info("Deleted primary term {}", primaryTerm);
+                    logger.info("Deleted primary term {} for {}", primaryTerm, shardId);
                 }
 
                 @Override
@@ -276,6 +324,21 @@ public class TranslogTransferManager {
                 }
             }
         );
+    }
+
+    public void delete() {
+        // cleans up all the translog contents in async fashion
+        transferService.deleteAsync(ThreadPool.Names.REMOTE_PURGE, remoteBaseTransferPath, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.info("Deleted all remote translog data  for {}", shardId);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Exception occurred while cleaning translog ", e);
+            }
+        });
     }
 
     public void deleteStaleTranslogMetadataFilesAsync() {
@@ -309,7 +372,7 @@ public class TranslogTransferManager {
         try {
             transferService.deleteBlobsAsync(
                 ThreadPool.Names.REMOTE_PURGE,
-                remoteBaseTransferPath.add(String.valueOf(primaryTerm)),
+                remoteDataTransferPath.add(String.valueOf(primaryTerm)),
                 files,
                 new ActionListener<>() {
                     @Override

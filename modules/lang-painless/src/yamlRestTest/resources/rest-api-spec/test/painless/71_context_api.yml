@@ -2,7 +2,7 @@
     - do:
         scripts_painless_context: {}
     - match: { contexts.0: aggregation_selector}
-    - match: { contexts.22: update}
+    - match: { contexts.23: update}
 ---
 
 "Action to get all API values for score context":

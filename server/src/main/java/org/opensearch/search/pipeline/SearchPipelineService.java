@@ -23,6 +23,7 @@ import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
@@ -30,11 +31,13 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.gateway.GatewayService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.node.ReportingService;
@@ -52,6 +55,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * The main entry point for search pipelines. Handles CRUD operations and exposes the API to execute search pipelines
@@ -65,7 +70,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
     private final ClusterService clusterService;
     private final ScriptService scriptService;
-    private final Map<String, Processor.Factory> processorFactories;
+    private final Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories;
+    private final Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories;
     private volatile Map<String, PipelineHolder> pipelines = Collections.emptyMap();
     private final ThreadPool threadPool;
     private final List<Consumer<ClusterState>> searchPipelineClusterStateListeners = new CopyOnWriteArrayList<>();
@@ -92,34 +98,33 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         this.scriptService = scriptService;
         this.threadPool = threadPool;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.processorFactories = processorFactories(
-            searchPipelinePlugins,
-            new Processor.Parameters(
-                env,
-                scriptService,
-                analysisRegistry,
-                threadPool.getThreadContext(),
-                threadPool::relativeTimeInMillis,
-                (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC),
-                this,
-                client,
-                threadPool.generic()::execute,
-                namedXContentRegistry
-            )
+        Processor.Parameters parameters = new Processor.Parameters(
+            env,
+            scriptService,
+            analysisRegistry,
+            threadPool.getThreadContext(),
+            threadPool::relativeTimeInMillis,
+            (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC),
+            this,
+            client,
+            threadPool.generic()::execute,
+            namedXContentRegistry
         );
+        this.requestProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getRequestProcessors(parameters));
+        this.responseProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getResponseProcessors(parameters));
         putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_SEARCH_PIPELINE_KEY, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SEARCH_PIPELINE_KEY, true);
         this.isEnabled = isEnabled;
     }
 
-    private static Map<String, Processor.Factory> processorFactories(
+    private static <T extends Processor> Map<String, Processor.Factory<T>> processorFactories(
         List<SearchPipelinePlugin> searchPipelinePlugins,
-        Processor.Parameters parameters
+        Function<SearchPipelinePlugin, Map<String, Processor.Factory<T>>> processorLoader
     ) {
-        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        Map<String, Processor.Factory<T>> processorFactories = new HashMap<>();
         for (SearchPipelinePlugin searchPipelinePlugin : searchPipelinePlugins) {
-            Map<String, Processor.Factory> newProcessors = searchPipelinePlugin.getProcessors(parameters);
-            for (Map.Entry<String, Processor.Factory> entry : newProcessors.entrySet()) {
+            Map<String, Processor.Factory<T>> newProcessors = processorLoader.apply(searchPipelinePlugin);
+            for (Map.Entry<String, Processor.Factory<T>> entry : newProcessors.entrySet()) {
                 if (processorFactories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Search processor [" + entry.getKey() + "] is already registered");
                 }
@@ -170,7 +175,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 Pipeline newPipeline = Pipeline.create(
                     newConfiguration.getId(),
                     newConfiguration.getConfigAsMap(),
-                    processorFactories,
+                    requestProcessorFactories,
+                    responseProcessorFactories,
                     namedWriteableRegistry
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
@@ -265,12 +271,27 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             throw new IllegalStateException("Search pipeline info is empty");
         }
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-        Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, namedWriteableRegistry);
+        Pipeline pipeline = Pipeline.create(
+            request.getId(),
+            pipelineConfig,
+            requestProcessorFactories,
+            responseProcessorFactories,
+            namedWriteableRegistry
+        );
         List<Exception> exceptions = new ArrayList<>();
-        for (Processor processor : pipeline.flattenAllProcessors()) {
+        for (SearchRequestProcessor processor : pipeline.getSearchRequestProcessors()) {
             for (Map.Entry<DiscoveryNode, SearchPipelineInfo> entry : searchPipelineInfos.entrySet()) {
                 String type = processor.getType();
-                if (entry.getValue().containsProcessor(type) == false) {
+                if (entry.getValue().containsProcessor(Pipeline.REQUEST_PROCESSORS_KEY, type) == false) {
+                    String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
+                    exceptions.add(ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message));
+                }
+            }
+        }
+        for (SearchResponseProcessor processor : pipeline.getSearchResponseProcessors()) {
+            for (Map.Entry<DiscoveryNode, SearchPipelineInfo> entry : searchPipelineInfos.entrySet()) {
+                String type = processor.getType();
+                if (entry.getValue().containsProcessor(Pipeline.RESPONSE_PROCESSORS_KEY, type) == false) {
                     String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
                     exceptions.add(ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message));
                 }
@@ -339,6 +360,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             return new PipelinedRequest(pipeline, searchRequest);
         }
         if (searchRequest.source() != null && searchRequest.source().searchPipelineSource() != null) {
+            // Pipeline defined in search request (ad hoc pipeline).
             if (searchRequest.pipeline() != null) {
                 throw new IllegalArgumentException(
                     "Both named and inline search pipeline were specified. Please only specify one or the other."
@@ -348,35 +370,65 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 pipeline = Pipeline.create(
                     AD_HOC_PIPELINE_ID,
                     searchRequest.source().searchPipelineSource(),
-                    processorFactories,
+                    requestProcessorFactories,
+                    responseProcessorFactories,
                     namedWriteableRegistry
                 );
             } catch (Exception e) {
                 throw new SearchPipelineProcessingException(e);
             }
-        } else if (searchRequest.pipeline() != null) {
-            String pipelineId = searchRequest.pipeline();
-            PipelineHolder pipelineHolder = pipelines.get(pipelineId);
-            if (pipelineHolder == null) {
-                throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
+        } else {
+            String pipelineId = NOOP_PIPELINE_ID;
+            if (searchRequest.pipeline() != null) {
+                // Named pipeline specified for the request
+                pipelineId = searchRequest.pipeline();
+            } else if (searchRequest.indices() != null && searchRequest.indices().length == 1) {
+                // Check for index default pipeline
+                IndexMetadata indexMetadata = state.metadata().index(searchRequest.indices()[0]);
+                if (indexMetadata != null) {
+                    Settings indexSettings = indexMetadata.getSettings();
+                    if (IndexSettings.DEFAULT_SEARCH_PIPELINE.exists(indexSettings)) {
+                        pipelineId = IndexSettings.DEFAULT_SEARCH_PIPELINE.get(indexSettings);
+                    }
+                }
             }
-            pipeline = pipelineHolder.pipeline;
+            if (NOOP_PIPELINE_ID.equals(pipelineId) == false) {
+                PipelineHolder pipelineHolder = pipelines.get(pipelineId);
+                if (pipelineHolder == null) {
+                    throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
+                }
+                pipeline = pipelineHolder.pipeline;
+            }
         }
-        SearchRequest transformedRequest = pipeline.transformRequest(searchRequest);
-        return new PipelinedRequest(pipeline, transformedRequest);
+        try {
+            SearchRequest transformedRequest = pipeline.transformRequest(searchRequest);
+            return new PipelinedRequest(pipeline, transformedRequest);
+        } catch (Exception e) {
+            throw new SearchPipelineProcessingException(e);
+        }
     }
 
-    Map<String, Processor.Factory> getProcessorFactories() {
-        return processorFactories;
+    Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessorFactories() {
+        return requestProcessorFactories;
+    }
+
+    Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessorFactories() {
+        return responseProcessorFactories;
     }
 
     @Override
     public SearchPipelineInfo info() {
-        List<ProcessorInfo> processorInfoList = new ArrayList<>();
-        for (Map.Entry<String, Processor.Factory> entry : processorFactories.entrySet()) {
-            processorInfoList.add(new ProcessorInfo(entry.getKey()));
-        }
-        return new SearchPipelineInfo(processorInfoList);
+        List<ProcessorInfo> requestProcessorInfoList = requestProcessorFactories.keySet()
+            .stream()
+            .map(ProcessorInfo::new)
+            .collect(Collectors.toList());
+        List<ProcessorInfo> responseProcessorInfoList = responseProcessorFactories.keySet()
+            .stream()
+            .map(ProcessorInfo::new)
+            .collect(Collectors.toList());
+        return new SearchPipelineInfo(
+            Map.of(Pipeline.REQUEST_PROCESSORS_KEY, requestProcessorInfoList, Pipeline.RESPONSE_PROCESSORS_KEY, responseProcessorInfoList)
+        );
     }
 
     public static List<PipelineConfiguration> getPipelines(ClusterState clusterState, String... ids) {

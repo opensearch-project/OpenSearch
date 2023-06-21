@@ -129,6 +129,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.cluster.SnapshotsInProgress.completed;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
 import static org.opensearch.snapshots.SnapshotUtils.validateSnapshotsBackingAnyIndex;
 
 /**
@@ -261,6 +262,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // retries
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
         Repository repository = repositoriesService.repository(request.repository());
+
         if (repository.isReadOnly()) {
             listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository"));
             return;
@@ -334,6 +336,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         );
                     }
                 }
+
+                boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
                 newEntry = SnapshotsInProgress.startedEntry(
                     new Snapshot(repositoryName, snapshotId),
                     request.includeGlobalState(),
@@ -344,7 +348,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     repositoryData.getGenId(),
                     shards,
                     userMeta,
-                    version
+                    version,
+                    remoteStoreIndexShallowCopy
                 );
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
                 newEntries.add(newEntry);
@@ -467,7 +472,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "No indices in the source snapshot ["
                             + sourceSnapshotId
                             + "] matched requested pattern ["
-                            + Strings.arrayToCommaDelimitedString(request.indices())
+                            + org.opensearch.core.common.Strings.arrayToCommaDelimitedString(request.indices())
                             + "]"
                     );
                 }
@@ -756,7 +761,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private static void validate(final String repositoryName, final String snapshotName) {
-        if (Strings.hasLength(snapshotName) == false) {
+        if (org.opensearch.core.common.Strings.hasLength(snapshotName) == false) {
             throw new InvalidSnapshotNameException(repositoryName, snapshotName, "cannot be empty");
         }
         if (snapshotName.contains(" ")) {
@@ -1396,7 +1401,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
                 shardFailures,
                 entry.includeGlobalState(),
-                entry.userMetadata()
+                entry.userMetadata(),
+                entry.remoteStoreIndexShallowCopy()
             );
             final StepListener<Metadata> metadataListener = new StepListener<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
@@ -1738,7 +1744,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         logger.info(
             () -> new ParameterizedMessage(
                 "deleting snapshots [{}] from repository [{}]",
-                Strings.arrayToCommaDelimitedString(snapshotNames),
+                org.opensearch.core.common.Strings.arrayToCommaDelimitedString(snapshotNames),
                 repoName
             )
         );

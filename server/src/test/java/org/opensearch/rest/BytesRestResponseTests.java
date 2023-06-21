@@ -130,7 +130,7 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
         String text = response.content().utf8ToString();
         assertThat(text, containsString("\"type\":\"unknown_exception\",\"reason\":\"an error occurred reading data\""));
         assertThat(text, containsString("{\"type\":\"file_not_found_exception\""));
-        assertThat(text, containsString("\"stack_trace\":\"[an error occurred reading data]"));
+        assertThat(text, containsString("\"stack_trace\":\"OpenSearchException[an error occurred reading data]"));
     }
 
     public void testGuessRootCause() throws IOException {

@@ -33,8 +33,8 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.Collections;

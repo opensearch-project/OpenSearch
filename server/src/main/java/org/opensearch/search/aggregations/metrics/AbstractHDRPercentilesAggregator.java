@@ -35,10 +35,11 @@ package org.opensearch.search.aggregations.metrics;
 import org.HdrHistogram.DoubleHistogram;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ObjectArray;
+import org.opensearch.common.lease.Releasables;
+
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;

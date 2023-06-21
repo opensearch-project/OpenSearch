@@ -56,11 +56,19 @@ import java.io.IOException;
 
 public class SpanMatchNoDocsQueryTests extends OpenSearchTestCase {
     public void testSimple() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig());
+        IndexReader ir = DirectoryReader.open(iw);
+
         SpanMatchNoDocsQuery query = new SpanMatchNoDocsQuery("field", "a good reason");
         assertEquals(query.toString(), "SpanMatchNoDocsQuery(\"a good reason\")");
-        Query rewrite = query.rewrite(null);
+        Query rewrite = query.rewrite(ir);
         assertTrue(rewrite instanceof SpanMatchNoDocsQuery);
         assertEquals(rewrite.toString(), "SpanMatchNoDocsQuery(\"a good reason\")");
+
+        iw.close();
+        ir.close();
+        dir.close();
     }
 
     public void testQuery() throws Exception {

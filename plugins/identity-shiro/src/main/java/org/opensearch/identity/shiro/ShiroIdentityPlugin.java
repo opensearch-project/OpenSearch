@@ -11,6 +11,7 @@ package org.opensearch.identity.shiro;
 import org.opensearch.identity.Subject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -26,7 +27,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     private Logger log = LogManager.getLogger(this.getClass());
 
     private final Settings settings;
-    private final AuthTokenHandler authTokenHandler;
+    private final ShiroTokenManager authTokenHandler;
 
     /**
      * Create a new instance of the Shiro Identity Plugin
@@ -35,7 +36,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
      */
     public ShiroIdentityPlugin(final Settings settings) {
         this.settings = settings;
-        authTokenHandler = new AuthTokenHandler();
+        authTokenHandler = new ShiroTokenManager();
 
         SecurityManager securityManager = new ShiroSecurityManager();
         SecurityUtils.setSecurityManager(securityManager);
@@ -49,5 +50,15 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     @Override
     public Subject getSubject() {
         return new ShiroSubject(authTokenHandler, SecurityUtils.getSubject());
+    }
+
+    /**
+     * Return the Shiro Token Handler
+     *
+     * @return the Shiro Token Handler
+     */
+    @Override
+    public TokenManager getTokenManager() {
+        return this.authTokenHandler;
     }
 }

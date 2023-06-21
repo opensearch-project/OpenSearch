@@ -32,11 +32,10 @@
 
 package org.opensearch.discovery.ec2;
 
-import com.amazonaws.http.HttpMethodName;
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.InstanceState;
-import com.amazonaws.services.ec2.model.InstanceStateName;
-import com.amazonaws.services.ec2.model.Tag;
+import software.amazon.awssdk.services.ec2.model.Instance;
+import software.amazon.awssdk.services.ec2.model.InstanceState;
+import software.amazon.awssdk.services.ec2.model.InstanceStateName;
+import software.amazon.awssdk.services.ec2.model.Tag;
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
@@ -72,7 +71,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "use a http server")
-public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
+public class Ec2DiscoveryTests extends AbstractEc2MockAPITestCase {
 
     private static final String SUFFIX_PRIVATE_DNS = ".ec2.internal";
     private static final String PREFIX_PRIVATE_DNS = "mock-ip-";
@@ -111,7 +110,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         try (Ec2DiscoveryPlugin plugin = new Ec2DiscoveryPlugin(buildSettings(accessKey))) {
             AwsEc2SeedHostsProvider provider = new AwsEc2SeedHostsProvider(nodeSettings, transportService, plugin.ec2Service);
             httpServer.createContext("/", exchange -> {
-                if (exchange.getRequestMethod().equals(HttpMethodName.POST.name())) {
+                if (exchange.getRequestMethod().equals("POST")) {
                     final String request = Streams.readFully(exchange.getRequestBody()).toBytesRef().utf8ToString();
                     final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
                     if (userAgent != null && userAgent.startsWith("aws-sdk-java")) {
@@ -124,7 +123,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                         final String[] params = request.split("&");
                         Arrays.stream(params).filter(entry -> entry.startsWith("Filter.") && entry.contains("=tag%3A")).forEach(entry -> {
                             final int startIndex = "Filter.".length();
-                            final int filterId = Integer.parseInt(entry.substring(startIndex, entry.indexOf(".", startIndex)));
+                            final String filterId = entry.substring(startIndex, entry.indexOf(".", startIndex));
                             tagsIncluded.put(
                                 entry.substring(entry.indexOf("=tag%3A") + "=tag%3A".length()),
                                 Arrays.stream(params)
@@ -135,25 +134,26 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                         });
                         final List<Instance> instances = IntStream.range(1, nodes + 1).mapToObj(node -> {
                             final String instanceId = "node" + node;
-                            final Instance instance = new Instance().withInstanceId(instanceId)
-                                .withState(new InstanceState().withName(InstanceStateName.Running))
-                                .withPrivateDnsName(PREFIX_PRIVATE_DNS + instanceId + SUFFIX_PRIVATE_DNS)
-                                .withPublicDnsName(PREFIX_PUBLIC_DNS + instanceId + SUFFIX_PUBLIC_DNS)
-                                .withPrivateIpAddress(PREFIX_PRIVATE_IP + node)
-                                .withPublicIpAddress(PREFIX_PUBLIC_IP + node);
+                            final Instance.Builder instanceBuilder = Instance.builder()
+                                .instanceId(instanceId)
+                                .state(InstanceState.builder().name(InstanceStateName.RUNNING).build())
+                                .privateDnsName(PREFIX_PRIVATE_DNS + instanceId + SUFFIX_PRIVATE_DNS)
+                                .publicDnsName(PREFIX_PUBLIC_DNS + instanceId + SUFFIX_PUBLIC_DNS)
+                                .privateIpAddress(PREFIX_PRIVATE_IP + node)
+                                .publicIpAddress(PREFIX_PUBLIC_IP + node);
                             if (tagsList != null) {
-                                instance.setTags(tagsList.get(node - 1));
+                                instanceBuilder.tags(tagsList.get(node - 1));
                             }
-                            return instance;
+                            return instanceBuilder.build();
                         })
                             .filter(
                                 instance -> tagsIncluded.entrySet()
                                     .stream()
                                     .allMatch(
-                                        entry -> instance.getTags()
+                                        entry -> instance.tags()
                                             .stream()
-                                            .filter(t -> t.getKey().equals(entry.getKey()))
-                                            .map(Tag::getValue)
+                                            .filter(t -> t.key().equals(entry.getKey()))
+                                            .map(Tag::value)
                                             .collect(Collectors.toList())
                                             .containsAll(entry.getValue())
                                     )
@@ -273,10 +273,10 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         for (int node = 0; node < nodes; node++) {
             List<Tag> tags = new ArrayList<>();
             if (randomBoolean()) {
-                tags.add(new Tag("stage", "prod"));
+                tags.add(Tag.builder().key("stage").value("prod").build());
                 prodInstances++;
             } else {
-                tags.add(new Tag("stage", "dev"));
+                tags.add(Tag.builder().key("stage").value("dev").build());
             }
             tagsList.add(tags);
         }
@@ -296,15 +296,15 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         for (int node = 0; node < nodes; node++) {
             List<Tag> tags = new ArrayList<>();
             if (randomBoolean()) {
-                tags.add(new Tag("stage", "prod"));
+                tags.add(Tag.builder().key("stage").value("prod").build());
                 if (randomBoolean()) {
-                    tags.add(new Tag("stage", "preprod"));
+                    tags.add(Tag.builder().key("stage").value("preprod").build());
                     prodInstances++;
                 }
             } else {
-                tags.add(new Tag("stage", "dev"));
+                tags.add(Tag.builder().key("stage").value("dev").build());
                 if (randomBoolean()) {
-                    tags.add(new Tag("stage", "preprod"));
+                    tags.add(Tag.builder().key("stage").value("preprod").build());
                 }
             }
             tagsList.add(tags);
@@ -331,7 +331,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
 
         for (int node = 0; node < nodes; node++) {
             List<Tag> tags = new ArrayList<>();
-            tags.add(new Tag("foo", "node" + (node + 1)));
+            tags.add(Tag.builder().key("foo").value("node" + (node + 1)).build());
             tagsList.add(tags);
         }
 

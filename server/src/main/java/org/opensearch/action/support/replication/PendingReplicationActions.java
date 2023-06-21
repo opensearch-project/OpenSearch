@@ -33,8 +33,8 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.support.RetryableAction;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.ReplicationGroup;

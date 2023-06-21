@@ -47,6 +47,7 @@ import static org.mockito.Mockito.when;
 public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
     private TransferService transferService;
+    private ShardId shardId;
     private BlobPath remoteBaseTransferPath;
     private ThreadPool threadPool;
     private long primaryTerm;
@@ -58,6 +59,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         super.setUp();
         primaryTerm = randomNonNegativeLong();
         generation = randomNonNegativeLong();
+        shardId = mock(ShardId.class);
         minTranslogGeneration = randomLongBetween(0, generation);
         remoteBaseTransferPath = new BlobPath().add("base_path");
         transferService = mock(TransferService.class);
@@ -102,6 +104,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         };
 
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
             transferService,
             remoteBaseTransferPath,
             fileTransferTracker
@@ -177,41 +180,61 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testReadMetadataNoFile() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            null
+        );
 
         when(transferService.listAll(remoteBaseTransferPath)).thenReturn(Sets.newHashSet());
         assertNull(translogTransferManager.readMetadata());
     }
 
     public void testReadMetadataSingleFile() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            null
+        );
 
         // BlobPath does not have equals method, so we can't use the instance directly in when
         when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234"));
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
         when(transferService.downloadBlob(any(BlobPath.class), eq("12__234"))).thenReturn(
-            new ByteArrayInputStream(metadata.createMetadataBytes())
+            new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata))
         );
 
         assertEquals(metadata, translogTransferManager.readMetadata());
     }
 
     public void testReadMetadataMultipleFiles() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            null
+        );
 
         when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234", "12__235", "12__233"));
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
         when(transferService.downloadBlob(any(BlobPath.class), eq("12__235"))).thenReturn(
-            new ByteArrayInputStream(metadata.createMetadataBytes())
+            new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata))
         );
 
         assertEquals(metadata, translogTransferManager.readMetadata());
     }
 
     public void testReadMetadataException() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            null
+        );
 
         when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234", "12__235", "12__233"));
 
@@ -228,6 +251,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     public void testDownloadTranslog() throws IOException {
         Path location = createTempDir();
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
             transferService,
             remoteBaseTransferPath,
             new FileTransferTracker(new ShardId("index", "indexUuid", 0))
@@ -254,7 +278,12 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         Files.createFile(location.resolve("translog-23.tlog"));
         Files.createFile(location.resolve("translog-23.ckp"));
 
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, tracker);
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            tracker
+        );
 
         when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.tlog"))).thenReturn(
             new ByteArrayInputStream("Hello Translog".getBytes(StandardCharsets.UTF_8))
@@ -278,7 +307,12 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         Files.createFile(location.resolve(translogFile));
         Files.createFile(location.resolve(checkpointFile));
 
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, tracker);
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            tracker
+        );
 
         when(transferService.downloadBlob(any(BlobPath.class), eq(translogFile))).thenReturn(
             new ByteArrayInputStream("Hello Translog".getBytes(StandardCharsets.UTF_8))
@@ -310,6 +344,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
         BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
             blobStoreTransferService,
             remoteBaseTransferPath,
             tracker
@@ -333,6 +368,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         // when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
         BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
             blobStoreTransferService,
             remoteBaseTransferPath,
             tracker

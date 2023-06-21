@@ -45,10 +45,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.LongArray;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -160,7 +160,7 @@ public class LongValuesSource extends SingleDimensionValuesSource<Long> {
         }
     }
 
-    int compareValues(long v1, long v2) {
+    private int compareValues(long v1, long v2) {
         return Long.compare(v1, v2) * reverseMul;
     }
 

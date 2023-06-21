@@ -102,10 +102,9 @@ ${path.logs}
 #
 # ---------------------------------- Experimental Features -----------------------------------
 #
-# Gates the visibility of the index setting that allows changing of replication type.
-# Once the feature is ready for production release, this feature flag can be removed.
+# Gates the visibility of the experimental segment replication features until they are production ready.
 #
-#opensearch.experimental.feature.replication_type.enabled: false
+#opensearch.experimental.feature.segment_replication_experimental.enabled: false
 #
 #
 # Gates the visibility of the index setting that allows persisting data to remote store along with local disk.
@@ -131,4 +130,11 @@ ${path.logs}
 #
 # Gates the search pipeline feature. This feature enables configurable processors
 # for search requests and search responses, similar to ingest pipelines.
+#
 #opensearch.experimental.feature.search_pipeline.enabled: false
+#
+#
+# Gates the concurrent segment search feature. This feature enables concurrent segment search in a separate
+# index searcher threadpool.
+#
+#opensearch.experimental.feature.concurrent_segment_search.enabled: false

@@ -32,8 +32,8 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;

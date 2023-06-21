@@ -56,7 +56,7 @@ public class QueryProfileShardResultTests extends OpenSearchTestCase {
         for (int i = 0; i < size; i++) {
             queryProfileResults.add(ProfileResultTests.createTestItem(1));
         }
-        CollectorResult profileCollector = CollectorResultTests.createTestItem(2);
+        CollectorResult profileCollector = CollectorResultTests.createTestItem(2, false);
         long rewriteTime = randomNonNegativeLong();
         if (randomBoolean()) {
             rewriteTime = rewriteTime % 1000; // make sure to often test this with small values too

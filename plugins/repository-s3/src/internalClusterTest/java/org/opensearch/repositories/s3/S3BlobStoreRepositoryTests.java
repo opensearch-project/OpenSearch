@@ -31,12 +31,10 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.http.AmazonHttpClient;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.s3.S3HttpHandler;
-
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
@@ -53,9 +51,11 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -66,27 +66,31 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
 
-    private String region;
+    private final String region = "test-region";
     private String signerOverride;
+    private String previousOpenSearchPathConf;
 
     @Override
     public void setUp() throws Exception {
-        if (randomBoolean()) {
-            region = "test-region";
-        }
-        if (region != null && randomBoolean()) {
-            signerOverride = randomFrom("AWS3SignerType", "AWS4SignerType");
-        } else if (randomBoolean()) {
-            signerOverride = "AWS3SignerType";
-        }
+        signerOverride = AwsRequestSigner.VERSION_FOUR_SIGNER.getName();
+        previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        if (previousOpenSearchPathConf != null) {
+            SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
+        } else {
+            SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        }
+        super.tearDown();
     }
 
     @Override
@@ -133,15 +137,15 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
             // Disable request throttling because some random values in tests might generate too many failures for the S3 client
             .put(S3ClientSettings.USE_THROTTLE_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), false)
+            .put(S3ClientSettings.PROXY_TYPE_SETTING.getConcreteSettingForNamespace("test").getKey(), ProxySettings.ProxyType.DIRECT)
             .put(super.nodeSettings(nodeOrdinal))
             .setSecureSettings(secureSettings);
 
         if (signerOverride != null) {
             builder.put(S3ClientSettings.SIGNER_OVERRIDE.getConcreteSettingForNamespace("test").getKey(), signerOverride);
         }
-        if (region != null) {
-            builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
-        }
+
+        builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
         return builder.build();
     }
 
@@ -206,14 +210,11 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
         private void validateAuthHeader(HttpExchange exchange) {
             final String authorizationHeaderV4 = exchange.getRequestHeaders().getFirst("Authorization");
-            final String authorizationHeaderV3 = exchange.getRequestHeaders().getFirst("X-amzn-authorization");
 
-            if ("AWS3SignerType".equals(signerOverride)) {
-                assertThat(authorizationHeaderV3, startsWith("AWS3"));
-            } else if ("AWS4SignerType".equals(signerOverride)) {
+            if ("AWS4SignerType".equals(signerOverride)) {
                 assertThat(authorizationHeaderV4, containsString("aws4_request"));
             }
-            if (region != null && authorizationHeaderV4 != null) {
+            if (authorizationHeaderV4 != null) {
                 assertThat(authorizationHeaderV4, containsString("/" + region + "/s3/"));
             }
         }
@@ -235,7 +236,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         @Override
         protected String requestUniqueId(final HttpExchange exchange) {
             // Amazon SDK client provides a unique ID per request
-            return exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
+            return exchange.getRequestHeaders().getFirst(ApplyTransactionIdStage.HEADER_SDK_TRANSACTION_ID);
         }
     }
 
@@ -251,7 +252,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
         @Override
         public void maybeTrack(final String request, Headers requestHeaders) {
-            if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
+            if (Regex.simpleMatch("GET /*?list-type=*", request)) {
                 trackRequest("ListObjects");
             } else if (Regex.simpleMatch("GET /*/*", request)) {
                 trackRequest("GetObject");

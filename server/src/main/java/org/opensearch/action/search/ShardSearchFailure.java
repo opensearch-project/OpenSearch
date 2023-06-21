@@ -85,17 +85,20 @@ public class ShardSearchFailure extends ShardOperationFailedException {
     }
 
     public ShardSearchFailure(Exception e, @Nullable SearchShardTarget shardTarget) {
+        this(e, ExceptionsHelper.unwrapCause(e), shardTarget);
+    }
+
+    private ShardSearchFailure(final Exception e, final Throwable unwrappedCause, @Nullable SearchShardTarget shardTarget) {
         super(
             shardTarget == null ? null : shardTarget.getFullyQualifiedIndexName(),
             shardTarget == null ? -1 : shardTarget.getShardId().getId(),
             ExceptionsHelper.detailedMessage(e),
-            ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)),
-            ExceptionsHelper.unwrapCause(e)
+            ExceptionsHelper.status(unwrappedCause),
+            unwrappedCause
         );
 
-        final Throwable actual = ExceptionsHelper.unwrapCause(e);
-        if (actual instanceof SearchException) {
-            this.shardTarget = ((SearchException) actual).shard();
+        if (unwrappedCause instanceof SearchException) {
+            this.shardTarget = ((SearchException) unwrappedCause).shard();
         } else if (shardTarget != null) {
             this.shardTarget = shardTarget;
         }

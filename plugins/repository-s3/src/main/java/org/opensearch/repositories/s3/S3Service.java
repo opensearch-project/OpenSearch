@@ -32,26 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSSessionCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
-import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
-import com.amazonaws.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.http.IdleConnectionReaper;
-import com.amazonaws.http.SystemPropertyTlsKeyManagersProvider;
-import com.amazonaws.http.conn.ssl.SdkTLSSocketFactory;
-import com.amazonaws.internal.SdkSSLContext;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.internal.Constants;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
-
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.protocol.HttpContext;
@@ -59,10 +39,38 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
+import org.opensearch.repositories.s3.utils.Protocol;
+import org.opensearch.repositories.s3.utils.AwsRequestSigner;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
+import software.amazon.awssdk.http.SystemPropertyTlsKeyManagersProvider;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.apache.ProxyConfiguration;
+import software.amazon.awssdk.http.apache.internal.conn.SdkTlsSocketFactory;
+import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.StsClientBuilder;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
+import software.amazon.awssdk.services.sts.auth.StsWebIdentityTokenFileCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 import javax.net.ssl.SSLContext;
 import java.io.Closeable;
@@ -72,19 +80,23 @@ import java.net.InetSocketAddress;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
 import java.net.Socket;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.Map;
 
-import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
-import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
-import static com.amazonaws.SDKGlobalConfiguration.AWS_WEB_IDENTITY_ENV_VAR;
 import static java.util.Collections.emptyMap;
 
 class S3Service implements Closeable {
     private static final Logger logger = LogManager.getLogger(S3Service.class);
 
-    private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "com.amazonaws.sdk.stsEndpointOverride";
+    private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "aws.stsEndpointOverride";
+
+    private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
 
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
 
@@ -182,20 +194,21 @@ class S3Service implements Closeable {
 
     // proxy for testing
     AmazonS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
-        final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
+        setDefaultAwsProfilePath();
+        final S3ClientBuilder builder = S3Client.builder();
 
-        final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
-        builder.withCredentials(credentials);
-        builder.withClientConfiguration(buildConfiguration(clientSettings));
+        final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
+        builder.credentialsProvider(credentials);
+        builder.httpClientBuilder(buildHttpClient(clientSettings));
+        builder.overrideConfiguration(buildOverrideConfiguration(clientSettings));
 
-        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
+        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : DEFAULT_S3_ENDPOINT;
         if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
             // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
             // TODO: Remove this once fixed in the AWS SDK
             endpoint = clientSettings.protocol.toString() + "://" + endpoint;
         }
-        final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
-        logger.debug("using endpoint [{}] and region [{}]", endpoint, region);
+        logger.debug("using endpoint [{}] and region [{}]", endpoint, clientSettings.region);
 
         // If the endpoint configuration isn't set on the builder then the default behaviour is to try
         // and work out what region we are in and use an appropriate endpoint - see AwsClientBuilder#setRegion.
@@ -205,26 +218,43 @@ class S3Service implements Closeable {
         //
         // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
         // so this change removes that usage of a deprecated API.
-        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, region));
+        builder.endpointOverride(URI.create(endpoint));
+        if (Strings.hasText(clientSettings.region)) {
+            builder.region(Region.of(clientSettings.region));
+        }
         if (clientSettings.pathStyleAccess) {
-            builder.enablePathStyleAccess();
+            builder.forcePathStyle(true);
         }
         if (clientSettings.disableChunkedEncoding) {
-            builder.disableChunkedEncoding();
+            builder.serviceConfiguration(s -> s.chunkedEncodingEnabled(false));
         }
-        final AmazonS3 client = SocketAccess.doPrivileged(builder::build);
+        final S3Client client = SocketAccess.doPrivileged(builder::build);
         return AmazonS3WithCredentials.create(client, credentials);
     }
 
-    // pkg private for tests
-    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings) {
-        final ClientConfiguration clientConfiguration = new ClientConfiguration();
-        // the response metadata cache is only there for diagnostics purposes,
-        // but can force objects from every response to the old generation.
-        clientConfiguration.setResponseMetadataCacheSize(0);
-        clientConfiguration.setProtocol(clientSettings.protocol);
+    // Aws v2 sdk tries to load a default profile from home path which is restricted. Hence, setting these to random
+    // valid paths.
+    @SuppressForbidden(reason = "Need to provide this override to v2 SDK so that path does not default to home path")
+    static void setDefaultAwsProfilePath() {
+        if (ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.getStringValue().isEmpty()) {
+            SocketAccess.doPrivileged(
+                () -> System.setProperty(
+                    ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.property(),
+                    System.getProperty("opensearch.path.conf")
+                )
+            );
+        }
+        if (ProfileFileSystemSetting.AWS_CONFIG_FILE.getStringValue().isEmpty()) {
+            SocketAccess.doPrivileged(
+                () -> System.setProperty(ProfileFileSystemSetting.AWS_CONFIG_FILE.property(), System.getProperty("opensearch.path.conf"))
+            );
+        }
+    }
 
-        if (clientSettings.proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
+    static ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
+        ApacheHttpClient.Builder clientBuilder = ApacheHttpClient.builder();
+
+        if (!clientSettings.proxySettings.equals(ProxySettings.NO_PROXY_SETTINGS)) {
             if (clientSettings.proxySettings.getType() == ProxySettings.ProxyType.SOCKS) {
                 SocketAccess.doPrivilegedVoid(() -> {
                     if (clientSettings.proxySettings.isAuthenticated()) {
@@ -238,104 +268,144 @@ class S3Service implements Closeable {
                             }
                         });
                     }
-                    clientConfiguration.getApacheHttpClientConfig()
-                        .setSslSocketFactory(createSocksSslConnectionSocketFactory(clientSettings.proxySettings.getAddress()));
+                    clientBuilder.socketFactory(createSocksSslConnectionSocketFactory(clientSettings.proxySettings.getAddress()));
                 });
             } else {
-                if (clientSettings.proxySettings.getType() != ProxySettings.ProxyType.DIRECT) {
-                    clientConfiguration.setProxyProtocol(clientSettings.proxySettings.getType().toProtocol());
-                }
-                clientConfiguration.setProxyHost(clientSettings.proxySettings.getHostName());
-                clientConfiguration.setProxyPort(clientSettings.proxySettings.getPort());
-                clientConfiguration.setProxyUsername(clientSettings.proxySettings.getUsername());
-                clientConfiguration.setProxyPassword(clientSettings.proxySettings.getPassword());
+                clientBuilder.proxyConfiguration(buildHttpProxyConfiguration(clientSettings));
             }
         }
 
-        if (Strings.hasLength(clientSettings.signerOverride)) {
-            clientConfiguration.setSignerOverride(clientSettings.signerOverride);
+        clientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
+
+        return clientBuilder;
+    }
+
+    static ProxyConfiguration buildHttpProxyConfiguration(S3ClientSettings clientSettings) {
+        ProxyConfiguration.Builder proxyConfiguration = ProxyConfiguration.builder();
+        if (clientSettings.proxySettings.getType() == ProxySettings.ProxyType.SOCKS) {
+            return proxyConfiguration.build();
         }
 
-        clientConfiguration.setMaxErrorRetry(clientSettings.maxRetries);
-        clientConfiguration.setUseThrottleRetries(clientSettings.throttleRetries);
-        clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
+        Protocol proxyProtocol = clientSettings.proxySettings.getType() == ProxySettings.ProxyType.DIRECT
+            ? Protocol.HTTP
+            : clientSettings.proxySettings.getType().toProtocol();
 
-        return clientConfiguration;
+        try {
+            proxyConfiguration = proxyConfiguration.endpoint(
+                new URI(
+                    proxyProtocol.toString(),
+                    null,
+                    clientSettings.proxySettings.getHost(),
+                    clientSettings.proxySettings.getPort(),
+                    null,
+                    null,
+                    null
+                )
+            );
+        } catch (URISyntaxException e) {
+            throw SdkException.create("Invalid proxy URL", e);
+        }
+
+        proxyConfiguration = proxyConfiguration.username(clientSettings.proxySettings.getUsername());
+        proxyConfiguration = proxyConfiguration.password(clientSettings.proxySettings.getPassword());
+
+        return proxyConfiguration.build();
+    }
+
+    static ClientOverrideConfiguration buildOverrideConfiguration(final S3ClientSettings clientSettings) {
+        ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
+        if (Strings.hasLength(clientSettings.signerOverride)) {
+            clientOverrideConfiguration = clientOverrideConfiguration.putAdvancedOption(
+                SdkAdvancedClientOption.SIGNER,
+                AwsRequestSigner.fromSignerName(clientSettings.signerOverride).getSigner()
+            );
+        }
+        RetryPolicy.Builder retryPolicy = SocketAccess.doPrivileged(
+            () -> RetryPolicy.builder().numRetries(clientSettings.maxRetries).retryCapacityCondition(null)
+        );
+        if (!clientSettings.throttleRetries) {
+            retryPolicy.throttlingBackoffStrategy(BackoffStrategy.none());
+        }
+        return clientOverrideConfiguration.retryPolicy(retryPolicy.build()).build();
     }
 
     private static SSLConnectionSocketFactory createSocksSslConnectionSocketFactory(final InetSocketAddress address) {
         // This part was taken from AWS settings
-        final SSLContext sslCtx = SdkSSLContext.getPreferredSSLContext(
-            new SystemPropertyTlsKeyManagersProvider().getKeyManagers(),
-            new SecureRandom()
-        );
-        return new SdkTLSSocketFactory(sslCtx, new DefaultHostnameVerifier()) {
-            @Override
-            public Socket createSocket(final HttpContext ctx) throws IOException {
-                return new Socket(new Proxy(Proxy.Type.SOCKS, address));
-            }
-        };
+        try {
+            final SSLContext sslCtx = SSLContext.getInstance("TLS");
+            sslCtx.init(SystemPropertyTlsKeyManagersProvider.create().keyManagers(), null, new SecureRandom());
+            return new SdkTlsSocketFactory(sslCtx, new DefaultHostnameVerifier()) {
+                @Override
+                public Socket createSocket(final HttpContext ctx) throws IOException {
+                    return new Socket(new Proxy(Proxy.Type.SOCKS, address));
+                }
+            };
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            throw SdkException.create("Exception during SSL context creation for SOCKS proxy", e);
+        }
     }
 
     // pkg private for tests
-    static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
-        final S3BasicCredentials basicCredentials = clientSettings.credentials;
+    static AwsCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
+        final AwsCredentials basicCredentials = clientSettings.credentials;
         final IrsaCredentials irsaCredentials = buildFromEnviroment(clientSettings.irsaCredentials);
 
         // If IAM Roles for Service Accounts (IRSA) credentials are configured, start with them first
         if (irsaCredentials != null) {
             logger.debug("Using IRSA credentials");
 
-            AWSSecurityTokenService securityTokenService = null;
-            final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
+            StsClient stsClient = SocketAccess.doPrivileged(() -> {
+                StsClientBuilder builder = StsClient.builder();
+                if (Strings.hasText(clientSettings.region)) {
+                    builder.region(Region.of(clientSettings.region));
+                }
 
-            if (region != null || basicCredentials != null) {
-                securityTokenService = SocketAccess.doPrivileged(() -> {
-                    AWSSecurityTokenServiceClientBuilder builder = AWSSecurityTokenServiceClientBuilder.standard();
+                final String stsEndpoint = System.getProperty(STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY);
+                if (stsEndpoint != null) {
+                    builder = builder.endpointOverride(URI.create(stsEndpoint));
+                }
 
-                    // Use similar approach to override STS endpoint as SDKGlobalConfiguration.EC2_METADATA_SERVICE_OVERRIDE_SYSTEM_PROPERTY
-                    final String stsEndpoint = System.getProperty(STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY);
-                    if (region != null && stsEndpoint != null) {
-                        builder = builder.withEndpointConfiguration(new EndpointConfiguration(stsEndpoint, region));
-                    } else {
-                        builder = builder.withRegion(region);
-                    }
+                if (basicCredentials != null) {
+                    builder = builder.credentialsProvider(StaticCredentialsProvider.create(basicCredentials));
+                } else {
+                    builder = builder.credentialsProvider(DefaultCredentialsProvider.create());
+                }
 
-                    if (basicCredentials != null) {
-                        builder = builder.withCredentials(new AWSStaticCredentialsProvider(basicCredentials));
-                    }
-
-                    return builder.build();
-                });
-            }
+                return builder.build();
+            });
 
             if (irsaCredentials.getIdentityTokenFile() == null) {
-                final STSAssumeRoleSessionCredentialsProvider.Builder stsCredentialsProviderBuilder =
-                    new STSAssumeRoleSessionCredentialsProvider.Builder(irsaCredentials.getRoleArn(), irsaCredentials.getRoleSessionName())
-                        .withStsClient(securityTokenService);
+                final StsAssumeRoleCredentialsProvider.Builder stsCredentialsProviderBuilder = StsAssumeRoleCredentialsProvider.builder()
+                    .stsClient(stsClient)
+                    .refreshRequest(
+                        AssumeRoleRequest.builder()
+                            .roleArn(irsaCredentials.getRoleArn())
+                            .roleSessionName(irsaCredentials.getRoleSessionName())
+                            .build()
+                    );
 
-                final STSAssumeRoleSessionCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                final StsAssumeRoleCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
                     stsCredentialsProviderBuilder::build
                 );
 
-                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(securityTokenService, stsCredentialsProvider);
+                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(stsClient, stsCredentialsProvider);
             } else {
-                final STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder stsCredentialsProviderBuilder =
-                    new STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder(
-                        irsaCredentials.getRoleArn(),
-                        irsaCredentials.getRoleSessionName(),
-                        irsaCredentials.getIdentityTokenFile()
-                    ).withStsClient(securityTokenService);
+                final StsWebIdentityTokenFileCredentialsProvider.Builder stsCredentialsProviderBuilder =
+                    StsWebIdentityTokenFileCredentialsProvider.builder()
+                        .stsClient(stsClient)
+                        .roleArn(irsaCredentials.getRoleArn())
+                        .roleSessionName(irsaCredentials.getRoleSessionName())
+                        .webIdentityTokenFile(Path.of(irsaCredentials.getIdentityTokenFile()));
 
-                final STSAssumeRoleWithWebIdentitySessionCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                final StsWebIdentityTokenFileCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
                     stsCredentialsProviderBuilder::build
                 );
 
-                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(securityTokenService, stsCredentialsProvider);
+                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(stsClient, stsCredentialsProvider);
             }
         } else if (basicCredentials != null) {
             logger.debug("Using basic key/secret credentials");
-            return new AWSStaticCredentialsProvider(basicCredentials);
+            return StaticCredentialsProvider.create(basicCredentials);
         } else {
             logger.debug("Using instance profile credentials");
             return new PrivilegedInstanceProfileCredentialsProvider();
@@ -349,17 +419,17 @@ class S3Service implements Closeable {
 
         String webIdentityTokenFile = defaults.getIdentityTokenFile();
         if (webIdentityTokenFile == null) {
-            webIdentityTokenFile = System.getenv(AWS_WEB_IDENTITY_ENV_VAR);
+            webIdentityTokenFile = System.getenv(SdkSystemSetting.AWS_WEB_IDENTITY_TOKEN_FILE.environmentVariable());
         }
 
         String roleArn = defaults.getRoleArn();
         if (roleArn == null) {
-            roleArn = System.getenv(AWS_ROLE_ARN_ENV_VAR);
+            roleArn = System.getenv(SdkSystemSetting.AWS_ROLE_ARN.environmentVariable());
         }
 
         String roleSessionName = defaults.getRoleSessionName();
         if (roleSessionName == null) {
-            roleSessionName = System.getenv(AWS_ROLE_SESSION_NAME_ENV_VAR);
+            roleSessionName = System.getenv(SdkSystemSetting.AWS_ROLE_SESSION_NAME.environmentVariable());
         }
 
         return new IrsaCredentials(webIdentityTokenFile, roleArn, roleSessionName);
@@ -374,66 +444,58 @@ class S3Service implements Closeable {
         // clear previously cached clients, they will be build lazily
         clientsCache = emptyMap();
         derivedClientSettings = emptyMap();
-
-        // shutdown IdleConnectionReaper background thread
-        // it will be restarted on new client usage
-        IdleConnectionReaper.shutdown();
     }
 
-    static class PrivilegedInstanceProfileCredentialsProvider implements AWSCredentialsProvider {
-        private final AWSCredentialsProvider credentials;
+    static class PrivilegedInstanceProfileCredentialsProvider implements AwsCredentialsProvider {
+        private final AwsCredentialsProvider credentials;
 
         private PrivilegedInstanceProfileCredentialsProvider() {
+            this.credentials = initializeProvider();
+        }
+
+        private AwsCredentialsProvider initializeProvider() {
+            if (SdkSystemSetting.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI.getStringValue().isPresent()
+                || SdkSystemSetting.AWS_CONTAINER_CREDENTIALS_FULL_URI.getStringValue().isPresent()) {
+
+                return ContainerCredentialsProvider.builder().asyncCredentialUpdateEnabled(true).build();
+            }
             // InstanceProfileCredentialsProvider as last item of chain
-            this.credentials = new EC2ContainerCredentialsProviderWrapper();
+            return InstanceProfileCredentialsProvider.builder().asyncCredentialUpdateEnabled(true).build();
         }
 
         @Override
-        public AWSCredentials getCredentials() {
-            return SocketAccess.doPrivileged(credentials::getCredentials);
-        }
-
-        @Override
-        public void refresh() {
-            SocketAccess.doPrivilegedVoid(credentials::refresh);
+        public AwsCredentials resolveCredentials() {
+            return SocketAccess.doPrivileged(credentials::resolveCredentials);
         }
     }
 
-    static class PrivilegedSTSAssumeRoleSessionCredentialsProvider<P extends AWSSessionCredentialsProvider & Closeable>
+    static class PrivilegedSTSAssumeRoleSessionCredentialsProvider<P extends AwsCredentialsProvider & AutoCloseable>
         implements
-            AWSCredentialsProvider,
+            AwsCredentialsProvider,
             Closeable {
         private final P credentials;
-        private final AWSSecurityTokenService securityTokenService;
+        private final StsClient stsClient;
 
-        private PrivilegedSTSAssumeRoleSessionCredentialsProvider(
-            @Nullable final AWSSecurityTokenService securityTokenService,
-            final P credentials
-        ) {
-            this.securityTokenService = securityTokenService;
+        private PrivilegedSTSAssumeRoleSessionCredentialsProvider(@Nullable final StsClient stsClient, final P credentials) {
+            this.stsClient = stsClient;
             this.credentials = credentials;
-        }
-
-        @Override
-        public AWSCredentials getCredentials() {
-            return SocketAccess.doPrivileged(credentials::getCredentials);
-        }
-
-        @Override
-        public void refresh() {
-            SocketAccess.doPrivilegedVoid(credentials::refresh);
         }
 
         @Override
         public void close() throws IOException {
             SocketAccess.doPrivilegedIOException(() -> {
                 credentials.close();
-                if (securityTokenService != null) {
-                    securityTokenService.shutdown();
+                if (stsClient != null) {
+                    stsClient.close();
                 }
                 return null;
             });
-        };
+        }
+
+        @Override
+        public AwsCredentials resolveCredentials() {
+            return SocketAccess.doPrivileged(credentials::resolveCredentials);
+        }
     }
 
     @Override

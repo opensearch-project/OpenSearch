@@ -161,7 +161,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();
         final String path = "/org/opensearch";
-        final Path startPath = PathUtils.get(OpenSearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+        final Path coreLibStartPath = PathUtils.get(OpenSearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        final Path startPath = PathUtils.get(OpenSearchServerException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
             .resolve("org")
             .resolve("opensearch");
         final Set<String> ignore = Sets.newHashSet(
@@ -243,6 +244,9 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
             }
         };
 
+        // walk the core library start path
+        Files.walkFileTree(coreLibStartPath, visitor);
+        // walk the server module start path
         Files.walkFileTree(startPath, visitor);
         final Path testStartPath = PathUtils.get(ExceptionSerializationTests.class.getResource(path).toURI());
         Files.walkFileTree(testStartPath, visitor);

@@ -72,13 +72,14 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
         try (Directory directory = remoteSegmentStoreDirectoryFactory.newDirectory(indexSettings, shardPath)) {
             assertTrue(directory instanceof RemoteSegmentStoreDirectory);
             ArgumentCaptor<BlobPath> blobPathCaptor = ArgumentCaptor.forClass(BlobPath.class);
-            verify(blobStore, times(2)).blobContainer(blobPathCaptor.capture());
+            verify(blobStore, times(3)).blobContainer(blobPathCaptor.capture());
             List<BlobPath> blobPaths = blobPathCaptor.getAllValues();
             assertEquals("base_path/uuid_1/0/segments/data/", blobPaths.get(0).buildAsString());
             assertEquals("base_path/uuid_1/0/segments/metadata/", blobPaths.get(1).buildAsString());
+            assertEquals("base_path/uuid_1/0/segments/lock_files/", blobPaths.get(2).buildAsString());
 
             verify(blobContainer).listBlobsByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX);
-            verify(repositoriesService).repository("remote_store_repository");
+            verify(repositoriesService, times(2)).repository("remote_store_repository");
         }
     }
 

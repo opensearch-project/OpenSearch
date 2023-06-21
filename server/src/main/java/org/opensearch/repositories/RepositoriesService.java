@@ -35,6 +35,7 @@ package org.opensearch.repositories;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
@@ -78,6 +79,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -160,6 +163,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
         validate(request.name());
+        validateRepositoryMetadataSettings(clusterService, request.name(), request.settings());
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify()) {
@@ -594,7 +598,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static void validate(final String repositoryName) {
-        if (Strings.hasLength(repositoryName) == false) {
+        if (org.opensearch.core.common.Strings.hasLength(repositoryName) == false) {
             throw new RepositoryException(repositoryName, "cannot be empty");
         }
         if (repositoryName.contains("#")) {
@@ -602,6 +606,26 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
         if (Strings.validFileName(repositoryName) == false) {
             throw new RepositoryException(repositoryName, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        }
+    }
+
+    public static void validateRepositoryMetadataSettings(
+        ClusterService clusterService,
+        final String repositoryName,
+        final Settings repositoryMetadataSettings
+    ) {
+        // We can add more validations here for repository settings in the future.
+        Version minVersionInCluster = clusterService.state().getNodes().getMinNodeVersion();
+        if (REMOTE_STORE_INDEX_SHALLOW_COPY.get(repositoryMetadataSettings) && !minVersionInCluster.onOrAfter(Version.V_2_9_0)) {
+            throw new RepositoryException(
+                repositoryName,
+                "setting "
+                    + REMOTE_STORE_INDEX_SHALLOW_COPY.getKey()
+                    + " cannot be enabled as some of the nodes in cluster are on version older than "
+                    + Version.V_2_9_0
+                    + ". Minimum node version in cluster is: "
+                    + minVersionInCluster
+            );
         }
     }
 

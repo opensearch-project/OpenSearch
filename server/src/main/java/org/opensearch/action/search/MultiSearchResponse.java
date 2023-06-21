@@ -32,8 +32,8 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;

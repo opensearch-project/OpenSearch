@@ -36,9 +36,9 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.Mockito;
@@ -256,7 +256,8 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
                 randomNonNegativeLong(),
                 new TragicExceptionHolder(),
                 seqNo -> {},
-                BigArrays.NON_RECYCLING_INSTANCE
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
             );
             writer = Mockito.spy(writer);
             Mockito.doReturn(now - (numberOfReaders - gen + 1) * 1000).when(writer).getLastModifiedTime();

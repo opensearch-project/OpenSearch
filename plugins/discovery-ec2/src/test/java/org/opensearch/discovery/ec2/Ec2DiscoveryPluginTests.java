@@ -32,17 +32,17 @@
 
 package org.opensearch.discovery.ec2;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.BasicSessionCredentials;
-import com.amazonaws.services.ec2.AbstractAmazonEC2;
-import com.amazonaws.services.ec2.AmazonEC2;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.apache.ProxyConfiguration;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.ec2.Ec2Client;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -51,10 +51,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
-public class Ec2DiscoveryPluginTests extends OpenSearchTestCase {
-
+public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
     private Settings getNodeAttributes(Settings settings, String url) {
         final Settings realSettings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true).put(settings).build();
         return Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(realSettings, url);
@@ -103,16 +101,32 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase {
 
     public void testDefaultEndpoint() throws IOException {
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY)) {
-            final String endpoint = ((AmazonEC2Mock) plugin.ec2Service.client().get()).endpoint;
-            assertThat(endpoint, is(""));
+            final String endpoint = ((MockEc2Client) plugin.ec2Service.client().get()).endpoint;
+            assertEquals(endpoint, "");
+        }
+    }
+
+    public void testDefaultRegion() throws IOException {
+        final Settings settings = Settings.builder().build();
+        try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings)) {
+            final String region = ((MockEc2Client) plugin.ec2Service.client().get()).region;
+            assertEquals(region, "");
+        }
+    }
+
+    public void testSpecificRegion() throws IOException {
+        final Settings settings = Settings.builder().put(Ec2ClientSettings.REGION_SETTING.getKey(), "us-west-2").build();
+        try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings)) {
+            final String region = ((MockEc2Client) plugin.ec2Service.client().get()).region;
+            assertEquals(region, Region.US_WEST_2.toString());
         }
     }
 
     public void testSpecificEndpoint() throws IOException {
         final Settings settings = Settings.builder().put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), "ec2.endpoint").build();
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings)) {
-            final String endpoint = ((AmazonEC2Mock) plugin.ec2Service.client().get()).endpoint;
-            assertThat(endpoint, is("ec2.endpoint"));
+            final String endpoint = ((MockEc2Client) plugin.ec2Service.client().get()).endpoint;
+            assertEquals(endpoint, "ec2.endpoint");
         }
     }
 
@@ -127,8 +141,9 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase {
         mockSecure1.setString(Ec2ClientSettings.PROXY_USERNAME_SETTING.getKey(), "proxy_username_1");
         mockSecure1.setString(Ec2ClientSettings.PROXY_PASSWORD_SETTING.getKey(), "proxy_password_1");
         final Settings settings1 = Settings.builder()
-            .put(Ec2ClientSettings.PROXY_HOST_SETTING.getKey(), "proxy_host_1")
+            .put(Ec2ClientSettings.PROXY_HOST_SETTING.getKey(), "proxy-host-1")
             .put(Ec2ClientSettings.PROXY_PORT_SETTING.getKey(), 881)
+            .put(Ec2ClientSettings.REGION_SETTING.getKey(), "ec2_region")
             .put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), "ec2_endpoint_1")
             .setSecureSettings(mockSecure1)
             .build();
@@ -142,62 +157,84 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase {
         mockSecure2.setString(Ec2ClientSettings.PROXY_USERNAME_SETTING.getKey(), "proxy_username_2");
         mockSecure2.setString(Ec2ClientSettings.PROXY_PASSWORD_SETTING.getKey(), "proxy_password_2");
         final Settings settings2 = Settings.builder()
-            .put(Ec2ClientSettings.PROXY_HOST_SETTING.getKey(), "proxy_host_2")
+            .put(Ec2ClientSettings.PROXY_HOST_SETTING.getKey(), "proxy-host-2")
             .put(Ec2ClientSettings.PROXY_PORT_SETTING.getKey(), 882)
+            .put(Ec2ClientSettings.REGION_SETTING.getKey(), "ec2_region")
             .put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), "ec2_endpoint_2")
             .setSecureSettings(mockSecure2)
             .build();
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings1)) {
-            try (AmazonEc2Reference clientReference = plugin.ec2Service.client()) {
+            try (AmazonEc2ClientReference clientReference = plugin.ec2Service.client()) {
                 {
-                    final AWSCredentials credentials = ((AmazonEC2Mock) clientReference.get()).credentials.getCredentials();
-                    assertThat(credentials.getAWSAccessKeyId(), is("ec2_access_1"));
-                    assertThat(credentials.getAWSSecretKey(), is("ec2_secret_1"));
+                    final MockEc2Client mockEc2Client = (MockEc2Client) clientReference.get();
+                    assertEquals(mockEc2Client.endpoint, "ec2_endpoint_1");
+
+                    final AwsCredentials credentials = mockEc2Client.credentials.resolveCredentials();
+                    assertEquals(credentials.accessKeyId(), "ec2_access_1");
+                    assertEquals(credentials.secretAccessKey(), "ec2_secret_1");
                     if (mockSecure1HasSessionToken) {
-                        assertThat(credentials, instanceOf(BasicSessionCredentials.class));
-                        assertThat(((BasicSessionCredentials) credentials).getSessionToken(), is("ec2_session_token_1"));
+                        assertThat(credentials, instanceOf(AwsSessionCredentials.class));
+                        assertEquals(((AwsSessionCredentials) credentials).sessionToken(), "ec2_session_token_1");
                     } else {
-                        assertThat(credentials, instanceOf(BasicAWSCredentials.class));
+                        assertThat(credentials, instanceOf(AwsBasicCredentials.class));
                     }
-                    assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyUsername(), is("proxy_username_1"));
-                    assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyPassword(), is("proxy_password_1"));
-                    assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyHost(), is("proxy_host_1"));
-                    assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyPort(), is(881));
-                    assertThat(((AmazonEC2Mock) clientReference.get()).endpoint, is("ec2_endpoint_1"));
+
+                    assertEquals(
+                        mockEc2Client.proxyConfiguration.toString(),
+                        "ProxyConfiguration(endpoint=https://proxy-host-1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
+                    );
+                    assertEquals(mockEc2Client.proxyConfiguration.host(), "proxy-host-1");
+                    assertEquals(mockEc2Client.proxyConfiguration.port(), 881);
+                    assertEquals(mockEc2Client.proxyConfiguration.username(), "proxy_username_1");
+                    assertEquals(mockEc2Client.proxyConfiguration.password(), "proxy_password_1");
                 }
                 // reload secure settings2
                 plugin.reload(settings2);
                 // client is not released, it is still using the old settings
                 {
-                    final AWSCredentials credentials = ((AmazonEC2Mock) clientReference.get()).credentials.getCredentials();
+                    final MockEc2Client mockEc2Client = (MockEc2Client) clientReference.get();
+                    assertEquals(mockEc2Client.endpoint, "ec2_endpoint_1");
+
+                    final AwsCredentials credentials = ((MockEc2Client) clientReference.get()).credentials.resolveCredentials();
                     if (mockSecure1HasSessionToken) {
-                        assertThat(credentials, instanceOf(BasicSessionCredentials.class));
-                        assertThat(((BasicSessionCredentials) credentials).getSessionToken(), is("ec2_session_token_1"));
+                        assertThat(credentials, instanceOf(AwsSessionCredentials.class));
+                        assertEquals(((AwsSessionCredentials) credentials).sessionToken(), "ec2_session_token_1");
                     } else {
-                        assertThat(credentials, instanceOf(BasicAWSCredentials.class));
+                        assertThat(credentials, instanceOf(AwsBasicCredentials.class));
                     }
-                    assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyUsername(), is("proxy_username_1"));
-                    assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyPassword(), is("proxy_password_1"));
-                    assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyHost(), is("proxy_host_1"));
-                    assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyPort(), is(881));
-                    assertThat(((AmazonEC2Mock) clientReference.get()).endpoint, is("ec2_endpoint_1"));
+
+                    assertEquals(
+                        mockEc2Client.proxyConfiguration.toString(),
+                        "ProxyConfiguration(endpoint=https://proxy-host-1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
+                    );
+                    assertEquals(mockEc2Client.proxyConfiguration.host(), "proxy-host-1");
+                    assertEquals(mockEc2Client.proxyConfiguration.port(), 881);
+                    assertEquals(mockEc2Client.proxyConfiguration.username(), "proxy_username_1");
+                    assertEquals(mockEc2Client.proxyConfiguration.password(), "proxy_password_1");
                 }
             }
-            try (AmazonEc2Reference clientReference = plugin.ec2Service.client()) {
-                final AWSCredentials credentials = ((AmazonEC2Mock) clientReference.get()).credentials.getCredentials();
-                assertThat(credentials.getAWSAccessKeyId(), is("ec2_access_2"));
-                assertThat(credentials.getAWSSecretKey(), is("ec2_secret_2"));
+            try (AmazonEc2ClientReference clientReference = plugin.ec2Service.client()) {
+                final MockEc2Client mockEc2Client = (MockEc2Client) clientReference.get();
+                assertEquals(mockEc2Client.endpoint, "ec2_endpoint_2");
+
+                final AwsCredentials credentials = ((MockEc2Client) clientReference.get()).credentials.resolveCredentials();
+                assertEquals(credentials.accessKeyId(), "ec2_access_2");
+                assertEquals(credentials.secretAccessKey(), "ec2_secret_2");
                 if (mockSecure2HasSessionToken) {
-                    assertThat(credentials, instanceOf(BasicSessionCredentials.class));
-                    assertThat(((BasicSessionCredentials) credentials).getSessionToken(), is("ec2_session_token_2"));
+                    assertThat(credentials, instanceOf(AwsSessionCredentials.class));
+                    assertEquals(((AwsSessionCredentials) credentials).sessionToken(), "ec2_session_token_2");
                 } else {
-                    assertThat(credentials, instanceOf(BasicAWSCredentials.class));
+                    assertThat(credentials, instanceOf(AwsBasicCredentials.class));
                 }
-                assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyUsername(), is("proxy_username_2"));
-                assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyPassword(), is("proxy_password_2"));
-                assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyHost(), is("proxy_host_2"));
-                assertThat(((AmazonEC2Mock) clientReference.get()).configuration.getProxyPort(), is(882));
-                assertThat(((AmazonEC2Mock) clientReference.get()).endpoint, is("ec2_endpoint_2"));
+
+                assertEquals(
+                    mockEc2Client.proxyConfiguration.toString(),
+                    "ProxyConfiguration(endpoint=https://proxy-host-2:882, username=proxy_username_2, preemptiveBasicAuthenticationEnabled=false)"
+                );
+                assertEquals(mockEc2Client.proxyConfiguration.host(), "proxy-host-2");
+                assertEquals(mockEc2Client.proxyConfiguration.port(), 882);
+                assertEquals(mockEc2Client.proxyConfiguration.username(), "proxy_username_2");
+                assertEquals(mockEc2Client.proxyConfiguration.password(), "proxy_password_2");
             }
         }
     }
@@ -207,26 +244,53 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase {
         Ec2DiscoveryPluginMock(Settings settings) {
             super(settings, new AwsEc2ServiceImpl() {
                 @Override
-                AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration, String endpoint) {
-                    return new AmazonEC2Mock(credentials, configuration, endpoint);
+                protected Ec2Client buildClient(
+                    AwsCredentialsProvider credentials,
+                    ProxyConfiguration proxyConfiguration,
+                    ClientOverrideConfiguration overrideConfiguration,
+                    String endpoint,
+                    String region,
+                    long readTimeoutMillis
+                ) {
+                    return new MockEc2Client(credentials, proxyConfiguration, overrideConfiguration, endpoint, region, readTimeoutMillis);
                 }
             });
         }
     }
 
-    private static class AmazonEC2Mock extends AbstractAmazonEC2 {
+    private static class MockEc2Client implements Ec2Client {
 
         String endpoint;
-        final AWSCredentialsProvider credentials;
-        final ClientConfiguration configuration;
+        final String region;
+        final AwsCredentialsProvider credentials;
+        final ClientOverrideConfiguration clientOverrideConfiguration;
+        final ProxyConfiguration proxyConfiguration;
+        final long readTimeoutMillis;
 
-        AmazonEC2Mock(AWSCredentialsProvider credentials, ClientConfiguration configuration, String endpoint) {
+        MockEc2Client(
+            AwsCredentialsProvider credentials,
+            ProxyConfiguration proxyConfiguration,
+            ClientOverrideConfiguration clientOverrideConfiguration,
+            String endpoint,
+            String region,
+            long readTimeoutMillis
+        ) {
             this.credentials = credentials;
-            this.configuration = configuration;
+            this.proxyConfiguration = proxyConfiguration;
+            this.clientOverrideConfiguration = clientOverrideConfiguration;
             this.endpoint = endpoint;
+            this.region = region;
+            this.readTimeoutMillis = readTimeoutMillis;
         }
 
         @Override
-        public void shutdown() {}
+        public String serviceName() {
+            return "ec2";
+        }
+
+        @Override
+        public void close() {
+            // ignore
+        }
     }
 }

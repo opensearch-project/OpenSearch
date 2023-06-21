@@ -88,6 +88,13 @@ public class InternalProfileCollector implements Collector, InternalProfileCompo
     }
 
     /**
+     * @return the profiled start time for this collector (inclusive of children)
+     */
+    public long getSliceStartTime() {
+        return collector.getSliceStartTime();
+    }
+
+    /**
      * @return a human readable "hint" about what this collector was used for
      */
     public String getReason() {
