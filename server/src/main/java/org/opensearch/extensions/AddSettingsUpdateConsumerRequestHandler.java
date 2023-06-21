@@ -82,11 +82,14 @@ public class AddSettingsUpdateConsumerRequestHandler {
                     settingForUpdateConsumer = settingsModule.getClusterSettings().get(setting.getKey());
                 }
                 // do a null check and throw IllegalArgument exception here if neither index or node scope
+                if (settingForUpdateConsumer == null) {
+                    throw new IllegalArgumentException("Not index or node scope");
+                }
 
                 WriteableSetting.SettingType settingType = extensionComponentSetting.getType();
 
-                // Register setting update consumer with callback method to extension
                 if (setting.hasIndexScope()) {
+                    // Register setting update consumer with callback method to extension
                     clusterService.getClusterSettings().addSettingsUpdateConsumer(settingForUpdateConsumer, (data) -> {
                         logger.debug("Sending extension request type: " + updateSettingsRequestType);
                         UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
@@ -99,21 +102,20 @@ public class AddSettingsUpdateConsumerRequestHandler {
                     });
                 }
                 if (setting.hasNodeScope()) {
-                    clusterService.getClusterSettings()
-                        // Register setting update consumer with callback method to extension
-                        .addSettingsUpdateConsumer(settingForUpdateConsumer, (data) -> {
-                            logger.debug("Sending extension request type: " + updateSettingsRequestType);
-                            UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
-                            transportService.sendRequest(
-                                extensionNode,
-                                updateSettingsRequestType,
-                                new UpdateSettingsRequest(settingType, setting, data),
-                                updateSettingsResponseHandler
-                            );
-                        });
+                    // Register setting update consumer with callback method to extension
+                    clusterService.getClusterSettings().addSettingsUpdateConsumer(settingForUpdateConsumer, (data) -> {
+                        logger.debug("Sending extension request type: " + updateSettingsRequestType);
+                        UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
+                        transportService.sendRequest(
+                            extensionNode,
+                            updateSettingsRequestType,
+                            new UpdateSettingsRequest(settingType, setting, data),
+                            updateSettingsResponseHandler
+                        );
+                    });
                 }
             }
-        } catch (SettingsException e) {
+        } catch (SettingsException | IllegalArgumentException e) {
             logger.error(e.toString());
             status = false;
         }
