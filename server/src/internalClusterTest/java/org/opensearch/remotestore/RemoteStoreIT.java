@@ -17,6 +17,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.shard.RemoteStoreRefreshListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
@@ -276,5 +277,31 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testRemoteTranslogCleanup() throws Exception {
         verifyRemoteStoreCleanup(true);
+    }
+
+    public void testStaleCommitDeletion() throws Exception {
+        internalCluster().startDataOnlyNodes(3);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
+        int numberOfIterations = randomIntBetween(5, 15);
+        boolean invokeFlush = randomBoolean();
+        indexData(numberOfIterations, invokeFlush);
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+        Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
+        if (invokeFlush) {
+            assertBusy(() -> {
+                try {
+                    int expectedFileCount = numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP
+                        ? numberOfIterations
+                        : 11;
+                    assertEquals(expectedFileCount, getFileCount(indexPath));
+                } catch (Exception e) {}
+            }, 30, TimeUnit.SECONDS);
+        } else {
+            assertEquals(1, getFileCount(indexPath));
+        }
     }
 }

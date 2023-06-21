@@ -85,7 +85,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     // Visible for testing
     static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
     // Visible for testing
-    static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
+    public static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;
@@ -93,6 +93,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final RemoteRefreshSegmentTracker segmentTracker;
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
+    /**
+     * Semaphore that ensures only one staleCommitDeletion activity is scheduled at a time.
+     */
+    private final Semaphore staleCommitDeletionPermits = new Semaphore(1);
 
     /**
      * Semaphore that ensures there is only 1 retry scheduled at any time.
@@ -200,9 +204,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 // if a new segments_N file is present in local that is not uploaded to remote store yet, it
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
-                // Ideally, we want this to be done in async flow. (GitHub issue #4315)
-                if (isRefreshAfterCommit()) {
-                    deleteStaleCommits();
+                if (isRefreshAfterCommit() && staleCommitDeletionPermits.tryAcquire() == true) {
+                    deleteStaleCommitsAsync(ThreadPool.Names.REMOTE_PURGE, staleCommitDeletionPermits::release);
                 }
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
@@ -381,12 +384,15 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         return localSegmentChecksumMap.get(file);
     }
 
-    private void deleteStaleCommits() {
-        try {
-            remoteDirectory.deleteStaleSegments(LAST_N_METADATA_FILES_TO_KEEP);
-        } catch (IOException e) {
-            logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit", e);
-        }
+    private void deleteStaleCommitsAsync(String threadpoolName, Runnable onCompletion) {
+        indexShard.getThreadPool().executor(threadpoolName).execute(() -> {
+            try {
+                remoteDirectory.deleteStaleSegments(LAST_N_METADATA_FILES_TO_KEEP);
+            } catch (IOException e) {
+                logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit", e);
+            }
+            onCompletion.run();
+        });
     }
 
     /**
