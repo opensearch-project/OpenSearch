@@ -33,7 +33,6 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.junit.Test;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -1463,7 +1462,6 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         );
     }
 
-    @Test
     public void testAddSettingsUpdateConsumer() {
         Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);

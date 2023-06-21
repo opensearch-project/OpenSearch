@@ -238,25 +238,18 @@ public abstract class AbstractScopedSettings {
 
     /**
      * Adds a settings consumer with a predicate that is only evaluated at update time.
-     * This method allows registering an additional validator that is only applied to updates of a specific setting.
-     * It is useful to add additional validation to settings at runtime compared to at startup time.
-     * Please note that only settings registered in the {@link SettingsModule} can be changed dynamically.
-     *
-     * @param setting The setting for which the consumer is registered.
-     * @param consumer The consumer to be invoked when the setting is updated.
-     * @param validator An additional validator that is only applied to updates of this setting.
-     * @throws SettingsException if the setting is not registered for the given key.
-     * @throws NullPointerException if the setting is not registered.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     * @param validator an additional validator that is only applied to updates of this setting.
+     *                  This is useful to add additional validation to settings at runtime compared to at startup time.
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
-        if (setting.getKey() != null && !setting.equals(get(setting.getKey()))) {
+        if (setting != get(setting.getKey())) {
             throw new SettingsException("Setting is not registered for key [" + setting.getKey() + "]");
-        } else if (setting.getKey() == null) {
-            throw new NullPointerException("Setting is not registered");
-        } else {
-            addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
         }
-    }
+        addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
+        }
 
     /**
      * Adds a settings consumer that is only executed if any setting in the supplied list of settings is changed. In that case all the

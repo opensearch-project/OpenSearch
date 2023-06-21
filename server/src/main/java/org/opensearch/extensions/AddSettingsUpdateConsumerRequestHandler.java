@@ -75,11 +75,11 @@ public class AddSettingsUpdateConsumerRequestHandler {
 
                 // we need to get the actual setting from nodeSetting or indexsetting maps in SettingsModule
                 // use conditional based on setting properties
-                Setting<?> SettingForUpdateConsumer = null;
+                Setting<?> settingForUpdateConsumer = null;
                 if (setting.hasIndexScope()) {
-                    SettingForUpdateConsumer = settingsModule.getIndexScopedSettings().get(setting.getKey());
+                    settingForUpdateConsumer = settingsModule.getIndexScopedSettings().get(setting.getKey());
                 } else if (setting.hasNodeScope()) {
-                    SettingForUpdateConsumer = settingsModule.getClusterSettings().get(setting.getKey());
+                    settingForUpdateConsumer = settingsModule.getClusterSettings().get(setting.getKey());
                 }
                 // do a null check and throw IllegalArgument exception here if neither index or node scope
 
@@ -88,7 +88,7 @@ public class AddSettingsUpdateConsumerRequestHandler {
                 // Register setting update consumer with callback method to extension
                 if (setting.hasIndexScope()) {
                     clusterService.getClusterSettings()
-                        .addSettingsUpdateConsumer(SettingForUpdateConsumer, (data) -> {
+                        .addSettingsUpdateConsumer(settingForUpdateConsumer, (data) -> {
                             logger.debug("Sending extension request type: " + updateSettingsRequestType);
                             UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
                             transportService.sendRequest(
@@ -102,7 +102,7 @@ public class AddSettingsUpdateConsumerRequestHandler {
                 if (setting.hasNodeScope()) {
                     clusterService.getClusterSettings()
                         // Register setting update consumer with callback method to extension
-                        .addSettingsUpdateConsumer(SettingForUpdateConsumer, (data) -> {
+                        .addSettingsUpdateConsumer(settingForUpdateConsumer, (data) -> {
                             logger.debug("Sending extension request type: " + updateSettingsRequestType);
                             UpdateSettingsResponseHandler updateSettingsResponseHandler = new UpdateSettingsResponseHandler();
                             transportService.sendRequest(
