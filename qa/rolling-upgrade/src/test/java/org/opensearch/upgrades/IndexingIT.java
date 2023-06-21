@@ -130,7 +130,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     replicaRequest.addParameter("preference", "_shards:" + shardNum + "|_only_nodes:" + replicaShardToNodeIDMap.get(shardNum));
                     Response replicaResponse = client().performRequest(replicaRequest);
                     int replicaHits = ObjectPath.createFromResponse(replicaResponse).evaluate("hits.total");
-                    assertEquals("Doc count mismatch for shard " + shardNum + " primary hits " + primaryHits + " replica hits " + replicaHits, primaryHits, replicaHits);
+                    assertEquals("Doc count mismatch for shard " + shardNum + ". Primary hits " + primaryHits + " Replica hits " + replicaHits, primaryHits, replicaHits);
                 }, 1, TimeUnit.MINUTES);
             }
         }
