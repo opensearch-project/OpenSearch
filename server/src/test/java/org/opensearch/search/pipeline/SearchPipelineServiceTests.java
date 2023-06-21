@@ -30,6 +30,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
@@ -860,12 +861,13 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchPipelineStats stats = searchPipelineService.stats();
         assertPipelineStats(stats.getTotalRequestStats(), 2, 1);
         assertPipelineStats(stats.getTotalResponseStats(), 2, 1);
-        for (SearchPipelineStats.PipelineStats pipelineStats : stats.getPipelineStats()) {
-            SearchPipelineStats.PipelineDetailStats detailStats = stats.getPerPipelineProcessorStats().get(pipelineStats.getPipelineId());
-            switch (pipelineStats.getPipelineId()) {
+        for (SearchPipelineStats.PerPipelineStats perPipelineStats : stats.getPipelineStats()) {
+            SearchPipelineStats.PipelineDetailStats detailStats = stats.getPerPipelineProcessorStats()
+                .get(perPipelineStats.getPipelineId());
+            switch (perPipelineStats.getPipelineId()) {
                 case "good_request_pipeline":
-                    assertPipelineStats(pipelineStats.getRequestStats(), 1, 0);
-                    assertPipelineStats(pipelineStats.getResponseStats(), 0, 0);
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 1, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
                     assertEquals(1, detailStats.requestProcessorStats().size());
                     assertEquals(0, detailStats.responseProcessorStats().size());
                     assertEquals("successful_request:2", detailStats.requestProcessorStats().get(0).getProcessorName());
@@ -873,8 +875,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     assertPipelineStats(detailStats.requestProcessorStats().get(0).getStats(), 1, 0);
                     break;
                 case "bad_request_pipeline":
-                    assertPipelineStats(pipelineStats.getRequestStats(), 1, 1);
-                    assertPipelineStats(pipelineStats.getResponseStats(), 0, 0);
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 1, 1);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
                     assertEquals(1, detailStats.requestProcessorStats().size());
                     assertEquals(0, detailStats.responseProcessorStats().size());
                     assertEquals("throwing_request:1", detailStats.requestProcessorStats().get(0).getProcessorName());
@@ -882,8 +884,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     assertPipelineStats(detailStats.requestProcessorStats().get(0).getStats(), 1, 1);
                     break;
                 case "good_response_pipeline":
-                    assertPipelineStats(pipelineStats.getRequestStats(), 0, 0);
-                    assertPipelineStats(pipelineStats.getResponseStats(), 1, 0);
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 0, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 1, 0);
                     assertEquals(0, detailStats.requestProcessorStats().size());
                     assertEquals(1, detailStats.responseProcessorStats().size());
                     assertEquals("successful_response:4", detailStats.responseProcessorStats().get(0).getProcessorName());
@@ -891,8 +893,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     assertPipelineStats(detailStats.responseProcessorStats().get(0).getStats(), 1, 0);
                     break;
                 case "bad_response_pipeline":
-                    assertPipelineStats(pipelineStats.getRequestStats(), 0, 0);
-                    assertPipelineStats(pipelineStats.getResponseStats(), 1, 1);
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 0, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 1, 1);
                     assertEquals(0, detailStats.requestProcessorStats().size());
                     assertEquals(1, detailStats.responseProcessorStats().size());
                     assertEquals("throwing_response:3", detailStats.responseProcessorStats().get(0).getProcessorName());
@@ -903,7 +905,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
     }
 
-    private static void assertPipelineStats(SearchPipelineStats.Stats stats, long count, long failed) {
+    private static void assertPipelineStats(OperationStats stats, long count, long failed) {
         assertEquals(stats.getCount(), count);
         assertEquals(stats.getFailedCount(), failed);
     }

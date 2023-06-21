@@ -30,6 +30,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -80,8 +81,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private final NamedWriteableRegistry namedWriteableRegistry;
     private volatile ClusterState state;
 
-    private final SearchPipelineMetrics totalRequestProcessingMetrics = new SearchPipelineMetrics();
-    private final SearchPipelineMetrics totalResponseProcessingMetrics = new SearchPipelineMetrics();
+    private final OperationMetrics totalRequestProcessingMetrics = new OperationMetrics();
+    private final OperationMetrics totalResponseProcessingMetrics = new OperationMetrics();
 
     private final boolean isEnabled;
 
@@ -280,8 +281,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             requestProcessorFactories,
             responseProcessorFactories,
             namedWriteableRegistry,
-            new SearchPipelineMetrics(), // Use ephemeral metrics for validation
-            new SearchPipelineMetrics()
+            new OperationMetrics(), // Use ephemeral metrics for validation
+            new OperationMetrics()
         );
         List<Exception> exceptions = new ArrayList<>();
         for (SearchRequestProcessor processor : pipeline.getSearchRequestProcessors()) {

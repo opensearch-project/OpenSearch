@@ -11,6 +11,7 @@ package org.opensearch.search.pipeline;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -39,32 +40,24 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
 
     private static SearchPipelineStats createStats() {
         return new SearchPipelineStats(
-            new SearchPipelineStats.Stats(1, 2, 3, 4),
-            new SearchPipelineStats.Stats(5, 6, 7, 8),
+            new OperationStats(1, 2, 3, 4),
+            new OperationStats(5, 6, 7, 8),
             List.of(
-                new SearchPipelineStats.PipelineStats(
-                    "p1",
-                    new SearchPipelineStats.Stats(9, 10, 11, 12),
-                    new SearchPipelineStats.Stats(13, 14, 15, 16)
-                ),
-                new SearchPipelineStats.PipelineStats(
-                    "p2",
-                    new SearchPipelineStats.Stats(17, 18, 19, 20),
-                    new SearchPipelineStats.Stats(21, 22, 23, 24)
-                )
+                new SearchPipelineStats.PerPipelineStats("p1", new OperationStats(9, 10, 11, 12), new OperationStats(13, 14, 15, 16)),
+                new SearchPipelineStats.PerPipelineStats("p2", new OperationStats(17, 18, 19, 20), new OperationStats(21, 22, 23, 24))
 
             ),
             Map.of(
                 "p1",
                 new SearchPipelineStats.PipelineDetailStats(
-                    List.of(new SearchPipelineStats.ProcessorStats("req1:a", "req1", new SearchPipelineStats.Stats(25, 26, 27, 28))),
-                    List.of(new SearchPipelineStats.ProcessorStats("rsp1:a", "rsp1", new SearchPipelineStats.Stats(29, 30, 31, 32)))
+                    List.of(new SearchPipelineStats.ProcessorStats("req1:a", "req1", new OperationStats(25, 26, 27, 28))),
+                    List.of(new SearchPipelineStats.ProcessorStats("rsp1:a", "rsp1", new OperationStats(29, 30, 31, 32)))
                 ),
                 "p2",
                 new SearchPipelineStats.PipelineDetailStats(
                     List.of(
-                        new SearchPipelineStats.ProcessorStats("req1:a", "req1", new SearchPipelineStats.Stats(33, 34, 35, 36)),
-                        new SearchPipelineStats.ProcessorStats("req2", "req2", new SearchPipelineStats.Stats(37, 38, 39, 40))
+                        new SearchPipelineStats.ProcessorStats("req1:a", "req1", new OperationStats(33, 34, 35, 36)),
+                        new SearchPipelineStats.ProcessorStats("req2", "req2", new OperationStats(37, 38, 39, 40))
                     ),
                     List.of()
                 )

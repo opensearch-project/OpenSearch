@@ -6,17 +6,16 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.pipeline;
-
-import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.common.metrics.MeanMetric;
+package org.opensearch.common.metrics;
 
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Mutable tracker of search pipeline processing operations.
+ * Mutable tracker of a repeated operation.
+ *
+ * @opensearch.internal
  */
-class SearchPipelineMetrics {
+public class OperationMetrics {
     /**
      * The mean time it takes to complete the measured item.
      */
@@ -31,26 +30,39 @@ class SearchPipelineMetrics {
      */
     private final CounterMetric failed = new CounterMetric();
 
+    /**
+     * Invoked before the given operation begins.
+     */
     public void before() {
         current.incrementAndGet();
     }
 
+    /**
+     * Invoked upon completion (success or failure) of the given operation
+     * @param currentTime elapsed time of the operation
+     */
     public void after(long currentTime) {
         current.decrementAndGet();
         time.inc(currentTime);
     }
 
+    /**
+     * Invoked upon failure of the operation.
+     */
     public void failed() {
         failed.inc();
     }
 
-    public void add(SearchPipelineMetrics other) {
+    public void add(OperationMetrics other) {
         // Don't try copying over current, since in-flight requests will be linked to the existing metrics instance.
         failed.inc(other.failed.count());
         time.add(other.time);
     }
 
-    SearchPipelineStats.Stats createStats() {
-        return new SearchPipelineStats.Stats(time.count(), time.sum(), current.get(), failed.count());
+    /**
+     * @return an immutable snapshot of the current metric values.
+     */
+    public OperationStats createStats() {
+        return new OperationStats(time.count(), time.sum(), current.get(), failed.count());
     }
 }

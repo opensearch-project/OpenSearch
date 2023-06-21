@@ -16,6 +16,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.ingest.ConfigurationUtils;
 
 import java.util.ArrayList;
@@ -49,15 +50,15 @@ class Pipeline {
     private final List<ProcessorWithMetrics<SearchResponseProcessor>> searchResponseProcessors;
 
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final SearchPipelineMetrics totalRequestMetrics;
-    private final SearchPipelineMetrics totalResponseMetrics;
-    private final SearchPipelineMetrics pipelineRequestMetrics = new SearchPipelineMetrics();
-    private final SearchPipelineMetrics pipelineResponseMetrics = new SearchPipelineMetrics();
+    private final OperationMetrics totalRequestMetrics;
+    private final OperationMetrics totalResponseMetrics;
+    private final OperationMetrics pipelineRequestMetrics = new OperationMetrics();
+    private final OperationMetrics pipelineResponseMetrics = new OperationMetrics();
     private final LongSupplier relativeTimeSupplier;
 
     private static class ProcessorWithMetrics<T extends Processor> {
         private final T processor;
-        private final SearchPipelineMetrics metrics = new SearchPipelineMetrics();
+        private final OperationMetrics metrics = new OperationMetrics();
 
         public ProcessorWithMetrics(T processor) {
             this.processor = processor;
@@ -71,8 +72,8 @@ class Pipeline {
         List<SearchRequestProcessor> requestProcessors,
         List<SearchResponseProcessor> responseProcessors,
         NamedWriteableRegistry namedWriteableRegistry,
-        SearchPipelineMetrics totalRequestMetrics,
-        SearchPipelineMetrics totalResponseMetrics,
+        OperationMetrics totalRequestMetrics,
+        OperationMetrics totalResponseMetrics,
         LongSupplier relativeTimeSupplier
     ) {
         this.id = id;
@@ -92,8 +93,8 @@ class Pipeline {
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories,
         Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories,
         NamedWriteableRegistry namedWriteableRegistry,
-        SearchPipelineMetrics totalRequestProcessingMetrics,
-        SearchPipelineMetrics totalResponseProcessingMetrics
+        OperationMetrics totalRequestProcessingMetrics,
+        OperationMetrics totalResponseProcessingMetrics
     ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
@@ -249,8 +250,8 @@ class Pipeline {
         Collections.emptyList(),
         Collections.emptyList(),
         null,
-        new SearchPipelineMetrics(),
-        new SearchPipelineMetrics(),
+        new OperationMetrics(),
+        new OperationMetrics(),
         () -> 0L
     );
 
