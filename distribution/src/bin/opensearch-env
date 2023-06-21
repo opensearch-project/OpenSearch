@@ -46,7 +46,7 @@ fi
 # now set the classpath
 OPENSEARCH_CLASSPATH="$OPENSEARCH_HOME/lib/*"
 
-# now set the path to java: OPENSEARCH_JAVA_HOME -> JAVA_HOME -> bundled JDK
+# now set the path to java: OPENSEARCH_JAVA_HOME -> JAVA_HOME -> bundled JRE -> bundled JDK
 if [ ! -z "$OPENSEARCH_JAVA_HOME" ]; then
   JAVA="$OPENSEARCH_JAVA_HOME/bin/java"
   JAVA_TYPE="OPENSEARCH_JAVA_HOME"
@@ -57,13 +57,18 @@ else
   if [ $OS = "darwin" ]; then
     # macOS bundled Java
     JAVA="$OPENSEARCH_HOME/jdk.app/Contents/Home/bin/java"
+    JAVA_TYPE="bundled jdk"
   elif [ $OS = "freebsd" ]; then
     # using FreeBSD default java from ports if JAVA_HOME is not set
     JAVA="/usr/local/bin/java"
+    JAVA_TYPE="bundled jdk"
+  elif [ -d "$OPENSEARCH_HOME/jre" ]; then
+    JAVA="$OPENSEARCH_HOME/jre/bin/java"
+    JAVA_TYPE="bundled jre"
   else
     JAVA="$OPENSEARCH_HOME/jdk/bin/java"
+    JAVA_TYPE="bundled jdk"
   fi
-  JAVA_TYPE="bundled jdk"
 fi
 
 if [ ! -x "$JAVA" ]; then

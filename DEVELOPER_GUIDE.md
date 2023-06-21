@@ -264,7 +264,10 @@ This repository is split into many top level directories. The most important one
 
 ### `distribution`
 
-Builds our tar and zip archives and our rpm and deb packages.
+Builds our tar and zip archives and our rpm and deb packages. There are several flavors of the distributions, with the classifier included in the name of the final deliverable (archive or package):
+ - default (no classifier), the distribution with bundled JDK
+ - `-no-jdk-` - the distribution without bundled JDK/JRE, assumes the JDK/JRE is going to be pre-installed on the target systems
+ - `-jre-` - the distribution bundled with JRE (smaller footprint), supported as experimental feature for some platforms
 
 ### `libs`
 
