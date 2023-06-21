@@ -190,14 +190,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     }
 
     /**
-     * Should enable BKD based skipping values sort optimization if target numeric type is matching
-     * @param targetNumericType
-     */
-    public boolean enableSortOptimizationForCustomComparators(NumericType targetNumericType) {
-        return this.getNumericType() == targetNumericType;
-    }
-
-    /**
      * Build a {@link XFieldComparatorSource} matching the parameters.
      */
     private XFieldComparatorSource comparatorSource(
@@ -206,24 +198,35 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         MultiValueMode sortMode,
         Nested nested
     ) {
+        XFieldComparatorSource source = null;
         switch (targetNumericType) {
             case HALF_FLOAT:
             case FLOAT:
-                return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
             case DOUBLE:
-                return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
             case UNSIGNED_LONG:
-                return new UnsignedLongValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new UnsignedLongValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
             case DATE:
-                return dateComparatorSource(missingValue, sortMode, nested);
+                source = dateComparatorSource(missingValue, sortMode, nested);
+                break;
             case DATE_NANOSECONDS:
-                return dateNanosComparatorSource(missingValue, sortMode, nested);
+                source = dateNanosComparatorSource(missingValue, sortMode, nested);
+                break;
             case LONG:
-                return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
             default:
                 assert !targetNumericType.isFloatingPoint();
-                return new IntValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new IntValuesComparatorSource(this, missingValue, sortMode, nested);
         }
+        if (targetNumericType != getNumericType()) {
+            source.disableSkipping(); // disable skipping logic for caste of sort field
+        }
+        return source;
     }
 
     protected XFieldComparatorSource dateComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
