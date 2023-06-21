@@ -39,6 +39,8 @@ import org.opensearch.client.Response;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
@@ -143,6 +145,12 @@ public class IndexingIT extends AbstractRollingTestCase {
         waitForStatus.addParameter("wait_for_no_initializing_shards", "true");
         waitForStatus.addParameter("wait_for_no_relocating_shards", "true");
         client().performRequest(waitForStatus);
+    }
+
+    private void verifySegmentStats(String indexName) throws IOException {
+        Request segrepStatsRequest = new Request("GET", "/_cat/segment_replication");
+        Response searchTestIndexResponse = client().performRequest(segrepStatsRequest);
+        logger.info("--> searchTestIndexResponse {}", searchTestIndexResponse.toString());
     }
 
     public void testIndexing() throws IOException, ParseException {
@@ -251,6 +259,10 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shardCount)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), replicaCount)
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                    .put(
+                        EngineConfig.INDEX_CODEC_SETTING.getKey(),
+                        randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC, CodecService.LUCENE_DEFAULT_CODEC)
+                    )
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
                 createIndex(indexName, settings.build());
                 waitForClusterHealthWithNoShardMigration(indexName, "green");
@@ -286,6 +298,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
 
         waitForSearchableDocs(indexName, shardCount);
+        verifySegmentStats(indexName);
         assertCount(indexName, expectedCount);
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
