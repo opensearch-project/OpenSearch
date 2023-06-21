@@ -38,6 +38,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
@@ -47,6 +48,7 @@ import org.opensearch.test.rest.yaml.ObjectPath;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +94,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         waitForClusterHealthWithNoShardMigration(index, "green");
         logger.info("--> _cat/shards before search \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
 
+        verifySegmentStats(index);
         Request request = new Request("GET", index + "/_stats");
         request.addParameter("level", "shards");
         Response response = client().performRequest(request);
@@ -111,14 +114,12 @@ public class IndexingIT extends AbstractRollingTestCase {
         logger.info("--> replicaShardToNodeIDMap {}", replicaShardToNodeIDMap);
 
         for (int shardNumber = 0; shardNumber < shardCount; shardNumber++) {
-            logger.info("--> Verify doc count for shard number {}", shardNumber);
             Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
             searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
             searchTestIndexRequest.addParameter("filter_path", "hits.total");
             searchTestIndexRequest.addParameter("preference", "_shards:" + shardNumber + "|_only_nodes:" + primaryShardToNodeIDMap.get(shardNumber));
             Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
             final int primaryHits = ObjectPath.createFromResponse(searchTestIndexResponse).evaluate("hits.total");
-            logger.info("--> primaryHits {}", primaryHits);
             final int shardNum = shardNumber;
             // Verify replica shard doc count only when available.
             if (replicaShardToNodeIDMap.get(shardNum) != null) {
@@ -129,8 +130,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     replicaRequest.addParameter("preference", "_shards:" + shardNum + "|_only_nodes:" + replicaShardToNodeIDMap.get(shardNum));
                     Response replicaResponse = client().performRequest(replicaRequest);
                     int replicaHits = ObjectPath.createFromResponse(replicaResponse).evaluate("hits.total");
-                    logger.info("--> ReplicaHits {}", replicaHits);
-                    assertEquals(primaryHits, replicaHits);
+                    assertEquals("Doc count mismatch for shard " + shardNum + " primary hits " + primaryHits + " replica hits " + replicaHits, primaryHits, replicaHits);
                 }, 1, TimeUnit.MINUTES);
             }
         }
@@ -147,10 +147,16 @@ public class IndexingIT extends AbstractRollingTestCase {
         client().performRequest(waitForStatus);
     }
 
-    private void verifySegmentStats(String indexName) throws IOException {
-        Request segrepStatsRequest = new Request("GET", "/_cat/segment_replication");
-        Response searchTestIndexResponse = client().performRequest(segrepStatsRequest);
-        logger.info("--> searchTestIndexResponse {}", searchTestIndexResponse.toString());
+    private void verifySegmentStats(String indexName) throws Exception {
+        assertBusy(() -> {
+            Request segrepStatsRequest = new Request("GET", "/_cat/segment_replication/" + indexName);
+            segrepStatsRequest.addParameter("h", "shardId,target_node,checkpoints_behind");
+            Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
+            for (String statLine : Streams.readAllLines(segrepStatsResponse.getEntity().getContent())) {
+                String[] elements = statLine.split(" +");
+                assertEquals("Replica shard " + elements[0] + "not upto date with primary ", 0, Integer.parseInt(elements[2]));
+            }
+        });
     }
 
     public void testIndexing() throws IOException, ParseException {
@@ -249,7 +255,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     public void testIndexingWithSegRep() throws Exception {
         final String indexName = "test-index-segrep";
         final int shardCount = 3;
-        final int replicaCount = 1;
+        final int replicaCount = 2;
         logger.info("--> Case {}", CLUSTER_TYPE);
         printClusterNodes();
         logger.info("--> _cat/shards before test execution \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
@@ -298,7 +304,6 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
 
         waitForSearchableDocs(indexName, shardCount);
-        verifySegmentStats(indexName);
         assertCount(indexName, expectedCount);
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
