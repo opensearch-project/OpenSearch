@@ -12,7 +12,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.MultiStreamBlobContainer;
+import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.test.OpenSearchTestCase;
@@ -59,7 +59,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             0L
         );
 
-        MultiStreamBlobContainer blobContainer = mock(MultiStreamBlobContainer.class);
+        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
         CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
         uploadResponseCompletableFuture.complete(null);
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
@@ -104,7 +104,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             0L
         );
 
-        MultiStreamBlobContainer blobContainer = mock(MultiStreamBlobContainer.class);
+        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
         doThrow(new IOException()).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
@@ -143,7 +143,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             0L
         );
 
-        MultiStreamBlobContainer blobContainer = mock(MultiStreamBlobContainer.class);
+        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
         CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
         uploadResponseCompletableFuture.completeExceptionally(new IOException());
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);

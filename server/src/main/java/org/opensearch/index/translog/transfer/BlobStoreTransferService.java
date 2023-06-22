@@ -16,7 +16,7 @@ import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.MultiStreamBlobContainer;
+import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
@@ -95,7 +95,7 @@ public class BlobStoreTransferService implements TransferService {
         List<CompletableFuture<Void>> resultFutures = new ArrayList<>();
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
-            if (!(blobStore.blobContainer(blobPath) instanceof MultiStreamBlobContainer)) {
+            if (!(blobStore.blobContainer(blobPath) instanceof VerifyingMultiStreamBlobContainer)) {
                 uploadBlobByThreadPool(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
             } else {
                 CompletableFuture<Void> resultFuture = createUploadFuture(fileSnapshot, listener, blobPath, writePriority);
@@ -140,9 +140,8 @@ public class BlobStoreTransferService implements TransferService {
                 blobStore.blobContainer(blobPath).isRemoteDataIntegritySupported()
             );
             WriteContext writeContext = remoteTransferContainer.createWriteContext();
-            CompletableFuture<Void> uploadFuture = ((MultiStreamBlobContainer) blobStore.blobContainer(blobPath)).writeBlobByStreams(
-                writeContext
-            );
+            CompletableFuture<Void> uploadFuture = ((VerifyingMultiStreamBlobContainer) blobStore.blobContainer(blobPath))
+                .writeBlobByStreams(writeContext);
             resultFuture = uploadFuture.whenComplete((resp, throwable) -> {
                 try {
                     remoteTransferContainer.close();

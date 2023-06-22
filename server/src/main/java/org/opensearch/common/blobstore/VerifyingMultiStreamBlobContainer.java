@@ -14,12 +14,12 @@ import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * An extension of {@link BlobContainer} that adds {@link MultiStreamBlobContainer#writeBlobByStreams} to allow
+ * An extension of {@link BlobContainer} that adds {@link VerifyingMultiStreamBlobContainer#writeBlobByStreams} to allow
  * multipart uploads
  *
  * @opensearch.internal
  */
-public interface MultiStreamBlobContainer extends BlobContainer {
+public interface VerifyingMultiStreamBlobContainer extends BlobContainer {
 
     /**
      * Reads blob content from multiple streams, each from a specific part of the file, which is provided by the
