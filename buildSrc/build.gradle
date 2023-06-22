@@ -107,7 +107,7 @@ dependencies {
   api 'org.apache.ant:ant:1.10.12'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   api 'com.netflix.nebula:nebula-publishing-plugin:4.7.0'
-  api 'com.netflix.nebula:gradle-info-plugin:11.2.0'
+  api 'com.netflix.nebula:gradle-info-plugin:11 .2.0'
   api 'org.apache.rat:apache-rat:0.13'
   api 'commons-io:commons-io:2.7'
   api "net.java.dev.jna:jna:5.5.0"
@@ -263,7 +263,7 @@ if (project != rootProject) {
     generatePomFileForPluginMavenPublication.enabled = false
   }
 
-    publishing.publications.named("nebula").configure {
+  publishing.publications.named("nebula").configure {
     suppressPomMetadataWarningsFor("testFixturesApiElements")
     suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
   }
