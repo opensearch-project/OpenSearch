@@ -11,6 +11,7 @@ package org.opensearch.rest;
 import org.opensearch.OpenSearchException;
 import org.opensearch.transport.TransportService;
 
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -45,6 +46,7 @@ public class NamedRoute extends RestHandler.Route {
             );
         }
         this.name = name;
+        this.actionNames = new HashSet<>();
     }
 
     /**
@@ -63,7 +65,7 @@ public class NamedRoute extends RestHandler.Route {
                 );
             }
         }
-        this.actionNames = legacyActionNames;
+        this.actionNames = legacyActionNames == null ? new HashSet<>() : legacyActionNames;
     }
 
     /**
