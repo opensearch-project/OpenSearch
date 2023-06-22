@@ -96,7 +96,7 @@ public class ShiroSubject implements Subject {
     @SuppressWarnings("unchecked")
     @Override
     public Optional<Principal> getApplication() {
-        return Optional.of((Principal) this.wrappedSubject.getPrincipal());
+        return Optional.empty();
     }
 
     /**

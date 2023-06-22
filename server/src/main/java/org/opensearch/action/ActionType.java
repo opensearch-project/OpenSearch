@@ -33,6 +33,8 @@
 package org.opensearch.action;
 
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.scopes.Scope;
@@ -81,9 +83,14 @@ public class ActionType<Response extends ActionResponse> {
     /**
      * All Actions are executable with the ALL ActionScope
      */
-    public List<Scope> getAllowedScopes() {
-        return List.of(ActionScope.ALL);
+    public final List<Scope> getAllowedScopes() {
+
+        return Stream.concat(Stream.of(ActionScope.ALL), getAdditionalScopes().stream()).collect(Collectors.toList());
     }
+
+    protected List<Scope> getAdditionalScopes() {
+        return List.of();
+    };
 
     @Override
     public boolean equals(Object o) {

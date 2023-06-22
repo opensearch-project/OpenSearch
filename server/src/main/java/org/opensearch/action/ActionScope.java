@@ -19,10 +19,13 @@ import org.opensearch.identity.scopes.ScopeEnums.ScopeArea;
  * is has a ScopeArea of INDEX and an Action of READ. Its ScopeNamespace is ACTION since it is an ActionScope. This ActionScope is required by all
  * Subjects which seek to perform read-related operations on an INDEX.
  *
+ * ActionScopes.ALL: Grants access to execute any REST or Transport action in OpenSearch
+ * ActionScopes.READ: Grants access to execute all REST and Transport actions focusing on "read" operations. Specifically GetAction and MultiGetAction
+ *
  * @opensearch.experimental
  */
 public enum ActionScope implements Scope {
-    ALL(ScopeArea.ALL, "ALL"),
+    ALL(ScopeArea.CLUSTER, "ALL"),
     READ(ScopeArea.INDEX, "READ");
 
     public final ScopeArea area;

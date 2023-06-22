@@ -5,18 +5,14 @@
 
 package org.opensearch.identity;
 
-import java.security.Principal;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.extensions.ExtensionsManager;
-import org.opensearch.identity.scopes.ScopeEnums;
-import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
+import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 
 /**
@@ -69,35 +65,5 @@ public class IdentityService {
             new IdentityService(Settings.EMPTY, List.of());
         }
         return instance;
-    }
-
-    // TODO: Find a way to combine these
-
-    public Set<String> getActionScopes(Principal principal) {
-
-        Set<String> allScopes = ExtensionsManager.getExtensionManager().getExtensionIdMap().get(principal.getName()).getScopes();
-
-        return allScopes.stream().filter(scope -> {
-            String[] parts = scope.split("\\.");
-            if (parts.length != 3) {
-                throw new IllegalArgumentException("Invalid scope format: " + scope);
-            }
-            ScopeEnums.ScopeNamespace scopeNamespace = ScopeEnums.ScopeNamespace.fromString(parts[0]);
-            return scopeNamespace == ScopeEnums.ScopeNamespace.ACTION;
-        }).collect(Collectors.toSet());
-    }
-
-    public Set<String> getExtensionPointScopes(Principal principal) {
-
-        Set<String> allScopes = ExtensionsManager.getExtensionManager().getExtensionIdMap().get(principal.getName()).getScopes();
-
-        return allScopes.stream().filter(scope -> {
-            String[] parts = scope.split("\\.");
-            if (parts.length != 3) {
-                throw new IllegalArgumentException("Invalid scope format: " + scope);
-            }
-            ScopeEnums.ScopeNamespace scopeNamespace = ScopeEnums.ScopeNamespace.fromString(parts[0]);
-            return scopeNamespace == ScopeEnums.ScopeNamespace.EXTENSION_POINT;
-        }).collect(Collectors.toSet());
     }
 }

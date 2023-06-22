@@ -19,10 +19,12 @@ import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
  * An ExtensionPointScope confers the ability of an application to extend any of OpenSearch's extension points. An application lacking the
  * appropriate scope will not be able to extend the actions defined in the interface it extends.
  *
+ * ExtensionPointScope.ACTION: Grant access to call the implemented methods of the Action Plugin Interface
+ *
  * @opensearch.experimental
  */
 public enum ExtensionPointScope implements Scope {
-    ACTION(ScopeArea.EXTENSION_POINT, "ALLOW"); // Implement the ActionPlugin interface
+    ACTION(ScopeArea.ACTION_PLUGIN, "IMPLEMENT");
 
     public final ScopeArea area;
     public final String action;

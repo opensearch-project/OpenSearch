@@ -8,11 +8,7 @@
 
 package org.opensearch.identity.scopes;
 
-import java.security.Principal;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.opensearch.action.ActionScope;
-import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.ApplicationScope;
 import org.opensearch.plugins.ExtensionPointScope;
 
@@ -42,6 +38,8 @@ public interface Scope {
         ScopeEnums.ScopeArea scopeArea = ScopeEnums.ScopeArea.fromString(parts[1]);
         String action = parts[2];
 
+        // if (ActionScope.values().equals()
+
         switch (scopeNamespace) {
             case ACTION:
                 switch (action) {
@@ -70,38 +68,5 @@ public interface Scope {
     default boolean isScopeInNamespace(String scope) {
 
         return parseScopeFromString(scope).getNamespace().equals(getNamespace());
-    }
-
-    static Set<String> getApplicationScopes(Principal principal) {
-
-        return ExtensionsManager.getExtensionManager()
-            .getExtensionIdMap()
-            .get(principal.getName())
-            .getScopes()
-            .stream()
-            .filter(scope -> Scope.parseScopeFromString(scope).getNamespace() == ScopeEnums.ScopeNamespace.APPLICATION)
-            .collect(Collectors.toSet());
-    }
-
-    static Set<String> getActionScopes(Principal principal) {
-
-        return ExtensionsManager.getExtensionManager()
-            .getExtensionIdMap()
-            .get(principal.getName())
-            .getScopes()
-            .stream()
-            .filter(scope -> Scope.parseScopeFromString(scope).getNamespace() == ScopeEnums.ScopeNamespace.ACTION)
-            .collect(Collectors.toSet());
-    }
-
-    static Set<String> getExtensionPointScopes(Principal principal) {
-
-        return ExtensionsManager.getExtensionManager()
-            .getExtensionIdMap()
-            .get(principal.getName())
-            .getScopes()
-            .stream()
-            .filter(scope -> Scope.parseScopeFromString(scope).getNamespace() == ScopeEnums.ScopeNamespace.EXTENSION_POINT)
-            .collect(Collectors.toSet());
     }
 }

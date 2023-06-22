@@ -20,9 +20,11 @@ public class ScopeEnums {
      */
     public enum ScopeArea {
         APPLICATION,
+        ACTION_PLUGIN,
         CLUSTER,
         EXTENSION_POINT,
         INDEX,
+        SUPER_USER_ACCESS,
         ALL;
 
         public static ScopeArea fromString(String value) {

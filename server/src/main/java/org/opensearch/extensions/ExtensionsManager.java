@@ -106,7 +106,6 @@ public class ExtensionsManager {
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
-    public static ExtensionsManager instance;
 
     /**
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -170,7 +169,6 @@ public class ExtensionsManager {
             this
         );
         registerRequestHandler(actionModule.getDynamicActionRegistry());
-        instance = this;
     }
 
     /**
@@ -527,9 +525,5 @@ public class ExtensionsManager {
 
     Settings getEnvironmentSettings() {
         return environmentSettings;
-    }
-
-    public static ExtensionsManager getExtensionManager() {
-        return instance;
     }
 }

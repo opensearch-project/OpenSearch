@@ -16,10 +16,12 @@ import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
  * An ApplicationScope dictates special privileges an application may have. For example, the SuperUserAccess ApplicationScope provides an application
  * trust equal to that of an administrator.
  *
+ * ApplicationScope.SuperUserAccess: Confers "skip check" authority to an application. This allows it to bypass all scope checks.
+ *
  * @opensearch.experimental
  */
 public enum ApplicationScope implements Scope {
-    SuperUserAccess(ScopeArea.ALL, "ALL");
+    SuperUserAccess(ScopeArea.SUPER_USER_ACCESS, "ALL");
 
     public final ScopeArea area;
     public final String action;
@@ -34,7 +36,7 @@ public enum ApplicationScope implements Scope {
     }
 
     public ScopeArea getArea() {
-        return ScopeArea.APPLICATION;
+        return this.area;
     }
 
     public String getAction() {

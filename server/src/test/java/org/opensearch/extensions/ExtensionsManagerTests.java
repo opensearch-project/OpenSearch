@@ -507,14 +507,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterSettingsRequest() throws Exception {
-<<<<<<< HEAD
 
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
 
-=======
-        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
-        ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir, Set.of());
->>>>>>> a86364e1133 (Fix precommit)
         initialize(extensionsManager);
 
         String uniqueIdStr = "uniqueid1";

@@ -118,6 +118,7 @@ import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
@@ -406,6 +407,7 @@ public class Node implements Closeable {
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
     private final ExtensionsManager extensionsManager;
+    private final ApplicationManager applicationManager;
     private final IdentityService identityService;
     private final NodeClient client;
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
@@ -519,6 +521,7 @@ public class Node implements Closeable {
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
+            this.applicationManager = new ApplicationManager(extensionsManager);
             this.identityService = new IdentityService(settings, identityPlugins);
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
@@ -1110,6 +1113,7 @@ public class Node implements Closeable {
                 b.bind(NodeClient.class).toInstance(client);
                 b.bind(Environment.class).toInstance(this.environment);
                 b.bind(ExtensionsManager.class).toInstance(this.extensionsManager);
+                b.bind(ApplicationManager.class).toInstance(this.applicationManager);
                 b.bind(ThreadPool.class).toInstance(threadPool);
                 b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
                 b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
