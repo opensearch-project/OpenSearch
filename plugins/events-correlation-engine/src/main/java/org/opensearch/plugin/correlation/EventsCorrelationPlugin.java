@@ -23,13 +23,23 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecServiceFactory;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.plugin.correlation.core.index.codec.CorrelationCodecService;
+import org.opensearch.plugin.correlation.core.index.mapper.CorrelationVectorFieldMapper;
+import org.opensearch.plugin.correlation.core.index.mapper.VectorFieldMapper;
+import org.opensearch.plugin.correlation.core.index.query.CorrelationQueryBuilder;
 import org.opensearch.plugin.correlation.rules.action.IndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.rules.resthandler.RestIndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.rules.transport.TransportIndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.settings.EventsCorrelationSettings;
 import org.opensearch.plugin.correlation.utils.CorrelationRuleIndices;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.EnginePlugin;
+import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -38,13 +48,16 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
  * Plugin class for events-correlation-engine
  */
-public class EventsCorrelationPlugin extends Plugin implements ActionPlugin {
+public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, MapperPlugin, SearchPlugin, EnginePlugin {
 
     /**
      * events-correlation-engine base uri
@@ -91,6 +104,30 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(new RestIndexCorrelationRuleAction());
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.singletonMap(CorrelationVectorFieldMapper.CONTENT_TYPE, new VectorFieldMapper.TypeParser());
+    }
+
+    @Override
+    public Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
+        if (indexSettings.getValue(EventsCorrelationSettings.IS_CORRELATION_INDEX_SETTING)) {
+            return Optional.of(CorrelationCodecService::new);
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return Collections.singletonList(
+            new QuerySpec<>(
+                CorrelationQueryBuilder.NAME_FIELD.getPreferredName(),
+                CorrelationQueryBuilder::new,
+                CorrelationQueryBuilder::parse
+            )
+        );
     }
 
     @Override
