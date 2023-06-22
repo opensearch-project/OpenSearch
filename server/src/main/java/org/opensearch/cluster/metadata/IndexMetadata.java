@@ -311,7 +311,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             @Override
             public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
                 final Object replicationType = settings.get(INDEX_REPLICATION_TYPE_SETTING);
-                if (ReplicationType.SEGMENT.equals(replicationType) == false && value == true) {
+                if (ReplicationType.SEGMENT.equals(replicationType) == false && value) {
                     throw new IllegalArgumentException(
                         "To enable "
                             + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()

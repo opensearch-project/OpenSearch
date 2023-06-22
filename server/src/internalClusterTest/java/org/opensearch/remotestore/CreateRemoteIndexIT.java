@@ -23,7 +23,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -78,7 +77,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(CreateRemoteIndexIT.TestPlugin.class, MockTransportService.TestPlugin.class);
+        return Arrays.asList(CreateRemoteIndexIT.TestPlugin.class);
     }
 
     @Override

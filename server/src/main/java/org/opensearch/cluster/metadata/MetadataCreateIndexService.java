@@ -974,7 +974,7 @@ public class MetadataCreateIndexService {
             }
 
             // Verify index has replication type as SEGMENT
-            if (ReplicationType.DOCUMENT.toString().equals(settingsBuilder.get(SETTING_REPLICATION_TYPE))) {
+            if (ReplicationType.DOCUMENT.equals(ReplicationType.parseString(settingsBuilder.get(SETTING_REPLICATION_TYPE)))) {
                 throw new IllegalArgumentException(
                     "Cannot enable ["
                         + SETTING_REMOTE_STORE_ENABLED
