@@ -118,6 +118,10 @@ dependencies {
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
+  api "org.bouncycastle:bcprov-jdk15on:${props.getProperty('bouncycastle')}"
+  api "org.bouncycastle:bcpkix-jdk15on:${props.getProperty('bouncycastle')}"
+  api "org.bouncycastle:bcpg-jdk15on:${props.getProperty('bouncycastle')}"
+  api "org.bouncycastle:bcutil-jdk15on:${props.getProperty('bouncycastle')}"
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
