@@ -33,10 +33,10 @@
 package org.opensearch.tasks;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
@@ -47,17 +47,26 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  */
 public abstract class CancellableTask extends Task {
 
-    private volatile String reason;
-    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    private static class CancelledInfo {
+        String reason;
+        /**
+         * The time this task was cancelled as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
+         */
+        Long cancellationStartTime;
+        /**
+         * The time this task was cancelled as a relative time ({@link System#nanoTime()} style).
+         */
+        Long cancellationStartTimeNanos;
+
+        public CancelledInfo(String reason) {
+            this.reason = reason;
+            this.cancellationStartTime = System.currentTimeMillis();
+            this.cancellationStartTimeNanos = System.nanoTime();
+        }
+    }
+
+    private final SetOnce<CancelledInfo> cancelledInfo = new SetOnce<>();
     private final TimeValue cancelAfterTimeInterval;
-    /**
-     * The time this task was cancelled as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
-     */
-    private Long cancellationStartTime = null;
-    /**
-     * The time this task was cancelled as a relative time ({@link System#nanoTime()} style).
-     */
-    private Long cancellationStartTimeNanos = null;
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT);
@@ -81,13 +90,28 @@ public abstract class CancellableTask extends Task {
      */
     public void cancel(String reason) {
         assert reason != null;
-        if (cancelled.compareAndSet(false, true)) {
-            this.cancellationStartTime = System.currentTimeMillis();
-            this.cancellationStartTimeNanos = System.nanoTime();
-            this.reason = reason;
+        if (cancelledInfo.trySet(new CancelledInfo(reason))) {
             onCancelled();
         }
     }
+
+    public boolean isCancelled() {
+        return cancelledInfo.get() != null;
+    }
+
+    /**
+     * Returns true if this task can potentially have children that need to be cancelled when it parent is cancelled.
+     */
+    public abstract boolean shouldCancelChildrenOnCancellation();
+
+    public TimeValue getCancellationTimeout() {
+        return cancelAfterTimeInterval;
+    }
+
+    /**
+     * Called after the task is cancelled so that it can take any actions that it has to take.
+     */
+    protected void onCancelled() {}
 
     /**
      * Returns true if this task should be automatically cancelled if the coordinating node that
@@ -97,37 +121,24 @@ public abstract class CancellableTask extends Task {
         return true;
     }
 
+    @Nullable
     public Long getCancellationStartTime() {
-        return cancellationStartTime;
+        CancelledInfo info = cancelledInfo.get();
+        return (info != null) ? info.cancellationStartTime : null;
     }
 
+    @Nullable
     public Long getCancellationStartTimeNanos() {
-        return cancellationStartTimeNanos;
-    }
-
-    /**
-     * Returns true if this task can potentially have children that need to be cancelled when it parent is cancelled.
-     */
-    public abstract boolean shouldCancelChildrenOnCancellation();
-
-    public boolean isCancelled() {
-        return cancelled.get();
-    }
-
-    public TimeValue getCancellationTimeout() {
-        return cancelAfterTimeInterval;
+        CancelledInfo info = cancelledInfo.get();
+        return (info != null) ? info.cancellationStartTimeNanos : null;
     }
 
     /**
      * The reason the task was cancelled or null if it hasn't been cancelled.
      */
     @Nullable
-    public final String getReasonCancelled() {
-        return reason;
+    public String getReasonCancelled() {
+        CancelledInfo info = cancelledInfo.get();
+        return (info != null) ? info.reason : null;
     }
-
-    /**
-     * Called after the task is cancelled so that it can take any actions that it has to take.
-     */
-    protected void onCancelled() {}
 }
