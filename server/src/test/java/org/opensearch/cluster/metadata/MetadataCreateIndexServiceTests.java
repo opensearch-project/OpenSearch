@@ -1226,7 +1226,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
         assertThat(
             exc.getMessage(),
-            containsString("Cannot enable [index.remote_store.enabled] when [cluster.indices.replication.strategy] is DOCUMENT")
+            containsString("Cannot enable [index.remote_store.enabled] when [index.replication.type] is DOCUMENT")
         );
     }
 
