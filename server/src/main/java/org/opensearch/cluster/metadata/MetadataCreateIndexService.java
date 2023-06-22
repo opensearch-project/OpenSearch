@@ -957,7 +957,7 @@ public class MetadataCreateIndexService {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, INDEX_REPLICATION_TYPE_SETTING.get(requestSettings));
             return;
         }
-        settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+        settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
     }
 
     /**
@@ -973,8 +973,9 @@ public class MetadataCreateIndexService {
                 return;
             }
 
-            // Verify replication type of index is not DOCUMENT
-            if (settingsBuilder.get(SETTING_REPLICATION_TYPE).equals(ReplicationType.DOCUMENT.toString())) {
+            // Verify index has replication type as SEGMENT
+            if (settingsBuilder.get(SETTING_REPLICATION_TYPE) != null
+                && ReplicationType.DOCUMENT.toString().equals(settingsBuilder.get(SETTING_REPLICATION_TYPE))) {
                 throw new IllegalArgumentException(
                     "Cannot enable ["
                         + SETTING_REMOTE_STORE_ENABLED
