@@ -176,7 +176,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 newPipelines = new HashMap<>(existingPipelines);
             }
             try {
-                Pipeline newPipeline = Pipeline.create(
+                PipelineWithMetrics newPipeline = PipelineWithMetrics.create(
                     newConfiguration.getId(),
                     newConfiguration.getConfigAsMap(),
                     requestProcessorFactories,
@@ -275,7 +275,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             throw new IllegalStateException("Search pipeline info is empty");
         }
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-        Pipeline pipeline = Pipeline.create(
+        Pipeline pipeline = PipelineWithMetrics.create(
             request.getId(),
             pipelineConfig,
             requestProcessorFactories,
@@ -373,7 +373,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 );
             }
             try {
-                pipeline = Pipeline.create(
+                pipeline = PipelineWithMetrics.create(
                     AD_HOC_PIPELINE_ID,
                     searchRequest.source().searchPipelineSource(),
                     requestProcessorFactories,
@@ -439,7 +439,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         SearchPipelineStats.Builder builder = new SearchPipelineStats.Builder();
         builder.withTotalStats(totalRequestProcessingMetrics, totalResponseProcessingMetrics);
         for (PipelineHolder pipelineHolder : pipelines.values()) {
-            Pipeline pipeline = pipelineHolder.pipeline;
+            PipelineWithMetrics pipeline = pipelineHolder.pipeline;
             pipeline.populateStats(builder);
         }
         return builder.build();
@@ -488,9 +488,9 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     static class PipelineHolder {
 
         final PipelineConfiguration configuration;
-        final Pipeline pipeline;
+        final PipelineWithMetrics pipeline;
 
-        PipelineHolder(PipelineConfiguration configuration, Pipeline pipeline) {
+        PipelineHolder(PipelineConfiguration configuration, PipelineWithMetrics pipeline) {
             this.configuration = Objects.requireNonNull(configuration);
             this.pipeline = Objects.requireNonNull(pipeline);
         }
