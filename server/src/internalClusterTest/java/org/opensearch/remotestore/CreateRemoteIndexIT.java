@@ -14,7 +14,9 @@ import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -22,7 +24,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL;
+import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
@@ -101,7 +103,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             "true",
             "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
-            null
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
     }
 
@@ -124,7 +126,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             null,
             null,
             client().settings().get(CLUSTER_SETTING_REPLICATION_TYPE),
-            null
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
     }
 
@@ -175,7 +177,15 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
             .get();
         Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(indexSettings, null, null, null, null, ReplicationType.DOCUMENT.toString(), null);
+        verifyRemoteStoreIndexSettings(
+            indexSettings,
+            null,
+            null,
+            null,
+            null,
+            ReplicationType.DOCUMENT.toString(),
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+        );
     }
 
     public void testRemoteStoreSegmentRepoWithoutRemoteEnabledAndSegmentReplicationIllegalArgumentException() throws Exception {
@@ -216,7 +226,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             "true",
             "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
-            null
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
     }
 
@@ -232,7 +242,15 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
             .get();
         Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(indexSettings, "true", "my-segment-repo-1", "false", null, ReplicationType.SEGMENT.toString(), null);
+        verifyRemoteStoreIndexSettings(
+            indexSettings,
+            "true",
+            "my-segment-repo-1",
+            "false",
+            null,
+            ReplicationType.SEGMENT.toString(),
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+        );
     }
 
     public void testRemoteStoreOverrideOnlyTranslogRepoIllegalArgumentException() throws Exception {
@@ -307,7 +325,15 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
             .get();
         Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(indexSettings, "true", "my-custom-repo", "false", null, ReplicationType.SEGMENT.toString(), null);
+        verifyRemoteStoreIndexSettings(
+            indexSettings,
+            "true",
+            "my-custom-repo",
+            "false",
+            null,
+            ReplicationType.SEGMENT.toString(),
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+        );
     }
 
     public void testRemoteStoreOverrideTranslogDisabledWithTranslogRepoIllegalArgumentException() throws Exception {
@@ -376,7 +402,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             "true",
             "my-custom-repo",
             ReplicationType.SEGMENT.toString(),
-            null
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
     }
 
@@ -392,7 +418,15 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
             .get();
         Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(indexSettings, null, null, null, null, ReplicationType.DOCUMENT.toString(), null);
+        verifyRemoteStoreIndexSettings(
+            indexSettings,
+            null,
+            null,
+            null,
+            null,
+            ReplicationType.DOCUMENT.toString(),
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+        );
     }
 
     protected void verifyRemoteStoreIndexSettings(
@@ -402,14 +436,14 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         String isRemoteTranslogEnabled,
         String remoteTranslogRepo,
         String replicationType,
-        String translogBufferInterval
+        TimeValue translogBufferInterval
     ) {
         assertEquals(replicationType, indexSettings.get(SETTING_REPLICATION_TYPE));
         assertEquals(isRemoteSegmentEnabled, indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
         assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY));
         assertEquals(isRemoteTranslogEnabled, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_ENABLED));
         assertEquals(remoteTranslogRepo, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
-        assertEquals(translogBufferInterval, indexSettings.get(SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL));
+        assertEquals(translogBufferInterval, INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings));
     }
 
 }
