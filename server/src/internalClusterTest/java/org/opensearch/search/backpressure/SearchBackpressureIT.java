@@ -151,7 +151,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
     public void testSearchTaskCancellationWithHighCpu() throws InterruptedException {
         Settings request = Settings.builder()
             .put(SearchBackpressureSettings.SETTING_MODE.getKey(), "enforced")
-            .put(SearchTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD.getKey(), 50)
+            .put(SearchTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD.getKey(), 1000)
             .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get());
 
@@ -182,7 +182,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
     public void testSearchShardTaskCancellationWithHighCpu() throws InterruptedException {
         Settings request = Settings.builder()
             .put(SearchBackpressureSettings.SETTING_MODE.getKey(), "enforced")
-            .put(SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD.getKey(), 50)
+            .put(SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD.getKey(), 1000)
             .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get());
 
