@@ -385,14 +385,19 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     }
 
     private void deleteStaleCommitsAsync(String threadpoolName, Runnable onCompletion) {
-        indexShard.getThreadPool().executor(threadpoolName).execute(() -> {
-            try {
-                remoteDirectory.deleteStaleSegments(LAST_N_METADATA_FILES_TO_KEEP);
-            } catch (IOException e) {
-                logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit", e);
-            }
+        try {
+            indexShard.getThreadPool().executor(threadpoolName).execute(() -> {
+                try {
+                    remoteDirectory.deleteStaleSegments(LAST_N_METADATA_FILES_TO_KEEP);
+                } catch (IOException e) {
+                    logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit", e);
+                }
+                onCompletion.run();
+            });
+        } catch (Exception e) {
+            logger.info("Exception occurred while scheduling deleteStaleCommits", e);
             onCompletion.run();
-        });
+        }
     }
 
     /**

@@ -60,7 +60,6 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s")
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
             .build();
     }
 
@@ -74,6 +73,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     protected Settings remoteStoreIndexSettings(int numberOfReplicas) {
         return remoteStoreIndexSettings(numberOfReplicas, 1);
+    }
+
+    protected Settings remoteStoreIndexSettings(int numberOfReplicas, long totalFieldLimit) {
+        return Settings.builder()
+            .put(remoteStoreIndexSettings(numberOfReplicas))
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldLimit)
+            .build();
     }
 
     protected Settings remoteTranslogIndexSettings(int numberOfReplicas, int numberOfShards) {

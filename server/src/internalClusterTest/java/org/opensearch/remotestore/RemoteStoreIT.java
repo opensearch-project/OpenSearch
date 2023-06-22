@@ -281,7 +281,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletion() throws Exception {
         internalCluster().startDataOnlyNodes(3);
-        createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000));
         int numberOfIterations = randomIntBetween(5, 15);
         boolean invokeFlush = randomBoolean();
         indexData(numberOfIterations, invokeFlush);
@@ -292,12 +292,17 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
         Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
         if (invokeFlush) {
+            // Delete is async.
             assertBusy(() -> {
                 try {
-                    int expectedFileCount = numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP
-                        ? numberOfIterations
-                        : 11;
-                    assertEquals(expectedFileCount, getFileCount(indexPath));
+                    int actualFileCount = getFileCount(indexPath);
+                    if (numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP) {
+                        assertEquals(numberOfIterations, actualFileCount);
+                    } else {
+                        // As delete is async its possible that the file gets created before the deletion or after
+                        // deletion.
+                        assertTrue(actualFileCount >= 10 || actualFileCount <= 11);
+                    }
                 } catch (Exception e) {}
             }, 30, TimeUnit.SECONDS);
         } else {
