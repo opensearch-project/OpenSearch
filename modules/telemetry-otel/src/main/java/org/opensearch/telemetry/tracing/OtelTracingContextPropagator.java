@@ -14,10 +14,7 @@ import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.context.propagation.TextMapSetter;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-
-import static org.opensearch.telemetry.tracing.DefaultTracer.CURRENT_SPAN;
 
 /**
  * Otel implementation of TracingContextPropagator
@@ -39,36 +36,24 @@ public class OtelTracingContextPropagator implements TracingContextPropagator {
         Context context = openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), props, TEXT_MAP_GETTER);
         if (context != null) {
             io.opentelemetry.api.trace.Span span = io.opentelemetry.api.trace.Span.fromContext(context);
-            return new PropagatedSpan(span);
+            return new OTelPropagatedSpan(span);
         }
         return null;
     }
 
     @Override
-    public BiConsumer<Map<String, String>, Map<String, Object>> inject() {
-        return (requestHeaders, transientHeaders) -> {
-            if (transientHeaders != null && transientHeaders.containsKey(CURRENT_SPAN)) {
-                if (transientHeaders.get(CURRENT_SPAN) instanceof AtomicReference) {
-                    @SuppressWarnings("unchecked")
-                    AtomicReference<Span> currentSpanRef = (AtomicReference<Span>) transientHeaders.get(CURRENT_SPAN);
-                    Span currentSpan = currentSpanRef.get();
-                    if (currentSpan instanceof OTelSpan) {
-                        openTelemetry.getPropagators()
-                            .getTextMapPropagator()
-                            .inject(context((OTelSpan) currentSpan), requestHeaders, TEXT_MAP_SETTER);
-                    }
-                }
-            }
-        };
+    public void inject(Span currentSpan, BiConsumer<String, String> setter) {
+        openTelemetry.getPropagators().getTextMapPropagator().inject(context((OTelSpan) currentSpan), setter, TEXT_MAP_SETTER);
+
     }
 
     private static Context context(OTelSpan oTelSpan) {
         return Context.current().with(io.opentelemetry.api.trace.Span.wrap(oTelSpan.getOtelSpan().getSpanContext()));
     }
 
-    private static final TextMapSetter<Map<String, String>> TEXT_MAP_SETTER = (carrier, key, value) -> {
+    private static final TextMapSetter<BiConsumer<String, String>> TEXT_MAP_SETTER = (carrier, key, value) -> {
         if (carrier != null) {
-            carrier.put(key, value);
+            carrier.accept(key, value);
         }
     };
 

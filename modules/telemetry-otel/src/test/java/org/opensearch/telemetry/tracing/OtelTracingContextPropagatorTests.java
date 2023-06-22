@@ -19,11 +19,9 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.telemetry.tracing.DefaultTracer.CURRENT_SPAN;
 
 public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
 
@@ -34,14 +32,12 @@ public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
         Span mockSpan = mock(Span.class);
         when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));
         OTelSpan span = new OTelSpan("spanName", mockSpan, null);
-        AtomicReference<org.opensearch.telemetry.tracing.Span> spanHolder = new AtomicReference<>(span);
-        Map<String, Object> transientHeaders = Map.of(CURRENT_SPAN, spanHolder);
         Map<String, String> requestHeaders = new HashMap<>();
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
         TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
 
-        tracingContextPropagator.inject().accept(requestHeaders, transientHeaders);
+        tracingContextPropagator.inject(span, (key, value) -> requestHeaders.put(key, value));
         assertEquals("00-" + TRACE_ID + "-" + SPAN_ID + "-00", requestHeaders.get("traceparent"));
     }
 

@@ -29,7 +29,7 @@ public class OTelTelemetryModulePluginTests extends OpenSearchTestCase {
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testAdditionalSettingWithTracingFeatureDisabled() {
         System.setProperty("opensearch.experimental.feature.telemetry.enabled", "false");
-        Settings settings = new OTelTelemetryModulePlugin().additionalSettings();
+        Settings settings = new OTelTelemetryModulePlugin(null).additionalSettings();
 
         assertTrue(settings.isEmpty());
     }
@@ -37,7 +37,7 @@ public class OTelTelemetryModulePluginTests extends OpenSearchTestCase {
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testAdditionalSettingWithTracingFeatureEnabled() {
         System.setProperty("opensearch.experimental.feature.telemetry.enabled", "true");
-        Settings settings = new OTelTelemetryModulePlugin().additionalSettings();
+        Settings settings = new OTelTelemetryModulePlugin(null).additionalSettings();
 
         assertFalse(settings.isEmpty());
     }
@@ -46,8 +46,8 @@ public class OTelTelemetryModulePluginTests extends OpenSearchTestCase {
         Set<Setting<?>> allTracerSettings = new HashSet<>();
         ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));
         Settings settings = Settings.builder().build();
-        OTelTelemetryModulePlugin oTelTracerModulePlugin = new OTelTelemetryModulePlugin();
-        Optional<Telemetry> tracer = oTelTracerModulePlugin.getTelemetry(settings);
+        OTelTelemetryModulePlugin oTelTracerModulePlugin = new OTelTelemetryModulePlugin(settings);
+        Optional<Telemetry> tracer = oTelTracerModulePlugin.getTelemetry(null);
 
         assertEquals(OTEL_TRACER_NAME, oTelTracerModulePlugin.getName());
         TracingTelemetry tracingTelemetry = tracer.get().getTracingTelemetry();

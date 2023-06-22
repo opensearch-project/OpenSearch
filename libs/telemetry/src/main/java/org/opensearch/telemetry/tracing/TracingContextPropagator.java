@@ -24,9 +24,11 @@ public interface TracingContextPropagator {
     Span extract(Map<String, String> props);
 
     /**
-     * Injects tracing context in map
-     * @return consumer to add tracing context in map
+     * Injects tracing context
+     *
+     * @param currentSpan the current active span
+     * @param setter to add tracing context in map
      */
-    BiConsumer<Map<String, String>, Map<String, Object>> inject();
+    void inject(Span currentSpan, BiConsumer<String, String> setter);
 
 }

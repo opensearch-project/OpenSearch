@@ -11,7 +11,6 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.common.util.concurrent.ThreadContext;
 
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Core's ThreadContext based TracerContextStorage implementation
@@ -37,11 +36,11 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
         if (span == null) {
             return;
         }
-        AtomicReference<Span> currentSpanRef = threadContext.getTransient(key);
+        SpanReference currentSpanRef = threadContext.getTransient(key);
         if (currentSpanRef == null) {
-            threadContext.putTransient(key, new AtomicReference<>(span));
+            threadContext.putTransient(key, new SpanReference(span));
         } else {
-            currentSpanRef.set(span);
+            currentSpanRef.setSpan(span);
         }
     }
 
@@ -51,8 +50,8 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
     }
 
     private Optional<Span> spanFromThreadContext(String key) {
-        AtomicReference<Span> currentSpanRef = threadContext.getTransient(key);
-        return (currentSpanRef == null) ? Optional.empty() : Optional.ofNullable(currentSpanRef.get());
+        SpanReference currentSpanRef = threadContext.getTransient(key);
+        return (currentSpanRef == null) ? Optional.empty() : Optional.ofNullable(currentSpanRef.getSpan());
     }
 
     private Span spanFromHeader() {

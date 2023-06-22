@@ -9,7 +9,6 @@
 package org.opensearch.telemetry.tracing;
 
 import org.junit.After;
-import org.junit.Before;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -27,29 +26,21 @@ import java.util.Set;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TracerManagerTests extends OpenSearchTestCase {
+public class TracerFactoryTests extends OpenSearchTestCase {
 
-    @Before
-    public void setup() {
-        TracerManager.clear();
-    }
+    private TracerFactory tracerFactory;
 
     @After
     public void close() {
-        TracerManager.closeTracer();
-    }
-
-    public void testGetTracerWithUninitializedTracerFactory() {
-        Tracer tracer = TracerManager.getTracer();
-        assertTrue(tracer instanceof NoopTracer);
+        tracerFactory.close();
     }
 
     public void testGetTracerWithTracingDisabledReturnsNoopTracer() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
-        TracerManager.initTracerManager(telemetrySettings, null, mock(ThreadPool.class));
+        tracerFactory = new TracerFactory(telemetrySettings, null, mock(ThreadPool.class));
 
-        Tracer tracer = TracerManager.getTracer();
+        Tracer tracer = tracerFactory.getTracer();
         assertTrue(tracer instanceof NoopTracer);
     }
 
@@ -58,9 +49,9 @@ public class TracerManagerTests extends OpenSearchTestCase {
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
-        TracerManager.initTracerManager(telemetrySettings, mockTelemetry, mock(ThreadPool.class));
+        tracerFactory = new TracerFactory(telemetrySettings, mockTelemetry, mock(ThreadPool.class));
 
-        Tracer tracer = TracerManager.getTracer();
+        Tracer tracer = tracerFactory.getTracer();
         assertTrue(tracer instanceof DefaultTracer);
 
     }

@@ -38,7 +38,7 @@ public class TelemetryModule {
         this.settings = settings;
 
         for (TelemetryPlugin telemetryPlugin : telemetryPlugins) {
-            Optional<Telemetry> telemetry = telemetryPlugin.getTelemetry(settings);
+            Optional<Telemetry> telemetry = telemetryPlugin.getTelemetry(telemetrySettings);
             if (telemetry.isPresent()) {
                 registerTelemetry(telemetryPlugin.getName(), telemetry.get());
             }

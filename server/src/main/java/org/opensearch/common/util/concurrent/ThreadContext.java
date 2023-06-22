@@ -44,8 +44,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpTransportSettings;
-import org.opensearch.telemetry.tracing.TracerManager;
+import org.opensearch.telemetry.tracing.SpanReference;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.TracerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -58,7 +59,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
@@ -157,7 +157,7 @@ public final class ThreadContext implements Writeable {
         if (context.transientHeaders.containsKey(CURRENT_SPAN)) {
             threadContextStruct = threadContextStruct.putTransient(
                 CURRENT_SPAN,
-                new AtomicReference<>(((AtomicReference) context.transientHeaders.get(CURRENT_SPAN)).get())
+                new SpanReference(((SpanReference) context.transientHeaders.get(CURRENT_SPAN)).getSpan())
             );
         }
 
@@ -260,7 +260,7 @@ public final class ThreadContext implements Writeable {
         if (newContext.transientHeaders.containsKey(CURRENT_SPAN)) {
             newContext.transientHeaders.put(
                 CURRENT_SPAN,
-                new AtomicReference<>(((AtomicReference) newContext.transientHeaders.get(CURRENT_SPAN)).get())
+                new SpanReference(((SpanReference) newContext.transientHeaders.get(CURRENT_SPAN)).getSpan())
             );
         }
 
@@ -728,8 +728,12 @@ public final class ThreadContext implements Writeable {
         }
 
         private void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
-            TracerManager.getTracerHeaderInjector().accept(this.requestHeaders, this.transientHeaders);
-
+            if (transientHeaders.containsKey(CURRENT_SPAN)) {
+                TracerFactory.propagator.inject(
+                    ((SpanReference) transientHeaders.get(CURRENT_SPAN)).getSpan(),
+                    (key, value) -> requestHeaders.put(key, value)
+                );
+            }
             final Map<String, String> requestHeaders;
             if (defaultHeaders.isEmpty()) {
                 requestHeaders = this.requestHeaders;

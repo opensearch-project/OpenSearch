@@ -33,7 +33,7 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         TelemetryPlugin telemetryPlugin1 = mock(TelemetryPlugin.class);
         TracingTelemetry tracingTelemetry1 = mock(TracingTelemetry.class);
-        when(telemetryPlugin1.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
+        when(telemetryPlugin1.getTelemetry(telemetrySettings)).thenReturn(Optional.of(new Telemetry() {
             @Override
             public TracingTelemetry getTracingTelemetry() {
                 return tracingTelemetry1;
@@ -60,7 +60,7 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
         TelemetryPlugin telemetryPlugin2 = mock(TelemetryPlugin.class);
         TracingTelemetry tracingTelemetry1 = mock(TracingTelemetry.class);
         TracingTelemetry tracingTelemetry2 = mock(TracingTelemetry.class);
-        when(telemetryPlugin1.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
+        when(telemetryPlugin1.getTelemetry(telemetrySettings)).thenReturn(Optional.of(new Telemetry() {
             @Override
             public TracingTelemetry getTracingTelemetry() {
                 return tracingTelemetry1;
@@ -72,7 +72,7 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
             }
         }));
         when(telemetryPlugin1.getName()).thenReturn("otel");
-        when(telemetryPlugin2.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
+        when(telemetryPlugin2.getTelemetry(telemetrySettings)).thenReturn(Optional.of(new Telemetry() {
             @Override
             public TracingTelemetry getTracingTelemetry() {
                 return tracingTelemetry2;
@@ -101,7 +101,7 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
         TracingTelemetry tracingTelemetry1 = mock(TracingTelemetry.class);
         TracingTelemetry tracingTelemetry2 = mock(TracingTelemetry.class);
         TracingTelemetry tracingTelemetry3 = mock(TracingTelemetry.class);
-        when(telemetryPlugin1.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
+        when(telemetryPlugin1.getTelemetry(telemetrySettings)).thenReturn(Optional.of(new Telemetry() {
             @Override
             public TracingTelemetry getTracingTelemetry() {
                 return tracingTelemetry1;
@@ -113,7 +113,7 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
             }
         }));
         when(telemetryPlugin1.getName()).thenReturn("otel");
-        when(telemetryPlugin2.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
+        when(telemetryPlugin2.getTelemetry(telemetrySettings)).thenReturn(Optional.of(new Telemetry() {
             @Override
             public TracingTelemetry getTracingTelemetry() {
                 return tracingTelemetry2;
@@ -125,7 +125,7 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
             }
         }));
         when(telemetryPlugin2.getName()).thenReturn("foo");
-        when(telemetryPlugin3.getTelemetry(settings)).thenReturn(Optional.of(new Telemetry() {
+        when(telemetryPlugin3.getTelemetry(telemetrySettings)).thenReturn(Optional.of(new Telemetry() {
             @Override
             public TracingTelemetry getTracingTelemetry() {
                 return tracingTelemetry3;

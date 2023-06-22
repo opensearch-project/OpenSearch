@@ -12,6 +12,7 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -20,7 +21,6 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.telemetry.tracing.exporter.FileSpanExporter;
 
 import java.util.concurrent.TimeUnit;
 
@@ -36,7 +36,7 @@ final class OTelResourceProvider {
     static OpenTelemetry get(Settings settings) {
         return get(
             settings,
-            new FileSpanExporter(),
+            new LoggingSpanExporter(),
             ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
             Sampler.alwaysOn()
         );

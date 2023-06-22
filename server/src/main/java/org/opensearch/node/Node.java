@@ -56,7 +56,8 @@ import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
-import org.opensearch.telemetry.tracing.TracerManager;
+import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.pipeline.SearchPipelineService;
@@ -378,6 +379,7 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
+    private final TracerFactory tracerFactory;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
     private FileCache fileCache;
@@ -1029,9 +1031,11 @@ public class Node implements Closeable {
                 final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
                 List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
                 TelemetryModule telemetryModule = new TelemetryModule(settings, telemetryPlugins, telemetrySettings);
-                TracerManager.initTracerManager(telemetrySettings, telemetryModule.getTelemetry(), threadPool);
-                resourcesToClose.add(TracerManager::closeTracer);
+                tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool);
+            } else {
+                tracerFactory = new NoopTracerFactory();
             }
+            resourcesToClose.add(tracerFactory::close);
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
@@ -1138,6 +1142,7 @@ public class Node implements Closeable {
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);
+                b.bind(TracerFactory.class).toInstance(this.tracerFactory);
             });
             injector = modules.createInjector();
 
@@ -1495,7 +1500,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(NodeEnvironment.class));
         toClose.add(stopWatch::stop);
         if (FeatureFlags.isEnabled(TELEMETRY)) {
-            toClose.add(TracerManager::closeTracer);
+            toClose.add(() -> injector.getInstance(TracerFactory.class));
         }
 
         if (logger.isTraceEnabled()) {

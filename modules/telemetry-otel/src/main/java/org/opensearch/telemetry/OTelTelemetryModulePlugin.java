@@ -32,30 +32,35 @@ public class OTelTelemetryModulePlugin extends Plugin implements TelemetryPlugin
     static final String OTEL_TRACER_NAME = "otel";
 
     static final Setting<Integer> TRACER_EXPORTER_BATCH_SIZE_SETTING = Setting.intSetting(
-        "telemetry.tracer.exporter.batch_size",
+        "telemetry.otel.tracer.exporter.batch_size",
         512,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     static final Setting<Integer> TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING = Setting.intSetting(
-        "telemetry.tracer.exporter.max_queue_size",
+        "telemetry.otel.tracer.exporter.max_queue_size",
         2048,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     static final Setting<TimeValue> TRACER_EXPORTER_DELAY_SETTING = Setting.timeSetting(
-        "telemetry.tracer.exporter.delay",
+        "telemetry.otel.tracer.exporter.delay",
         TimeValue.timeValueSeconds(2),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
+    private final Settings settings;
+
     /**
-     * No-args constructor
+     * Creates Otel plugin
+     * @param settings cluster settings
      */
-    public OTelTelemetryModulePlugin() {}
+    public OTelTelemetryModulePlugin(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -74,8 +79,8 @@ public class OTelTelemetryModulePlugin extends Plugin implements TelemetryPlugin
     }
 
     @Override
-    public Optional<Telemetry> getTelemetry(Settings settings) {
-        return Optional.of(telemetry(settings));
+    public Optional<Telemetry> getTelemetry(TelemetrySettings settings) {
+        return Optional.of(telemetry());
     }
 
     @Override
@@ -83,7 +88,7 @@ public class OTelTelemetryModulePlugin extends Plugin implements TelemetryPlugin
         return OTEL_TRACER_NAME;
     }
 
-    private Telemetry telemetry(Settings settings) {
+    private Telemetry telemetry() {
         return new OtelTelemetryImpl(new OtelTracingTelemetry(OTelResourceProvider.get(settings)), new MetricsTelemetry() {
         });
     }
