@@ -795,7 +795,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<RepositoryData> listener
     ) {
         if (isReadOnly()) {
@@ -816,7 +815,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         rootBlobs,
                         repositoryData,
                         repositoryMetaVersion,
-                        remoteStoreLockManagerFactory,
                         listener
                     );
                 }
@@ -826,6 +824,179 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshots " + snapshotIds, e));
                 }
             });
+        }
+    }
+
+    public void cleanupRemoteStoreStaleLockFiles(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        ActionListener<DeleteResult> listener
+    ) {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws Exception {
+                final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs();
+                final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
+                final List<String> snapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).collect(Collectors.toList());
+                final StepListener<
+                    List<Tuple<String, Tuple<Integer, RemoteStoreShardShallowCopySnapshot>>>> resourcesToReleaseLockListener =
+                        new StepListener<>();
+                resolveResourcesToReleaseLock(snapshotUUIDs, repositoryData, resourcesToReleaseLockListener);
+
+                resourcesToReleaseLockListener.whenComplete(resourcesToReleaseLock -> {
+                    if (resourcesToReleaseLock.isEmpty()) {
+                        logger.info("No lock file to be released");
+                        listener.onResponse(DeleteResult.ZERO);
+                        return;
+                    }
+                    try {
+                        AtomicInteger counter = new AtomicInteger();
+                        Collection<List<Tuple<String, Tuple<Integer, RemoteStoreShardShallowCopySnapshot>>>> subList =
+                            resourcesToReleaseLock.stream()
+                                .collect(
+                                    Collectors.groupingBy(
+                                        it -> counter.getAndIncrement() / MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.get(
+                                            getMetadata().settings()
+                                        )
+                                    )
+                                )
+                                .values();
+
+                        final BlockingQueue<
+                            List<Tuple<String, Tuple<Integer, RemoteStoreShardShallowCopySnapshot>>>> lockFilesToDeleteInBatch =
+                                new LinkedBlockingQueue<>(subList);
+
+                        final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(
+                            ActionListener.wrap(deleteResults -> {
+                                DeleteResult deleteResult = DeleteResult.ZERO;
+                                for (DeleteResult result : deleteResults) {
+                                    deleteResult = deleteResult.add(result);
+                                }
+                                listener.onResponse(deleteResult);
+                            }, e -> { listener.onFailure(e); }),
+                            lockFilesToDeleteInBatch.size()
+                        );
+
+                        // Start as many workers as fit into the snapshot pool at once at the most
+                        final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), lockFilesToDeleteInBatch.size());
+                        for (int i = 0; i < workers; ++i) {
+                            executeLockFilesDelete(lockFilesToDeleteInBatch, groupedListener, remoteStoreLockManagerFactory);
+                        }
+                    } catch (Exception e) {
+                        assert false : e;
+                        logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of lock files", snapshotIds), e);
+                        listener.onFailure(e);
+                    }
+                }, ex -> listener.onFailure(ex));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(new RepositoryException(metadata.name(), "failed to release locks " + snapshotIds, e));
+            }
+        });
+    }
+
+    private void resolveResourcesToReleaseLock(
+        Collection<String> snapshotUUIDs,
+        RepositoryData repositoryData,
+        StepListener<List<Tuple<String, Tuple<Integer, RemoteStoreShardShallowCopySnapshot>>>> listener
+    ) throws IOException {
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final Set<String> allSnapshotIds = repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
+        final Map<String, BlobContainer> indexBlobs = blobStore().blobContainer(indicesPath()).children();
+        if (indexBlobs.isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+            return;
+        }
+        final ActionListener<Collection<List<Tuple<String, Tuple<Integer, RemoteStoreShardShallowCopySnapshot>>>>> allIndicesListener =
+            new GroupedActionListener<>(
+                ActionListener.map(
+                    listener,
+                    res -> res.stream().flatMap(Collection::stream).flatMap(Collection::stream).collect(Collectors.toList())
+                ),
+                indexBlobs.size()
+            );
+        for (Map.Entry<String, BlobContainer> indexBlob : indexBlobs.entrySet()) {
+            Map<String, BlobContainer> shardBlobs = indexBlob.getValue().children();
+            if (shardBlobs.isEmpty()) {
+                allIndicesListener.onResponse(null);
+            } else {
+                final ActionListener<List<Tuple<String, Tuple<Integer, RemoteStoreShardShallowCopySnapshot>>>> allShardsListener =
+                    new GroupedActionListener<>(allIndicesListener, shardBlobs.size());
+                for (Map.Entry<String, BlobContainer> shardBlob : shardBlobs.entrySet()) {
+                    executor.execute(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() throws Exception {
+                            Map<String, BlobMetadata> shardLevelBlobs = shardBlob.getValue().listBlobs();
+                            List<Tuple<String, Tuple<Integer, RemoteStoreShardShallowCopySnapshot>>> resourcesToReleaseLock =
+                                new ArrayList<>();
+                            for (Map.Entry<String, BlobMetadata> shardLevelBlob : shardLevelBlobs.entrySet()) {
+                                String blob = shardLevelBlob.getKey();
+                                String snapshotUUID = blob.substring(SHALLOW_SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
+                                if (blob.startsWith(SHALLOW_SNAPSHOT_PREFIX)
+                                    && blob.endsWith(".dat")
+                                    && (!allSnapshotIds.contains(snapshotUUID) || snapshotUUIDs.contains(snapshotUUID))) {
+                                    RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot =
+                                        REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(
+                                            shardBlob.getValue(),
+                                            snapshotUUID,
+                                            namedXContentRegistry
+                                        );
+                                    resourcesToReleaseLock.add(
+                                        Tuple.tuple(
+                                            snapshotUUID,
+                                            Tuple.tuple(Integer.valueOf(shardBlob.getKey()), remoteStoreShardShallowCopySnapshot)
+                                        )
+                                    );
+                                }
+                            }
+                            allShardsListener.onResponse(resourcesToReleaseLock);
+                        }
+
+                        @Override
+                        public void onFailure(Exception ex) {
+                            // Just passing null here to count down the listener instead of failing it, the stale data left behind
+                            // here will be retried in the next delete or repository cleanup
+                            allShardsListener.onResponse(null);
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    private void executeLockFilesDelete(
+        BlockingQueue<List<Tuple<String, Tuple<Integer, RemoteStoreShardShallowCopySnapshot>>>> lockFilesToDeleteInBatch,
+        GroupedActionListener<DeleteResult> listener,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory
+    ) throws InterruptedException {
+        List<Tuple<String, Tuple<Integer, RemoteStoreShardShallowCopySnapshot>>> lockFilesToDelete = lockFilesToDeleteInBatch.poll(
+            0L,
+            TimeUnit.MILLISECONDS
+        );
+        if (lockFilesToDelete != null) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+                try {
+                    for (Tuple<String, Tuple<Integer, RemoteStoreShardShallowCopySnapshot>> lockFile : lockFilesToDelete) {
+                        String indexUUID = lockFile.v2().v2().getIndexUUID();
+                        String remoteStoreRepoForIndex = lockFile.v2().v2().getRemoteStoreRepository();
+                        RemoteStoreMetadataLockManager remoteStoreMetadataLockManager = remoteStoreLockManagerFactory.newLockManager(
+                            remoteStoreRepoForIndex,
+                            indexUUID,
+                            String.valueOf(lockFile.v2().v1())
+                        );
+                        remoteStoreMetadataLockManager.release(FileLockInfo.getLockInfoBuilder().withAcquirerId(lockFile.v1()).build());
+                    }
+                    l.onResponse(new DeleteResult(lockFilesToDelete.size(), 0));
+                } catch (Exception e) {
+                    assert false : e;
+                    logger.warn(new ParameterizedMessage("[{}] Exception during deletion of lock files", metadata.name()), e);
+                    l.onFailure(e);
+                }
+                executeLockFilesDelete(lockFilesToDeleteInBatch, listener, remoteStoreLockManagerFactory);
+            }));
         }
     }
 
@@ -896,7 +1067,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData repositoryData,
         Version repoMetaVersion,
-        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<RepositoryData> listener
     ) {
         // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
@@ -931,7 +1101,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 ActionListener.wrap(() -> listener.onResponse(updatedRepoData)),
                 2
             );
-            releaseResourceLockFiles(snapshotIds, repositoryData, remoteStoreLockManagerFactory, afterCleanupsListener);
             cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
             asyncCleanupUnlinkedShardLevelBlobs(
                 repositoryData,
@@ -1094,8 +1263,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots;
                             final long newGen;
 
-                            // Index- file would be present if snapshots other than shallow snapshots are present for this shard
-                            if (shardContainer.listBlobsByPrefix(SNAPSHOT_INDEX_PREFIX).size() > 0) {
+                            // Index-N file would be present if snapshots other than shallow snapshots are present for this shard
+                            if (blobs.stream()
+                                .filter(blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX))
+                                .collect(Collectors.toSet())
+                                .size() > 0) {
                                 if (useUUIDs) {
                                     newGen = -1L;
                                     blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(
@@ -1147,42 +1319,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     });
                 }
             }, deleteIndexMetadataListener::onFailure);
-        }
-    }
-
-    private void releaseResourceLockFiles(
-        Collection<SnapshotId> snapshotIds,
-        RepositoryData repositoryData,
-        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
-        ActionListener<Void> onAllShardsCompleted
-    ) {
-        for (SnapshotId snapshotId : snapshotIds) {
-            List<String> indices = this.getSnapshotInfo(snapshotId).indices();
-            List<IndexId> indexIds = repositoryData.resolveIndices(indices);
-            for (IndexId indexId : indexIds) {
-                try {
-                    IndexMetadata indexMetadata = this.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
-                    if (this.getSnapshotInfo(snapshotId).isRemoteStoreIndexShallowCopyEnabled()
-                        && indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)) {
-                        int numberOfShards = indexMetadata.getNumberOfShards();
-                        for (int shardId = 0; shardId < numberOfShards; shardId++) {
-                            final int finalShardId = shardId;
-                            String indexUUID = indexMetadata.getIndexUUID();
-                            String remoteStoreRepoForIndex = indexMetadata.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
-                            RemoteStoreMetadataLockManager remoteStoreMetadataLockManager = remoteStoreLockManagerFactory.newLockManager(
-                                remoteStoreRepoForIndex,
-                                indexUUID,
-                                String.valueOf(finalShardId)
-                            );
-                            remoteStoreMetadataLockManager.release(
-                                FileLockInfo.getLockInfoBuilder().withAcquirerId(snapshotId.getUUID()).build()
-                            );
-                        }
-                    }
-                } catch (IOException e) {
-                    onAllShardsCompleted.onFailure(e);
-                }
-            }
         }
     }
 
@@ -1251,6 +1387,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             groupedListener.onResponse(DeleteResult.ZERO);
         } else {
             cleanupStaleIndices(foundIndices, survivingIndexIds, groupedListener);
+        }
+    }
+
+    public void cleanupRemoteStoreLockFiles(
+        long repositoryStateId,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        ActionListener<RepositoryCleanupResult> listener
+    ) {
+        try {
+            if (isReadOnly()) {
+                throw new RepositoryException(metadata.name(), "cannot run lock files cleanup on readonly repository");
+            }
+            cleanupRemoteStoreStaleLockFiles(
+                Collections.emptyList(),
+                repositoryStateId,
+                remoteStoreLockManagerFactory,
+                ActionListener.map(listener, RepositoryCleanupResult::new)
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -3017,6 +3173,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 } else {
                     updatedSnapshots = BlobStoreIndexShardSnapshots.EMPTY;
+                    writtenGeneration = ShardGenerations.NEW_SHARD_GEN;
                 }
                 final Set<String> survivingSnapshotUUIDs = survivingSnapshots.stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
                 return new ShardSnapshotMetaDeleteResult(
@@ -3070,6 +3227,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         && blob.endsWith(".dat")
                         && survivingSnapshotUUIDs.contains(
                             blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
+                        ) == false)
+                    || (blob.startsWith(SHALLOW_SNAPSHOT_PREFIX)
+                        && blob.endsWith(".dat")
+                        && survivingSnapshotUUIDs.contains(
+                            blob.substring(SHALLOW_SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
                         ) == false)
                     || (blob.startsWith(UPLOADED_DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
                     || FsBlobContainer.isTempBlobName(blob)

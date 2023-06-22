@@ -44,7 +44,6 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.IndexMetaDataGenerations;
 import org.opensearch.repositories.Repository;
@@ -134,7 +133,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<RepositoryData> listener
     ) {
         listener.onResponse(null);

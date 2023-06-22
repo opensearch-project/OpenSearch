@@ -60,7 +60,6 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -266,7 +265,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             Collection<SnapshotId> snapshotIds,
             long repositoryStateId,
             Version repositoryMetaVersion,
-            RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
             ActionListener<RepositoryData> listener
         ) {
             listener.onResponse(null);

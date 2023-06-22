@@ -103,7 +103,6 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
                     snapshot,
                     true,
                     false,
-                    false,
                     SnapshotsInProgress.State.INIT,
                     singletonList(new IndexId(index, "doesn't matter")),
                     Collections.emptyList(),

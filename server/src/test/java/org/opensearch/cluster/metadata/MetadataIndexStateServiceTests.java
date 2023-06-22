@@ -431,7 +431,6 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
             snapshot,
             randomBoolean(),
             false,
-            false,
             SnapshotsInProgress.State.INIT,
             Collections.singletonList(new IndexId(index, index)),
             Collections.emptyList(),

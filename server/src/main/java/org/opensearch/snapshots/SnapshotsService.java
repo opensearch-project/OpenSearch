@@ -100,6 +100,7 @@ import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -1600,12 +1601,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (deletionToRun == null) {
                     runNextQueuedOperation(repositoryData, repository, false);
                 } else {
-                    deleteSnapshotsFromRepository(
-                        deletionToRun,
-                        repositoryData,
-                        newState.nodes().getMinNodeVersion(),
-                        remoteStoreLockManagerFactory
-                    );
+                    deleteSnapshotsFromRepository(deletionToRun, repositoryData, newState.nodes().getMinNodeVersion());
                 }
             }
         });
@@ -2130,12 +2126,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     if (newDelete.state() == SnapshotDeletionsInProgress.State.STARTED) {
                         if (tryEnterRepoLoop(repoName)) {
-                            deleteSnapshotsFromRepository(
-                                newDelete,
-                                repositoryData,
-                                newState.nodes().getMinNodeVersion(),
-                                remoteStoreLockManagerFactory
-                            );
+                            deleteSnapshotsFromRepository(newDelete, repositoryData, newState.nodes().getMinNodeVersion());
                         } else {
                             logger.trace("Delete [{}] could not execute directly and was queued", newDelete);
                         }
@@ -2212,7 +2203,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         + "] in cluster state and ["
                         + repositoryData.getGenId()
                         + "] in the repository";
-                deleteSnapshotsFromRepository(deleteEntry, repositoryData, minNodeVersion, remoteStoreLockManagerFactory);
+                deleteSnapshotsFromRepository(deleteEntry, repositoryData, minNodeVersion);
             }
 
             @Override
@@ -2234,24 +2225,47 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void deleteSnapshotsFromRepository(
         SnapshotDeletionsInProgress.Entry deleteEntry,
         RepositoryData repositoryData,
-        Version minNodeVersion,
-        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory
+        Version minNodeVersion
     ) {
         if (repositoryOperations.startDeletion(deleteEntry.uuid())) {
             assert currentlyFinalizing.contains(deleteEntry.repository());
             final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
             assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : "incorrect state for entry [" + deleteEntry + "]";
-            repositoriesService.repository(deleteEntry.repository())
-                .deleteSnapshots(
-                    snapshotIds,
-                    repositoryData.getGenId(),
-                    minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                    remoteStoreLockManagerFactory,
-                    ActionListener.wrap(updatedRepoData -> {
-                        logger.info("snapshots {} deleted", snapshotIds);
-                        removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
-                    }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
+            StepListener cleanupRemoteStoreLockFilesStep = new StepListener<>();
+            boolean cleanupRemoteStoreLockFiles = repositoriesService.repository(deleteEntry.repository()) instanceof BlobStoreRepository;
+            if (cleanupRemoteStoreLockFiles) {
+                final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repositoriesService.repository(
+                    deleteEntry.repository()
                 );
+                if (blobStoreRepository.isReadOnly()) {
+                    cleanupRemoteStoreLockFilesStep.onResponse(null);
+                } else {
+                    blobStoreRepository.cleanupRemoteStoreStaleLockFiles(
+                        snapshotIds,
+                        repositoryData.getGenId(),
+                        remoteStoreLockManagerFactory,
+                        ActionListener.wrap(cleanupRemoteStoreLockFilesStep::onResponse, cleanupRemoteStoreLockFilesStep::onFailure)
+                    );
+                }
+            } else {
+                cleanupRemoteStoreLockFilesStep.onResponse(null);
+            }
+            cleanupRemoteStoreLockFilesStep.whenComplete(x -> {
+                repositoriesService.repository(deleteEntry.repository())
+                    .deleteSnapshots(
+                        snapshotIds,
+                        repositoryData.getGenId(),
+                        minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
+                        ActionListener.wrap(updatedRepoData -> {
+                            logger.info("snapshots {} deleted", snapshotIds);
+                            removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
+                        }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
+                    );
+            }, e -> {
+                // Ignoring the exception encountered while cleaning up lock files, the remaining lock files to be cleaned
+                // will be retried in the next delete or repository cleanup
+                logger.warn("[{}] Exception while cleaning up lock files. These will be retried in the next delete/cleanup operation", e);
+            });
         }
     }
 
@@ -2401,12 +2415,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     leaveRepoLoop(deleteEntry.repository());
                 } else {
                     for (SnapshotDeletionsInProgress.Entry readyDeletion : readyDeletions) {
-                        deleteSnapshotsFromRepository(
-                            readyDeletion,
-                            repositoryData,
-                            newState.nodes().getMinNodeVersion(),
-                            remoteStoreLockManagerFactory
-                        );
+                        deleteSnapshotsFromRepository(readyDeletion, repositoryData, newState.nodes().getMinNodeVersion());
                     }
                 }
             } else {
