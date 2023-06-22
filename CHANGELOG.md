@@ -11,6 +11,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump `com.google.guava:guava` from 31.0.1-jre to 32.0.1-jre ([#8107](https://github.com/opensearch-project/OpenSearch/pull/8107))
 - Bump versions of gradle-info-plugin and nebula-publishing-plugin ([#8150](https://github.com/opensearch-project/OpenSearch/pull/8150))
 - Bump `json-smart` from 2.4.7 to 2.4.11 in plugins/repository-hdfs/ ([#8160](https://github.com/opensearch-project/OpenSearch/pull/8160))
+- Bump `netty` from 4.1.93.Final to 4.1.94.Final ([#8191](https://github.com/opensearch-project/OpenSearch/pull/8191))
 
 ### Changed
 ### Deprecated
