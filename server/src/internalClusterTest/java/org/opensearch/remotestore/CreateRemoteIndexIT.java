@@ -15,9 +15,17 @@ import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
@@ -55,6 +63,20 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .put(settings);
         return builder.build();
+    }
+
+    public static class TestPlugin extends Plugin implements SystemIndexPlugin {
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return Collections.singletonList(
+                new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "System index for [" + getTestClass().getName() + ']')
+            );
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(CreateRemoteIndexIT.TestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -102,6 +124,26 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
             null
+        );
+    }
+
+    private static final String SYSTEM_INDEX_NAME = ".test-system-index";
+
+    public void testSystemIndexWithRemoteStoreClusterSetting() throws Exception {
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex(SYSTEM_INDEX_NAME)
+        );
+        assertThat(
+            illegalArgumentException.getMessage(),
+            containsString(
+                "Cannot enable ["
+                    + SETTING_REMOTE_STORE_ENABLED
+                    + "] when ["
+                    + SETTING_REPLICATION_TYPE
+                    + "] is "
+                    + ReplicationType.DOCUMENT
+            )
         );
     }
 
