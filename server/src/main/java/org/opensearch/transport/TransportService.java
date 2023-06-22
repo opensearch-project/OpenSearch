@@ -544,7 +544,9 @@ public class TransportService extends AbstractLifecycleComponent
     ) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
-            threadPool.getThreadContext().putHeader("extension_unique_id", extensionUniqueId);
+            if (Strings.isNullOrEmpty(threadPool.getThreadContext().getHeader("extension_unique_id"))) {
+                threadPool.getThreadContext().putHeader("extension_unique_id", extensionUniqueId);
+            }
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
 
