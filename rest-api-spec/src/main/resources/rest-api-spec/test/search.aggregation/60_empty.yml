@@ -1,5 +1,5 @@
 ---
-"Empty Agg Body":
+"Empty aggs Body":
   - do:
       index:
         index: test
