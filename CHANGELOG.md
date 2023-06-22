@@ -10,6 +10,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump `com.google.guava:guava` from 31.0.1-jre to 32.0.1-jre ([#8107](https://github.com/opensearch-project/OpenSearch/pull/8107))
 - Bump versions of gradle-info-plugin and nebula-publishing-plugin ([#8150](https://github.com/opensearch-project/OpenSearch/pull/8150))
 - Bump `json-smart` from 2.4.7 to 2.4.11 in plugins/repository-hdfs/ ([#8160](https://github.com/opensearch-project/OpenSearch/pull/8160))
+- Bump `com.netflix.nebula:gradle-info-plugin` from 8.2.0 to 9.2.0 ([#8220](https://github.com/opensearch-project/OpenSearch/pull/8220))
 
 ### Changed
 
