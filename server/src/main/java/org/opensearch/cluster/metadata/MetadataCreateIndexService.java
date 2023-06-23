@@ -898,8 +898,13 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, isSystemIndex);
-        updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
+        if (isSystemIndex || IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings())) {
+            indexSettingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+            indexSettingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, false);
+        } else {
+            updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings);
+            updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
+        }
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -939,16 +944,7 @@ public class MetadataCreateIndexService {
      * @param requestSettings settings passed in during index create request
      * @param clusterSettings cluster level settings
      */
-    private static void updateReplicationStrategy(
-        Settings.Builder settingsBuilder,
-        Settings requestSettings,
-        Settings clusterSettings,
-        boolean isSystemIndex
-    ) {
-        if (isSystemIndex || IndexMetadata.INDEX_HIDDEN_SETTING.get(requestSettings)) {
-            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
-            return;
-        }
+    private static void updateReplicationStrategy(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
         if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings) && INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
             return;
