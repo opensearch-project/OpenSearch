@@ -43,6 +43,7 @@ import org.opensearch.action.RequestValidators;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.ActionFilter;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
@@ -72,7 +73,7 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
     }
 
     private void throwIfNotAllowed() {
-        if (!identity.getSubject().isAllowed(List.of(ExtensionPointScope.ACTION))) {
+        if (!ApplicationManager.getInstance().isAllowed(identity.getSubject(), List.of(ExtensionPointScope.ACTION))) {
             throw new ExtensionPointScope.ExtensionPointScopeException(ExtensionPointScope.ACTION);
         }
     }

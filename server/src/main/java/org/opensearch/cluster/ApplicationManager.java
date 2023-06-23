@@ -9,9 +9,16 @@
 package org.opensearch.cluster;
 
 import java.security.Principal;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.identity.ApplicationAwareSubject;
+import org.opensearch.identity.ApplicationSubject;
+import org.opensearch.identity.ScopeAwareSubject;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.scopes.ScopeEnums;
 
@@ -73,6 +80,44 @@ public class ApplicationManager {
 
         return Set.of();
     }
+
+    /**
+     * Checks scopes of an application subject and determine if it is allowed to perform an operation based on the given scopes
+     * @param wrapped The ApplicationSubject whose scopes should be evaluated
+     * @param scopes The scopes to check against the subject
+     * @return true if allowed, false if none of the scopes are allowed.
+     */
+    public boolean isAllowed(ApplicationSubject wrapped, final List<Scope> scopes) {
+
+        final Optional<Principal> optionalPrincipal = wrapped.getApplication();
+
+        if (optionalPrincipal.isEmpty()) {
+            // If there is no application, actions are allowed by default
+            return true;
+        }
+
+        if (!wrapped.applicationExists()) {
+            return false;
+        }
+
+        final Set<String> scopesOfApplication = wrapped.getScopes();
+
+        boolean isApplicationSuperUser = scopesOfApplication.stream()
+            .map(Scope::parseScopeFromString)
+            .anyMatch(parsedScope -> parsedScope.equals(ApplicationScope.SUPER_USER_ACCESS));
+
+        if (isApplicationSuperUser) {
+
+            return true;
+        }
+
+        boolean isMatchingScopePresent = scopesOfApplication.stream()
+            .map(Scope::parseScopeFromString)
+            .anyMatch(parsedScope -> scopes.stream().anyMatch(parsedScope::equals));
+
+        return isMatchingScopePresent;
+    }
+
 
     /**
      * This method allows for checking the ExtensionPointScopes associated with an application

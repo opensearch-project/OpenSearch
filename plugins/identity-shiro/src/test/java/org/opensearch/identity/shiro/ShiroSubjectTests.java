@@ -13,13 +13,14 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.junit.Before;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.identity.scopes.ActionScope;
 import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.indices.shrink.ResizeAction;
 import org.opensearch.action.get.GetAction;
 import org.opensearch.action.get.MultiGetAction;
 import org.opensearch.extensions.ExtensionsManager;
-import org.opensearch.identity.ApplicationAwareSubject;
+import org.opensearch.identity.ApplicationSubject;
 import org.opensearch.identity.NamedPrincipal;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.scopes.ScopeEnums;
@@ -39,7 +40,7 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
     private org.apache.shiro.subject.Subject mockedSubject;
     private ShiroTokenManager authTokenHandler;
     private ShiroSubject shiroSubject;
-    private ApplicationAwareSubject applicationAwareSubject;
+    private ApplicationSubject applicationAwareSubject;
     private ExtensionsManager extensionsManager;
 
     @Before
@@ -48,7 +49,7 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
         authTokenHandler = mock(ShiroTokenManager.class);
         extensionsManager = mock(ExtensionsManager.class);
         shiroSubject = new ShiroSubject(authTokenHandler, mockedSubject);
-        applicationAwareSubject = spy(new ApplicationAwareSubject(shiroSubject));
+        applicationAwareSubject = spy(new ApplicationSubject(shiroSubject));
         extensionsManager = mock(ExtensionsManager.class);
 
         when(mockedSubject.getPrincipal()).thenReturn(new NamedPrincipal("TestPrincipal"));
@@ -125,16 +126,16 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
         List<Scope> allowedScopes = List.of(ActionScope.READ);
         shiroSubject.setScopes(allowedScopes);
 
-        doReturn(true).when(applicationAwareSubject).checkApplicationExists(any());
+        doReturn(true).when(applicationAwareSubject).applicationExists();
         doReturn(allowedScopes.stream().map(Scope::asPermissionString).collect(Collectors.toSet())).when(applicationAwareSubject)
-            .checkApplicationScopes(any());
+            .applicationExists();
 
-        assertTrue(applicationAwareSubject.isAllowed(allowedScopes));
+        assertTrue(ApplicationManager.getInstance().isAllowed(applicationAwareSubject, allowedScopes));
 
         GetAction getAction = GetAction.INSTANCE;
         MultiGetAction multiGetAction = MultiGetAction.INSTANCE;
-        assertTrue(applicationAwareSubject.isAllowed(getAction.getAllowedScopes()));
-        assertTrue(applicationAwareSubject.isAllowed(multiGetAction.getAllowedScopes()));
+        assertTrue(ApplicationManager.getInstance().isAllowed(applicationAwareSubject, getAction.getAllowedScopes()));
+        assertTrue(ApplicationManager.getInstance().isAllowed(applicationAwareSubject, multiGetAction.getAllowedScopes()));
     }
 
     public void testIsAllowedShouldFail() {
@@ -142,15 +143,15 @@ public class ShiroSubjectTests extends OpenSearchTestCase {
         List<Scope> allowedScopes = List.of(ActionScope.READ);
         shiroSubject.setScopes(allowedScopes);
 
-        doReturn(true).when(applicationAwareSubject).checkApplicationExists(any());
+        doReturn(true).when(applicationAwareSubject).applicationExists();
         doReturn(allowedScopes.stream().map(Scope::asPermissionString).collect(Collectors.toSet())).when(applicationAwareSubject)
-            .checkApplicationScopes(any());
+            .applicationExists();
 
-        assertTrue(applicationAwareSubject.isAllowed(allowedScopes));
+        assertTrue(ApplicationManager.getInstance().isAllowed(applicationAwareSubject, allowedScopes));
 
         ResizeAction resizeAction = ResizeAction.INSTANCE;
         ClusterStateAction clusterStateAction = ClusterStateAction.INSTANCE;
-        assertFalse(applicationAwareSubject.isAllowed(resizeAction.getAllowedScopes()));
-        assertFalse(applicationAwareSubject.isAllowed(clusterStateAction.getAllowedScopes()));
+        assertFalse(ApplicationManager.getInstance().isAllowed(applicationAwareSubject, resizeAction.getAllowedScopes()));
+        assertFalse(ApplicationManager.getInstance().isAllowed(applicationAwareSubject, clusterStateAction.getAllowedScopes()));
     }
 }

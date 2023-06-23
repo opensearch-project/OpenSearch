@@ -62,6 +62,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         String openSearchVersion = null;
         String minimumCompatibleVersion = null;
         List<ExtensionDependency> dependencies = new ArrayList<>();
+        List<String> scopes = new ArrayList<>();
 
         try (XContentParser parser = request.contentParser()) {
             parser.nextToken();
@@ -88,6 +89,11 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         dependencies.add(ExtensionDependency.parse(parser));
                     }
+                } else if ("scopes".equals(currentFieldName)) {
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        scopes.add(parser.text());
+                    }
                 }
             }
         } catch (IOException e) {
@@ -104,7 +110,8 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
             minimumCompatibleVersion,
             dependencies,
             // TODO add this to the API (https://github.com/opensearch-project/OpenSearch/issues/8032)
-            new ExtensionScopedSettings(Collections.emptySet())
+            new ExtensionScopedSettings(Collections.emptySet()),
+            scopes
         );
         try {
             extensionsManager.loadExtension(extension);

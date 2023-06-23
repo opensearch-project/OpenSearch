@@ -41,6 +41,7 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.Client;
 import org.opensearch.client.support.AbstractClient;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
@@ -140,7 +141,7 @@ public class NodeClient extends AbstractClient {
     private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
         ActionType<Response> action
     ) {
-        if (!IdentityService.getInstance().getSubject().isAllowed(action.getAllowedScopes())) {
+        if (!ApplicationManager.getInstance().isAllowed(IdentityService.getInstance().getSubject(), action.getAllowedScopes())) {
             final String scopeList = action.getAllowedScopes().stream().map(Object::toString).collect(Collectors.joining(","));
             logger.debug("Request did not have any of the required scopes, " + scopeList);
             throw new OpenSearchSecurityException("Unauthorized, at least one of these scopes is required, " + scopeList);
