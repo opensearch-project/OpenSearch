@@ -12,6 +12,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -131,21 +133,30 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
     private static final String SYSTEM_INDEX_NAME = ".test-system-index";
 
     public void testSystemIndexWithRemoteStoreClusterSetting() throws Exception {
-        IllegalArgumentException illegalArgumentException = expectThrows(
-            IllegalArgumentException.class,
-            () -> createIndex(SYSTEM_INDEX_NAME)
-        );
-        assertThat(
-            illegalArgumentException.getMessage(),
-            containsString(
-                "Cannot enable ["
-                    + SETTING_REMOTE_STORE_ENABLED
-                    + "] when ["
-                    + SETTING_REPLICATION_TYPE
-                    + "] is "
-                    + ReplicationType.DOCUMENT
-            )
-        );
+        createIndex(SYSTEM_INDEX_NAME);
+        ensureGreen(SYSTEM_INDEX_NAME);
+        final GetSettingsResponse response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest().indices(SYSTEM_INDEX_NAME).includeDefaults(true))
+            .actionGet();
+        // Verify that Document replication strategy is used
+        assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+        assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REMOTE_STORE_ENABLED), "false");
+    }
+
+    public void testSystemIndexWithRemoteStoreIndexSettings() throws Exception {
+        prepareCreate(
+            SYSTEM_INDEX_NAME,
+            Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).put(SETTING_REMOTE_STORE_ENABLED, true)
+        ).get();
+        ensureGreen(SYSTEM_INDEX_NAME);
+        final GetSettingsResponse response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest().indices(SYSTEM_INDEX_NAME).includeDefaults(true))
+            .actionGet();
+        // Verify that Document replication strategy is used
+        assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+        assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REMOTE_STORE_ENABLED), "false");
     }
 
     public void testRemoteStoreDisabledByUser() throws Exception {
