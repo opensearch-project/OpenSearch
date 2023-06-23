@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.scopes;
 
-import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.scopes.ScopeEnums.ScopeArea;
 import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
 
@@ -29,7 +28,6 @@ public enum ApplicationScope implements Scope {
     IMPERSONATE(ScopeArea.IMPERSONATE, "USER"),
     SUPER_USER_ACCESS(ScopeArea.SUPER_USER_ACCESS, "ALL"),
     SYSTEM_INDICES(ScopeArea.SYSTEM_INDEX, "OWN");
-
 
     public final ScopeArea area;
     public final String action;

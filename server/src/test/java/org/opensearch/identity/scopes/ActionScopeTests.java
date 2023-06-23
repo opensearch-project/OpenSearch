@@ -27,7 +27,6 @@ public class ActionScopeTests extends OpenSearchTestCase {
 
     }
 
-
     public void test() {
         IdentityPlugin identityPlugin1 = new NoopIdentityPlugin();
         List<IdentityPlugin> pluginList1 = List.of(identityPlugin1);

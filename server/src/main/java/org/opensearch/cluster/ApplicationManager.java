@@ -14,10 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.opensearch.extensions.ExtensionsManager;
-import org.opensearch.identity.ApplicationAwareSubject;
 import org.opensearch.identity.ApplicationSubject;
-import org.opensearch.identity.ScopeAwareSubject;
-import org.opensearch.identity.Subject;
 import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.scopes.ScopeEnums;
@@ -117,7 +114,6 @@ public class ApplicationManager {
 
         return isMatchingScopePresent;
     }
-
 
     /**
      * This method allows for checking the ExtensionPointScopes associated with an application

@@ -38,4 +38,3 @@ public class ApplicationScopeTests extends OpenSearchTestCase {
         assert (ex.getMessage().contains("Multiple identity plugins are not supported,"));
     }
 }
-

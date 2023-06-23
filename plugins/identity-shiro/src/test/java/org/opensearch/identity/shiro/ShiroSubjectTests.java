@@ -27,7 +27,6 @@ import org.opensearch.identity.scopes.ScopeEnums;
 import org.opensearch.test.OpenSearchTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;

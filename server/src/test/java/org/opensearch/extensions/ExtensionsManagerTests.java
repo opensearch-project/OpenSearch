@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
@@ -222,7 +221,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "3.0.0",
             "3.0.0",
             Collections.emptyList(),
-            extensionScopedSettings
+            extensionScopedSettings,
+            Collections.emptyList()
         );
         Extension secondExtension = new Extension(
             "secondExtension",
@@ -233,7 +233,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "2.0.0",
             "2.0.0",
             List.of(dependentExtension),
-            extensionScopedSettings
+            extensionScopedSettings,
+            Collections.emptyList()
         );
         extensionsManager.loadExtension(firstExtension);
         extensionsManager.loadExtension(secondExtension);
@@ -295,6 +296,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "3.0.0",
             "3.0.0",
             Collections.emptyList(),
+            null,
             null
         );
         Extension secondExtension = new Extension(
@@ -305,6 +307,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "0.0.7",
             "3.0.0",
             "3.0.0",
+            null,
             null,
             null
         );
@@ -347,12 +350,24 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testMissingRequiredFieldsWhileLoadingExtension() throws Exception {
 
-        Extension firstExtension = new Extension("firstExtension", "uniqueid1", "127.0.0.0", "9300", "0.0.7", "3.0.0", "", null, null);
+        Extension firstExtension = new Extension(
+            "firstExtension",
+            "uniqueid1",
+            "127.0.0.0",
+            "9300",
+            "0.0.7",
+            "3.0.0",
+            "",
+            null,
+            null,
+            null
+        );
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
 
         IOException exception = expectThrows(IOException.class, () -> extensionsManager.loadExtension(firstExtension));
         assertEquals("Required field [minimum opensearch version] is missing in the request", exception.getMessage());
 
+<<<<<<< HEAD
 
         assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
 
@@ -361,6 +376,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             mockLogAppender.assertAllExpectationsMatched();
         }
 
+=======
+>>>>>>> ae411c7d358 (Update extension manager)
         List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
 
         expectedExtensions.add(
@@ -856,6 +873,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     }
 
+<<<<<<< HEAD
     public void testIncompatibleExtensionRegistration() throws IOException {
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
         Extension firstExtension = new Extension(
@@ -872,9 +890,40 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         expectThrows(OpenSearchException.class, () -> extensionsManager.loadExtension(firstExtension));
         assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
 
+=======
+    public void testIncompatibleExtensionRegistration() throws IOException, IllegalAccessException {
+
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Could not load extension with uniqueId",
+                    "org.opensearch.extensions.ExtensionsManager",
+                    Level.ERROR,
+                    "Could not load extension with uniqueId uniqueid1 due to OpenSearchException[Extension minimumCompatibleVersion: 3.99.0 is greater than current"
+                )
+            );
+
+            List<String> incompatibleExtension = Arrays.asList(
+                "extensions:",
+                "   - name: firstExtension",
+                "     uniqueId: uniqueid1",
+                "     hostAddress: '127.0.0.0'",
+                "     port: '9300'",
+                "     version: '0.0.7'",
+                "     opensearchVersion: '3.0.0'",
+                "     minimumCompatibleVersion: '3.99.0'",
+                "     scopes: ['Index_ALL']"
+            );
+
+            ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+            assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
+            mockLogAppender.assertAllExpectationsMatched();
+        }
+>>>>>>> ae411c7d358 (Update extension manager)
     }
 
-    public void testAdditionalExtensionSettingsForExtensionWithCustomSettingSet() throws Exception {
+    public void testAdditionalExtensionSettingsForExtensionWithCustomSettingSet() throws IOException {
         Setting customSetting = Setting.simpleString("custom_extension_setting", "custom_setting", Property.ExtensionScope);
         ExtensionAwarePlugin extAwarePlugin = new ExtensionAwarePlugin() {
 
@@ -896,7 +945,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "3.0.0",
             "3.0.0",
             List.of(),
-            extensionScopedSettings
+            extensionScopedSettings,
+            null
         );
 
         ExtensionsManager extensionsManager = new ExtensionsManager(additionalSettings);
@@ -922,7 +972,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         );
     }
 
-    public void testAdditionalExtensionSettingsForExtensionWithoutCustomSettingSet() throws Exception {
+    public void testAdditionalExtensionSettingsForExtensionWithoutCustomSettingSet() throws IOException {
 
         Set<Setting<?>> additionalSettings = extAwarePlugin.getExtensionSettings().stream().collect(Collectors.toSet());
         ExtensionScopedSettings extensionScopedSettings = new ExtensionScopedSettings(additionalSettings);
@@ -935,7 +985,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "2.0.0",
             "2.0.0",
             List.of(),
-            extensionScopedSettings
+            extensionScopedSettings,
+            null
         );
 
         ExtensionsManager extensionsManager = new ExtensionsManager(additionalSettings);

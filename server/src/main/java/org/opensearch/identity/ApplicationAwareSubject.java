@@ -8,7 +8,12 @@
 
 package org.opensearch.identity;
 
+/**
+ * This interface extends the ScopeAwareSubject but expects implementing classes to be able to verify whether an associated
+ * application exists.
+ */
 public interface ApplicationAwareSubject extends ScopeAwareSubject {
 
     boolean applicationExists();
+
 }

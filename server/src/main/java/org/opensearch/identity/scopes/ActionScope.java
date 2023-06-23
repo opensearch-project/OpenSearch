@@ -7,7 +7,6 @@
  */
 package org.opensearch.identity.scopes;
 
-import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
 import org.opensearch.identity.scopes.ScopeEnums.ScopeArea;
 
