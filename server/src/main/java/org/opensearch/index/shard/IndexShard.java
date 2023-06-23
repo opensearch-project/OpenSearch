@@ -2281,7 +2281,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().translogManager().skipTranslogRecovery();
     }
 
+    public void openEngineAndSkipTranslogRecoveryFromSnapshot() throws IOException {
+        assert routingEntry().recoverySource().getType() == RecoverySource.Type.SNAPSHOT : "not a snapshot recovery ["
+            + routingEntry()
+            + "]";
+        recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
+        maybeCheckIndex();
+        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        loadGlobalCheckpointToReplicationTracker();
+        innerOpenEngineAndTranslog(replicationTracker, false);
+        getEngine().translogManager().skipTranslogRecovery();
+    }
+
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier) throws IOException {
+        innerOpenEngineAndTranslog(globalCheckpointSupplier, true);
+    }
+
+    private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier, boolean syncFromRemote) throws IOException {
         assert Thread.holdsLock(mutex) == false : "opening engine under mutex";
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
@@ -2300,11 +2317,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (engineMutex) {
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
-            if (indexSettings.isRemoteStoreEnabled()) {
+            if (indexSettings.isRemoteStoreEnabled() && syncFromRemote) {
                 syncSegmentsFromRemoteSegmentStore(false, true, true);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
-                syncRemoteTranslogAndUpdateGlobalCheckpoint();
+                if (syncFromRemote) {
+                    syncRemoteTranslogAndUpdateGlobalCheckpoint();
+                } else {
+                    // we will enter this block when we do not want to recover from remote translog.
+                    // currently only during snapshot restore, we are coming into this block.
+                    // here, as while initiliazing remote translog we cannot skip downloading translog files,
+                    // so before that step, we are deleting the translog files present in remote store.
+                    deleteTranslogFilesFromRemoteTranslog();
+
+                }
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
@@ -4552,6 +4578,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         loadGlobalCheckpointToReplicationTracker();
     }
 
+    public void deleteTranslogFilesFromRemoteTranslog() throws IOException {
+        TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
+        assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
+        Repository repository = ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository();
+        RemoteFsTranslog.cleanup(repository, shardId, getThreadPool());
+    }
+
     public void syncTranslogFilesFromRemoteTranslog() throws IOException {
         TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
         assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
@@ -4667,14 +4700,36 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             remoteDirectory.init();
             remoteStore.incRef();
         }
-        sourceRemoteDirectory.init();
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
-            .getSegmentsUploadedToRemoteStore(primaryTerm, commitGeneration);
+            .initializeToSpecificCommit(primaryTerm, commitGeneration)
+            .getMetadata();
         final Directory storeDirectory = store.directory();
         store.incRef();
 
         try {
-            copySegmentFiles(storeDirectory, sourceRemoteDirectory, remoteDirectory, uploadedSegments, overrideLocal);
+            String segmentsNFile = copySegmentFiles(
+                storeDirectory,
+                sourceRemoteDirectory,
+                remoteDirectory,
+                uploadedSegments,
+                overrideLocal
+            );
+            if (segmentsNFile != null) {
+                try (
+                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
+                        storeDirectory.openInput(segmentsNFile, IOContext.DEFAULT)
+                    )
+                ) {
+                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(store.directory(), indexInput, commitGeneration);
+                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                    if (remoteStore != null) {
+                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    } else {
+                        store.directory().sync(infosSnapshot.files(true));
+                        store.directory().syncMetaData();
+                    }
+                }
+            }
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
@@ -4685,7 +4740,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private void copySegmentFiles(
+    private String copySegmentFiles(
         Directory storeDirectory,
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
@@ -4694,16 +4749,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IOException {
         List<String> downloadedSegments = new ArrayList<>();
         List<String> skippedSegments = new ArrayList<>();
+        String segmentNFile = null;
         try {
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
+            if (overrideLocal) {
+                for (String file : localSegmentFiles) {
+                    storeDirectory.deleteFile(file);
+                }
+            }
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
-
                 if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                    if (localSegmentFiles.contains(file)) {
-                        storeDirectory.deleteFile(file);
-                    }
                     storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
+                    storeDirectory.sync(Collections.singleton(file));
                     downloadedSegments.add(file);
                 } else {
                     skippedSegments.add(file);
@@ -4711,11 +4769,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (targetRemoteDirectory != null) {
                     targetRemoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
                 }
+                if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                    assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
+                    segmentNFile = file;
+                }
             }
         } finally {
             logger.info("Downloaded segments here: {}", downloadedSegments);
             logger.info("Skipped download for segments here: {}", skippedSegments);
         }
+        return segmentNFile;
     }
 
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {

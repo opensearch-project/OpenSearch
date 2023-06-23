@@ -71,6 +71,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -363,6 +364,9 @@ final class StoreRecovery {
                 RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
                 assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
                 SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
+                final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
+                translogState.totalOperations(0);
+                translogState.totalOperationsOnStart(0);
                 indexShard.prepareForIndexRecovery();
 
                 RemoteStoreShardShallowCopySnapshot shallowCopyShardMetadata = repository.getRemoteStoreShallowCopyShardMetadata(
@@ -387,11 +391,20 @@ final class StoreRecovery {
                     String.valueOf(shardId.id())
                 );
                 indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, sourceRemoteDirectory, primaryTerm, commitGeneration);
-                bootstrap(indexShard, indexShard.store());
+                final Store store = indexShard.store();
+                if (indexShard.indexSettings.isRemoteTranslogStoreEnabled() == false) {
+                    bootstrap(indexShard, store);
+                } else {
+                    bootstrapForSnapshot(indexShard, store);
+                }
                 assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
                 writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
-                indexShard.openEngineAndRecoverFromTranslog();
+                if (indexShard.indexSettings.isRemoteStoreEnabled()) {
+                    indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
+                } else {
+                    indexShard.openEngineAndRecoverFromTranslog();
+                }
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("restore done");
@@ -655,10 +668,18 @@ final class StoreRecovery {
         }
         final ActionListener<Void> restoreListener = ActionListener.wrap(v -> {
             final Store store = indexShard.store();
-            bootstrap(indexShard, store);
+            if (indexShard.indexSettings.isRemoteTranslogStoreEnabled() == false) {
+                bootstrap(indexShard, store);
+            } else {
+                bootstrapForSnapshot(indexShard, store);
+            }
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             writeEmptyRetentionLeasesFile(indexShard);
-            indexShard.openEngineAndRecoverFromTranslog();
+            if (indexShard.indexSettings.isRemoteStoreEnabled()) {
+                indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
+            } else {
+                indexShard.openEngineAndRecoverFromTranslog();
+            }
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
@@ -700,6 +721,21 @@ final class StoreRecovery {
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }
+    }
+
+    private void bootstrapForSnapshot(final IndexShard indexShard, final Store store) throws IOException {
+        store.bootstrapNewHistory();
+        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+        final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        Translog.createEmptyTranslog(
+            indexShard.shardPath().resolveTranslog(),
+            shardId,
+            localCheckpoint,
+            indexShard.getPendingPrimaryTerm(),
+            translogUUID,
+            FileChannel::open
+        );
     }
 
     private void bootstrap(final IndexShard indexShard, final Store store) throws IOException {

@@ -29,6 +29,7 @@ import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.threadpool.Scheduler;
@@ -87,6 +88,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final IndexShard indexShard;
     private final Directory storeDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory;
+    private RemoteSegmentMetadata remoteSegmentMetadata;
     private final RemoteRefreshSegmentTracker segmentTracker;
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
@@ -122,7 +124,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         localSegmentChecksumMap = new HashMap<>();
         if (indexShard.routingEntry().primary()) {
             try {
-                this.remoteDirectory.init();
+                this.remoteSegmentMetadata = this.remoteDirectory.init();
             } catch (IOException e) {
                 logger.error("Exception while initialising RemoteSegmentStoreDirectory", e);
             }
@@ -163,8 +165,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     @Override
     public void afterRefresh(boolean didRefresh) {
-
-        if (didRefresh || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
+        if ((remoteSegmentMetadata != null && remoteSegmentMetadata.getPrimaryTerm() != indexShard.getOperationPrimaryTerm())
+            || didRefresh
+            || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
             updateLocalRefreshTimeAndSeqNo();
             try {
                 indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
@@ -187,7 +190,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
             if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
                 this.primaryTerm = indexShard.getOperationPrimaryTerm();
-                this.remoteDirectory.init();
+                remoteSegmentMetadata = this.remoteDirectory.init();
             }
             try {
                 // if a new segments_N file is present in local that is not uploaded to remote store yet, it
