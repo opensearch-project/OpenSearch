@@ -35,7 +35,6 @@ public class ShiroSubject implements Subject {
     public ShiroSubject(final ShiroTokenManager authTokenHandler, final org.apache.shiro.subject.Subject shiroBackedSubject) {
         this.authTokenHandler = Objects.requireNonNull(authTokenHandler);
         this.wrappedSubject = Objects.requireNonNull(shiroBackedSubject);
-        this.scopes = List.of();
     }
 
     /**
@@ -97,20 +96,5 @@ public class ShiroSubject implements Subject {
     @Override
     public Optional<Principal> getApplication() {
         return Optional.empty();
-    }
-
-    /**
-     * Sets the scopes of the Subject to the provided list
-     * @param scopes The scopes the subject should have
-     */
-    public void setScopes(List<Scope> scopes) {
-        this.scopes = (List.copyOf(scopes));
-    }
-
-    /**
-     * @return The scopes associated with the subject
-     */
-    public List<Scope> getScopes() {
-        return List.copyOf(this.scopes);
     }
 }

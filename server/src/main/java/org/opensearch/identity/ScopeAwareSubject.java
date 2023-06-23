@@ -14,7 +14,7 @@ import org.opensearch.identity.scopes.Scope;
 /**
  * This interface defines a ScopeAwareSubject.
  *
- * A ScopeAwawreSubject is an extension of the Subject interface which adds the concept of scopes.
+ * A ScopeAwareSubject is an extension of the Subject interface which adds the concept of scopes.
  * Specifically, a ScopeAwareSubject must be able to get its own scopes (as a set of Strings) and set its own scopes,
  *
  */

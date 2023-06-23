@@ -143,6 +143,10 @@ public class ApplicationManager {
         return (extensionManager.getExtensionPrincipals().contains(principal));
     }
 
+    /**
+     * Allows for checking the ExtensionManager being used by the ApplicationManager in the case that there are multiple application providers
+     * @return The ExtensionManager being queried by the ApplicationManager
+     */
     public ExtensionsManager getExtensionManager() {
         return extensionManager;
     }
