@@ -66,6 +66,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingIT extends OpenSearchRestTestCase {
 
+    protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+
+
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;

@@ -86,6 +86,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
       nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     }
+    systemProperty 'tests.upgrade_from_version', baseName
     systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     onlyIf { project.bwc_tests_enabled }
   }
