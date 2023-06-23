@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
@@ -1730,14 +1729,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         } catch (IOException e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }
-    }
-
-    private static Map<String, CompressedXContent> convertMappings(ImmutableOpenMap<String, CompressedXContent> mappings) {
-        Map<String, CompressedXContent> converted = new HashMap<>(mappings.size());
-        for (ObjectObjectCursor<String, CompressedXContent> cursor : mappings) {
-            converted.put(cursor.key, cursor.value);
-        }
-        return converted;
     }
 
     private ShardLimitValidator randomShardLimitService() {

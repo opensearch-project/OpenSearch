@@ -1309,7 +1309,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             }
         });
         final Metadata.Builder mdBuilder = Metadata.builder(clusterState.metadata());
-        clusterState.metadata().customs().keysIt().forEachRemaining(key -> {
+        clusterState.metadata().customs().keySet().iterator().forEachRemaining(key -> {
             if (SAFE_METADATA_CUSTOMS.contains(key) == false) {
                 mdBuilder.removeCustom(key);
             }
