@@ -114,6 +114,10 @@ public class IndexingIT extends OpenSearchRestTestCase {
      * @throws Exception
      */
     public void testIndexingWithPrimaryOnBwcNodes() throws Exception {
+        if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
+            logger.info("--> Skip test for version {} where segment replication feature is not available", UPGRADE_FROM_VERSION);
+            return;
+        }
         Nodes nodes = buildNodeAndVersions();
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered:\n {}", nodes.toString());
@@ -161,6 +165,10 @@ public class IndexingIT extends OpenSearchRestTestCase {
      * @throws Exception
      */
     public void testIndexingWithReplicaOnBwcNodes() throws Exception {
+        if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
+            logger.info("--> Skip test for version {} where segment replication feature is not available", UPGRADE_FROM_VERSION);
+            return;
+        }
         Nodes nodes = buildNodeAndVersions();
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered:\n {}", nodes.toString());
