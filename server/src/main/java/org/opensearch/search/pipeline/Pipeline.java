@@ -138,17 +138,7 @@ class Pipeline {
                 processors.add(processorFactories.get(type).create(processorFactories, tag, description, config));
             }
         }
-        return processors;
-    }
-
-    List<Processor> flattenAllProcessors() {
-        List<Processor> allProcessors = new ArrayList<>(
-            searchRequestProcessors.size() + searchResponseProcessors.size() + searchPhaseResultsProcessors.size()
-        );
-        allProcessors.addAll(searchRequestProcessors);
-        allProcessors.addAll(searchPhaseResultsProcessors);
-        allProcessors.addAll(searchResponseProcessors);
-        return allProcessors;
+        return Collections.unmodifiableList(processors);
     }
 
     String getId() {
