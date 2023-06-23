@@ -39,11 +39,9 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.Transport;
 
@@ -77,7 +75,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final SearchPhaseController searchPhaseController,
         final Executor executor,
         final QueryPhaseResultConsumer resultConsumer,
-        final PipelinedRequest request,
+        final SearchRequest request,
         final ActionListener<SearchResponse> listener,
         final GroupShardsIterator<SearchShardIterator> shardsIts,
         final TransportSearchAction.SearchTimeProvider timeProvider,
@@ -101,11 +99,11 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             clusterState,
             task,
             resultConsumer,
-            request.transformedRequest().getMaxConcurrentShardRequests(),
+            request.getMaxConcurrentShardRequests(),
             clusters
         );
-        this.topDocsSize = SearchPhaseController.getTopDocsSize(request.transformedRequest());
-        this.trackTotalHitsUpTo = request.transformedRequest().resolveTrackTotalHitsUpTo();
+        this.topDocsSize = SearchPhaseController.getTopDocsSize(request);
+        this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
 
@@ -113,8 +111,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         // at the end of the search
         addReleasable(resultConsumer);
 
-        SearchSourceBuilder source = request.transformedRequest().source();
-        boolean hasFetchPhase = source == null ? true : source.size() > 0;
+        boolean hasFetchPhase = request.source() == null ? true : request.source().size() > 0;
         progressListener.notifyListShards(
             SearchProgressListener.buildSearchShards(this.shardsIts),
             SearchProgressListener.buildSearchShards(toSkipShardsIts),

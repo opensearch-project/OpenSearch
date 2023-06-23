@@ -56,7 +56,6 @@ import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.test.OpenSearchTestCase;
@@ -76,7 +75,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
-
     public void testBottomFieldSort() throws Exception {
         testCase(false, false);
     }
@@ -210,7 +208,7 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
             controller,
             executor,
             resultConsumer,
-            PipelinedRequest.wrapSearchRequest(searchRequest),
+            searchRequest,
             null,
             shardsIter,
             timeProvider,

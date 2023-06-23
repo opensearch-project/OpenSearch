@@ -47,7 +47,6 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
@@ -124,7 +123,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             OpenSearchExecutors.newDirectExecutorService(),
-            PipelinedRequest.wrapSearchRequest(searchRequest),
+            searchRequest,
             null,
             shardsIter,
             timeProvider,
@@ -215,7 +214,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             OpenSearchExecutors.newDirectExecutorService(),
-            PipelinedRequest.wrapSearchRequest(searchRequest),
+            searchRequest,
             null,
             shardsIter,
             timeProvider,
@@ -296,7 +295,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             OpenSearchExecutors.newDirectExecutorService(),
-            PipelinedRequest.wrapSearchRequest(searchRequest),
+            searchRequest,
             null,
             shardsIter,
             timeProvider,
@@ -310,7 +309,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 executor,
-                PipelinedRequest.wrapSearchRequest(searchRequest),
+                searchRequest,
                 responseListener,
                 iter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
@@ -416,7 +415,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 OpenSearchExecutors.newDirectExecutorService(),
-                PipelinedRequest.wrapSearchRequest(searchRequest),
+                searchRequest,
                 null,
                 shardsIter,
                 timeProvider,
@@ -515,7 +514,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 OpenSearchExecutors.newDirectExecutorService(),
-                PipelinedRequest.wrapSearchRequest(searchRequest),
+                searchRequest,
                 null,
                 shardsIter,
                 timeProvider,

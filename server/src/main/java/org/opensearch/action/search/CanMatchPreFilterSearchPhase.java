@@ -41,7 +41,6 @@ import org.opensearch.search.SearchService.CanMatchResponse;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
-import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortOrder;
@@ -84,7 +83,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         Map<String, Float> concreteIndexBoosts,
         Map<String, Set<String>> indexRoutings,
         Executor executor,
-        PipelinedRequest request,
+        SearchRequest request,
         ActionListener<SearchResponse> listener,
         GroupShardsIterator<SearchShardIterator> shardsIts,
         TransportSearchAction.SearchTimeProvider timeProvider,

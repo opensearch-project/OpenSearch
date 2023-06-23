@@ -52,7 +52,6 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
@@ -154,7 +153,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             Collections.singletonMap("foo", 2.0f),
             Collections.singletonMap("name", Sets.newHashSet("bar", "baz")),
             executor,
-            PipelinedRequest.wrapSearchRequest(request),
+            request,
             listener,
             new GroupShardsIterator<>(Arrays.asList(shards)),
             timeProvider,

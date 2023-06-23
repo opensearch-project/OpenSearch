@@ -31,7 +31,6 @@
 
 package org.opensearch.action.search;
 
-import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
@@ -51,8 +50,6 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
-import org.opensearch.search.pipeline.PipelinedRequest;
-import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
@@ -80,8 +77,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchAsyncActionTests extends OpenSearchTestCase {
-
-    private SearchPipelineService searchPipelineService = Mockito.mock(SearchPipelineService.class);
 
     public void testSkipSearchShards() throws InterruptedException {
         SearchRequest request = new SearchRequest();
@@ -132,7 +127,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             null,
-            PipelinedRequest.wrapSearchRequest(request),
+            request,
             responseListener,
             shardsIter,
             new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
@@ -250,7 +245,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             null,
-            PipelinedRequest.wrapSearchRequest(request),
+            request,
             responseListener,
             shardsIter,
             new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
@@ -367,7 +362,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             executor,
-            PipelinedRequest.wrapSearchRequest(request),
+            request,
             responseListener,
             shardsIter,
             new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
@@ -489,7 +484,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             executor,
-            PipelinedRequest.wrapSearchRequest(request),
+            request,
             responseListener,
             shardsIter,
             new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
@@ -602,7 +597,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             null,
-            PipelinedRequest.wrapSearchRequest(request),
+            request,
             responseListener,
             shardsIter,
             new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),

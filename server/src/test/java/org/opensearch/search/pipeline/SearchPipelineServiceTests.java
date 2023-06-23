@@ -197,13 +197,13 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
         PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest);
         assertEquals("p1", pipelinedRequest.getPipeline().getId());
-        assertEquals(10, pipelinedRequest.transformedRequest().source().size());
+        assertEquals(10, pipelinedRequest.source().size());
 
         // Bypass the default pipeline
         searchRequest.pipeline("_none");
         pipelinedRequest = service.resolvePipeline(searchRequest);
         assertEquals("_none", pipelinedRequest.getPipeline().getId());
-        assertEquals(5, pipelinedRequest.transformedRequest().source().size());
+        assertEquals(5, pipelinedRequest.source().size());
     }
 
     private static abstract class FakeProcessor implements Processor {
@@ -584,17 +584,14 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchRequest request = new SearchRequest("_index").source(sourceBuilder).pipeline("p1");
 
         PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(request);
-        SearchRequest transformedRequest = pipelinedRequest.transformedRequest();
 
-        assertEquals(2 * size, transformedRequest.source().size());
+        assertEquals(2 * size, pipelinedRequest.source().size());
         assertEquals(size, request.source().size());
 
         // This request doesn't specify a pipeline, it doesn't get transformed.
         request = new SearchRequest("_index").source(sourceBuilder);
         pipelinedRequest = searchPipelineService.resolvePipeline(request);
-        SearchRequest notTransformedRequest = pipelinedRequest.transformedRequest();
-        assertEquals(size, notTransformedRequest.source().size());
-        assertSame(request, notTransformedRequest);
+        assertEquals(size, pipelinedRequest.source().size());
     }
 
     public void testTransformResponse() throws Exception {
@@ -869,8 +866,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals(1, pipeline.getSearchResponseProcessors().size());
 
         // Verify that pipeline transforms request
-        SearchRequest transformedRequest = pipelinedRequest.transformedRequest();
-        assertEquals(200, transformedRequest.source().size());
+        assertEquals(200, pipelinedRequest.source().size());
 
         int size = 10;
         SearchHit[] hits = new SearchHit[size];

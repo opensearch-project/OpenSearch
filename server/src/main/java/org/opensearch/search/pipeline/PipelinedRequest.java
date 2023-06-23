@@ -19,21 +19,16 @@ import org.opensearch.search.SearchPhaseResult;
  *
  * @opensearch.internal
  */
-public final class PipelinedRequest {
+public final class PipelinedRequest extends SearchRequest {
     private final Pipeline pipeline;
-    private final SearchRequest transformedRequest;
 
     PipelinedRequest(Pipeline pipeline, SearchRequest transformedRequest) {
+        super(transformedRequest);
         this.pipeline = pipeline;
-        this.transformedRequest = transformedRequest;
     }
 
     public SearchResponse transformResponse(SearchResponse response) {
-        return pipeline.transformResponse(transformedRequest, response);
-    }
-
-    public SearchRequest transformedRequest() {
-        return transformedRequest;
+        return pipeline.transformResponse(this, response);
     }
 
     public <Result extends SearchPhaseResult> SearchPhaseResults<Result> transformSearchPhase(
@@ -48,22 +43,5 @@ public final class PipelinedRequest {
     // Visible for testing
     Pipeline getPipeline() {
         return pipeline;
-    }
-
-    /**
-     * Wraps a search request with a no-op pipeline. Useful for testing.
-     *
-     * @param searchRequest the original search request
-     * @return a search request associated with a pipeline that does nothing
-     */
-    public static PipelinedRequest wrapSearchRequest(SearchRequest searchRequest) {
-        return new PipelinedRequest(Pipeline.NO_OP_PIPELINE, searchRequest);
-    }
-
-    /**
-     * Wraps the given search request with this request's pipeline.
-     */
-    public PipelinedRequest replaceRequest(SearchRequest searchRequest) {
-        return new PipelinedRequest(pipeline, searchRequest);
     }
 }

@@ -41,7 +41,6 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.internal.AliasFilter;
-import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.transport.Transport;
 
 import java.util.List;
@@ -71,7 +70,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final SearchPhaseController searchPhaseController,
         final Executor executor,
         final QueryPhaseResultConsumer queryPhaseResultConsumer,
-        final PipelinedRequest request,
+        final SearchRequest request,
         final ActionListener<SearchResponse> listener,
         final GroupShardsIterator<SearchShardIterator> shardsIts,
         final TransportSearchAction.SearchTimeProvider timeProvider,
@@ -95,13 +94,13 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             clusterState,
             task,
             new ArraySearchPhaseResults<>(shardsIts.size()),
-            request.transformedRequest().getMaxConcurrentShardRequests(),
+            request.getMaxConcurrentShardRequests(),
             clusters
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         this.searchPhaseController = searchPhaseController;
         SearchProgressListener progressListener = task.getProgressListener();
-        SearchSourceBuilder sourceBuilder = request.transformedRequest().source();
+        SearchSourceBuilder sourceBuilder = request.source();
         progressListener.notifyListShards(
             SearchProgressListener.buildSearchShards(this.shardsIts),
             SearchProgressListener.buildSearchShards(toSkipShardsIts),
