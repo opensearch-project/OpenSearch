@@ -901,6 +901,9 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
         if (isSystemIndex || IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings())) {
+            logger.warn(
+                "Setting replication.type: DOCUMENT will be used for Index until Segment Replication supports System and Hidden indices"
+            );
             indexSettingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
             if (FeatureFlags.isEnabled(REMOTE_STORE)) {
                 indexSettingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, false);
