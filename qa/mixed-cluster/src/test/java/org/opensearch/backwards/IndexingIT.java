@@ -126,7 +126,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
         logger.info("cluster discovered:\n {}", nodes.toString());
         final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
         final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
-        // Exclude bwc nodes from allocation so that primaries gets allocated on current version
+        // Update allocation settings so that primaries gets allocated only on nodes running on older version
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
@@ -140,7 +140,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
         try (RestClient nodeClient = buildClient(restClientSettings(),
             nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
 
-            logger.info("allowing replica shards assignment on bwc nodes");
+            logger.info("Remove allocation include settings so that shards can be allocated on current version nodes");
             updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             // Add replicas so that it can be assigned on higher OS version nodes.
             updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 2));
@@ -161,7 +161,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
 
 
     /**
-     * This test creates a cluster with primary on older version but due to {@link org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider};
+     * This test creates a cluster with primary on higher version but due to {@link org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider};
      * replica shard allocation on lower OpenSearch version is prevented. Thus, this test though cover the use case where
      * primary shard containing nodes are running on higher OS version while replicas are unassigned.
      *
