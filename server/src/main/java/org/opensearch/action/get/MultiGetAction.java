@@ -33,7 +33,7 @@
 package org.opensearch.action.get;
 
 import java.util.List;
-import org.opensearch.action.ActionScope;
+import org.opensearch.identity.scopes.ActionScope;
 import org.opensearch.action.ActionType;
 import org.opensearch.identity.scopes.Scope;
 

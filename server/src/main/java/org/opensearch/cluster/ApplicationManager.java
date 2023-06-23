@@ -37,9 +37,9 @@ public class ApplicationManager {
     }
 
     /**
-     * This method allows for checking
-     * @param principal
-     * @return
+     * This method allows for checking the ApplicationScopes associated with an application
+     * @param principal The principal of the application whose scopes you want to check
+     * @return A set of all application scopes associated with that principal
      */
     public Set<String> getApplicationScopes(Principal principal) {
 
@@ -55,6 +55,11 @@ public class ApplicationManager {
         return Set.of();
     }
 
+    /**
+     * This method allows for checking the ActionScopes associated with an application
+     * @param principal The principal of the application whose scopes you want to check
+     * @return A set of all action scopes associated with that principal
+     */
     Set<String> getActionScopes(Principal principal) {
 
         if (extensionManager.getExtensionPrincipals().contains(principal)) {
@@ -69,6 +74,11 @@ public class ApplicationManager {
         return Set.of();
     }
 
+    /**
+     * This method allows for checking the ExtensionPointScopes associated with an application
+     * @param principal The principal of the application whose scopes you want to check
+     * @return A set of all extension point scopes associated with that principal
+     */
     Set<String> getExtensionPointScopes(Principal principal) {
 
         if (extensionManager.getExtensionPrincipals().contains(principal)) {
@@ -83,7 +93,12 @@ public class ApplicationManager {
         return Set.of();
     }
 
-    public boolean checkApplicationExists(Principal principal) {
+    /**
+     * Checks whether there is an application associated with the given principal or not
+     * @param principal The principal for the application you are trying to find
+     * @return Whether the application exists (TRUE) or not (FALSE)
+     */
+    public boolean associatedApplicationExists(Principal principal) {
         return (extensionManager.getExtensionPrincipals().contains(principal));
     }
 

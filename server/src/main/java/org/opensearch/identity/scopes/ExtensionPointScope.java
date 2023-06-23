@@ -6,10 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugins;
+package org.opensearch.identity.scopes;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.scopes.ScopeEnums.ScopeArea;
 import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
 

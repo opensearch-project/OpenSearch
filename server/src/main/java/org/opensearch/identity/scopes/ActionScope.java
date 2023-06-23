@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.action;
+package org.opensearch.identity.scopes;
 
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;

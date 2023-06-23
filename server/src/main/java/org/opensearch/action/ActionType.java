@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.scopes.ActionScope;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.transport.TransportRequestOptions;
 

@@ -8,12 +8,8 @@
 
 package org.opensearch.identity.scopes;
 
-import org.opensearch.action.ActionScope;
-import org.opensearch.identity.ApplicationScope;
-import org.opensearch.plugins.ExtensionPointScope;
-
 /**
- * Limitation for the scope of an application in OpenSearch
+ * This interface defines the components involved in defining the scope of an application in OpenSearch
  *
  * @opensearch.experimental
  */
@@ -38,26 +34,26 @@ public interface Scope {
         ScopeEnums.ScopeArea scopeArea = ScopeEnums.ScopeArea.fromString(parts[1]);
         String action = parts[2];
 
-        // if (ActionScope.values().equals()
-
         switch (scopeNamespace) {
             case ACTION:
-                switch (action) {
-                    case "ALL":
-                        return ActionScope.ALL;
-                    case "READ":
-                        return ActionScope.READ;
-                    default:
-                        throw new UnknownScopeException(scopeAsString);
+                for (ActionScope actionScope : ActionScope.values()) {
+                    if (actionScope.name().equalsIgnoreCase(action)) {
+                        return actionScope;
+                    }
                 }
+                throw new UnknownScopeException(scopeAsString);
             case APPLICATION:
-                if (action.equals("ALL")) {
-                    return ApplicationScope.SuperUserAccess;
+                for (ApplicationScope applicationScope : ApplicationScope.values()) {
+                    if (applicationScope.name().equalsIgnoreCase(action)) {
+                        return applicationScope;
+                    }
                 }
                 throw new UnknownScopeException(scopeAsString);
             case EXTENSION_POINT:
-                if (action.equals("ACTION")) {
-                    return ExtensionPointScope.ACTION;
+                for (ExtensionPointScope extensionPointScope : ExtensionPointScope.values()) {
+                    if (extensionPointScope.name().equalsIgnoreCase(action)) {
+                        return extensionPointScope;
+                    }
                 }
                 throw new UnknownScopeException(scopeAsString);
             default:

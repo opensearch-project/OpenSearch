@@ -143,7 +143,7 @@ public class NodeClient extends AbstractClient {
         if (!IdentityService.getInstance().getSubject().isAllowed(action.getAllowedScopes())) {
             final String scopeList = action.getAllowedScopes().stream().map(Object::toString).collect(Collectors.joining(","));
             logger.debug("Request did not have any of the required scopes, " + scopeList);
-            throw new OpenSearchSecurityException("Unauthorized, at least of these scopes is required, " + scopeList);
+            throw new OpenSearchSecurityException("Unauthorized, at least one of these scopes is required, " + scopeList);
         }
 
         if (actionRegistry == null) {

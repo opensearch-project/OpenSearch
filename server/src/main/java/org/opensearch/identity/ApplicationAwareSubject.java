@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.opensearch.cluster.ApplicationManager;
+import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.tokens.AuthToken;
 
@@ -25,7 +26,7 @@ import org.opensearch.identity.tokens.AuthToken;
 public class ApplicationAwareSubject implements Subject {
 
     public boolean checkApplicationExists(Principal principal) {
-        return (ApplicationManager.getInstance().checkApplicationExists(principal));
+        return (ApplicationManager.getInstance().associatedApplicationExists(principal));
     }
 
     private final Subject wrapped;
@@ -88,7 +89,7 @@ public class ApplicationAwareSubject implements Subject {
         System.out.println("Scopes of application are: " + scopesOfApplication);
         boolean isApplicationSuperUser = scopesOfApplication.stream()
             .map(Scope::parseScopeFromString)
-            .anyMatch(parsedScope -> parsedScope.equals(ApplicationScope.SuperUserAccess));
+            .anyMatch(parsedScope -> parsedScope.equals(ApplicationScope.SUPER_USER_ACCESS));
 
         if (isApplicationSuperUser) {
 

@@ -23,8 +23,10 @@ public class ScopeEnums {
         ACTION_PLUGIN,
         CLUSTER,
         EXTENSION_POINT,
+        IMPERSONATE,
         INDEX,
         SUPER_USER_ACCESS,
+        SYSTEM_INDEX,
         ALL;
 
         public static ScopeArea fromString(String value) {

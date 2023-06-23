@@ -17,7 +17,7 @@ import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 
 /**
- * Subject backed by Shiro
+ * A Subject backed by the Identity Shiro Plugin and wrapping a shiro.subject implementing Subject
  *
  * @opensearch.experimental
  */

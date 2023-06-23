@@ -9,14 +9,17 @@
 package org.opensearch.extensions;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -26,6 +29,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
@@ -61,6 +65,7 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.opensearch.env.EnvironmentSettingsResponse;
+import org.yaml.snakeyaml.Yaml;
 
 /**
  * The main class for managing Extension communication with the OpenSearch Node.
@@ -305,7 +310,8 @@ public class ExtensionsManager {
             new HashMap<String, String>(),
             Version.fromString(extension.getOpensearchVersion()),
             Version.fromString(extension.getMinimumCompatibleVersion()),
-            extension.getDependencies()
+            extension.getDependencies(),
+            extension.getScopes()
         );
         extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
         extensionSettingsMap.put(extension.getUniqueId(), extension);
