@@ -100,7 +100,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
-- [SearchPipeline] Initial code for adding the SearchPhaseInjectorProcessor interface in Search Pipeline.([#7283](https://github.com/opensearch-project/OpenSearch/pull/7283))
+- [SearchPipeline] Add new search pipeline processor type, SearchPhaseResultsProcessor, that can modify the result of one search phase before starting the next phase.([#7283](https://github.com/opensearch-project/OpenSearch/pull/7283))
 - Add task cancellation monitoring service ([#7642](https://github.com/opensearch-project/OpenSearch/pull/7642))
 - Add TokenManager Interface ([#7452](https://github.com/opensearch-project/OpenSearch/pull/7452))
 - Add Remote store as a segment replication source ([#7653](https://github.com/opensearch-project/OpenSearch/pull/7653))
