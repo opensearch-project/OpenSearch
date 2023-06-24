@@ -32,7 +32,13 @@ import static org.opensearch.telemetry.OTelTelemetryModulePlugin.TRACER_EXPORTER
  * This class encapsulates all OpenTelemetry related resources
  */
 public final class OTelResourceProvider {
+    private OTelResourceProvider() {}
 
+    /**
+     * Creates OpenTelemetry instance with default configuration
+     * @param settings cluster settings
+     * @return OpenTelemetry instance
+     */
     public static OpenTelemetry get(Settings settings) {
         return get(
             settings,
@@ -42,6 +48,14 @@ public final class OTelResourceProvider {
         );
     }
 
+    /**
+     * Creates OpenTelemetry instance with provided configuration
+     * @param settings cluster settings
+     * @param spanExporter span exporter instance
+     * @param contextPropagators context propagator instance
+     * @param sampler sampler instance
+     * @return Opentelemetry instance
+     */
     public static OpenTelemetry get(Settings settings, SpanExporter spanExporter, ContextPropagators contextPropagators, Sampler sampler) {
         Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
         SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
