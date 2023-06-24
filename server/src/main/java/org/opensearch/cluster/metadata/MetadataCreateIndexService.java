@@ -72,6 +72,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -136,6 +137,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
@@ -898,8 +900,18 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, isSystemIndex);
-        updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
+        if (isSystemIndex || IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings())) {
+            logger.warn(
+                "Setting replication.type: DOCUMENT will be used for Index until Segment Replication supports System and Hidden indices"
+            );
+            indexSettingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+            if (FeatureFlags.isEnabled(REMOTE_STORE)) {
+                indexSettingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, false);
+            }
+        } else {
+            updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings);
+            updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
+        }
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -939,19 +951,16 @@ public class MetadataCreateIndexService {
      * @param requestSettings settings passed in during index create request
      * @param clusterSettings cluster level settings
      */
-    private static void updateReplicationStrategy(
-        Settings.Builder settingsBuilder,
-        Settings requestSettings,
-        Settings clusterSettings,
-        boolean isSystemIndex
-    ) {
-        if (isSystemIndex || IndexMetadata.INDEX_HIDDEN_SETTING.get(requestSettings)) {
-            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
-            return;
-        }
+    private static void updateReplicationStrategy(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
         if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings) && INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
+            return;
         }
+        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == true) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, INDEX_REPLICATION_TYPE_SETTING.get(requestSettings));
+            return;
+        }
+        settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
     }
 
     /**
@@ -967,20 +976,19 @@ public class MetadataCreateIndexService {
                 return;
             }
 
-            // Verify REPLICATION_TYPE cluster level setting is not conflicting with Remote Store
-            if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false
-                && CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings).equals(ReplicationType.DOCUMENT)) {
+            // Verify index has replication type as SEGMENT
+            if (ReplicationType.DOCUMENT.equals(ReplicationType.parseString(settingsBuilder.get(SETTING_REPLICATION_TYPE)))) {
                 throw new IllegalArgumentException(
                     "Cannot enable ["
                         + SETTING_REMOTE_STORE_ENABLED
                         + "] when ["
-                        + CLUSTER_REPLICATION_TYPE_SETTING.getKey()
+                        + SETTING_REPLICATION_TYPE
                         + "] is "
                         + ReplicationType.DOCUMENT
                 );
             }
 
-            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).put(SETTING_REMOTE_STORE_ENABLED, true);
+            settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true);
 
             String remoteStoreRepo;
             if (Objects.equals(requestSettings.get(INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()), "true")) {
