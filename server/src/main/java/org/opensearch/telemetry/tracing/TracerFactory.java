@@ -17,11 +17,12 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * TracerManager represents a single global class that is used to access tracers.
  *
- * The Tracer singleton object can be retrieved using TracerManager.getTracer(). The TracerManager object
+ * The Tracer singleton object can be retrieved using tracerManager.getTracer(). The TracerManager object
  * is created during class initialization and cannot subsequently be changed.
  */
 public class TracerFactory implements Closeable {
@@ -31,18 +32,18 @@ public class TracerFactory implements Closeable {
     private volatile Tracer defaultTracer;
     private final Object mutex = new Object();
     private final TelemetrySettings telemetrySettings;
-    private final Telemetry telemetry;
+    private final Optional<Telemetry> telemetry;
     private final ThreadPool threadPool;
 
     // TODO Hack, fix me
     public static TracingContextPropagator propagator;
 
-    public TracerFactory(TelemetrySettings telemetrySettings, Telemetry telemetry, ThreadPool threadPool) {
+    public TracerFactory(TelemetrySettings telemetrySettings, Optional<Telemetry> telemetry, ThreadPool threadPool) {
         this.telemetrySettings = telemetrySettings;
         this.telemetry = telemetry;
         this.threadPool = threadPool;
-        if (telemetry != null) {
-            propagator = telemetry.getTracingTelemetry().getContextPropagator();
+        if (telemetry != null && telemetry.isPresent()) {
+            propagator = telemetry.get().getTracingTelemetry().getContextPropagator();
         }
     }
 
@@ -51,7 +52,7 @@ public class TracerFactory implements Closeable {
      * @return tracer instance
      */
     public Tracer getTracer() {
-        return isTracingDisabled() ? NoopTracer.INSTANCE : getOrCreateDefaultTracerInstance();
+        return isTracingDisabled() || !telemetry.isPresent() ? NoopTracer.INSTANCE : getOrCreateDefaultTracerInstance();
     }
 
     /**
@@ -77,7 +78,7 @@ public class TracerFactory implements Closeable {
             synchronized (mutex) {
                 if (defaultTracer == null) {
                     logger.info("Creating default tracer...");
-                    TracingTelemetry tracingTelemetry = telemetry.getTracingTelemetry();
+                    TracingTelemetry tracingTelemetry = telemetry.get().getTracingTelemetry();
                     TracerContextStorage tracerContextStorage = new ThreadContextBasedTracerContextStorage(
                         threadPool.getThreadContext(),
                         tracingTelemetry

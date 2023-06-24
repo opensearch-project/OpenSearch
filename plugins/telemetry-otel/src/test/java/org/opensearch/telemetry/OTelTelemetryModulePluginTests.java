@@ -8,7 +8,6 @@
 
 package org.opensearch.telemetry;
 
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -25,22 +24,6 @@ import java.util.Optional;
 import static org.opensearch.telemetry.OTelTelemetryModulePlugin.OTEL_TRACER_NAME;
 
 public class OTelTelemetryModulePluginTests extends OpenSearchTestCase {
-
-    @SuppressForbidden(reason = "manipulates system properties for testing")
-    public void testAdditionalSettingWithTracingFeatureDisabled() {
-        System.setProperty("opensearch.experimental.feature.telemetry.enabled", "false");
-        Settings settings = new OTelTelemetryModulePlugin(null).additionalSettings();
-
-        assertTrue(settings.isEmpty());
-    }
-
-    @SuppressForbidden(reason = "manipulates system properties for testing")
-    public void testAdditionalSettingWithTracingFeatureEnabled() {
-        System.setProperty("opensearch.experimental.feature.telemetry.enabled", "true");
-        Settings settings = new OTelTelemetryModulePlugin(null).additionalSettings();
-
-        assertFalse(settings.isEmpty());
-    }
 
     public void testGetTelemetry() {
         Set<Setting<?>> allTracerSettings = new HashSet<>();

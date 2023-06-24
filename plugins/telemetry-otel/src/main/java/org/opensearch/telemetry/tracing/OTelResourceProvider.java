@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry;
+package org.opensearch.telemetry.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
@@ -31,9 +31,9 @@ import static org.opensearch.telemetry.OTelTelemetryModulePlugin.TRACER_EXPORTER
 /**
  * This class encapsulates all OpenTelemetry related resources
  */
-final class OTelResourceProvider {
+public final class OTelResourceProvider {
 
-    static OpenTelemetry get(Settings settings) {
+    public static OpenTelemetry get(Settings settings) {
         return get(
             settings,
             new LoggingSpanExporter(),
@@ -42,7 +42,7 @@ final class OTelResourceProvider {
         );
     }
 
-    static OpenTelemetry get(Settings settings, SpanExporter spanExporter, ContextPropagators contextPropagators, Sampler sampler) {
+    public static OpenTelemetry get(Settings settings, SpanExporter spanExporter, ContextPropagators contextPropagators, Sampler sampler) {
         Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
         SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
             .addSpanProcessor(spanProcessor(settings, spanExporter))

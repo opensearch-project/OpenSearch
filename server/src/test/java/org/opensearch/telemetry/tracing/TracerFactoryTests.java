@@ -21,6 +21,7 @@ import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
@@ -49,7 +50,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
-        tracerFactory = new TracerFactory(telemetrySettings, mockTelemetry, mock(ThreadPool.class));
+        tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), mock(ThreadPool.class));
 
         Tracer tracer = tracerFactory.getTracer();
         assertTrue(tracer instanceof DefaultTracer);

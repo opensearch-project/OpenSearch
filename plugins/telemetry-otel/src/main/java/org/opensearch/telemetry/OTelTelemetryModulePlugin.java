@@ -11,18 +11,16 @@ package org.opensearch.telemetry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
+import org.opensearch.telemetry.tracing.OTelResourceProvider;
 import org.opensearch.telemetry.tracing.OtelTelemetryImpl;
 import org.opensearch.telemetry.tracing.OtelTracingTelemetry;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-
-import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 
 /**
  * Telemetry plugin based on Otel
@@ -31,21 +29,30 @@ public class OTelTelemetryModulePlugin extends Plugin implements TelemetryPlugin
 
     static final String OTEL_TRACER_NAME = "otel";
 
-    static final Setting<Integer> TRACER_EXPORTER_BATCH_SIZE_SETTING = Setting.intSetting(
+    /**
+     * span exporter batch size
+     */
+    public static final Setting<Integer> TRACER_EXPORTER_BATCH_SIZE_SETTING = Setting.intSetting(
         "telemetry.otel.tracer.exporter.batch_size",
         512,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    static final Setting<Integer> TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING = Setting.intSetting(
+    /**
+     * span exporter max queue size
+     */
+    public static final Setting<Integer> TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING = Setting.intSetting(
         "telemetry.otel.tracer.exporter.max_queue_size",
         2048,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    static final Setting<TimeValue> TRACER_EXPORTER_DELAY_SETTING = Setting.timeSetting(
+    /**
+     * span exporter delay in seconds
+     */
+    public static final Setting<TimeValue> TRACER_EXPORTER_DELAY_SETTING = Setting.timeSetting(
         "telemetry.otel.tracer.exporter.delay",
         TimeValue.timeValueSeconds(2),
         Setting.Property.NodeScope,
@@ -65,17 +72,6 @@ public class OTelTelemetryModulePlugin extends Plugin implements TelemetryPlugin
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(TRACER_EXPORTER_BATCH_SIZE_SETTING, TRACER_EXPORTER_DELAY_SETTING, TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING);
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        if (FeatureFlags.isEnabled(TELEMETRY)) {
-            return Settings.builder()
-                // set Otel tracer as default telemetry provider
-                .put(TelemetryModule.TELEMETRY_DEFAULT_TYPE_SETTING.getKey(), OTEL_TRACER_NAME)
-                .build();
-        }
-        return Settings.EMPTY;
     }
 
     @Override

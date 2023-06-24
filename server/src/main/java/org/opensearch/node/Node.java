@@ -1030,7 +1030,7 @@ public class Node implements Closeable {
             if (FeatureFlags.isEnabled(TELEMETRY)) {
                 final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
                 List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
-                TelemetryModule telemetryModule = new TelemetryModule(settings, telemetryPlugins, telemetrySettings);
+                TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
                 tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool);
             } else {
                 tracerFactory = new NoopTracerFactory();
