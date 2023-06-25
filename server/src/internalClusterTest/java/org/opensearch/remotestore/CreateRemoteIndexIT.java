@@ -12,12 +12,21 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
@@ -55,6 +64,20 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .put(settings);
         return builder.build();
+    }
+
+    public static class TestPlugin extends Plugin implements SystemIndexPlugin {
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return Collections.singletonList(
+                new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "System index for [" + getTestClass().getName() + ']')
+            );
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(CreateRemoteIndexIT.TestPlugin.class);
     }
 
     @Override
@@ -103,6 +126,35 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             ReplicationType.SEGMENT.toString(),
             null
         );
+    }
+
+    private static final String SYSTEM_INDEX_NAME = ".test-system-index";
+
+    public void testSystemIndexWithRemoteStoreClusterSetting() throws Exception {
+        createIndex(SYSTEM_INDEX_NAME);
+        ensureGreen(SYSTEM_INDEX_NAME);
+        final GetSettingsResponse response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest().indices(SYSTEM_INDEX_NAME).includeDefaults(true))
+            .actionGet();
+        // Verify that Document replication strategy is used
+        assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+        assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REMOTE_STORE_ENABLED), "false");
+    }
+
+    public void testSystemIndexWithRemoteStoreIndexSettings() throws Exception {
+        prepareCreate(
+            SYSTEM_INDEX_NAME,
+            Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).put(SETTING_REMOTE_STORE_ENABLED, true)
+        ).get();
+        ensureGreen(SYSTEM_INDEX_NAME);
+        final GetSettingsResponse response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest().indices(SYSTEM_INDEX_NAME).includeDefaults(true))
+            .actionGet();
+        // Verify that Document replication strategy is used
+        assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+        assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REMOTE_STORE_ENABLED), "false");
     }
 
     public void testRemoteStoreDisabledByUser() throws Exception {
