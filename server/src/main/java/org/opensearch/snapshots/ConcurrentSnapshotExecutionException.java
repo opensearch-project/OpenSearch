@@ -42,7 +42,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ConcurrentSnapshotExecutionException extends SnapshotException {x
+public class ConcurrentSnapshotExecutionException extends SnapshotException {
 
     public ConcurrentSnapshotExecutionException(final String repositoryName, final String snapshotName, final String msg) {
         super(repositoryName, snapshotName, msg);
