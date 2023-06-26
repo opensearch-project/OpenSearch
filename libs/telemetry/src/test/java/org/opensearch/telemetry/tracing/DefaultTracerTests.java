@@ -16,7 +16,6 @@ import java.io.IOException;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
-import static org.opensearch.telemetry.tracing.DefaultTracer.CURRENT_SPAN;
 
 public class DefaultTracerTests extends OpenSearchTestCase {
 
@@ -47,19 +46,19 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     public void testEndSpan() {
         DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
         defaultTracer.startSpan("span_name");
-        verify(mockTracerContextStorage).put(CURRENT_SPAN, mockSpan);
+        verify(mockTracerContextStorage).put(TracerContextStorage.CURRENT_SPAN, mockSpan);
 
         defaultTracer.endSpan();
         verify(mockSpan).endSpan();
-        verify(mockTracerContextStorage).put(CURRENT_SPAN, mockParentSpan);
+        verify(mockTracerContextStorage).put(TracerContextStorage.CURRENT_SPAN, mockParentSpan);
     }
 
     public void testEndSpanByClosingScope() {
         DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
         try (Scope scope = defaultTracer.startSpan("span_name")) {
-            verify(mockTracerContextStorage).put(CURRENT_SPAN, mockSpan);
+            verify(mockTracerContextStorage).put(TracerContextStorage.CURRENT_SPAN, mockSpan);
         }
-        verify(mockTracerContextStorage).put(CURRENT_SPAN, mockParentSpan);
+        verify(mockTracerContextStorage).put(TracerContextStorage.CURRENT_SPAN, mockParentSpan);
     }
 
     public void testAddSpanAttributeString() {
@@ -127,7 +126,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         when(mockSpan.getParentSpan()).thenReturn(mockParentSpan);
         when(mockParentSpan.getSpanId()).thenReturn("parent_span_id");
         when(mockParentSpan.getTraceId()).thenReturn("trace_id");
-        when(mockTracerContextStorage.get(CURRENT_SPAN)).thenReturn(mockParentSpan, mockSpan);
+        when(mockTracerContextStorage.get(TracerContextStorage.CURRENT_SPAN)).thenReturn(mockParentSpan, mockSpan);
         when(mockTracingTelemetry.createSpan("span_name", mockParentSpan)).thenReturn(mockSpan);
     }
 }

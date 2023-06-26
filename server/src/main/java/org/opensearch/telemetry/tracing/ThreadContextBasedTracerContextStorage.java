@@ -9,21 +9,26 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContextStatePropagator;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
  * Core's ThreadContext based TracerContextStorage implementation
  */
-public class ThreadContextBasedTracerContextStorage implements TracerContextStorage<String, Span> {
+public class ThreadContextBasedTracerContextStorage implements TracerContextStorage<String, Span>, ThreadContextStatePropagator {
 
     private final ThreadContext threadContext;
 
     private final TracingTelemetry tracingTelemetry;
 
     public ThreadContextBasedTracerContextStorage(ThreadContext threadContext, TracingTelemetry tracingTelemetry) {
-        this.threadContext = threadContext;
-        this.tracingTelemetry = tracingTelemetry;
+        this.threadContext = Objects.requireNonNull(threadContext);
+        this.tracingTelemetry = Objects.requireNonNull(tracingTelemetry);
+        this.threadContext.registerThreadContextStatePropagator(this);
     }
 
     @Override
@@ -42,6 +47,34 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
         } else {
             currentSpanRef.setSpan(span);
         }
+    }
+
+    @Override
+    public Map<String, Object> transients(Map<String, Object> source) {
+        final Map<String, Object> transients = new HashMap<>();
+
+        if (source.containsKey(CURRENT_SPAN)) {
+            final SpanReference current = (SpanReference) source.get(CURRENT_SPAN);
+            if (current != null) {
+                transients.put(CURRENT_SPAN, new SpanReference(current.getSpan()));
+            }
+        }
+
+        return transients;
+    }
+
+    @Override
+    public Map<String, String> headers(Map<String, Object> source) {
+        final Map<String, String> headers = new HashMap<>();
+
+        if (source.containsKey(CURRENT_SPAN)) {
+            final SpanReference current = (SpanReference) source.get(CURRENT_SPAN);
+            if (current != null) {
+                tracingTelemetry.getContextPropagator().inject(current.getSpan(), (key, value) -> headers.put(key, value));
+            }
+        }
+
+        return headers;
     }
 
     Span getCurrentSpan(String key) {

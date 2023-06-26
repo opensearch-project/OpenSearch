@@ -15,6 +15,11 @@ package org.opensearch.telemetry.tracing;
  */
 public interface TracerContextStorage<K, V> {
     /**
+     * Key for storing current span
+     */
+    String CURRENT_SPAN = "current_span";
+
+    /**
      * Fetches value corresponding to key
      * @param key of the tracing context
      * @return value for key

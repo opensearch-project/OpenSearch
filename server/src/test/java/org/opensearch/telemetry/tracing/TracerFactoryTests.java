@@ -13,10 +13,10 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.util.HashSet;
@@ -39,7 +39,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
     public void testGetTracerWithTracingDisabledReturnsNoopTracer() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
-        tracerFactory = new TracerFactory(telemetrySettings, null, mock(ThreadPool.class));
+        tracerFactory = new TracerFactory(telemetrySettings, null, new ThreadContext(Settings.EMPTY));
 
         Tracer tracer = tracerFactory.getTracer();
         assertTrue(tracer instanceof NoopTracer);
@@ -51,7 +51,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
-        tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), mock(ThreadPool.class));
+        tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), new ThreadContext(Settings.EMPTY));
 
         Tracer tracer = tracerFactory.getTracer();
         assertTrue(tracer instanceof DefaultTracer);

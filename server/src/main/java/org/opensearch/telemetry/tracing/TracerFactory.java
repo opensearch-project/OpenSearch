@@ -10,10 +10,10 @@ package org.opensearch.telemetry.tracing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -33,18 +33,12 @@ public class TracerFactory implements Closeable {
     private final Object mutex = new Object();
     private final TelemetrySettings telemetrySettings;
     private final Optional<Telemetry> telemetry;
-    private final ThreadPool threadPool;
+    private final ThreadContext threadContext;
 
-    // TODO Hack, fix me
-    public static TracingContextPropagator propagator;
-
-    public TracerFactory(TelemetrySettings telemetrySettings, Optional<Telemetry> telemetry, ThreadPool threadPool) {
+    public TracerFactory(TelemetrySettings telemetrySettings, Optional<Telemetry> telemetry, ThreadContext threadContext) {
         this.telemetrySettings = telemetrySettings;
         this.telemetry = telemetry;
-        this.threadPool = threadPool;
-        if (telemetry != null && telemetry.isPresent()) {
-            propagator = telemetry.get().getTracingTelemetry().getContextPropagator();
-        }
+        this.threadContext = threadContext;
     }
 
     /**
@@ -80,7 +74,7 @@ public class TracerFactory implements Closeable {
                     logger.info("Creating default tracer...");
                     TracingTelemetry tracingTelemetry = telemetry.get().getTracingTelemetry();
                     TracerContextStorage<String, Span> tracerContextStorage = new ThreadContextBasedTracerContextStorage(
-                        threadPool.getThreadContext(),
+                        threadContext,
                         tracingTelemetry
                     );
                     defaultTracer = new DefaultTracer(tracingTelemetry, tracerContextStorage);
