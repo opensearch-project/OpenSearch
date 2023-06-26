@@ -79,7 +79,7 @@ public class TracerFactory implements Closeable {
                 if (defaultTracer == null) {
                     logger.info("Creating default tracer...");
                     TracingTelemetry tracingTelemetry = telemetry.get().getTracingTelemetry();
-                    TracerContextStorage tracerContextStorage = new ThreadContextBasedTracerContextStorage(
+                    TracerContextStorage<String, Span> tracerContextStorage = new ThreadContextBasedTracerContextStorage(
                         threadPool.getThreadContext(),
                         tracingTelemetry
                     );

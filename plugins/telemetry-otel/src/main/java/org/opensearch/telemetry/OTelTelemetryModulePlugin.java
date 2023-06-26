@@ -15,8 +15,8 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
 import org.opensearch.telemetry.tracing.OTelResourceProvider;
-import org.opensearch.telemetry.tracing.OtelTelemetryImpl;
-import org.opensearch.telemetry.tracing.OtelTracingTelemetry;
+import org.opensearch.telemetry.tracing.OTelTelemetry;
+import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 
 import java.util.Arrays;
 import java.util.List;
@@ -85,7 +85,7 @@ public class OTelTelemetryModulePlugin extends Plugin implements TelemetryPlugin
     }
 
     private Telemetry telemetry() {
-        return new OtelTelemetryImpl(new OtelTracingTelemetry(OTelResourceProvider.get(settings)), new MetricsTelemetry() {
+        return new OTelTelemetry(new OTelTracingTelemetry(OTelResourceProvider.get(settings)), new MetricsTelemetry() {
         });
     }
 

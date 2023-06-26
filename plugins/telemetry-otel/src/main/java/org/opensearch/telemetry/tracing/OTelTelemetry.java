@@ -14,7 +14,7 @@ import org.opensearch.telemetry.metrics.MetricsTelemetry;
 /**
  * Otel implementation of Telemetry
  */
-public class OtelTelemetryImpl implements Telemetry {
+public class OTelTelemetry implements Telemetry {
 
     private final TracingTelemetry tracingTelemetry;
     private final MetricsTelemetry metricsTelemetry;
@@ -24,7 +24,7 @@ public class OtelTelemetryImpl implements Telemetry {
      * @param tracingTelemetry tracing telemetry
      * @param metricsTelemetry metrics telemetry
      */
-    public OtelTelemetryImpl(TracingTelemetry tracingTelemetry, MetricsTelemetry metricsTelemetry) {
+    public OTelTelemetry(TracingTelemetry tracingTelemetry, MetricsTelemetry metricsTelemetry) {
         this.tracingTelemetry = tracingTelemetry;
         this.metricsTelemetry = metricsTelemetry;
     }

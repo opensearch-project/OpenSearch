@@ -19,7 +19,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class OtelTracingTelemetryTests extends OpenSearchTestCase {
+public class OTelTracingTelemetryTests extends OpenSearchTestCase {
 
     public void testCreateSpanWithoutParent() {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
@@ -29,7 +29,7 @@ public class OtelTracingTelemetryTests extends OpenSearchTestCase {
         when(mockTracer.spanBuilder("span_name")).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.startSpan()).thenReturn(mock(io.opentelemetry.api.trace.Span.class));
 
-        TracingTelemetry tracingTelemetry = new OtelTracingTelemetry(mockOpenTelemetry);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
         Span span = tracingTelemetry.createSpan("span_name", null);
 
         verify(mockSpanBuilder, never()).setParent(any());
@@ -47,12 +47,22 @@ public class OtelTracingTelemetryTests extends OpenSearchTestCase {
 
         Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null);
 
-        TracingTelemetry tracingTelemetry = new OtelTracingTelemetry(mockOpenTelemetry);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
         Span span = tracingTelemetry.createSpan("span_name", parentSpan);
 
         verify(mockSpanBuilder).setParent(any());
         assertNotNull(span.getParentSpan());
         assertEquals("parent_span", span.getParentSpan().getSpanName());
+    }
+
+    public void testGetContextPropagator() {
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        Tracer mockTracer = mock(Tracer.class);
+        when(mockOpenTelemetry.getTracer("os-tracer")).thenReturn(mockTracer);
+
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
+
+        assertTrue(tracingTelemetry.getContextPropagator() instanceof OTelTracingContextPropagator);
     }
 
 }

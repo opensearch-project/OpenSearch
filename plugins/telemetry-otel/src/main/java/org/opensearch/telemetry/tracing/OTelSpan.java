@@ -16,55 +16,55 @@ import io.opentelemetry.api.trace.Span;
  */
 class OTelSpan extends AbstractSpan {
 
-    private final Span otelSpan;
+    private final Span oTelSpan;
 
     public OTelSpan(String spanName, Span span, org.opensearch.telemetry.tracing.Span parentSpan) {
         super(spanName, parentSpan);
-        this.otelSpan = span;
+        this.oTelSpan = span;
     }
 
     @Override
     public void endSpan() {
-        otelSpan.end();
+        oTelSpan.end();
     }
 
     @Override
     public void addAttribute(String key, String value) {
-        otelSpan.setAttribute(key, value);
+        oTelSpan.setAttribute(key, value);
     }
 
     @Override
     public void addAttribute(String key, Long value) {
-        otelSpan.setAttribute(key, value);
+        oTelSpan.setAttribute(key, value);
     }
 
     @Override
     public void addAttribute(String key, Double value) {
-        otelSpan.setAttribute(key, value);
+        oTelSpan.setAttribute(key, value);
     }
 
     @Override
     public void addAttribute(String key, Boolean value) {
-        otelSpan.setAttribute(key, value);
+        oTelSpan.setAttribute(key, value);
     }
 
     @Override
     public void addEvent(String event) {
-        otelSpan.addEvent(event);
+        oTelSpan.addEvent(event);
     }
 
     @Override
     public String getTraceId() {
-        return otelSpan.getSpanContext().getTraceId();
+        return oTelSpan.getSpanContext().getTraceId();
     }
 
     @Override
     public String getSpanId() {
-        return otelSpan.getSpanContext().getSpanId();
+        return oTelSpan.getSpanContext().getSpanId();
     }
 
-    io.opentelemetry.api.trace.Span getOtelSpan() {
-        return otelSpan;
+    io.opentelemetry.api.trace.Span getoTelSpan() {
+        return oTelSpan;
     }
 
 }

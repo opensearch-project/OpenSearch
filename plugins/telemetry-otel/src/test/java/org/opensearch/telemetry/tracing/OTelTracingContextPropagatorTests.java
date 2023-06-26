@@ -23,7 +23,7 @@ import java.util.Map;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
+public class OTelTracingContextPropagatorTests extends OpenSearchTestCase {
 
     private static final String TRACE_ID = "4aa59968f31dcbff7807741afa9d7d62";
     private static final String SPAN_ID = "bea205cd25756b5e";
@@ -35,7 +35,7 @@ public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
         Map<String, String> requestHeaders = new HashMap<>();
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
-        TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
+        TracingContextPropagator tracingContextPropagator = new OTelTracingContextPropagator(mockOpenTelemetry);
 
         tracingContextPropagator.inject(span, (key, value) -> requestHeaders.put(key, value));
         assertEquals("00-" + TRACE_ID + "-" + SPAN_ID + "-00", requestHeaders.get("traceparent"));
@@ -46,7 +46,7 @@ public class OtelTracingContextPropagatorTests extends OpenSearchTestCase {
         requestHeaders.put("traceparent", "00-" + TRACE_ID + "-" + SPAN_ID + "-00");
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
-        TracingContextPropagator tracingContextPropagator = new OtelTracingContextPropagator(mockOpenTelemetry);
+        TracingContextPropagator tracingContextPropagator = new OTelTracingContextPropagator(mockOpenTelemetry);
         org.opensearch.telemetry.tracing.Span span = tracingContextPropagator.extract(requestHeaders);
         assertEquals(TRACE_ID, span.getTraceId());
         assertEquals(SPAN_ID, span.getSpanId());

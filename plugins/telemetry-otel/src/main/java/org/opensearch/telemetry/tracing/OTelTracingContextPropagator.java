@@ -19,15 +19,15 @@ import java.util.function.BiConsumer;
 /**
  * Otel implementation of TracingContextPropagator
  */
-public class OtelTracingContextPropagator implements TracingContextPropagator {
+public class OTelTracingContextPropagator implements TracingContextPropagator {
 
     private final OpenTelemetry openTelemetry;
 
     /**
-     * Creates OtelTracingContextPropagator instance
+     * Creates OTelTracingContextPropagator instance
      * @param openTelemetry Otel OpenTelemetry instance
      */
-    public OtelTracingContextPropagator(OpenTelemetry openTelemetry) {
+    public OTelTracingContextPropagator(OpenTelemetry openTelemetry) {
         this.openTelemetry = openTelemetry;
     }
 
@@ -48,7 +48,7 @@ public class OtelTracingContextPropagator implements TracingContextPropagator {
     }
 
     private static Context context(OTelSpan oTelSpan) {
-        return Context.current().with(io.opentelemetry.api.trace.Span.wrap(oTelSpan.getOtelSpan().getSpanContext()));
+        return Context.current().with(io.opentelemetry.api.trace.Span.wrap(oTelSpan.getoTelSpan().getSpanContext()));
     }
 
     private static final TextMapSetter<BiConsumer<String, String>> TEXT_MAP_SETTER = (carrier, key, value) -> {

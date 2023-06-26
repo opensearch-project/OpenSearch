@@ -19,9 +19,9 @@ import java.io.IOException;
 /**
  * OTel based Telemetry provider
  */
-public class OtelTracingTelemetry implements TracingTelemetry {
+public class OTelTracingTelemetry implements TracingTelemetry {
 
-    private static final Logger logger = LogManager.getLogger(OtelTracingTelemetry.class);
+    private static final Logger logger = LogManager.getLogger(OTelTracingTelemetry.class);
 
     private final OpenTelemetry openTelemetry;
     private final io.opentelemetry.api.trace.Tracer otelTracer;
@@ -30,7 +30,7 @@ public class OtelTracingTelemetry implements TracingTelemetry {
      * Creates OTel based Telemetry
      * @param openTelemetry OpenTelemetry instance
      */
-    public OtelTracingTelemetry(OpenTelemetry openTelemetry) {
+    public OTelTracingTelemetry(OpenTelemetry openTelemetry) {
         this.openTelemetry = openTelemetry;
         this.otelTracer = openTelemetry.getTracer("os-tracer");
 
@@ -52,7 +52,7 @@ public class OtelTracingTelemetry implements TracingTelemetry {
 
     @Override
     public TracingContextPropagator getContextPropagator() {
-        return new OtelTracingContextPropagator(openTelemetry);
+        return new OTelTracingContextPropagator(openTelemetry);
     }
 
     private Span createOtelSpan(String spanName, Span parentSpan) {
@@ -63,6 +63,6 @@ public class OtelTracingTelemetry implements TracingTelemetry {
     io.opentelemetry.api.trace.Span otelSpan(String spanName, Span parentOTelSpan) {
         return parentOTelSpan == null || !(parentOTelSpan instanceof OTelSpan)
             ? otelTracer.spanBuilder(spanName).startSpan()
-            : otelTracer.spanBuilder(spanName).setParent(Context.current().with(((OTelSpan) parentOTelSpan).getOtelSpan())).startSpan();
+            : otelTracer.spanBuilder(spanName).setParent(Context.current().with(((OTelSpan) parentOTelSpan).getoTelSpan())).startSpan();
     }
 }

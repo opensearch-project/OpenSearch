@@ -106,7 +106,7 @@ public class DefaultTracer implements Tracer {
         tracerContextStorage.put(CURRENT_SPAN, span);
     }
 
-    private void addDefaultAttributes(Span span) {
+    protected void addDefaultAttributes(Span span) {
         span.addAttribute(THREAD_NAME, Thread.currentThread().getName());
     }
 

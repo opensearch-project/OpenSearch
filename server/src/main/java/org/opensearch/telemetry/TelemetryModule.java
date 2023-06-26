@@ -33,12 +33,7 @@ public class TelemetryModule {
     }
 
     public Optional<Telemetry> getTelemetry() {
-        // if only default(Otel) telemetry is registered, return it
-        if (telemetry != null) {
-            return Optional.of(telemetry);
-        } else {
-            return Optional.empty();
-        }
+        return Optional.ofNullable(telemetry);
     }
 
     private void registerTelemetry(Telemetry factory) {
