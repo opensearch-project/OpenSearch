@@ -10,12 +10,14 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
+import java.util.Optional;
+
 /**
  * No-op implementation of TracerFactory
  */
 public class NoopTracerFactory extends TracerFactory {
     public NoopTracerFactory() {
-        super(null, null, null);
+        super(null, Optional.empty(), null);
     }
 
     @Override
