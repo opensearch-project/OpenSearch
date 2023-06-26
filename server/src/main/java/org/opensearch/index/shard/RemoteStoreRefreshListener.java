@@ -93,10 +93,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final RemoteRefreshSegmentTracker segmentTracker;
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
-    /**
-     * Semaphore that ensures only one staleCommitDeletion activity is scheduled at a time.
-     */
-    private final Semaphore staleCommitDeletionPermits = new Semaphore(1);
 
     /**
      * Semaphore that ensures there is only 1 retry scheduled at any time.
@@ -204,8 +200,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 // if a new segments_N file is present in local that is not uploaded to remote store yet, it
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
-                if (isRefreshAfterCommit() && staleCommitDeletionPermits.tryAcquire() == true) {
-                    deleteStaleCommitsAsync(ThreadPool.Names.REMOTE_PURGE, staleCommitDeletionPermits::release);
+                if (isRefreshAfterCommit()) {
+                    remoteDirectory.deleteStaleSegmentsAsync(LAST_N_METADATA_FILES_TO_KEEP);
                 }
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
@@ -382,22 +378,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             }
         }
         return localSegmentChecksumMap.get(file);
-    }
-
-    private void deleteStaleCommitsAsync(String threadpoolName, Runnable onCompletion) {
-        try {
-            indexShard.getThreadPool().executor(threadpoolName).execute(() -> {
-                try {
-                    remoteDirectory.deleteStaleSegments(LAST_N_METADATA_FILES_TO_KEEP);
-                } catch (IOException e) {
-                    logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit", e);
-                }
-                onCompletion.run();
-            });
-        } catch (Exception e) {
-            logger.info("Exception occurred while scheduling deleteStaleCommits", e);
-            onCompletion.run();
-        }
     }
 
     /**

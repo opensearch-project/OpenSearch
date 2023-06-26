@@ -36,6 +36,7 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -65,14 +66,21 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     private RemoteSegmentStoreDirectory remoteSegmentStoreDirectory;
     private IndexShard indexShard;
     private SegmentInfos segmentInfos;
+    private ThreadPool threadPool;
 
     @Before
     public void setup() throws IOException {
         remoteDataDirectory = mock(RemoteDirectory.class);
         remoteMetadataDirectory = mock(RemoteDirectory.class);
         mdLockManager = mock(RemoteStoreMetadataLockManager.class);
+        threadPool = mock(ThreadPool.class);
 
-        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory, mdLockManager);
+        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            remoteMetadataDirectory,
+            mdLockManager,
+            threadPool
+        );
 
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build();
 
@@ -771,7 +779,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             new IOException("Error reading")
         );
 
-        assertThrows(IOException.class, () -> remoteSegmentStoreDirectory.deleteStaleSegments(5));
+        assertThrows(IOException.class, () -> remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(5));
     }
 
     public void testDeleteStaleCommitsWithinThreshold() throws IOException {
@@ -779,7 +787,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=5 here so that none of the metadata files will be deleted
-        remoteSegmentStoreDirectory.deleteStaleSegments(5);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(5);
 
         verify(remoteMetadataDirectory, times(0)).openInput(any(String.class), eq(IOContext.DEFAULT));
     }
@@ -790,7 +798,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
-        remoteSegmentStoreDirectory.deleteStaleSegments(2);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
 
         for (String metadata : metadataFilenameContentMapping.get("metadata__1__5__abc").values()) {
             String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
@@ -813,7 +821,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         doThrow(new IOException("Error")).when(remoteDataDirectory).deleteFile(segmentFileWithException);
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
-        remoteSegmentStoreDirectory.deleteStaleSegments(2);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
 
         for (String metadata : metadataFilenameContentMapping.get("metadata__1__5__abc").values()) {
             String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
@@ -836,7 +844,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         doThrow(new NoSuchFileException(segmentFileWithException)).when(remoteDataDirectory).deleteFile(segmentFileWithException);
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
-        remoteSegmentStoreDirectory.deleteStaleSegments(2);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
 
         for (String metadata : metadataFilenameContentMapping.get("metadata__1__5__abc").values()) {
             String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
