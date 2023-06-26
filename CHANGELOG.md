@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `netty` from 4.1.91.Final to 4.1.93.Final ([#7901](https://github.com/opensearch-project/OpenSearch/pull/7901))
 - Bump `com.amazonaws` 1.12.270 to `software.amazon.awssdk` 2.20.55 ([7372](https://github.com/opensearch-project/OpenSearch/pull/7372/))
 - Add `org.reactivestreams` 1.0.4 ([7372](https://github.com/opensearch-project/OpenSearch/pull/7372/))
-- Bump `com.networknt:json-schema-validator` from 1.0.81 to 1.0.83 ([7968](https://github.com/opensearch-project/OpenSearch/pull/7968))
+- Bump `com.networknt:json-schema-validator` from 1.0.81 to 1.0.85 ([7968], #8255)
 - Bump `com.netflix.nebula:gradle-extra-configurations-plugin` from 9.0.0 to 10.0.0 in /buildSrc ([#7068](https://github.com/opensearch-project/OpenSearch/pull/7068))
 - Bump `com.google.guava:guava` from 32.0.0-jre to 32.0.1-jre (#8009)
 - Bump `commons-io:commons-io` from 2.12.0 to 2.13.0 (#8014, #8013, #8010)
