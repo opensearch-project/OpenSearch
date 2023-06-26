@@ -27,7 +27,7 @@ class CheckCompatibilityTask extends DefaultTask {
     List repositoryUrls = project.hasProperty('repositoryUrls') ? project.property('repositoryUrls').split(',') : getRepoUrls()
 
     @Input
-    String ref = project.hasProperty('ref') ? project.property('ref') : 'main'
+    String ref = project.hasProperty('ref') ? project.property('ref') : '2.x'
 
     @Internal
     List failedComponents = []
