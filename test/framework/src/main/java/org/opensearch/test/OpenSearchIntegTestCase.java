@@ -1303,7 +1303,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     private ClusterState removePluginCustoms(final ClusterState clusterState) {
         final ClusterState.Builder builder = ClusterState.builder(clusterState);
-        clusterState.customs().keysIt().forEachRemaining(key -> {
+        clusterState.customs().keySet().iterator().forEachRemaining(key -> {
             if (SAFE_CUSTOMS.contains(key) == false) {
                 builder.removeCustom(key);
             }

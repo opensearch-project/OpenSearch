@@ -40,11 +40,11 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.RestoreService;
 
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.opensearch.snapshots.RestoreService.restoreInProgress;
@@ -89,7 +89,7 @@ public class RestoreClusterStateListener<T extends ActionResponse> implements Cl
             listener.onResponse(actionResponseFactory.apply(null));
         } else if (newEntry == null) {
             clusterService.removeListener(this);
-            ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+            final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
             assert prevEntry.state().completed() : "expected completed snapshot/remote store restore state but was " + prevEntry.state();
             assert RestoreService.completed(shards) : "expected all restore entries to be completed";
             RestoreInfo ri = new RestoreInfo(

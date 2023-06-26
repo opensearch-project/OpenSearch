@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.alias;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
@@ -51,7 +50,6 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.Index;
@@ -64,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -220,10 +219,10 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
         if (action.expandAliasesWildcards()) {
             // for DELETE we expand the aliases
             String[] indexAsArray = { concreteIndex };
-            ImmutableOpenMap<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action, indexAsArray);
+            final Map<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action, indexAsArray);
             List<String> finalAliases = new ArrayList<>();
-            for (ObjectCursor<List<AliasMetadata>> curAliases : aliasMetadata.values()) {
-                for (AliasMetadata aliasMeta : curAliases.value) {
+            for (final List<AliasMetadata> curAliases : aliasMetadata.values()) {
+                for (AliasMetadata aliasMeta : curAliases) {
                     finalAliases.add(aliasMeta.alias());
                 }
             }

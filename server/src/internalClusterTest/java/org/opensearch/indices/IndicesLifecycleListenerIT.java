@@ -131,7 +131,7 @@ public class IndicesLifecycleListenerIT extends OpenSearchIntegTestCase {
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
+            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
     }
 
@@ -181,7 +181,7 @@ public class IndicesLifecycleListenerIT extends OpenSearchIntegTestCase {
         } catch (OpenSearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
+            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
 
         // create an index

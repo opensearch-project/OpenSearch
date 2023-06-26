@@ -383,7 +383,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAllAliases(final String[] concreteIndices) {
+    public Map<String, List<AliasMetadata>> findAllAliases(final String[] concreteIndices) {
         return findAliases(Strings.EMPTY_ARRAY, concreteIndices);
     }
 
@@ -396,7 +396,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final AliasesRequest aliasesRequest, final String[] concreteIndices) {
+    public Map<String, List<AliasMetadata>> findAliases(final AliasesRequest aliasesRequest, final String[] concreteIndices) {
         return findAliases(aliasesRequest.aliases(), concreteIndices);
     }
 
@@ -409,11 +409,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    private ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
+    private Map<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
-            return ImmutableOpenMap.of();
+            return Map.of();
         }
         String[] patterns = new String[aliases.length];
         boolean[] include = new boolean[aliases.length];
@@ -428,7 +428,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
         boolean matchAllAliases = patterns.length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
+        final Map<String, List<AliasMetadata>> mapBuilder = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = indices.get(index);
             List<AliasMetadata> filteredValues = new ArrayList<>();
@@ -456,7 +456,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
         }
-        return mapBuilder.build();
+        return mapBuilder;
     }
 
     /**
@@ -1253,7 +1253,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Builder put(String name, ComponentTemplate componentTemplate) {
             Objects.requireNonNull(componentTemplate, "it is invalid to add a null component template: " + name);
-            // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComponentTemplate> existingTemplates = Optional.ofNullable(
                 (ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE)
             ).map(ctm -> new HashMap<>(ctm.componentTemplates())).orElse(new HashMap<>());
@@ -1263,7 +1262,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder removeComponentTemplate(String name) {
-            // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComponentTemplate> existingTemplates = Optional.ofNullable(
                 (ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE)
             ).map(ctm -> new HashMap<>(ctm.componentTemplates())).orElse(new HashMap<>());
@@ -1284,7 +1282,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Builder put(String name, ComposableIndexTemplate indexTemplate) {
             Objects.requireNonNull(indexTemplate, "it is invalid to add a null index template: " + name);
-            // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComposableIndexTemplate> existingTemplates = Optional.ofNullable(
                 (ComposableIndexTemplateMetadata) this.customs.get(ComposableIndexTemplateMetadata.TYPE)
             ).map(itmd -> new HashMap<>(itmd.indexTemplates())).orElse(new HashMap<>());
@@ -1294,7 +1291,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder removeIndexTemplate(String name) {
-            // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComposableIndexTemplate> existingTemplates = Optional.ofNullable(
                 (ComposableIndexTemplateMetadata) this.customs.get(ComposableIndexTemplateMetadata.TYPE)
             ).map(itmd -> new HashMap<>(itmd.indexTemplates())).orElse(new HashMap<>());
