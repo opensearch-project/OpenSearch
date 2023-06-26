@@ -75,6 +75,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -526,7 +527,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
         /**
          * Returns list of parts from metadata
          */
-        ImmutableOpenMap<String, T> parts(Metadata metadata);
+        Map<String, T> parts(Metadata metadata);
 
         /**
          * Puts the part back into metadata
@@ -556,10 +557,10 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
      */
     private <T> Metadata randomParts(Metadata metadata, String prefix, RandomPart<T> randomPart) {
         Metadata.Builder builder = Metadata.builder(metadata);
-        ImmutableOpenMap<String, T> parts = randomPart.parts(metadata);
+        final Map<String, T> parts = randomPart.parts(metadata);
         int partCount = parts.size();
         if (partCount > 0) {
-            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(metadata).keys().toArray(String.class));
+            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(metadata).keySet().toArray(new String[0]));
             for (String part : randomParts) {
                 if (randomBoolean()) {
                     randomPart.remove(builder, part);
@@ -583,7 +584,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
         return randomParts(metadata, "index", new RandomPart<IndexMetadata>() {
 
             @Override
-            public ImmutableOpenMap<String, IndexMetadata> parts(Metadata metadata) {
+            public Map<String, IndexMetadata> parts(Metadata metadata) {
                 return metadata.indices();
             }
 
@@ -645,7 +646,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
     private Metadata randomTemplates(Metadata metadata) {
         return randomParts(metadata, "template", new RandomPart<IndexTemplateMetadata>() {
             @Override
-            public ImmutableOpenMap<String, IndexTemplateMetadata> parts(Metadata metadata) {
+            public Map<String, IndexTemplateMetadata> parts(Metadata metadata) {
                 return metadata.templates();
             }
 
@@ -702,7 +703,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
         return randomParts(metadata, "custom", new RandomPart<Metadata.Custom>() {
 
             @Override
-            public ImmutableOpenMap<String, Metadata.Custom> parts(Metadata metadata) {
+            public Map<String, Metadata.Custom> parts(Metadata metadata) {
                 return metadata.customs();
             }
 

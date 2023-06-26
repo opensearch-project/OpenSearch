@@ -52,7 +52,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -62,7 +64,7 @@ import java.util.Objects;
  */
 public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 
-    private ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.of();
+    private Map<String, MappingMetadata> mappings = Map.of();
     private ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
@@ -71,7 +73,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     public GetIndexResponse(
         String[] indices,
-        ImmutableOpenMap<String, MappingMetadata> mappings,
+        Map<String, MappingMetadata> mappings,
         ImmutableOpenMap<String, List<AliasMetadata>> aliases,
         ImmutableOpenMap<String, Settings> settings,
         ImmutableOpenMap<String, Settings> defaultSettings,
@@ -102,7 +104,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         this.indices = in.readStringArray();
 
         int mappingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappingsMapBuilder = ImmutableOpenMap.builder();
+        Map<String, MappingMetadata> mappingsMapBuilder = new HashMap<>();
         for (int i = 0; i < mappingsSize; i++) {
             String index = in.readString();
             if (in.getVersion().before(Version.V_2_0_0)) {
@@ -123,7 +125,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 mappingsMapBuilder.put(index, metadata != null ? metadata : MappingMetadata.EMPTY_MAPPINGS);
             }
         }
-        mappings = mappingsMapBuilder.build();
+        mappings = Collections.unmodifiableMap(mappingsMapBuilder);
 
         int aliasesSize = in.readVInt();
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliasesMapBuilder = ImmutableOpenMap.builder();
@@ -171,11 +173,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return indices();
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> mappings() {
+    public Map<String, MappingMetadata> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
+    public Map<String, MappingMetadata> getMappings() {
         return mappings();
     }
 
@@ -243,16 +245,16 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
         out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, MappingMetadata> indexEntry : mappings) {
-            out.writeString(indexEntry.key);
+        for (final Map.Entry<String, MappingMetadata> indexEntry : mappings.entrySet()) {
+            out.writeString(indexEntry.getKey());
             if (out.getVersion().before(Version.V_2_0_0)) {
-                out.writeVInt(indexEntry.value == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
-                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
+                out.writeVInt(indexEntry.getValue() == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
+                if (indexEntry.getValue() != MappingMetadata.EMPTY_MAPPINGS) {
                     out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                    indexEntry.value.writeTo(out);
+                    indexEntry.getValue().writeTo(out);
                 }
             } else {
-                out.writeOptionalWriteable(indexEntry.value);
+                out.writeOptionalWriteable(indexEntry.getValue());
             }
         }
         out.writeVInt(aliases.size());
