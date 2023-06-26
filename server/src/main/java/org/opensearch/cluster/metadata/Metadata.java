@@ -32,9 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CollectionUtil;
@@ -54,7 +51,6 @@ import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.regex.Regex;
@@ -432,8 +428,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = indices.get(index);
             List<AliasMetadata> filteredValues = new ArrayList<>();
-            for (ObjectCursor<AliasMetadata> cursor : indexMetadata.getAliases().values()) {
-                AliasMetadata value = cursor.value;
+            for (final AliasMetadata value : indexMetadata.getAliases().values()) {
                 boolean matched = matchAllAliases;
                 String alias = value.alias();
                 for (int i = 0; i < patterns.length; i++) {
@@ -485,9 +480,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Finds the parent data streams, if any, for the specified concrete indices.
      */
-    public ImmutableOpenMap<String, IndexAbstraction.DataStream> findDataStreams(String[] concreteIndices) {
+    public Map<String, IndexAbstraction.DataStream> findDataStreams(String[] concreteIndices) {
         assert concreteIndices != null;
-        final ImmutableOpenMap.Builder<String, IndexAbstraction.DataStream> builder = ImmutableOpenMap.builder();
+        final Map<String, IndexAbstraction.DataStream> builder = new HashMap<>();
         final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
         for (String indexName : concreteIndices) {
             IndexAbstraction index = lookup.get(indexName);
@@ -497,7 +492,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 builder.put(indexName, index.getParentDataStream());
             }
         }
-        return builder.build();
+        return Collections.unmodifiableMap(builder);
     }
 
     @SuppressWarnings("unchecked")
@@ -1490,7 +1485,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         visibleClosedIndices.add(name);
                     }
                 }
-                indexMetadata.getAliases().keysIt().forEachRemaining(allAliases::add);
+                indexMetadata.getAliases().keySet().iterator().forEachRemaining(allAliases::add);
             }
 
             final Set<String> allDataStreams = new HashSet<>();
@@ -1620,8 +1615,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 IndexAbstraction existing = indicesLookup.put(indexMetadata.getIndex().getName(), index);
                 assert existing == null : "duplicate for " + indexMetadata.getIndex();
 
-                for (final ObjectObjectCursor<String, AliasMetadata> aliasCursor : indexMetadata.getAliases()) {
-                    AliasMetadata aliasMetadata = aliasCursor.value;
+                for (final AliasMetadata aliasCursor : indexMetadata.getAliases().values()) {
+                    AliasMetadata aliasMetadata = aliasCursor;
                     indicesLookup.compute(aliasMetadata.getAlias(), (aliasName, alias) -> {
                         if (alias == null) {
                             return new IndexAbstraction.Alias(aliasMetadata, indexMetadata);

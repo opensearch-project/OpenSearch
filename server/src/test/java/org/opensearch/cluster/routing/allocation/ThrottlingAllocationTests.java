@@ -55,7 +55,6 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
@@ -886,14 +885,13 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
 
     private static class TestSnapshotsInfoService implements SnapshotsInfoService {
 
-        private volatile ImmutableOpenMap<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.of();
+        private volatile Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = Map.of();
 
         synchronized void addSnapshotShardSize(Snapshot snapshot, IndexId index, ShardId shard, Long size) {
-            final ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long> newSnapshotShardSizes = ImmutableOpenMap
-                .builder(snapshotShardSizes);
+            final Map<InternalSnapshotsInfoService.SnapshotShard, Long> newSnapshotShardSizes = new HashMap<>(snapshotShardSizes);
             boolean added = newSnapshotShardSizes.put(new InternalSnapshotsInfoService.SnapshotShard(snapshot, index, shard), size) == null;
             assert added : "cannot add snapshot shard size twice";
-            this.snapshotShardSizes = newSnapshotShardSizes.build();
+            this.snapshotShardSizes = Collections.unmodifiableMap(newSnapshotShardSizes);
         }
 
         @Override

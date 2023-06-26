@@ -60,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Refactor] Sets util from server to common lib ([#8230](https://github.com/opensearch-project/OpenSearch/pull/8230))
 - [Refactor] Metadata members from ImmutableOpenMap to j.u.Map ([#7165](https://github.com/opensearch-project/OpenSearch/pull/7165))
 - [Refactor] more ImmutableOpenMap to jdk Map in cluster package ([#7301](https://github.com/opensearch-project/OpenSearch/pull/7301))
+- [Refactor] ImmutableOpenMap to j.u.Map in IndexMetadata ([#7306](https://github.com/opensearch-project/OpenSearch/pull/7306))
 
 ### Deprecated
 
