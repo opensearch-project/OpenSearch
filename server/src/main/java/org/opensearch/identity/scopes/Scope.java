@@ -37,21 +37,21 @@ public interface Scope {
         switch (scopeNamespace) {
             case ACTION:
                 for (ActionScope actionScope : ActionScope.values()) {
-                    if (actionScope.name().equalsIgnoreCase(action)) {
+                    if (actionScope.getArea().equals(scopeArea) && actionScope.action.equals(action)) {
                         return actionScope;
                     }
                 }
                 throw new UnknownScopeException(scopeAsString);
             case APPLICATION:
                 for (ApplicationScope applicationScope : ApplicationScope.values()) {
-                    if (applicationScope.name().equalsIgnoreCase(action)) {
+                    if (applicationScope.getArea().equals(scopeArea) && applicationScope.action.equals(action)) {
                         return applicationScope;
                     }
                 }
                 throw new UnknownScopeException(scopeAsString);
             case EXTENSION_POINT:
                 for (ExtensionPointScope extensionPointScope : ExtensionPointScope.values()) {
-                    if (extensionPointScope.name().equalsIgnoreCase(action)) {
+                    if (extensionPointScope.getArea().equals(scopeArea) && extensionPointScope.action.equals(action)) {
                         return extensionPointScope;
                     }
                 }

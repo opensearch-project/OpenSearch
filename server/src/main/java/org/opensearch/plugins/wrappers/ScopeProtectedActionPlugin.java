@@ -32,8 +32,10 @@
 
 package org.opensearch.plugins.wrappers;
 
+import java.security.Principal;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import org.opensearch.action.ActionRequest;
@@ -52,6 +54,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.identity.scopes.ExtensionPointScope;
 import org.opensearch.rest.RestController;
@@ -63,7 +67,7 @@ import org.opensearch.rest.RestHeaderDefinition;
  *
  * @opensearch.experimental
  */
-public class ScopeProtectedActionPlugin implements ActionPlugin {
+public class ScopeProtectedActionPlugin implements ActionPlugin, Subject {
     private final ActionPlugin plugin;
     private final IdentityService identity;
 
@@ -78,18 +82,23 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
         }
     }
 
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    // Have to wrap with a Public Method for testing
+    public void checkIfAllowed() {
         throwIfNotAllowed();
+    }
+
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        checkIfAllowed();
         return plugin.getActions();
     }
 
     public List<ActionType<? extends ActionResponse>> getClientActions() {
-        throwIfNotAllowed();
+        checkIfAllowed();
         return plugin.getClientActions();
     }
 
     public List<ActionFilter> getActionFilters() {
-        throwIfNotAllowed();
+        checkIfAllowed();
         return plugin.getActionFilters();
     }
 
@@ -115,30 +124,43 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
     }
 
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        throwIfNotAllowed();
+        checkIfAllowed();
         return plugin.getRestHeaders();
     }
 
     public Collection<String> getTaskHeaders() {
-        throwIfNotAllowed();
+        checkIfAllowed();
         return plugin.getTaskHeaders();
     }
 
     public UnaryOperator<RestHandler> getRestHandlerWrapper(final ThreadContext threadContext) {
-        throwIfNotAllowed();
+        checkIfAllowed();
         return plugin.getRestHandlerWrapper(threadContext);
 
     }
 
     public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
-        throwIfNotAllowed();
+        checkIfAllowed();
         return plugin.mappingRequestValidators();
 
     }
 
     public Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
-        throwIfNotAllowed();
+        checkIfAllowed();
         return plugin.indicesAliasesRequestValidators();
     }
 
+    // Implement to have access to identity methods
+    @Override
+    public Principal getPrincipal() {
+        return identity.getSubject().getPrincipal();
+    }
+
+    @Override
+    public void authenticate(AuthToken token) {}
+
+    @Override
+    public Optional<Principal> getApplication() {
+        return Optional.of(identity.getSubject().getPrincipal());
+    }
 }

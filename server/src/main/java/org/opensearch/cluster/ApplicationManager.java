@@ -64,7 +64,7 @@ public class ApplicationManager {
      * @param principal The principal of the application whose scopes you want to check
      * @return A set of all action scopes associated with that principal
      */
-    Set<String> getActionScopes(Principal principal) {
+    public Set<String> getActionScopes(Principal principal) {
 
         if (extensionManager.getExtensionPrincipals().contains(principal)) {
             return extensionManager.getExtensionIdMap()
@@ -120,7 +120,7 @@ public class ApplicationManager {
      * @param principal The principal of the application whose scopes you want to check
      * @return A set of all extension point scopes associated with that principal
      */
-    Set<String> getExtensionPointScopes(Principal principal) {
+    public Set<String> getExtensionPointScopes(Principal principal) {
 
         if (extensionManager.getExtensionPrincipals().contains(principal)) {
             return extensionManager.getExtensionIdMap()
