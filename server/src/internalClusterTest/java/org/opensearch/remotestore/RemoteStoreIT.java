@@ -279,34 +279,43 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         verifyRemoteStoreCleanup(true);
     }
 
-    public void testStaleCommitDeletion() throws Exception {
+    public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
         internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000));
         int numberOfIterations = randomIntBetween(5, 15);
-        boolean invokeFlush = randomBoolean();
-        indexData(numberOfIterations, invokeFlush);
+        indexData(numberOfIterations, true);
         String indexUUID = client().admin()
             .indices()
             .prepareGetSettings(INDEX_NAME)
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
         Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
-        if (invokeFlush) {
-            // Delete is async.
-            assertBusy(() -> {
-                try {
-                    int actualFileCount = getFileCount(indexPath);
-                    if (numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP) {
-                        assertEquals(numberOfIterations, actualFileCount);
-                    } else {
-                        // As delete is async its possible that the file gets created before the deletion or after
-                        // deletion.
-                        assertTrue(actualFileCount >= 10 || actualFileCount <= 11);
-                    }
-                } catch (Exception e) {}
-            }, 30, TimeUnit.SECONDS);
-        } else {
-            assertEquals(1, getFileCount(indexPath));
-        }
+        // Delete is async.
+        assertBusy(() -> {
+            try {
+                int actualFileCount = getFileCount(indexPath);
+                if (numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP) {
+                    assertEquals(numberOfIterations, actualFileCount);
+                } else {
+                    // As delete is async its possible that the file gets created before the deletion or after
+                    // deletion.
+                    assertTrue(actualFileCount >= 10 || actualFileCount <= 11);
+                }
+            } catch (Exception e) {}
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testStaleCommitDeletionWithoutInvokeFlush() throws Exception {
+        internalCluster().startDataOnlyNodes(3);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000));
+        int numberOfIterations = randomIntBetween(5, 15);
+        indexData(numberOfIterations, false);
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+        Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
+        assertEquals(1, getFileCount(indexPath));
     }
 }
