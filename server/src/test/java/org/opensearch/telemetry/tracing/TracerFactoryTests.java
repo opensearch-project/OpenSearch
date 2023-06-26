@@ -39,7 +39,9 @@ public class TracerFactoryTests extends OpenSearchTestCase {
     public void testGetTracerWithTracingDisabledReturnsNoopTracer() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
-        tracerFactory = new TracerFactory(telemetrySettings, null, new ThreadContext(Settings.EMPTY));
+        Telemetry mockTelemetry = mock(Telemetry.class);
+        when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
+        tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), new ThreadContext(Settings.EMPTY));
 
         Tracer tracer = tracerFactory.getTracer();
         assertTrue(tracer instanceof NoopTracer);

@@ -29,16 +29,14 @@ public class TracerFactory implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(TracerFactory.class);
 
-    private volatile Tracer defaultTracer;
-    private final Object mutex = new Object();
     private final TelemetrySettings telemetrySettings;
-    private final Optional<Telemetry> telemetry;
-    private final ThreadContext threadContext;
+    private final Tracer defaultTracer;
 
     public TracerFactory(TelemetrySettings telemetrySettings, Optional<Telemetry> telemetry, ThreadContext threadContext) {
         this.telemetrySettings = telemetrySettings;
-        this.telemetry = telemetry;
-        this.threadContext = threadContext;
+        this.defaultTracer = telemetry.map(Telemetry::getTracingTelemetry)
+            .map(tracingTelemetry -> createDefaultTracer(tracingTelemetry, threadContext))
+            .orElse(NoopTracer.INSTANCE);
     }
 
     /**
@@ -46,7 +44,7 @@ public class TracerFactory implements Closeable {
      * @return tracer instance
      */
     public Tracer getTracer() {
-        return isTracingDisabled() || !telemetry.isPresent() ? NoopTracer.INSTANCE : getOrCreateDefaultTracerInstance();
+        return telemetrySettings.isTracingEnabled() ? defaultTracer : NoopTracer.INSTANCE;
     }
 
     /**
@@ -54,34 +52,19 @@ public class TracerFactory implements Closeable {
      */
     @Override
     public void close() {
-        if (defaultTracer != null) {
-            try {
-                defaultTracer.close();
-            } catch (IOException e) {
-                logger.warn("Error closing tracer", e);
-            }
+        try {
+            defaultTracer.close();
+        } catch (IOException e) {
+            logger.warn("Error closing tracer", e);
         }
     }
 
-    private boolean isTracingDisabled() {
-        return !telemetrySettings.isTracingEnabled();
-    }
-
-    private Tracer getOrCreateDefaultTracerInstance() {
-        if (defaultTracer == null) {
-            synchronized (mutex) {
-                if (defaultTracer == null) {
-                    logger.info("Creating default tracer...");
-                    TracingTelemetry tracingTelemetry = telemetry.get().getTracingTelemetry();
-                    TracerContextStorage<String, Span> tracerContextStorage = new ThreadContextBasedTracerContextStorage(
-                        threadContext,
-                        tracingTelemetry
-                    );
-                    defaultTracer = new DefaultTracer(tracingTelemetry, tracerContextStorage);
-                }
-            }
-        }
-        return defaultTracer;
+    private Tracer createDefaultTracer(TracingTelemetry tracingTelemetry, ThreadContext threadContext) {
+        TracerContextStorage<String, Span> tracerContextStorage = new ThreadContextBasedTracerContextStorage(
+            threadContext,
+            tracingTelemetry
+        );
+        return new DefaultTracer(tracingTelemetry, tracerContextStorage);
     }
 
 }
