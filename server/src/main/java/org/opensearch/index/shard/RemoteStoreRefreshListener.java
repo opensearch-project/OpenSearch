@@ -179,9 +179,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             return;
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
-        if (indexShard.indexSettings().isSegRepWithRemoteEnabled()) {
-            indexShard.onCheckpointPublished(checkpoint);
-        }
+        indexShard.onCheckpointPublished(checkpoint);
         beforeSegmentsSync(isRetry);
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
