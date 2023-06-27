@@ -58,6 +58,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -340,6 +341,15 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             ActionListener<Void> listener
         ) {
 
+        }
+
+        @Override
+        public RemoteStoreShardShallowCopySnapshot getRemoteStoreShallowCopyShardMetadata(
+            SnapshotId snapshotId,
+            IndexId indexId,
+            ShardId snapshotShardId
+        ) {
+            return null;
         }
 
         @Override

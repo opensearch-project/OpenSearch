@@ -42,6 +42,10 @@
         "type":"boolean",
         "description":"Should this request wait until the operation has completed before returning",
         "default":false
+      },
+      "source_remote_store_repository": {
+        "type":"string",
+        "description":"Remote Store Repository of Remote Store Indices"
       }
     },
     "body":{
