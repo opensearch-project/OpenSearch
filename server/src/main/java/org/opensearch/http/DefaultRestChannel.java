@@ -151,6 +151,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
 
+            // Add server header
             serverHeader.put(
                 "serverHeader",
                 Arrays.asList("OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")")
