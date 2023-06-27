@@ -281,7 +281,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
         internalCluster().startDataOnlyNodes(3);
-        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true);
         String indexUUID = client().admin()
@@ -307,7 +307,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithoutInvokeFlush() throws Exception {
         internalCluster().startDataOnlyNodes(3);
-        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, false);
         String indexUUID = client().admin()

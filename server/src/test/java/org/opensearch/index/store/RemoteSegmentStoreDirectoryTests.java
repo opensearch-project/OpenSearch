@@ -30,6 +30,7 @@ import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -46,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -83,11 +85,14 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         );
 
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build();
+        ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
 
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
         try (Store store = indexShard.store()) {
             segmentInfos = store.readLastCommittedSegmentsInfo();
         }
+
+        when(threadPool.executor(ThreadPool.Names.REMOTE_PURGE)).thenReturn(executorService);
     }
 
     @After
@@ -775,11 +780,44 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     }
 
     public void testDeleteStaleCommitsException() throws IOException {
+        populateMetadata();
         when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX)).thenThrow(
             new IOException("Error reading")
         );
 
-        assertThrows(IOException.class, () -> remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(5));
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here to validate that in case of exception deleteFile is not
+        // invoked
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+
+        verify(remoteMetadataDirectory, times(0)).deleteFile(any(String.class));
+        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
+    }
+
+    public void testDeleteStaleCommitsExceptionWhileScheduling() throws IOException {
+        populateMetadata();
+        doThrow(new IllegalArgumentException()).when(threadPool).executor(any(String.class));
+
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here to validate that in case of exception deleteFile is not
+        // invoked
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+
+        verify(remoteMetadataDirectory, times(0)).deleteFile(any(String.class));
+        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
+    }
+
+    public void testDeleteStaleCommitsWithDeletionAlreadyInProgress() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.canDeleteStaleCommits.set(false);
+
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here to validate that in case of exception deleteFile is not
+        // invoked
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+
+        verify(remoteMetadataDirectory, times(0)).deleteFile(any(String.class));
+        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get() == false);
     }
 
     public void testDeleteStaleCommitsWithinThreshold() throws IOException {
@@ -790,6 +828,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(5);
 
         verify(remoteMetadataDirectory, times(0)).openInput(any(String.class), eq(IOContext.DEFAULT));
+        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
     }
 
     public void testDeleteStaleCommitsActualDelete() throws IOException {
@@ -806,6 +845,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         }
         ;
         verify(remoteMetadataDirectory).deleteFile("metadata__1__5__abc");
+        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
     }
 
     public void testDeleteStaleCommitsActualDeleteIOException() throws IOException {
@@ -829,6 +869,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         }
         ;
         verify(remoteMetadataDirectory, times(0)).deleteFile("metadata__1__5__abc");
+        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
     }
 
     public void testDeleteStaleCommitsActualDeleteNoSuchFileException() throws IOException {
@@ -852,6 +893,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         }
         ;
         verify(remoteMetadataDirectory).deleteFile("metadata__1__5__abc");
+        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
     }
 
     public void testSegmentMetadataCurrentVersion() {

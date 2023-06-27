@@ -101,8 +101,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * AtomicBoolean that ensures only one staleCommitDeletion activity is scheduled at a time.
+     * Visible for testing
      */
-    private final AtomicBoolean canDeleteStaleCommits = new AtomicBoolean(true);
+    protected final AtomicBoolean canDeleteStaleCommits = new AtomicBoolean(true);
 
     public RemoteSegmentStoreDirectory(
         RemoteDirectory remoteDataDirectory,
