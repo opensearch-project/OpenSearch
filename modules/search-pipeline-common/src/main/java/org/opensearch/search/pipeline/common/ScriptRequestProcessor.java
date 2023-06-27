@@ -29,7 +29,8 @@ import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.common.helpers.SearchRequestMap;
 
 import java.io.InputStream;
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -127,6 +128,8 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
      * Factory class for creating {@link ScriptRequestProcessor}.
      */
     public static final class Factory implements Processor.Factory<SearchRequestProcessor> {
+        private static final List<String> SCRIPT_CONFIG_KEYS = List.of("id", "source", "inline", "lang", "params", "options");
+
         private final ScriptService scriptService;
 
         /**
@@ -155,15 +158,20 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
             String description,
             Map<String, Object> config
         ) throws Exception {
+            Map<String, Object> scriptConfig = new HashMap<>();
+            for (String key : SCRIPT_CONFIG_KEYS) {
+                Object val = config.remove(key);
+                if (val != null) {
+                    scriptConfig.put(key, val);
+                }
+            }
             try (
-                XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
+                XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(scriptConfig);
                 InputStream stream = BytesReference.bytes(builder).streamInput();
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
             ) {
                 Script script = Script.parse(parser);
-
-                Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);
 
                 // verify script is able to be compiled before successfully creating processor.
                 SearchScript searchScript = null;

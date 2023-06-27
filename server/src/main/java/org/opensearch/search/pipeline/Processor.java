@@ -34,11 +34,11 @@ import java.util.function.LongSupplier;
  */
 public interface Processor {
     /**
-     * Processor configuration key to let the factory know that the pipeline is defined in a search request.
-     * For processors whose creation is expensive (e.g. creates a connection pool), the factory can reject
-     * the request or create a more lightweight (but possibly less efficient) version of the processor.
+     * Processor configuration key to let the factory know the context for pipeline creation.
+     * <p>
+     * See {@link PipelineSource}.
      */
-    String AD_HOC_PIPELINE = "ad_hoc_pipeline";
+    String PIPELINE_SOURCE = "pipeline_source";
 
     /**
      * Gets the type of processor
@@ -143,5 +143,20 @@ public interface Processor {
             this.namedXContentRegistry = namedXContentRegistry;
         }
 
+    }
+
+    /**
+     * Passed via the "pipeline_source" configuration to a processor factory to convey the context for pipeline creation.
+     * <p>
+     * A processor factory may change the processor initialization behavior based on the creation context (e.g. avoiding
+     * creating expensive resources during validation or in a request-scoped pipeline.)
+     */
+    enum PipelineSource {
+        // A named pipeline is being created or updated
+        UPDATE_PIPELINE,
+        // Pipeline is defined within a search request
+        SEARCH_REQUEST,
+        // A named pipeline is being validated before being written to cluster state
+        VALIDATE_PIPELINE
     }
 }
