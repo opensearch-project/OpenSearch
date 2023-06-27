@@ -282,7 +282,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     /**
      * Tests retry flow after snapshot and metadata files have been uploaded to remote store in the failed attempt.
      * Snapshot and metadata files created in failed attempt should not break retry.
-     * @throws Exception
      */
     public void testRefreshSuccessAfterFailureInFirstAttemptAfterSnapshotAndMetadataUpload() throws Exception {
         int succeedOnAttempt = 1;
