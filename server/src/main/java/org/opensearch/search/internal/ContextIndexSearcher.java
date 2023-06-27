@@ -46,6 +46,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -63,13 +64,16 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.common.lucene.MinimumScoreCollector;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
+import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.profile.query.ProfileWeight;
 import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.search.profile.query.QueryTimingType;
@@ -82,8 +86,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -274,6 +280,38 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             for (int i = 0; i < leaves.size(); i++) {
                 searchLeaf(leaves.get(i), weight, collector);
+            }
+        }
+        postCollection(collector);
+    }
+
+    /**
+     * Performs the postCollection on the {@link BucketCollector} which is used to collect documents for Aggregation. This was originally
+     * done in {@link org.opensearch.search.aggregations.AggregationProcessor#postProcess(SearchContext)}. But with concurrent segment
+     * search path this needs to be performed here. There are AssertingCodecs in lucene which validates that the DocValues created for a
+     * field is always used by the same thread for a request. In concurrent segment search case, the DocValues gets initialized on
+     * different threads for different segments (or slices). Whereas the postProcess happens as part of reduce phase and is performed on
+     * the separate thread which is from search threadpool and not from slice threadpool. So two different threads performs the access on
+     * the DocValues causing the AssertingCodec to fail. From functionality perspective, there is no issue as DocValues for each segment
+     * is always accessed by a single thread at a time but those threads may be different (e.g. slice thread during collection and then
+     * search thread during reduce)
+     * @param collector input collector tree used for search
+     */
+    private void postCollection(Collector collector) throws IOException {
+        final Queue<Collector> collectors = new LinkedList<>();
+        collectors.offer(collector);
+        while (!collectors.isEmpty()) {
+            Collector currentCollector = collectors.poll();
+            if (currentCollector instanceof InternalProfileCollector) {
+                collectors.offer(((InternalProfileCollector) currentCollector).getCollector());
+            } else if (currentCollector instanceof MinimumScoreCollector) {
+                collectors.offer(((MinimumScoreCollector) currentCollector).getCollector());
+            } else if (currentCollector instanceof MultiCollector) {
+                for (Collector innerCollector : ((MultiCollector) currentCollector).getCollectors()) {
+                    collectors.offer(innerCollector);
+                }
+            } else if (currentCollector instanceof BucketCollector) {
+                ((BucketCollector) currentCollector).postCollection();
             }
         }
     }
