@@ -706,6 +706,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public abstract BlobPath basePath();
 
+    public boolean isRemoteStoreSupported() {
+        return false;
+    }
+
     /**
      * Returns true if metadata and snapshot files should be compressed
      *

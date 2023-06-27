@@ -191,4 +191,8 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+
+    default List<BlobMetadata> listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit) throws IOException {
+        throw new UnsupportedOperationException("The configured remote store does not support listBlobsByPrefixInLexicographicOrder() method");
+    }
 }

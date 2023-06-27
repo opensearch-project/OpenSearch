@@ -298,15 +298,25 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
+        return(listBlobsByPrefix(blobNamePrefix, Integer.MAX_VALUE)).stream()
+            .collect(Collectors.toMap(BlobMetadata::name, Function.identity()));
+    }
+
+    private List<BlobMetadata> listBlobsByPrefix(@Nullable String blobNamePrefix, int limit) throws IOException {
         String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
+        final int maxKeys = Math.min(limit, 1000);
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            return executeListing(clientReference, listObjectsRequest(prefix)).stream()
+            return executeListing(clientReference, listObjectsRequest(prefix, maxKeys)).stream()
                 .flatMap(listing -> listing.contents().stream())
-                .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
-                .collect(Collectors.toMap(PlainBlobMetadata::name, Function.identity()));
+                .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size())).collect(Collectors.toList());
         } catch (final SdkException e) {
             throw new IOException("Exception when listing blobs by prefix [" + prefix + "]", e);
         }
+    }
+
+    @Override
+    public List<BlobMetadata> listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit) throws IOException {
+        return listBlobsByPrefix(blobNamePrefix, limit);
     }
 
     @Override
@@ -354,6 +364,10 @@ class S3BlobContainer extends AbstractBlobContainer {
             .delimiter("/")
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().listObjectsMetricPublisher))
             .build();
+    }
+
+    private ListObjectsV2Request listObjectsRequest(String keyPath, int limit) {
+        return listObjectsRequest(keyPath).toBuilder().maxKeys(limit).build();
     }
 
     private String buildKey(String blobName) {
