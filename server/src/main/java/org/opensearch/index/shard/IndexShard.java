@@ -1579,13 +1579,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.isSegRepEnabled() == false) {
             return null;
         }
+
+        Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> nullSegmentInfosEmptyCheckpoint = new Tuple<>(
+            new GatedCloseable<>(null, () -> {}),
+            ReplicationCheckpoint.empty(shardId, getDefaultCodecName())
+        );
+
         if (getEngineOrNull() == null) {
-            return new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId, getDefaultCodecName()));
+            return nullSegmentInfosEmptyCheckpoint;
         }
         // do not close the snapshot - caller will close it.
-        final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot();
-        return Optional.ofNullable(snapshot.get()).map(segmentInfos -> {
-            try {
+        GatedCloseable<SegmentInfos> snapshot = null;
+        try {
+            snapshot = getSegmentInfosSnapshot();
+            if (snapshot.get() != null) {
+                SegmentInfos segmentInfos = snapshot.get();
                 return new Tuple<>(
                     snapshot,
                     new ReplicationCheckpoint(
@@ -1601,10 +1609,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         getEngine().config().getCodec().getName()
                     )
                 );
-            } catch (IOException e) {
-                throw new OpenSearchException("Error Fetching SegmentInfos and latest checkpoint", e);
             }
-        }).orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId, getDefaultCodecName())));
+        } catch (IOException | AlreadyClosedException e) {
+            logger.error("Error Fetching SegmentInfos and latest checkpoint", e);
+            if (snapshot != null) {
+                try {
+                    snapshot.close();
+                } catch (IOException ex) {
+                    throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
+                }
+            }
+        }
+        return nullSegmentInfosEmptyCheckpoint;
     }
 
     /**
