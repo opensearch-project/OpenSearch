@@ -43,16 +43,6 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         Assert.assertEquals("span_name", defaultTracer.getCurrentSpan().getSpanName());
     }
 
-    public void testEndSpan() {
-        DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
-        defaultTracer.startSpan("span_name");
-        verify(mockTracerContextStorage).put(TracerContextStorage.CURRENT_SPAN, mockSpan);
-
-        defaultTracer.endSpan();
-        verify(mockSpan).endSpan();
-        verify(mockTracerContextStorage).put(TracerContextStorage.CURRENT_SPAN, mockParentSpan);
-    }
-
     public void testEndSpanByClosingScope() {
         DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
         try (Scope scope = defaultTracer.startSpan("span_name")) {

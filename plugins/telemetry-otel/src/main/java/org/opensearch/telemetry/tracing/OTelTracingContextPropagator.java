@@ -48,7 +48,7 @@ public class OTelTracingContextPropagator implements TracingContextPropagator {
     }
 
     private static Context context(OTelSpan oTelSpan) {
-        return Context.current().with(io.opentelemetry.api.trace.Span.wrap(oTelSpan.getoTelSpan().getSpanContext()));
+        return Context.current().with(io.opentelemetry.api.trace.Span.wrap(oTelSpan.getDelegateSpan().getSpanContext()));
     }
 
     private static final TextMapSetter<BiConsumer<String, String>> TEXT_MAP_SETTER = (carrier, key, value) -> {

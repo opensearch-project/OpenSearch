@@ -22,15 +22,9 @@ public interface Tracer extends Closeable {
      * Starts the {@link Span} with given name
      *
      * @param spanName span name
-     * @return scope of the span, can be used with try-with-resources to close the span
+     * @return scope of the span, must be closed with explicit close or with try-with-resource
      */
     Scope startSpan(String spanName);
-
-    /**
-     * Ends the current active {@link Span}
-     *
-     */
-    void endSpan();
 
     /**
      * Adds string attribute to the current active {@link Span}.

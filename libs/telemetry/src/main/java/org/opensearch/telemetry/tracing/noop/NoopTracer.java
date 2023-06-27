@@ -28,9 +28,6 @@ public class NoopTracer implements Tracer {
         return Scope.NO_OP;
     }
 
-    @Override
-    public void endSpan() {}
-
     /**
      * @param key   attribute key
      * @param value attribute value

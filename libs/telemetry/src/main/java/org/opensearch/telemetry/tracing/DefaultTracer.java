@@ -44,12 +44,6 @@ public class DefaultTracer implements Tracer {
     }
 
     @Override
-    public void endSpan() {
-        Span currentSpan = getCurrentSpan();
-        endSpan(currentSpan);
-    }
-
-    @Override
     public void addSpanAttribute(String key, String value) {
         Span currentSpan = getCurrentSpan();
         currentSpan.addAttribute(key, value);

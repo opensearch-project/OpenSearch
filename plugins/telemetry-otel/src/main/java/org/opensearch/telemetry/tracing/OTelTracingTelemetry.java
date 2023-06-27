@@ -63,6 +63,6 @@ public class OTelTracingTelemetry implements TracingTelemetry {
     io.opentelemetry.api.trace.Span otelSpan(String spanName, Span parentOTelSpan) {
         return parentOTelSpan == null || !(parentOTelSpan instanceof OTelSpan)
             ? otelTracer.spanBuilder(spanName).startSpan()
-            : otelTracer.spanBuilder(spanName).setParent(Context.current().with(((OTelSpan) parentOTelSpan).getoTelSpan())).startSpan();
+            : otelTracer.spanBuilder(spanName).setParent(Context.current().with(((OTelSpan) parentOTelSpan).getDelegateSpan())).startSpan();
     }
 }
