@@ -32,13 +32,12 @@
 
 package org.opensearch.wildfly.transport;
 
+import jakarta.enterprise.inject.Produces;
 import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
-
-import javax.enterprise.inject.Produces;
 
 import java.net.URISyntaxException;
 import java.nio.file.Path;
