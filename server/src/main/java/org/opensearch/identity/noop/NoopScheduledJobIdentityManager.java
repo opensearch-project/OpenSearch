@@ -23,7 +23,7 @@ import java.util.Optional;
  */
 public class NoopScheduledJobIdentityManager implements ScheduledJobIdentityManager {
     @Override
-    public void saveUserDetails(String jobId, String indexName, ScheduledJobOperator operator) {
+    public void saveUserDetails(String jobId, String indexName, Optional<ScheduledJobOperator> operator) {
         return;
     }
 
