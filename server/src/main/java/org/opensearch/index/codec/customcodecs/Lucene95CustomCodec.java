@@ -15,6 +15,8 @@ import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
 import org.opensearch.index.mapper.MapperService;
 
+import java.util.Objects;
+
 /**
  *
  * Extends {@link FilterCodec} to reuse the functionality of Lucene Codec.
@@ -31,7 +33,9 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
         ZSTD_NO_DICT
     }
 
-    private final StoredFieldsFormat storedFieldsFormat;
+    private final Mode mode;
+
+    private StoredFieldsFormat storedFieldsFormat;
 
     /**
      * Creates a new compression codec with the default compression level.
@@ -52,11 +56,13 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
      */
     public Lucene95CustomCodec(Mode mode, int compressionLevel) {
         super("Lucene95CustomCodec", new Lucene95Codec());
+        this.mode = Objects.requireNonNull(mode);
         this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);
     }
 
     public Lucene95CustomCodec(Mode mode, int compressionLevel, MapperService mapperService, Logger logger) {
         super("Lucene95CustomCodec", new PerFieldMappingPostingFormatCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, logger));
+        this.mode = Objects.requireNonNull(mode);
         this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);
     }
 
@@ -68,5 +74,9 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
     @Override
     public String toString() {
         return getClass().getSimpleName();
+    }
+
+    public void updateCompressionLevel(int compressionLevel) {
+        this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);
     }
 }

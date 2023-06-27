@@ -90,6 +90,20 @@ public class CodecTests extends OpenSearchTestCase {
         assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD_NO_DICT, codec);
     }
 
+    public void testZstdWithCompressionLevel() throws Exception {
+        Codec codec = createCodecService(false).codec("zstd", 1);
+        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD, codec);
+        Lucene95CustomStoredFieldsFormat storedFieldsFormat = (Lucene95CustomStoredFieldsFormat) codec.storedFieldsFormat();
+        assertEquals(1, storedFieldsFormat.getCompressionLevel());
+    }
+
+    public void testZstdNoDictWithCompressionLevel() throws Exception {
+        Codec codec = createCodecService(false).codec("zstd_no_dict", 1);
+        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD_NO_DICT, codec);
+        Lucene95CustomStoredFieldsFormat storedFieldsFormat = (Lucene95CustomStoredFieldsFormat) codec.storedFieldsFormat();
+        assertEquals(1, storedFieldsFormat.getCompressionLevel());
+    }
+
     public void testDefaultMapperServiceNull() throws Exception {
         Codec codec = createCodecService(true).codec("default");
         assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_SPEED, codec);

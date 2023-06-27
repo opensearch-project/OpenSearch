@@ -38,6 +38,7 @@ import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec.Mode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.index.codec.customcodecs.Lucene95CustomCodec;
 import org.opensearch.index.codec.customcodecs.ZstdCodec;
 import org.opensearch.index.codec.customcodecs.ZstdNoDictCodec;
 import org.opensearch.index.mapper.MapperService;
@@ -58,7 +59,9 @@ public class CodecService {
 
     public static final String DEFAULT_CODEC = "default";
     public static final String BEST_COMPRESSION_CODEC = "best_compression";
-    /** the raw unfiltered lucene default. useful for testing */
+    /**
+     * the raw unfiltered lucene default. useful for testing
+     */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
     public static final String ZSTD_CODEC = "zstd";
     public static final String ZSTD_NO_DICT_CODEC = "zstd_no_dict";
@@ -88,6 +91,15 @@ public class CodecService {
         if (codec == null) {
             throw new IllegalArgumentException("failed to find codec [" + name + "]");
         }
+        return codec;
+    }
+
+    public Codec codec(String name, int compressionLevel) {
+        Lucene95CustomCodec codec = (Lucene95CustomCodec) codecs.get(name);
+        if (codec == null) {
+            throw new IllegalArgumentException("failed to find codec [" + name + "]");
+        }
+        codec.updateCompressionLevel(compressionLevel);
         return codec;
     }
 
