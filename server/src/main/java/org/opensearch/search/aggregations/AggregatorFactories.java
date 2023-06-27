@@ -235,7 +235,7 @@ public class AggregatorFactories {
             }
         }
 
-        return factories;
+        return factories.count() > 0 ? factories : null;
     }
 
     public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0]);
