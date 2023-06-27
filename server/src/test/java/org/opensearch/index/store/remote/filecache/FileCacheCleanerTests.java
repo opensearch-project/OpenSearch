@@ -48,7 +48,7 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
     );
 
     private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-        1024 * 1024 * 1024,
+        1024 * 1024,
         1,
         new NoopCircuitBreaker(CircuitBreaker.REQUEST)
     );

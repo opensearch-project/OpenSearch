@@ -11,7 +11,6 @@ package org.opensearch.index.store.remote.filecache;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
-import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,24 +38,11 @@ import static org.opensearch.ExceptionsHelper.catchAsRuntimeException;
 public class FileCacheFactory {
 
     public static FileCache createConcurrentLRUFileCache(long capacity, CircuitBreaker circuitBreaker) {
-        return createFileCache(createDefaultBuilder().capacity(capacity).build(), circuitBreaker);
+        return new FileCache(createDefaultBuilder().capacity(capacity).build(), circuitBreaker);
     }
 
     public static FileCache createConcurrentLRUFileCache(long capacity, int concurrencyLevel, CircuitBreaker circuitBreaker) {
-        return createFileCache(createDefaultBuilder().capacity(capacity).concurrencyLevel(concurrencyLevel).build(), circuitBreaker);
-    }
-
-    private static FileCache createFileCache(SegmentedCache<Path, CachedIndexInput> segmentedCache, CircuitBreaker circuitBreaker) {
-        /*
-         * Since OnDemandBlockSnapshotIndexInput.Builder.DEFAULT_BLOCK_SIZE is not overridden then it will be upper bound for max IndexInput
-         * size on disk. A single IndexInput size should always be more than a single segment in segmented cache. A FileCache capacity might
-         * be defined with large capacity (> IndexInput block size) but due to segmentation and concurrency factor, that capacity is
-         * distributed equally across segments.
-         */
-        if (segmentedCache.getPerSegmentCapacity() <= OnDemandBlockSnapshotIndexInput.Builder.DEFAULT_BLOCK_SIZE) {
-            throw new IllegalStateException("FileSystem Cache per segment capacity is less than single IndexInput default block size");
-        }
-        return new FileCache(segmentedCache, circuitBreaker);
+        return new FileCache(createDefaultBuilder().capacity(capacity).concurrencyLevel(concurrencyLevel).build(), circuitBreaker);
     }
 
     private static SegmentedCache.Builder<Path, CachedIndexInput> createDefaultBuilder() {
