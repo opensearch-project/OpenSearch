@@ -137,7 +137,7 @@ public class BlobStoreTransferService implements TransferService {
                 writePriority,
                 (size, position) -> new OffsetRangeFileInputStream(fileSnapshot.getPath(), size, position),
                 Objects.requireNonNull(fileSnapshot.getChecksum()),
-                blobStore.blobContainer(blobPath).isRemoteDataIntegritySupported()
+                blobStore.blobContainer(blobPath) instanceof VerifyingMultiStreamBlobContainer
             );
             WriteContext writeContext = remoteTransferContainer.createWriteContext();
             CompletableFuture<Void> uploadFuture = ((VerifyingMultiStreamBlobContainer) blobStore.blobContainer(blobPath))

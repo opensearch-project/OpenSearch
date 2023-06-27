@@ -131,15 +131,6 @@ public interface BlobContainer {
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
 
     /**
-     * Needs to be set to true by the implementation if remote data integrity check is supported
-     *
-     * @return true if remote data integrity check is supported
-     */
-    default boolean isRemoteDataIntegritySupported() {
-        return false;
-    }
-
-    /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
      *
