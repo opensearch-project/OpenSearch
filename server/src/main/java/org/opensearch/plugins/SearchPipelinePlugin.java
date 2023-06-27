@@ -45,7 +45,7 @@ public interface SearchPipelinePlugin {
     }
 
     /**
-     * Returns additional search pipeline search phase injector processor types added by this plugin.
+     * Returns additional search pipeline search phase results processor types added by this plugin.
      *
      * The key of the returned {@link Map} is the unique name for the processor which is specified
      * in pipeline configurations, and the value is a {@link org.opensearch.search.pipeline.Processor.Factory}

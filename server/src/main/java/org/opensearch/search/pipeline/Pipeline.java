@@ -218,7 +218,7 @@ class Pipeline {
                 }
             }
             return searchPhaseResult;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             throw new SearchPipelineProcessingException(e);
         }
     }
