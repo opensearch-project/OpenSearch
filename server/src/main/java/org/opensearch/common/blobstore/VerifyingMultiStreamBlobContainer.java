@@ -15,7 +15,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * An extension of {@link BlobContainer} that adds {@link VerifyingMultiStreamBlobContainer#writeBlobByStreams} to allow
- * multipart uploads
+ * multipart uploads and performs integrity checks on transferred files
  *
  * @opensearch.internal
  */
