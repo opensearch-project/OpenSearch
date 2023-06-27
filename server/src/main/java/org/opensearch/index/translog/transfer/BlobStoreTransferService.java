@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
@@ -140,4 +141,9 @@ public class BlobStoreTransferService implements TransferService {
             }
         });
     }
+
+    public void listBlobsInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException {
+        blobStore.blobContainer((BlobPath) path).listBlobsByPrefixInLexicographicOrder("", limit, listener);
+    }
+
 }

@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.io.IOException;
@@ -113,5 +114,7 @@ public interface TransferService {
      * @throws IOException the exception while reading the data
      */
     InputStream downloadBlob(Iterable<String> path, String fileName) throws IOException;
+
+    void listBlobsInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException;
 
 }

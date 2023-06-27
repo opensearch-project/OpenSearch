@@ -76,7 +76,16 @@ public class TranslogTransferMetadata {
     }
 
     public static String getFileName(long primaryTerm, long generation) {
-        return String.join(METADATA_SEPARATOR, Arrays.asList(String.valueOf(primaryTerm), String.valueOf(generation)));
+        return String.join(
+            METADATA_SEPARATOR,
+            Arrays.asList(
+                String.valueOf(Long.MAX_VALUE - primaryTerm),
+                String.valueOf(Long.MAX_VALUE - generation),
+                String.valueOf(Long.MAX_VALUE - System.currentTimeMillis()),
+                String.valueOf(primaryTerm),
+                String.valueOf(generation)
+            )
+        );
     }
 
     @Override
@@ -95,11 +104,11 @@ public class TranslogTransferMetadata {
     private static class MetadataFilenameComparator implements Comparator<String> {
         @Override
         public int compare(String first, String second) {
-            // Format of metadata filename is <Primary Term>__<Generation>
+            // Format of metadata filename is <Inv Primary Term>__<Inv Generation>__<Inv Timestamp>__<Primary Term>__<Generation>
             String[] filenameTokens1 = first.split(METADATA_SEPARATOR);
             String[] filenameTokens2 = second.split(METADATA_SEPARATOR);
-            // Here, we are comparing only primary term and generation.
-            for (int i = 0; i < filenameTokens1.length; i++) {
+            // Here, we are comparing only inverted primary term and inv generation.
+            for (int i = 0; i < 2; i++) {
                 if (filenameTokens1[i].equals(filenameTokens2[i]) == false) {
                     return Long.compare(Long.parseLong(filenameTokens1[i]), Long.parseLong(filenameTokens2[i]));
                 }

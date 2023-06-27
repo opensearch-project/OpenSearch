@@ -15,6 +15,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.common.SetOnce;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
@@ -185,15 +187,39 @@ public class TranslogTransferManager {
     }
 
     public TranslogTransferMetadata readMetadata() throws IOException {
-        return transferService.listAll(remoteMetadataTransferPath).stream().max(METADATA_FILENAME_COMPARATOR).map(filename -> {
-            try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename)) {
-                IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
-                return metadataStreamWrapper.readStream(indexInput);
-            } catch (IOException e) {
-                logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
-                return null;
-            }
-        }).orElse(null);
+        SetOnce<TranslogTransferMetadata> metadataSetOnce = new SetOnce<>();
+        SetOnce<IOException> exceptionSetOnce = new SetOnce<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        LatchedActionListener<List<BlobMetadata>> latchedActionListener = new LatchedActionListener<>(
+            ActionListener.wrap(blobMetadataList -> {
+                if (blobMetadataList.isEmpty()) return;
+                String filename = blobMetadataList.get(0).name();
+                try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename)) {
+                    IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
+                    metadataSetOnce.set(metadataStreamWrapper.readStream(indexInput));
+                } catch (IOException e) {
+                    logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
+                    exceptionSetOnce.set(e);
+                }
+            }, e -> {
+                logger.error(() -> new ParameterizedMessage("Exception while listing metadata files "), e);
+                exceptionSetOnce.set((IOException) e);
+            }),
+            latch
+        );
+
+        try {
+            transferService.listBlobsInSortedOrder(remoteMetadataTransferPath, 1, latchedActionListener);
+            latch.await();
+        } catch (InterruptedException | IOException e) {
+            throw new IOException("Exception while reading/downloading metadafile", e);
+        }
+
+        if (exceptionSetOnce.get() != null) {
+            throw exceptionSetOnce.get();
+        }
+
+        return metadataSetOnce.get();
     }
 
     private TransferFileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {
