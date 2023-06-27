@@ -22,18 +22,18 @@ import java.util.List;
 import java.util.Set;
 import java.util.Optional;
 
-import static org.opensearch.telemetry.OTelTelemetryModulePlugin.OTEL_TRACER_NAME;
-import static org.opensearch.telemetry.OTelTelemetryModulePlugin.TRACER_EXPORTER_BATCH_SIZE_SETTING;
-import static org.opensearch.telemetry.OTelTelemetryModulePlugin.TRACER_EXPORTER_DELAY_SETTING;
-import static org.opensearch.telemetry.OTelTelemetryModulePlugin.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
+import static org.opensearch.telemetry.OTelTelemetryPlugin.OTEL_TRACER_NAME;
+import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_BATCH_SIZE_SETTING;
+import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_DELAY_SETTING;
+import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
 
-public class OTelTelemetryModulePluginTests extends OpenSearchTestCase {
+public class OTelTelemetryPluginTests extends OpenSearchTestCase {
 
     public void testGetTelemetry() {
         Set<Setting<?>> allTracerSettings = new HashSet<>();
         ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));
         Settings settings = Settings.builder().build();
-        OTelTelemetryModulePlugin oTelTracerModulePlugin = new OTelTelemetryModulePlugin(settings);
+        OTelTelemetryPlugin oTelTracerModulePlugin = new OTelTelemetryPlugin(settings);
         Optional<Telemetry> tracer = oTelTracerModulePlugin.getTelemetry(null);
 
         assertEquals(OTEL_TRACER_NAME, oTelTracerModulePlugin.getName());

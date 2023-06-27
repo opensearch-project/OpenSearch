@@ -25,7 +25,7 @@ import java.util.Optional;
 /**
  * Telemetry plugin based on Otel
  */
-public class OTelTelemetryModulePlugin extends Plugin implements TelemetryPlugin {
+public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     static final String OTEL_TRACER_NAME = "otel";
 
@@ -65,7 +65,7 @@ public class OTelTelemetryModulePlugin extends Plugin implements TelemetryPlugin
      * Creates Otel plugin
      * @param settings cluster settings
      */
-    public OTelTelemetryModulePlugin(Settings settings) {
+    public OTelTelemetryPlugin(Settings settings) {
         this.settings = settings;
     }
 

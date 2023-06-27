@@ -24,9 +24,9 @@ import org.opensearch.common.settings.Settings;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.telemetry.OTelTelemetryModulePlugin.TRACER_EXPORTER_BATCH_SIZE_SETTING;
-import static org.opensearch.telemetry.OTelTelemetryModulePlugin.TRACER_EXPORTER_DELAY_SETTING;
-import static org.opensearch.telemetry.OTelTelemetryModulePlugin.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
+import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_BATCH_SIZE_SETTING;
+import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_DELAY_SETTING;
+import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
 
 /**
  * This class encapsulates all OpenTelemetry related resources

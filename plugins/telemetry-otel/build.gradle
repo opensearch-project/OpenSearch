@@ -13,7 +13,7 @@ import org.opensearch.gradle.info.BuildParams
 
 opensearchplugin {
   description 'Opentelemetry based telemetry implementation.'
-  classname 'org.opensearch.telemetry.OTelTelemetryModulePlugin'
+  classname 'org.opensearch.telemetry.OTelTelemetryPlugin'
   hasClientJar = true
 }
 
