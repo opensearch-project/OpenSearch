@@ -361,6 +361,11 @@ public class TranslogTransferManager {
         });
     }
 
+    public void deleteTranslogFiles() throws IOException {
+        transferService.delete(remoteMetadataTransferPath);
+        transferService.delete(remoteDataTransferPath);
+    }
+
     /**
      * Deletes list of translog files asynchronously using the {@code REMOTE_PURGE} threadpool.
      *
