@@ -11,29 +11,28 @@ package org.opensearch.identity.scopes;
 import java.security.Principal;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
+import org.opensearch.identity.ApplicationAwareSubject;
 import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.ScopeAwareSubject;
 import org.opensearch.identity.tokens.AuthToken;
 
-public class ScopedSubject implements ScopeAwareSubject {
+public class ScopedSubject implements ApplicationAwareSubject {
 
     Set<Scope> scopes;
     Principal principal;
 
-    ScopedSubject() {
-        principal = new NamedPrincipal("ScopedSubject");
-        scopes = Set.of();
+    ScopedSubject(Set<Scope> scopeSets) {
+        principal = new NamedPrincipal(this.toString());
+        scopes = scopeSets;
     }
 
     @Override
-    public Set<String> getScopes() {
-        return scopes.stream().map((scope) -> toString()).collect(Collectors.toSet());
+    public Set<Scope> getScopes() {
+        return scopes;
     }
 
     @Override
-    public void setScopes(Set<Scope> scopes) {
-        this.scopes = scopes;
+    public boolean applicationExists() {
+        return false;
     }
 
     @Override

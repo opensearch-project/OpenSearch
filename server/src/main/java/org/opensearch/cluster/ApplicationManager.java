@@ -9,6 +9,7 @@
 package org.opensearch.cluster;
 
 import java.security.Principal;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -17,7 +18,6 @@ import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.ApplicationSubject;
 import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.Scope;
-import org.opensearch.identity.scopes.ScopeEnums;
 
 /**
  * The ApplicationManager class handles the processing and resolution of multiple types of applications. Using the class, OpenSearch can
@@ -41,44 +41,6 @@ public class ApplicationManager {
     }
 
     /**
-     * This method allows for checking the ApplicationScopes associated with an application
-     * @param principal The principal of the application whose scopes you want to check
-     * @return A set of all application scopes associated with that principal
-     */
-    public Set<String> getApplicationScopes(Principal principal) {
-
-        if (extensionManager.getExtensionPrincipals().contains(principal)) {
-            return extensionManager.getExtensionIdMap()
-                .get(principal.getName())
-                .getScopes()
-                .stream()
-                .filter(scope -> Scope.parseScopeFromString(scope).getNamespace() == ScopeEnums.ScopeNamespace.APPLICATION)
-                .collect(Collectors.toSet());
-        }
-
-        return Set.of();
-    }
-
-    /**
-     * This method allows for checking the ActionScopes associated with an application
-     * @param principal The principal of the application whose scopes you want to check
-     * @return A set of all action scopes associated with that principal
-     */
-    public Set<String> getActionScopes(Principal principal) {
-
-        if (extensionManager.getExtensionPrincipals().contains(principal)) {
-            return extensionManager.getExtensionIdMap()
-                .get(principal.getName())
-                .getScopes()
-                .stream()
-                .filter(scope -> Scope.parseScopeFromString(scope).getNamespace() == ScopeEnums.ScopeNamespace.ACTION)
-                .collect(Collectors.toSet());
-        }
-
-        return Set.of();
-    }
-
-    /**
      * Checks scopes of an application subject and determine if it is allowed to perform an operation based on the given scopes
      * @param wrapped The ApplicationSubject whose scopes should be evaluated
      * @param scopes The scopes to check against the subject
@@ -90,47 +52,39 @@ public class ApplicationManager {
 
         if (optionalPrincipal.isEmpty()) {
             // If there is no application, actions are allowed by default
+
             return true;
         }
 
         if (!wrapped.applicationExists()) {
+
             return false;
         }
 
-        final Set<String> scopesOfApplication = wrapped.getScopes();
+        final Set<Scope> scopesOfApplication = wrapped.getScopes();
 
-        boolean isApplicationSuperUser = scopesOfApplication.stream()
-            .map(Scope::parseScopeFromString)
-            .anyMatch(parsedScope -> parsedScope.equals(ApplicationScope.SUPER_USER_ACCESS));
+        boolean isApplicationSuperUser = scopesOfApplication.contains(ApplicationScope.SUPER_USER_ACCESS);
 
         if (isApplicationSuperUser) {
 
             return true;
         }
 
-        boolean isMatchingScopePresent = scopesOfApplication.stream()
-            .map(Scope::parseScopeFromString)
-            .anyMatch(parsedScope -> scopes.stream().anyMatch(parsedScope::equals));
+        Set<Scope> intersection = new HashSet<>(scopesOfApplication);
+
+        // Retain only the elements present in the list
+        intersection.retainAll(scopes.stream().map(Scope::asPermissionString).collect(Collectors.toSet()));
+
+        boolean isMatchingScopePresent = !intersection.isEmpty();
 
         return isMatchingScopePresent;
     }
 
-    /**
-     * This method allows for checking the ExtensionPointScopes associated with an application
-     * @param principal The principal of the application whose scopes you want to check
-     * @return A set of all extension point scopes associated with that principal
-     */
-    public Set<String> getExtensionPointScopes(Principal principal) {
+    public Set<Scope> getScopes(Principal principal) {
 
         if (extensionManager.getExtensionPrincipals().contains(principal)) {
-            return extensionManager.getExtensionIdMap()
-                .get(principal.getName())
-                .getScopes()
-                .stream()
-                .filter(scope -> Scope.parseScopeFromString(scope).getNamespace() == ScopeEnums.ScopeNamespace.EXTENSION_POINT)
-                .collect(Collectors.toSet());
+            return extensionManager.getExtensionIdMap().get(principal.getName()).getScopes();
         }
-
         return Set.of();
     }
 

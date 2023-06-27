@@ -11,9 +11,9 @@
 package org.opensearch.identity;
 
 import java.security.Principal;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.tokens.AuthToken;
@@ -26,6 +26,7 @@ import org.opensearch.identity.tokens.AuthToken;
  *
  * @opensearch.experimental
  */
+@SuppressWarnings("overrides")
 public class ApplicationSubject implements ApplicationAwareSubject {
 
     private final Subject wrapped;
@@ -51,17 +52,8 @@ public class ApplicationSubject implements ApplicationAwareSubject {
      * Because the wrapped subject is just a basic Subject, it may not know its own scopes. This circumvents this issue.
      * @return A set of Strings representing the scopes associated with the wrapped subject's principal
      */
-    public Set<String> getScopes() {
-        return ApplicationManager.getInstance().getApplicationScopes(wrapped.getPrincipal());
-    }
-
-    /**
-     * Throw an exception since you should not be able to modify the scopes of an application after startup.
-     * @param scopes The target scopes of the appplication.
-     */
-    @Override
-    public void setScopes(Set<Scope> scopes) {
-        throw new OpenSearchException("Could not set scopes of ApplicationSubject {}, to {}.", getPrincipal().getName(), scopes);
+    public Set<Scope> getScopes() {
+        return ApplicationManager.getInstance().getScopes(wrapped.getPrincipal());
     }
 
     // Passthroughs for wrapped subject
@@ -77,4 +69,16 @@ public class ApplicationSubject implements ApplicationAwareSubject {
         return wrapped.getApplication();
     }
     // end Passthroughs for wrapped subject
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof ApplicationSubject)) {
+            return false;
+        }
+        ApplicationSubject other = (ApplicationSubject) obj;
+        return Objects.equals(this.getScopes(), other.getScopes());
+    }
 }

@@ -8,93 +8,124 @@
 
 package org.opensearch.identity.scopes;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.security.Principal;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.junit.Assert;
 import org.junit.Before;
-import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.indices.shrink.ResizeAction;
 import org.opensearch.action.get.GetAction;
 import org.opensearch.action.get.MultiGetAction;
 import org.opensearch.cluster.ApplicationManager;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.ApplicationSubject;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.ScopeAwareSubject;
+import org.opensearch.identity.NamedPrincipal;
 import org.opensearch.identity.Subject;
 import org.opensearch.test.OpenSearchTestCase;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 public class ActionScopeTests extends OpenSearchTestCase {
 
-    Subject basicSubject;
-    ScopeAwareSubject scopeAwareSubject;
-    ApplicationManager applicationManager;
-    ExtensionsManager extensionsManager;
-    IdentityService identityService;
+    private Subject basicSubject;
+    private ExtensionsManager extensionsManager;
+    private ApplicationManager applicationManager;
+    private IdentityService identityService;
+    private Map<String, DiscoveryExtensionNode> extensionIdMap;
+
+    private DiscoveryExtensionNode expectedExtensionNode = new DiscoveryExtensionNode(
+        "firstExtension",
+        "uniqueid1",
+        new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+        new HashMap<>(),
+        Version.CURRENT,
+        Version.CURRENT,
+        List.of(),
+        List.of(ActionScope.READ)
+    );
+
+    public ActionScopeTests() throws UnknownHostException {}
 
     @Before
     public void setup() {
         basicSubject = mock(Subject.class);
-        scopeAwareSubject = mock(ScopeAwareSubject.class);
         identityService = mock(IdentityService.class);
         extensionsManager = mock(ExtensionsManager.class);
-        applicationManager = new ApplicationManager(extensionsManager);
+        applicationManager = spy(new ApplicationManager(extensionsManager));
+        extensionIdMap = new HashMap<>();
     }
 
     public void testAssignActionScopes() {
-
-        ScopedSubject subject = new ScopedSubject();
         Set<Scope> allowedScopes = Set.of(ActionScope.READ);
-        subject.setScopes(allowedScopes);
-        assertEquals(subject.getScopes(), allowedScopes.stream().map((scope) -> toString()).collect(Collectors.toSet()));
+        ScopedSubject subject = new ScopedSubject(allowedScopes);
+        assertEquals(subject.getScopes(), allowedScopes);
 
-        ApplicationSubject appSubject = new ApplicationSubject(subject);
-        assertEquals(appSubject.getScopes(), allowedScopes.stream().map((scope) -> toString()).collect(Collectors.toSet()));
+        doReturn(extensionIdMap.keySet().stream().map(key -> (Principal) () -> key).collect(Collectors.toList())).when(extensionsManager)
+            .getExtensionPrincipals();
 
-        // Should fail to assign scopes to ApplicationSubject directly
-        appSubject = new ApplicationSubject(basicSubject);
-        allowedScopes = Set.of(ActionScope.READ);
-        ApplicationSubject finalAppSubject = appSubject;
-        Set<Scope> finalAllowedScopes = allowedScopes;
-        final var exception = Assert.assertThrows(OpenSearchException.class, () -> finalAppSubject.setScopes(finalAllowedScopes));
-        assertTrue(exception.getMessage().contains("Could not set scopes of ApplicationSubject"));
+        extensionIdMap.put(String.valueOf(subject.principal), expectedExtensionNode);
+        ApplicationSubject appSubject = spy(new ApplicationSubject(subject));
+        doReturn(subject.getScopes()).when(appSubject).getScopes();
+        assertEquals(appSubject.getScopes(), allowedScopes);
     }
 
     public void testCallActionShouldFail() {
-
-        ScopedSubject subject = new ScopedSubject();
         Set<Scope> allowedScopes = Set.of(ActionScope.READ);
-        subject.setScopes(allowedScopes);
-        assertEquals(subject.getScopes(), allowedScopes.stream().map((scope) -> toString()).collect(Collectors.toSet()));
-        ApplicationSubject appSubject = new ApplicationSubject(subject);
-        assertEquals(appSubject.getScopes(), allowedScopes.stream().map((scope) -> toString()).collect(Collectors.toSet()));
+        ScopedSubject subject = new ScopedSubject(allowedScopes);
+        assertEquals(subject.getScopes(), allowedScopes);
+
+        doReturn(extensionIdMap.keySet().stream().map(key -> (Principal) () -> key).collect(Collectors.toList())).when(extensionsManager)
+            .getExtensionPrincipals();
+
+        extensionIdMap.put(String.valueOf(subject.principal), expectedExtensionNode);
+        ApplicationSubject appSubject = spy(new ApplicationSubject(subject));
+
+        doReturn(Optional.of(new NamedPrincipal("TestApplication"))).when(appSubject).getApplication();
+
+        doReturn(allowedScopes).when(appSubject).getScopes();
 
         doReturn(true).when(appSubject).applicationExists();
-        doReturn(allowedScopes.stream().map(Scope::asPermissionString).collect(Collectors.toSet())).when(appSubject).applicationExists();
+        doReturn(allowedScopes.stream().map(Scope::asPermissionString).collect(Collectors.toSet())).when(appSubject).getScopes();
 
         assertTrue(ApplicationManager.getInstance().isAllowed(appSubject, new ArrayList<>(allowedScopes)));
 
         ResizeAction resizeAction = ResizeAction.INSTANCE;
         ClusterStateAction clusterStateAction = ClusterStateAction.INSTANCE;
+
         assertFalse(ApplicationManager.getInstance().isAllowed(appSubject, resizeAction.getAllowedScopes()));
         assertFalse(ApplicationManager.getInstance().isAllowed(appSubject, clusterStateAction.getAllowedScopes()));
     }
 
     public void testCallActionShouldPass() {
 
-        ScopedSubject subject = new ScopedSubject();
         Set<Scope> allowedScopes = Set.of(ActionScope.READ);
-        subject.setScopes(allowedScopes);
-        assertEquals(subject.getScopes(), allowedScopes.stream().map((scope) -> toString()).collect(Collectors.toSet()));
-        ApplicationSubject appSubject = new ApplicationSubject(subject);
-        assertEquals(appSubject.getScopes(), allowedScopes.stream().map((scope) -> toString()).collect(Collectors.toSet()));
+        ScopedSubject subject = new ScopedSubject(allowedScopes);
+        assertEquals(subject.getScopes(), allowedScopes);
+
+        doReturn(extensionIdMap.keySet().stream().map(key -> (Principal) () -> key).collect(Collectors.toList())).when(extensionsManager)
+            .getExtensionPrincipals();
+
+        extensionIdMap.put(String.valueOf(subject.principal), expectedExtensionNode);
+        ApplicationSubject appSubject = spy(new ApplicationSubject(subject));
+
+        doReturn(Optional.of(new NamedPrincipal("TestApplication"))).when(appSubject).getApplication();
+
+        doReturn(allowedScopes).when(appSubject).getScopes();
 
         doReturn(true).when(appSubject).applicationExists();
-        doReturn(allowedScopes.stream().map(Scope::asPermissionString).collect(Collectors.toSet())).when(appSubject).applicationExists();
+        doReturn(allowedScopes.stream().map(Scope::asPermissionString).collect(Collectors.toSet())).when(appSubject).getScopes();
 
         assertTrue(ApplicationManager.getInstance().isAllowed(appSubject, new ArrayList<>(allowedScopes)));
 

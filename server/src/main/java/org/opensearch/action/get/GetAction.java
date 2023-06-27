@@ -53,7 +53,7 @@ public class GetAction extends ActionType<GetResponse> {
 
     @Override
     public List<Scope> getAdditionalScopes() {
-        return List.of(ActionScope.READ, ActionScope.ALL);
+        return List.of(ActionScope.READ);
     }
 
 }

@@ -367,8 +367,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         IOException exception = expectThrows(IOException.class, () -> extensionsManager.loadExtension(firstExtension));
         assertEquals("Required field [minimum opensearch version] is missing in the request", exception.getMessage());
 
-<<<<<<< HEAD
-
         assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
 
             extensionsManager = new ExtensionsManager(emptyExtensionDir, Set.of());
@@ -376,8 +374,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             mockLogAppender.assertAllExpectationsMatched();
         }
 
-=======
->>>>>>> ae411c7d358 (Update extension manager)
         List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
 
         expectedExtensions.add(
@@ -873,7 +869,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     }
 
-<<<<<<< HEAD
     public void testIncompatibleExtensionRegistration() throws IOException {
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
         Extension firstExtension = new Extension(
@@ -889,38 +884,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         );
         expectThrows(OpenSearchException.class, () -> extensionsManager.loadExtension(firstExtension));
         assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
-
-=======
-    public void testIncompatibleExtensionRegistration() throws IOException, IllegalAccessException {
-
-        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "Could not load extension with uniqueId",
-                    "org.opensearch.extensions.ExtensionsManager",
-                    Level.ERROR,
-                    "Could not load extension with uniqueId uniqueid1 due to OpenSearchException[Extension minimumCompatibleVersion: 3.99.0 is greater than current"
-                )
-            );
-
-            List<String> incompatibleExtension = Arrays.asList(
-                "extensions:",
-                "   - name: firstExtension",
-                "     uniqueId: uniqueid1",
-                "     hostAddress: '127.0.0.0'",
-                "     port: '9300'",
-                "     version: '0.0.7'",
-                "     opensearchVersion: '3.0.0'",
-                "     minimumCompatibleVersion: '3.99.0'",
-                "     scopes: ['Index_ALL']"
-            );
-
-            ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
-            assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
-            mockLogAppender.assertAllExpectationsMatched();
-        }
->>>>>>> ae411c7d358 (Update extension manager)
     }
 
     public void testAdditionalExtensionSettingsForExtensionWithCustomSettingSet() throws IOException {
@@ -960,7 +923,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Version.fromString("3.0.0"),
             Version.fromString("3.0.0"),
             List.of(),
-            List.of("test")
+            List.of()
         );
         DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
         assertEquals(extension.getName(), initializedExtension.getName());

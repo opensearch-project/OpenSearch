@@ -58,6 +58,7 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;

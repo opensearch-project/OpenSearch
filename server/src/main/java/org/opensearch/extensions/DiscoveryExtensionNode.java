@@ -25,6 +25,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.identity.scopes.Scope;
 
 /**
  * Discover extensions running independently or in a separate process
@@ -36,7 +37,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     private Version minimumCompatibleVersion;
     private List<ExtensionDependency> dependencies = Collections.emptyList();
     private List<String> implementedInterfaces = Collections.emptyList();
-    private List<String> scopes = List.of();
+    private List<Scope> scopes = List.of();
 
     public DiscoveryExtensionNode(
         String name,
@@ -46,7 +47,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         Version version,
         Version minimumCompatibleVersion,
         List<ExtensionDependency> dependencies,
-        List<String> scopes
+        List<Scope> scopes
     ) {
         super(name, id, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
         this.minimumCompatibleVersion = minimumCompatibleVersion;
@@ -93,7 +94,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         return implementedInterfaces;
     }
 
-    public Set<String> getScopes() {
+    public Set<Scope> getScopes() {
         return new HashSet<>(this.scopes);
     }
 

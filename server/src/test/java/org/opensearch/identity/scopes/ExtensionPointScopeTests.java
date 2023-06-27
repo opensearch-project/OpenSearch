@@ -15,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.cluster.ApplicationManager;
@@ -55,7 +54,7 @@ public class ExtensionPointScopeTests extends OpenSearchTestCase {
         Version.fromString("3.0.0"),
         Version.fromString("3.0.0"),
         Collections.emptyList(),
-        List.of("EXTENSION_POINT.ACTION_PLUGIN.IMPLEMENT")
+        List.of(Scope.parseScopeFromString("EXTENSION_POINT.ACTION_PLUGIN.IMPLEMENT"))
     );
 
     DiscoveryExtensionNode extensionNode2 = new DiscoveryExtensionNode(
@@ -66,7 +65,7 @@ public class ExtensionPointScopeTests extends OpenSearchTestCase {
         Version.fromString("3.0.0"),
         Version.fromString("3.0.0"),
         Collections.emptyList(),
-        List.of("")
+        List.of()
     );
 
     public ExtensionPointScopeTests() throws UnknownHostException {}
@@ -92,17 +91,8 @@ public class ExtensionPointScopeTests extends OpenSearchTestCase {
         // Redirect scope request from whatever the subject is to an extension registered with the ExtensionManager
         // Todo: This will need to be swapped once Plugins acting as Extensions is implemented.
         doReturn(namedPrincipal1).when(wrappedPlugin).getPrincipal();
-        doReturn(
-            extensionMap.get("uniqueid1")
-                .getScopes()
-                .stream()
-                .filter(scope -> Scope.parseScopeFromString(scope).getNamespace() == ScopeEnums.ScopeNamespace.EXTENSION_POINT)
-                .collect(Collectors.toSet())
-        ).when(applicationManager).getExtensionPointScopes(namedPrincipal1);
-        assertEquals(
-            applicationManager.getExtensionPointScopes(wrappedPlugin.getPrincipal()),
-            Set.of(ExtensionPointScope.ACTION.asPermissionString())
-        );
+        doReturn(extensionMap.get("uniqueid1").getScopes()).when(applicationManager).getScopes(namedPrincipal1);
+        assertEquals(applicationManager.getScopes(wrappedPlugin.getPrincipal()), Set.of(ExtensionPointScope.ACTION.asPermissionString()));
 
         // Extract the functionality of the wrapped plugin method getTaskHeaders and check is allowed
         // Cannot call methods in class directly since require extensionManager, applicationManager; will require further development before

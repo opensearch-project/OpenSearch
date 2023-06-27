@@ -60,9 +60,4 @@ public interface Scope {
                 throw new UnknownScopeException(scopeAsString);
         }
     }
-
-    default boolean isScopeInNamespace(String scope) {
-
-        return parseScopeFromString(scope).getNamespace().equals(getNamespace());
-    }
 }

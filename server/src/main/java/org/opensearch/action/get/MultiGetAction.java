@@ -53,6 +53,6 @@ public class MultiGetAction extends ActionType<MultiGetResponse> {
 
     @Override
     public List<Scope> getAdditionalScopes() {
-        return List.of(ActionScope.READ, ActionScope.ALL);
+        return List.of(ActionScope.READ);
     }
 }

@@ -8,6 +8,9 @@
 
 package org.opensearch.identity;
 
+import java.util.Set;
+import org.opensearch.identity.scopes.Scope;
+
 /**
  * This interface extends the ScopeAwareSubject but expects implementing classes to be able to verify whether an associated
  * application exists.
@@ -15,8 +18,9 @@ package org.opensearch.identity;
  * It is separate from ScopeAwareSubject since traditional Users would not have an Application associated with their Subjects, but could still
  * make use of Scopes.
  */
-public interface ApplicationAwareSubject extends ScopeAwareSubject {
+public interface ApplicationAwareSubject extends Subject {
+
+    Set<Scope> getScopes();
 
     boolean applicationExists();
-
 }

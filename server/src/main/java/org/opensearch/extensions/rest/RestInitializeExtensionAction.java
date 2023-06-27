@@ -15,6 +15,7 @@ import org.opensearch.extensions.ExtensionDependency;
 import org.opensearch.extensions.ExtensionScopedSettings;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -62,7 +63,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         String openSearchVersion = null;
         String minimumCompatibleVersion = null;
         List<ExtensionDependency> dependencies = new ArrayList<>();
-        List<String> scopes = new ArrayList<>();
+        List<Scope> scopes = new ArrayList<>();
 
         try (XContentParser parser = request.contentParser()) {
             parser.nextToken();
@@ -92,7 +93,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
                 } else if ("scopes".equals(currentFieldName)) {
                     ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        scopes.add(parser.text());
+                        scopes.add(Scope.parseScopeFromString(parser.text()));
                     }
                 }
             }
