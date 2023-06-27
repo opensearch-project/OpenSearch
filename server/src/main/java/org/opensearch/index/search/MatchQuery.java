@@ -56,7 +56,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.QueryBuilder;
-import org.apache.lucene.util.TermAndBoost;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
