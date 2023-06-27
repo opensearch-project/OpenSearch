@@ -72,6 +72,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     private static final int REMOTE_REFRESH_RETRY_MAX_INTERVAL_MILLIS = 10_000;
 
+    private static final int INVALID_PRIMARY_TERM = -1;
+
     /**
      * Exponential back off policy with max retry interval.
      */
@@ -88,7 +90,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final IndexShard indexShard;
     private final Directory storeDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory;
-    private RemoteSegmentMetadata remoteSegmentMetadata;
     private final RemoteRefreshSegmentTracker segmentTracker;
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
@@ -120,15 +121,18 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
             .getDelegate()).getDelegate();
-        this.primaryTerm = indexShard.getOperationPrimaryTerm();
         localSegmentChecksumMap = new HashMap<>();
+        RemoteSegmentMetadata remoteSegmentMetadata = null;
         if (indexShard.routingEntry().primary()) {
             try {
-                this.remoteSegmentMetadata = this.remoteDirectory.init();
+                remoteSegmentMetadata = this.remoteDirectory.init();
             } catch (IOException e) {
                 logger.error("Exception while initialising RemoteSegmentStoreDirectory", e);
             }
         }
+        // initializing primary term with the primary term of latest metadata in remote store.
+        // if no metadata is present, this value will be initilized with -1.
+        this.primaryTerm = remoteSegmentMetadata != null ? remoteSegmentMetadata.getPrimaryTerm() : INVALID_PRIMARY_TERM;
         this.segmentTracker = segmentTracker;
         resetBackOffDelayIterator();
         this.checkpointPublisher = checkpointPublisher;
@@ -165,7 +169,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     @Override
     public void afterRefresh(boolean didRefresh) {
-        if ((remoteSegmentMetadata != null && remoteSegmentMetadata.getPrimaryTerm() != indexShard.getOperationPrimaryTerm())
+        if (this.primaryTerm != indexShard.getOperationPrimaryTerm()
             || didRefresh
             || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
             updateLocalRefreshTimeAndSeqNo();
@@ -190,7 +194,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
             if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
                 this.primaryTerm = indexShard.getOperationPrimaryTerm();
-                remoteSegmentMetadata = this.remoteDirectory.init();
+                this.remoteDirectory.init();
             }
             try {
                 // if a new segments_N file is present in local that is not uploaded to remote store yet, it
