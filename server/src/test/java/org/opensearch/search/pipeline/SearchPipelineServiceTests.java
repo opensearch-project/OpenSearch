@@ -36,7 +36,6 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -914,7 +913,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
     public void testAdHocRejectingProcessor() {
         String processorType = "ad_hoc_rejecting";
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories = Map.of(processorType, (pf, t, d, c) -> {
-            if (ConfigurationUtils.readBooleanProperty(processorType, t, c, Processor.AD_HOC_PIPELINE, false)) {
+            if (c.get(Processor.PIPELINE_SOURCE) == Processor.PipelineSource.SEARCH_REQUEST) {
                 throw new IllegalArgumentException(processorType + " cannot be created as part of a pipeline defined in a search request");
             }
             return new FakeRequestProcessor(processorType, t, d, r -> {});
