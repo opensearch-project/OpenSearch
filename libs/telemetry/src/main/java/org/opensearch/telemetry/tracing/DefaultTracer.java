@@ -40,16 +40,13 @@ public class DefaultTracer implements Tracer {
         Span span = createSpan(spanName, getCurrentSpan());
         setCurrentSpanInContext(span);
         addDefaultAttributes(span);
-        return new ScopeImpl(() -> endSpan());
+        return new ScopeImpl(() -> endSpan(span));
     }
 
     @Override
     public void endSpan() {
         Span currentSpan = getCurrentSpan();
-        if (currentSpan != null) {
-            currentSpan.endSpan();
-            setCurrentSpanInContext(currentSpan.getParentSpan());
-        }
+        endSpan(currentSpan);
     }
 
     @Override
@@ -90,6 +87,13 @@ public class DefaultTracer implements Tracer {
     // Visible for testing
     Span getCurrentSpan() {
         return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
+    }
+
+    private void endSpan(Span span) {
+        if (span != null) {
+            span.endSpan();
+            setCurrentSpanInContext(span.getParentSpan());
+        }
     }
 
     private Span createSpan(String spanName, Span parentSpan) {
