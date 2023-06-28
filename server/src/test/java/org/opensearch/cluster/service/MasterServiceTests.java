@@ -103,7 +103,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
     public static void createThreadPool() {
         threadPool = new TestThreadPool(MasterServiceTests.class.getName()) {
             @Override
-            public long absoluteTimeInNanos() {
+            public long preciseRelativeTimeInNanos() {
                 return timeDiffInMillis * TimeValue.NSEC_PER_MSEC;
             }
         };
