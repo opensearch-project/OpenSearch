@@ -38,16 +38,19 @@ public class RemoteSegmentMetadata {
 
     private final byte[] segmentInfosBytes;
 
+    private final long primaryTerm;
     private final long generation;
 
     public RemoteSegmentMetadata(
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata,
         byte[] segmentInfosBytes,
+        long primaryTerm,
         long generation
     ) {
         this.metadata = metadata;
         this.segmentInfosBytes = segmentInfosBytes;
         this.generation = generation;
+        this.primaryTerm = primaryTerm;
     }
 
     /**
@@ -64,6 +67,10 @@ public class RemoteSegmentMetadata {
 
     public long getGeneration() {
         return generation;
+    }
+
+    public long getPrimaryTerm() {
+        return primaryTerm;
     }
 
     /**
@@ -93,6 +100,7 @@ public class RemoteSegmentMetadata {
     public void write(IndexOutput out) throws IOException {
         out.writeMapOfStrings(toMapOfStrings());
         out.writeLong(generation);
+        out.writeLong(primaryTerm);
         out.writeLong(segmentInfosBytes.length);
         out.writeBytes(segmentInfosBytes, segmentInfosBytes.length);
     }
@@ -100,9 +108,10 @@ public class RemoteSegmentMetadata {
     public static RemoteSegmentMetadata read(IndexInput indexInput) throws IOException {
         Map<String, String> metadata = indexInput.readMapOfStrings();
         long generation = indexInput.readLong();
+        long primaryTerm = indexInput.readLong();
         int byteArraySize = (int) indexInput.readLong();
         byte[] segmentInfosBytes = new byte[byteArraySize];
         indexInput.readBytes(segmentInfosBytes, 0, byteArraySize);
-        return new RemoteSegmentMetadata(RemoteSegmentMetadata.fromMapOfStrings(metadata), segmentInfosBytes, generation);
+        return new RemoteSegmentMetadata(RemoteSegmentMetadata.fromMapOfStrings(metadata), segmentInfosBytes, primaryTerm, generation);
     }
 }

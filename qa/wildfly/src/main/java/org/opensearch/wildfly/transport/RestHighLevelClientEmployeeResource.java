@@ -32,6 +32,15 @@
 
 package org.opensearch.wildfly.transport;
 
+import jakarta.inject.Inject;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.PUT;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
@@ -41,14 +50,6 @@ import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.wildfly.model.Employee;
 
-import javax.inject.Inject;
-import javax.ws.rs.GET;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -88,6 +89,7 @@ public class RestHighLevelClientEmployeeResource {
 
     @PUT
     @Path("/{id}")
+    @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response putEmployeeById(final @PathParam("id") Long id, final Employee employee) throws URISyntaxException, IOException {
         Objects.requireNonNull(id);
