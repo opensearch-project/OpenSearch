@@ -22,34 +22,34 @@ jobs:
     timeout-minutes: 130
     steps:
       - name: Checkout OpenSearch repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup environment variables (PR)
         if: github.event_name == 'pull_request_target'
         run: |
-            echo "pr_from_sha=$(jq --raw-output .pull_request.head.sha $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
-            echo "pr_from_clone_url=$(jq --raw-output .pull_request.head.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
-            echo "pr_to_clone_url=$(jq --raw-output .pull_request.base.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
-            echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
-            echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_from_sha=$(jq --raw-output .pull_request.head.sha $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_from_clone_url=$(jq --raw-output .pull_request.head.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_to_clone_url=$(jq --raw-output .pull_request.base.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
 
       - name: Setup environment variables (Push)
         if: github.event_name == 'push'
         run: |
-            repo_url="https://github.com/opensearch-project/OpenSearch"
-            ref_id=$(git rev-parse HEAD)
-            branch_name=$(git rev-parse --abbrev-ref HEAD)
-            echo "branch_name=$branch_name" >> $GITHUB_ENV
-            echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
-            echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
-            echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
-            echo "pr_title=Push trigger $branch_name $ref_id $repo_url" >> $GITHUB_ENV
-            echo "pr_number=Null" >> $GITHUB_ENV
+          repo_url="https://github.com/opensearch-project/OpenSearch"
+          ref_id=$(git rev-parse HEAD)
+          branch_name=$(git rev-parse --abbrev-ref HEAD)
+          echo "branch_name=$branch_name" >> $GITHUB_ENV
+          echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
+          echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
+          echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
+          echo "pr_title=Push trigger $branch_name $ref_id $repo_url" >> $GITHUB_ENV
+          echo "pr_number=Null" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: opensearch-project/opensearch-build
           ref: main
@@ -57,17 +57,17 @@ jobs:
 
       - name: Trigger jenkins workflow to run gradle check
         run: |
-            set -e
-            set -o pipefail
-            bash opensearch-build/scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
+          set -e
+          set -o pipefail
+          bash opensearch-build/scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
 
       - name: Setup Result Status
         if: always()
         run: |
-            WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
-            RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
-            echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
-            echo "result=$RESULT" >> $GITHUB_ENV
+          WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
+          RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
+          echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
+          echo "result=$RESULT" >> $GITHUB_ENV
 
       - name: Upload Coverage Report
         if: success()
@@ -81,25 +81,25 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-              ### Gradle Check (Jenkins) Run Completed with:
-              * **RESULT:** ${{ env.result }} :white_check_mark:
-              * **URL:** ${{ env.workflow_url }}
-              * **CommitID:** ${{ env.pr_from_sha }}
+            ### Gradle Check (Jenkins) Run Completed with:
+            * **RESULT:** ${{ env.result }} :white_check_mark:
+            * **URL:** ${{ env.workflow_url }}
+            * **CommitID:** ${{ env.pr_from_sha }}
 
       - name: Extract Test Failure
         if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
         run: |
-            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
-            if [[ "$TEST_FAILURES" != "" ]]
-            then
-              echo "test_failures<<EOF" >> $GITHUB_ENV
-              echo "" >> $GITHUB_ENV
-              echo "* **TEST FAILURES:**" >> $GITHUB_ENV
-              echo '```' >> $GITHUB_ENV
-              echo "$TEST_FAILURES" >> $GITHUB_ENV
-              echo '```' >> $GITHUB_ENV
-              echo "EOF" >> $GITHUB_ENV
-            fi
+          TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
+          if [[ "$TEST_FAILURES" != "" ]]
+          then
+            echo "test_failures<<EOF" >> $GITHUB_ENV
+            echo "" >> $GITHUB_ENV
+            echo "* **TEST FAILURES:**" >> $GITHUB_ENV
+            echo '```' >> $GITHUB_ENV
+            echo "$TEST_FAILURES" >> $GITHUB_ENV
+            echo '```' >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
 
       - name: Create Comment Flaky
         if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
@@ -119,12 +119,12 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-              ### Gradle Check (Jenkins) Run Completed with:
-              * **RESULT:** ${{ env.result }} :x: ${{ env.test_failures }}
-              * **URL:** ${{ env.workflow_url }}
-              * **CommitID:** ${{ env.pr_from_sha }}
-              Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green.
-              Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
+            ### Gradle Check (Jenkins) Run Completed with:
+            * **RESULT:** ${{ env.result }} :x: ${{ env.test_failures }}
+            * **URL:** ${{ env.workflow_url }}
+            * **CommitID:** ${{ env.pr_from_sha }}
+            Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green.
+            Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
 
       - name: Create Issue On Push Failure
         if: ${{ github.event_name == 'push' && failure() }}
