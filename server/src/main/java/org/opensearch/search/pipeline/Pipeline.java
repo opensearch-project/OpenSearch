@@ -203,7 +203,7 @@ class Pipeline {
         null
     );
 
-    <Result extends SearchPhaseResult> void runSearchPhaseTransformer(
+    <Result extends SearchPhaseResult> void runSearchPhaseResultsTransformer(
         SearchPhaseResults<Result> searchPhaseResult,
         SearchPhaseContext context,
         String currentPhase,

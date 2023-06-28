@@ -8,8 +8,8 @@
 
 package org.opensearch.search.pipeline;
 
-import org.opensearch.action.search.SearchPhase;
 import org.opensearch.action.search.SearchPhaseContext;
+import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.internal.SearchContext;
@@ -21,8 +21,8 @@ import org.opensearch.search.internal.SearchContext;
 public interface SearchPhaseResultsProcessor extends Processor {
 
     /**
-     * Processes the {@link SearchPhaseResults} obtained from a {@link SearchPhase} which will be returned to next
-     * {@link SearchPhase}.
+     * Processes the {@link SearchPhaseResults} obtained from a SearchPhase which will be returned to next
+     * SearchPhase.
      * @param searchPhaseResult {@link SearchPhaseResults}
      * @param searchPhaseContext {@link SearchContext}
      * @param <Result> {@link SearchPhaseResult}
@@ -34,14 +34,14 @@ public interface SearchPhaseResultsProcessor extends Processor {
 
     /**
      * The phase which should have run before, this processor can start executing.
-     * @return {@link SearchPhase.SearchPhaseName}
+     * @return {@link SearchPhaseName}
      */
-    SearchPhase.SearchPhaseName getBeforePhase();
+    SearchPhaseName getBeforePhase();
 
     /**
      * The phase which should run after, this processor execution.
-     * @return {@link SearchPhase.SearchPhaseName}
+     * @return {@link SearchPhaseName}
      */
-    SearchPhase.SearchPhaseName getAfterPhase();
+    SearchPhaseName getAfterPhase();
 
 }

@@ -31,13 +31,13 @@ public final class PipelinedRequest extends SearchRequest {
         return pipeline.transformResponse(this, response);
     }
 
-    public <Result extends SearchPhaseResult> void transformSearchPhase(
+    public <Result extends SearchPhaseResult> void transformSearchPhaseResults(
         final SearchPhaseResults<Result> searchPhaseResult,
         final SearchPhaseContext searchPhaseContext,
         final String currentPhase,
         final String nextPhase
     ) {
-        pipeline.runSearchPhaseTransformer(searchPhaseResult, searchPhaseContext, currentPhase, nextPhase);
+        pipeline.runSearchPhaseResultsTransformer(searchPhaseResult, searchPhaseContext, currentPhase, nextPhase);
     }
 
     // Visible for testing

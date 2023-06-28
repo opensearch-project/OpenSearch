@@ -51,7 +51,7 @@ public interface SearchPipelinePlugin {
      * in pipeline configurations, and the value is a {@link org.opensearch.search.pipeline.Processor.Factory}
      * to create the processor from a given pipeline configuration.
      */
-    default Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getPhaseResultsProcessors(Processor.Parameters parameters) {
+    default Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(Processor.Parameters parameters) {
         return Collections.emptyMap();
     }
 }

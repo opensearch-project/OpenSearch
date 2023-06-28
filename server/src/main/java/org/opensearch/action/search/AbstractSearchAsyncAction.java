@@ -699,7 +699,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
         final SearchPhase nextPhase = getNextPhase(results, this);
         if (request instanceof PipelinedRequest && nextPhase != null) {
-            ((PipelinedRequest) request).transformSearchPhase(results, this, this.getName(), nextPhase.getName());
+            ((PipelinedRequest) request).transformSearchPhaseResults(results, this, this.getName(), nextPhase.getName());
         }
         executeNextPhase(this, nextPhase);
     }

@@ -21,9 +21,9 @@ import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.MockSearchPhaseContext;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.search.QueryPhaseResultConsumer;
-import org.opensearch.action.search.SearchPhase;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseController;
+import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchProgressListener;
 import org.opensearch.action.search.SearchRequest;
@@ -85,7 +85,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getPhaseResultsProcessors(Processor.Parameters parameters) {
+        public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(
+            Processor.Parameters parameters
+        ) {
             return Map.of("zoe", (factories, tag, description, config) -> null);
         }
     };
@@ -288,13 +290,13 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SearchPhase.SearchPhaseName getBeforePhase() {
-            return SearchPhase.SearchPhaseName.QUERY;
+        public SearchPhaseName getBeforePhase() {
+            return SearchPhaseName.QUERY;
         }
 
         @Override
-        public SearchPhase.SearchPhaseName getAfterPhase() {
-            return SearchPhase.SearchPhaseName.FETCH;
+        public SearchPhaseName getAfterPhase() {
+            return SearchPhaseName.FETCH;
         }
     }
 
@@ -361,7 +363,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getPhaseResultsProcessors(
+                public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(
                     Processor.Parameters parameters
                 ) {
                     return phaseProcessors;
@@ -683,11 +685,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
         PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
         AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResults = searchPhaseResults.getAtomicArray();
-        pipelinedRequest.transformSearchPhase(
+        pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,
             searchPhaseContext,
-            SearchPhase.SearchPhaseName.QUERY.getName(),
-            SearchPhase.SearchPhaseName.FETCH.getName()
+            SearchPhaseName.QUERY.getName(),
+            SearchPhaseName.FETCH.getName()
         );
         assertSame(searchPhaseResults.getAtomicArray(), notTransformedSearchPhaseResults);
 
@@ -695,11 +697,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         searchRequest = new SearchRequest().pipeline("p1");
         pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
 
-        pipelinedRequest.transformSearchPhase(
+        pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,
             searchPhaseContext,
-            SearchPhase.SearchPhaseName.QUERY.getName(),
-            SearchPhase.SearchPhaseName.FETCH.getName()
+            SearchPhaseName.QUERY.getName(),
+            SearchPhaseName.FETCH.getName()
         );
 
         List<SearchPhaseResult> resultAtomicArray = searchPhaseResults.getAtomicArray().asList();
@@ -713,11 +715,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         searchRequest = new SearchRequest().pipeline("p1");
         pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
         AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResult = searchPhaseResults.getAtomicArray();
-        pipelinedRequest.transformSearchPhase(
+        pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,
             searchPhaseContext,
-            SearchPhase.SearchPhaseName.DFS_QUERY.getName(),
-            SearchPhase.SearchPhaseName.QUERY.getName()
+            SearchPhaseName.DFS_QUERY.getName(),
+            SearchPhaseName.QUERY.getName()
         );
 
         assertSame(searchPhaseResults.getAtomicArray(), notTransformedSearchPhaseResult);

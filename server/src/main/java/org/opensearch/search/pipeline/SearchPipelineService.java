@@ -114,7 +114,10 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         );
         this.requestProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getRequestProcessors(parameters));
         this.responseProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getResponseProcessors(parameters));
-        this.phaseInjectorProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getPhaseResultsProcessors(parameters));
+        this.phaseInjectorProcessorFactories = processorFactories(
+            searchPipelinePlugins,
+            p -> p.getSearchPhaseResultsProcessors(parameters)
+        );
         putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_SEARCH_PIPELINE_KEY, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SEARCH_PIPELINE_KEY, true);
         this.isEnabled = isEnabled;

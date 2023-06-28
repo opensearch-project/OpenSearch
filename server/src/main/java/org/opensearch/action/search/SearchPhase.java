@@ -42,7 +42,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public abstract class SearchPhase implements CheckedRunnable<IOException> {
+abstract class SearchPhase implements CheckedRunnable<IOException> {
     private final String name;
 
     protected SearchPhase(String name) {
@@ -63,27 +63,5 @@ public abstract class SearchPhase implements CheckedRunnable<IOException> {
      */
     public SearchPhaseName getSearchPhaseName() {
         return SearchPhaseName.valueOf(name.toUpperCase(Locale.ROOT));
-    }
-
-    /**
-     * Enum for different Search Phases in OpenSearch
-     * @opensearch.internal
-     */
-    public enum SearchPhaseName {
-        QUERY("query"),
-        FETCH("fetch"),
-        DFS_QUERY("dfs_query"),
-        EXPAND("expand"),
-        CAN_MATCH("can_match");
-
-        private final String name;
-
-        SearchPhaseName(final String name) {
-            this.name = name;
-        }
-
-        public String getName() {
-            return name;
-        }
     }
 }
