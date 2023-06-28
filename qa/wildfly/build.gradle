@@ -58,11 +58,10 @@ dependencies {
   api "com.fasterxml.jackson.jakarta.rs:jackson-jakarta-rs-base:${versions.jackson}"
   api "com.fasterxml.jackson.jakarta.rs:jackson-jakarta-rs-json-provider:${versions.jackson}"
   api "com.github.fge:json-patch:1.9"
-  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api(project(path: ':client:rest-high-level')) {
     exclude module: 'jakarta.annotation-api'
   }
+  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
   testImplementation(project(':test:framework')) {
     exclude module: 'jakarta.annotation-api'
   }

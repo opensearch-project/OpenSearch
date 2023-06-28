@@ -83,7 +83,6 @@ import org.opensearch.common.joda.JodaDeprecationPatterns;
 import org.opensearch.common.logging.DeprecatedMessage;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.HeaderWarningAppender;
-import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -238,7 +237,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps();
-        LogConfigurator.loadLog4jPlugins();
 
         String leakLoggerName = "io.netty.util.ResourceLeakDetector";
         Logger leakLogger = LogManager.getLogger(leakLoggerName);
