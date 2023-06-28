@@ -624,6 +624,7 @@ public class MetadataIndexTemplateService {
         try {
             validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry);
         } catch (Exception e) {
+            logger.error("validate template failed", e);
             throw new IllegalArgumentException(
                 "composable template ["
                     + name

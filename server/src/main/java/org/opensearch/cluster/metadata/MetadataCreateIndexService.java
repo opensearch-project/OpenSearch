@@ -74,8 +74,11 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
@@ -505,12 +508,15 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getSettings(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
-                    temporaryIndexMeta.isSystem()
+                    temporaryIndexMeta.isSystem(),
+                    // Assuming that the templates will be used only from v2
+                    templatesApplied.size() == 1 ? templatesApplied.get(0) : null
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
                 throw e;
             }
+            logger.info("index metadata tempalte: {}", indexMetadata.getTemplate());
 
             logger.log(
                 silent ? Level.DEBUG : Level.INFO,
@@ -1167,7 +1173,8 @@ public class MetadataCreateIndexService {
         Settings indexSettings,
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
-        boolean isSystem
+        boolean isSystem,
+        String template
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
@@ -1187,6 +1194,7 @@ public class MetadataCreateIndexService {
         for (int i = aliases.size() - 1; i >= 0; i--) {
             indexMetadataBuilder.putAlias(aliases.get(i));
         }
+        indexMetadataBuilder.createdFromTemplate(template);
 
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);
         return indexMetadataBuilder.build();

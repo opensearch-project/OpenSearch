@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import com.carrotsearch.hppc.LongArrayList;
 import org.opensearch.core.Assertions;
 import org.opensearch.LegacyESVersion;
@@ -98,6 +100,7 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
  * @opensearch.internal
  */
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
+    private static final Logger logger = LogManager.getLogger(IndexMetadata.class);
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(
         5,
@@ -675,6 +678,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ActiveShardCount waitForActiveShards;
     private final Map<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
+    // template name for now. but unique Id later
+    // UUID of template should be used
+    // if we use template name + version then version is user generated.
+    // if we use some other auto-gen version then customer can delete and recreate the template and reach that version
+    // to do: determine the right location for this attribute - whether in the settings ?
+    // to do: handle null. should it be an optional attribute
+    private final String createdFromTemplate;
 
     private IndexMetadata(
         final Index index,
@@ -701,7 +711,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int routingPartitionSize,
         final ActiveShardCount waitForActiveShards,
         final Map<String, RolloverInfo> rolloverInfos,
-        final boolean isSystem
+        final boolean isSystem,
+        final String createdFromTemplate
     ) {
 
         this.index = index;
@@ -735,6 +746,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = Collections.unmodifiableMap(rolloverInfos);
         this.isSystem = isSystem;
+        this.createdFromTemplate = createdFromTemplate;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -843,6 +855,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public Map<String, AliasMetadata> getAliases() {
         return this.aliases;
+    }
+
+    public String getTemplate() {
+        return createdFromTemplate;
     }
 
     /**
@@ -1021,6 +1037,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<Map<Integer, Set<String>>> inSyncAllocationIds;
         private final Diff<Map<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
+        //template name to be added here
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -1112,6 +1129,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(part.isSystem);
+            builder.createdFromTemplate(part.createdFromTemplate);
             return builder.build();
         }
     }
@@ -1153,6 +1171,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.putRolloverInfo(new RolloverInfo(in));
         }
         builder.system(in.readBoolean());
+        builder.createdFromTemplate(in.readOptionalString());
         return builder.build();
     }
 
@@ -1190,6 +1209,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             cursor.writeTo(out);
         }
         out.writeBoolean(isSystem);
+        out.writeOptionalString(createdFromTemplate);
     }
 
     public boolean isSystem() {
@@ -1226,6 +1246,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Map<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
         private boolean isSystem;
+        private String createdFromTemplate;
 
         public Builder(String index) {
             this.index = index;
@@ -1253,6 +1274,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds = new HashMap<>(indexMetadata.inSyncAllocationIds);
             this.rolloverInfos = new HashMap<>(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
+            this.createdFromTemplate = indexMetadata.createdFromTemplate;
         }
 
         public Builder index(String index) {
@@ -1469,6 +1491,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return isSystem;
         }
 
+        public Builder createdFromTemplate(String template) {
+            this.createdFromTemplate = template;
+            return this;
+        }
+
+        public String createdFromTemplate() {
+            return this.createdFromTemplate;
+        }
+
         public IndexMetadata build() {
             final Map<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -1594,7 +1625,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 routingPartitionSize,
                 waitForActiveShards,
                 rolloverInfos,
-                isSystem
+                isSystem,
+                createdFromTemplate
             );
         }
 
@@ -1696,6 +1728,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             builder.endObject();
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);
+
+            logger.info("adding template: {}", indexMetadata.createdFromTemplate);
+            if (!Strings.isNullOrEmpty(indexMetadata.createdFromTemplate)) {
+                builder.field("template", indexMetadata.createdFromTemplate);
+            }
 
             builder.endObject();
         }
@@ -1826,6 +1863,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         builder.setRoutingNumShards(parser.intValue());
                     } else if (KEY_SYSTEM.equals(currentFieldName)) {
                         builder.system(parser.booleanValue());
+                    } else if ("template".equals(currentFieldName)) {
+                        builder.createdFromTemplate(parser.textOrNull());
                     } else {
                         throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }

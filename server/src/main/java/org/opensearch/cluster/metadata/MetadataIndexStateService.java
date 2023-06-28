@@ -845,6 +845,7 @@ public class MetadataIndexStateService {
 
         final Set<String> closedIndices = new HashSet<>();
         Map<Index, IndexResult> closingResults = new HashMap<>(verifyResult);
+        logger.debug("index results: {}", verifyResult);
         for (Map.Entry<Index, IndexResult> result : verifyResult.entrySet()) {
             final Index index = result.getKey();
             final boolean acknowledged = result.getValue().hasFailures() == false;

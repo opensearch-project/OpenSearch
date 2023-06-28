@@ -40,6 +40,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.core.Assertions;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -100,6 +101,8 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.templates.TemplateService;
+import org.opensearch.templates.TemplatesService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -176,8 +179,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private final TemplatesService templatesService;
 
     public IndexService(
+        ClusterState clusterState,
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,
         NodeEnvironment nodeEnv,
@@ -208,7 +213,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        TemplatesService templatesService
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -219,19 +225,47 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.circuitBreakerService = circuitBreakerService;
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry = valuesSourceRegistry;
+        this.templatesService = templatesService;
+        // mapper service code to be added here
+        String template = indexSettings.getIndexMetadata().getTemplate();
+        logger.info("template name: {}", template);
+
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
-            this.mapperService = new MapperService(
-                indexSettings,
-                indexAnalyzers,
-                xContentRegistry,
-                similarityService,
-                mapperRegistry,
-                // we parse all percolator queries as they would be parsed on shard 0
-                () -> newQueryShardContext(0, null, System::currentTimeMillis, null),
-                idFieldDataEnabled,
-                scriptService
-            );
+            // reuse objects from template mapper service
+            // check if template exists
+            logger.info("clusterstate exists: {}, template exists : {}, template service exists: {}", clusterState != null, clusterState != null && clusterState.metadata().templatesV2().containsKey(template), templatesService != null);
+            //add template != null
+            if (clusterState != null && clusterState.metadata().templatesV2().containsKey(template) && templatesService != null) {
+                // use existing templateservice or create new
+                if (!templatesService.hasTemplate(template)) {
+                    templatesService.createTemplateService(
+                        template,
+                        indexSettings,
+                        indexAnalyzers,
+                        xContentRegistry,
+                        similarityService,
+                        mapperRegistry,
+                        () -> newQueryShardContext(0, null, System::currentTimeMillis, null),
+                        idFieldDataEnabled,
+                        scriptService
+                    );
+                }
+                this.mapperService = templatesService.templateService(template).mapperService();
+            } else {
+                this.mapperService = new MapperService(
+                    indexSettings,
+                    indexAnalyzers,
+                    xContentRegistry,
+                    similarityService,
+                    mapperRegistry,
+                    // we parse all percolator queries as they would be parsed on shard 0
+                    () -> newQueryShardContext(0, null, System::currentTimeMillis, null),
+                    idFieldDataEnabled,
+                    scriptService
+                );
+            }
+
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.

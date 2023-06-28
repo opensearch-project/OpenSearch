@@ -65,6 +65,8 @@ import org.opensearch.tasks.TaskCancellationMonitoringService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
+import org.opensearch.templates.TemplateService;
+import org.opensearch.templates.TemplatesService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.telemetry.TelemetryModule;
@@ -720,6 +722,7 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get
             );
 
+            final TemplatesService templatesService = new TemplatesService();
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,
@@ -743,7 +746,8 @@ public class Node implements Closeable {
                 recoveryStateFactories,
                 remoteDirectoryFactory,
                 repositoriesServiceReference::get,
-                fileCacheCleaner
+                fileCacheCleaner,
+                templatesService
             );
 
             final AliasValidator aliasValidator = new AliasValidator();
@@ -1091,6 +1095,7 @@ public class Node implements Closeable {
                 b.bind(MetaStateService.class).toInstance(metaStateService);
                 b.bind(PersistedClusterStateService.class).toInstance(lucenePersistedStateFactory);
                 b.bind(IndicesService.class).toInstance(indicesService);
+                b.bind(TemplatesService.class).toInstance(templatesService);
                 b.bind(AliasValidator.class).toInstance(aliasValidator);
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                 b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);

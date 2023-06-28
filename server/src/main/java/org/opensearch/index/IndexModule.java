@@ -42,6 +42,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Version;
 import org.opensearch.client.Client;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
@@ -83,6 +84,7 @@ import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.templates.TemplatesService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -199,6 +201,7 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final TemplatesService templatesService;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -217,7 +220,8 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
-        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final TemplatesService templatesService
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -229,6 +233,7 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.templatesService = templatesService;
     }
 
     /**
@@ -487,6 +492,7 @@ public final class IndexModule {
     }
 
     public IndexService newIndexService(
+        ClusterState clusterState,
         IndexService.IndexCreationContext indexCreationContext,
         NodeEnvironment environment,
         NamedXContentRegistry xContentRegistry,
@@ -530,6 +536,7 @@ public final class IndexModule {
                 indexAnalyzers = analysisRegistry.build(indexSettings);
             }
             final IndexService indexService = new IndexService(
+                clusterState,
                 indexSettings,
                 indexCreationContext,
                 environment,
@@ -560,7 +567,8 @@ public final class IndexModule {
                 expressionResolver,
                 valuesSourceRegistry,
                 recoveryStateFactory,
-                translogFactorySupplier
+                translogFactorySupplier,
+                templatesService
             );
             success = true;
             return indexService;

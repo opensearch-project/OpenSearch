@@ -557,7 +557,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     };
                     updatedIndexEventListeners.add(refreshListenerAfterSnapshotRestore);
                 }
-                indexService = indicesService.createIndex(indexMetadata, updatedIndexEventListeners, true);
+                indexService = indicesService.createIndex(state, indexMetadata, builtInIndexListener, true);
                 if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(
                         state.nodes().getClusterManagerNode(),
@@ -984,6 +984,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         U createIndex(IndexMetadata indexMetadata, List<IndexEventListener> builtInIndexListener, boolean writeDanglingIndices)
             throws IOException;
+
+        /**
+         *
+         * @param clusterState
+         * @param indexMetadata
+         * @param builtInIndexListener
+         * @param writeDanglingIndices
+         * @return
+         * @throws IOException
+         */
+        default U createIndex(ClusterState clusterState, IndexMetadata indexMetadata, List<IndexEventListener> builtInIndexListener,
+            boolean writeDanglingIndices)
+            throws IOException{
+            return null;
+        }
 
         /**
          * Verify that the contents on disk for the given index is deleted; if not, delete the contents.

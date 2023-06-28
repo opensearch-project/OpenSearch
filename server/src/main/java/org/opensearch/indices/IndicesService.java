@@ -139,6 +139,7 @@ import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
+import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
@@ -157,6 +158,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.templates.TemplatesService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -330,6 +332,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
 
     private final FileCacheCleaner fileCacheCleaner;
+    private final TemplatesService templatesService;
 
     @Override
     protected void doStart() {
@@ -360,7 +363,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        FileCacheCleaner fileCacheCleaner
+        FileCacheCleaner fileCacheCleaner,
+        TemplatesService templatesService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -450,6 +454,7 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         this.remoteDirectoryFactory = remoteDirectoryFactory;
         this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool);
+        this.templatesService = templatesService;
     }
 
     private static BiFunction<IndexSettings, ShardRouting, TranslogFactory> getTranslogFactorySupplier(
@@ -670,6 +675,16 @@ public class IndicesService extends AbstractLifecycleComponent
         final List<IndexEventListener> builtInListeners,
         final boolean writeDanglingIndices
     ) throws IOException {
+        return createIndex(null, indexMetadata, builtInListeners, writeDanglingIndices);
+    }
+
+    @Override
+    public synchronized IndexService createIndex(
+        ClusterState clusterState,
+        IndexMetadata indexMetadata,
+        List<IndexEventListener> builtInListeners,
+        boolean writeDanglingIndices
+    ) throws IOException {
         ensureChangesAllowed();
         if (indexMetadata.getIndexUUID().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
             throw new IllegalArgumentException("index must have a real UUID found value: [" + indexMetadata.getIndexUUID() + "]");
@@ -698,6 +713,7 @@ public class IndicesService extends AbstractLifecycleComponent
         finalListeners.add(oldShardsStats);
         finalListeners.add(fileCacheCleaner);
         final IndexService indexService = createIndexService(
+            clusterState,
             CREATE_INDEX,
             indexMetadata,
             indicesQueryCache,
@@ -753,6 +769,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         );
         final IndexService indexService = createIndexService(
+            null,
             CREATE_INDEX,
             indexMetadata,
             indicesQueryCache,
@@ -769,6 +786,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * This creates a new IndexService without registering it
      */
     private synchronized IndexService createIndexService(
+        ClusterState clusterState,
         IndexService.IndexCreationContext indexCreationContext,
         IndexMetadata indexMetadata,
         IndicesQueryCache indicesQueryCache,
@@ -800,7 +818,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            templatesService
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -810,6 +829,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexEventListener(listener);
         }
         return indexModule.newIndexService(
+            clusterState,
             indexCreationContext,
             nodeEnv,
             xContentRegistry,
@@ -887,7 +907,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            templatesService
         );
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
@@ -910,6 +931,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service = createIndexService(
+                null,
                 METADATA_VERIFICATION,
                 metadata,
                 indicesQueryCache,
