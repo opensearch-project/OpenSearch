@@ -43,6 +43,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
@@ -277,14 +278,13 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public <Result extends SearchPhaseResult> SearchPhaseResults<Result> process(
+        public <Result extends SearchPhaseResult> void process(
             SearchPhaseResults<Result> searchPhaseResult,
             SearchPhaseContext searchPhaseContext
         ) {
             List<Result> resultAtomicArray = searchPhaseResult.getAtomicArray().asList();
             // updating the maxScore
             resultAtomicArray.forEach(querySearchResultConsumer);
-            return searchPhaseResult;
         }
 
         @Override
@@ -682,26 +682,27 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         // First try without specifying a pipeline, which should be a no-op.
         SearchRequest searchRequest = new SearchRequest();
         PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
-        SearchPhaseResults<SearchPhaseResult> notTransformedSearchPhaseResults = pipelinedRequest.transformSearchPhase(
+        AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResults = searchPhaseResults.getAtomicArray();
+        pipelinedRequest.transformSearchPhase(
             searchPhaseResults,
             searchPhaseContext,
             SearchPhase.SearchPhaseName.QUERY.getName(),
             SearchPhase.SearchPhaseName.FETCH.getName()
         );
-        assertSame(searchPhaseResults, notTransformedSearchPhaseResults);
+        assertSame(searchPhaseResults.getAtomicArray(), notTransformedSearchPhaseResults);
 
         // Now set the pipeline as p1
         searchRequest = new SearchRequest().pipeline("p1");
         pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
 
-        SearchPhaseResults<SearchPhaseResult> transformed = pipelinedRequest.transformSearchPhase(
+        pipelinedRequest.transformSearchPhase(
             searchPhaseResults,
             searchPhaseContext,
             SearchPhase.SearchPhaseName.QUERY.getName(),
             SearchPhase.SearchPhaseName.FETCH.getName()
         );
 
-        List<SearchPhaseResult> resultAtomicArray = transformed.getAtomicArray().asList();
+        List<SearchPhaseResult> resultAtomicArray = searchPhaseResults.getAtomicArray().asList();
         assertEquals(1, resultAtomicArray.size());
         // updating the maxScore
         for (SearchPhaseResult result : resultAtomicArray) {
@@ -711,14 +712,15 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         // Check Processor doesn't run for between other phases
         searchRequest = new SearchRequest().pipeline("p1");
         pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest);
-        SearchPhaseResults<SearchPhaseResult> notTransformed = pipelinedRequest.transformSearchPhase(
+        AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResult = searchPhaseResults.getAtomicArray();
+        pipelinedRequest.transformSearchPhase(
             searchPhaseResults,
             searchPhaseContext,
             SearchPhase.SearchPhaseName.DFS_QUERY.getName(),
             SearchPhase.SearchPhaseName.QUERY.getName()
         );
 
-        assertSame(searchPhaseResults, notTransformed);
+        assertSame(searchPhaseResults.getAtomicArray(), notTransformedSearchPhaseResult);
     }
 
     public void testGetPipelines() {

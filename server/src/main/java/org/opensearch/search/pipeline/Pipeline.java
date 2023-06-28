@@ -203,7 +203,7 @@ class Pipeline {
         null
     );
 
-    <Result extends SearchPhaseResult> SearchPhaseResults<Result> runSearchPhaseTransformer(
+    <Result extends SearchPhaseResult> void runSearchPhaseTransformer(
         SearchPhaseResults<Result> searchPhaseResult,
         SearchPhaseContext context,
         String currentPhase,
@@ -214,10 +214,9 @@ class Pipeline {
             for (SearchPhaseResultsProcessor searchPhaseResultsProcessor : searchPhaseResultsProcessors) {
                 if (currentPhase.equals(searchPhaseResultsProcessor.getBeforePhase().getName())
                     && nextPhase.equals(searchPhaseResultsProcessor.getAfterPhase().getName())) {
-                    searchPhaseResult = searchPhaseResultsProcessor.process(searchPhaseResult, context);
+                    searchPhaseResultsProcessor.process(searchPhaseResult, context);
                 }
             }
-            return searchPhaseResult;
         } catch (RuntimeException e) {
             throw new SearchPipelineProcessingException(e);
         }

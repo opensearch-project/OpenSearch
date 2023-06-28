@@ -699,11 +699,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
         final SearchPhase nextPhase = getNextPhase(results, this);
         if (request instanceof PipelinedRequest && nextPhase != null) {
-            // From src files the next phase is never null, but from tests this is a possibility. Hence, making sure that
-            // tests pass, we need to do null check on next phase.
-            if (nextPhase != null) {
-                ((PipelinedRequest) request).transformSearchPhase(results, this, this.getName(), nextPhase.getName());
-            }
+            ((PipelinedRequest) request).transformSearchPhase(results, this, this.getName(), nextPhase.getName());
         }
         executeNextPhase(this, nextPhase);
     }

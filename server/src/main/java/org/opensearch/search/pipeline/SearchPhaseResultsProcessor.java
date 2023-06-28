@@ -21,14 +21,13 @@ import org.opensearch.search.internal.SearchContext;
 public interface SearchPhaseResultsProcessor extends Processor {
 
     /**
-     * Processes the {@link SearchPhaseResults} obtained from a {@link SearchPhase} and to be returned back to the
-     * next {@link SearchPhase}.
+     * Processes the {@link SearchPhaseResults} obtained from a {@link SearchPhase} which will be returned to next
+     * {@link SearchPhase}.
      * @param searchPhaseResult {@link SearchPhaseResults}
      * @param searchPhaseContext {@link SearchContext}
-     * @return {@link SearchPhaseResults}
      * @param <Result> {@link SearchPhaseResult}
      */
-    <Result extends SearchPhaseResult> SearchPhaseResults<Result> process(
+    <Result extends SearchPhaseResult> void process(
         final SearchPhaseResults<Result> searchPhaseResult,
         final SearchPhaseContext searchPhaseContext
     );
