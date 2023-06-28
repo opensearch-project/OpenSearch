@@ -50,6 +50,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -94,6 +95,11 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         // Verify segment store
         assertBusy(() -> {
+            /**
+             * Use default tabular output and sort response based on shard,segment,primaryOrReplica columns to allow line by
+             * line parsing where records related to a segment (e.g. _0) are chunked together with first record belonging
+             * to primary while remaining *replicaCount* records belongs to replica copies
+             * */
             Request segrepStatsRequest = new Request("GET", "/_cat/segments/" + index + "?s=shard,segment,primaryOrReplica");
             segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count");
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
@@ -122,7 +128,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     segmentsIndex++;
                 }
             }
-        });
+        }, 1, TimeUnit.MINUTES);
     }
 
     private void waitForClusterHealthWithNoShardMigration(String indexName, String status) throws IOException {
@@ -145,7 +151,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 String[] elements = statLine.split(" +");
                 assertEquals("Replica shard " + elements[0] + "not upto date with primary ", 0, Integer.parseInt(elements[2]));
             }
-        });
+        }, 1, TimeUnit.MINUTES);
     }
 
     public void testIndexing() throws IOException, ParseException {
