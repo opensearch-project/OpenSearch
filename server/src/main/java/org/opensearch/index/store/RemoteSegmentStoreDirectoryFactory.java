@@ -54,9 +54,6 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     public Directory newDirectory(String repositoryName, String indexUUID, String shardId) throws IOException {
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
-            if (((BlobStoreRepository)((BlobStoreRepository) repository).blobStore()).isRemoteStoreSupported() == false) {
-                throw new IllegalArgumentException("Remote store is not supported for this implementation of repository plugin");
-            }
             BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
             commonBlobPath = commonBlobPath.add(indexUUID).add(shardId).add(SEGMENTS);
 

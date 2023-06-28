@@ -342,9 +342,4 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
         super.doClose();
     }
-
-    @Override
-    public boolean isRemoteStoreSupported() {
-        return true;
-    }
 }

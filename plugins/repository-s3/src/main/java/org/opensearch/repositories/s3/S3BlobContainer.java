@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -297,26 +298,29 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
-        return(listBlobsByPrefix(blobNamePrefix, Integer.MAX_VALUE)).stream()
-            .collect(Collectors.toMap(BlobMetadata::name, Function.identity()));
-    }
-
-    private List<BlobMetadata> listBlobsByPrefix(@Nullable String blobNamePrefix, int limit) throws IOException {
+    public void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException {
         String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
-        final int maxKeys = Math.min(limit, 1000);
+        int maxKeys = Math.min(limit, 1000);
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            return executeListing(clientReference, listObjectsRequest(prefix, maxKeys)).stream()
+            listener.onResponse(executeListing(clientReference, listObjectsRequest(prefix, maxKeys), limit).stream()
                 .flatMap(listing -> listing.contents().stream())
-                .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size())).collect(Collectors.toList());
+                .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size())).collect(Collectors.toList()));
         } catch (final SdkException e) {
-            throw new IOException("Exception when listing blobs by prefix [" + prefix + "]", e);
+            listener.onFailure(new IOException("Exception when listing blobs by prefix [" + prefix + "]", e));
         }
     }
 
     @Override
-    public List<BlobMetadata> listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit) throws IOException {
-        return listBlobsByPrefix(blobNamePrefix, limit);
+    public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
+        String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            return executeListing(clientReference, listObjectsRequest(prefix)).stream()
+                .flatMap(listing -> listing.contents().stream())
+                .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
+                .collect(Collectors.toMap(PlainBlobMetadata::name, Function.identity()));
+        } catch (final SdkException e) {
+            throw new IOException("Exception when listing blobs by prefix [" + prefix + "]", e);
+        }
     }
 
     @Override
@@ -349,10 +353,19 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private static List<ListObjectsV2Response> executeListing(AmazonS3Reference clientReference, ListObjectsV2Request listObjectsRequest) {
+        return executeListing(clientReference, listObjectsRequest, -1);
+    }
+
+    private static List<ListObjectsV2Response> executeListing(AmazonS3Reference clientReference, ListObjectsV2Request listObjectsRequest, int limit) {
         return SocketAccess.doPrivileged(() -> {
             final List<ListObjectsV2Response> results = new ArrayList<>();
             ListObjectsV2Iterable listObjectsIterable = clientReference.get().listObjectsV2Paginator(listObjectsRequest);
-            listObjectsIterable.forEach(results::add);
+            listObjectsIterable.stream().takeWhile(n -> {
+                if(limit == -1) {
+                    return true;
+                }
+                return (results.size() < limit);
+            }).forEach(results::add);
             return results;
         });
     }

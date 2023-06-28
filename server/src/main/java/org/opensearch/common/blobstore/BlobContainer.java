@@ -32,6 +32,8 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.action.ActionListener;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
@@ -192,7 +194,7 @@ public interface BlobContainer {
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 
-    default List<BlobMetadata> listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit) throws IOException {
+    default void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException {
         throw new UnsupportedOperationException("The configured remote store does not support listBlobsByPrefixInLexicographicOrder() method");
     }
 }
