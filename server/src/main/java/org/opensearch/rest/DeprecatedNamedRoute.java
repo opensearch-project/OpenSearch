@@ -15,11 +15,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * A named Route
+ * A deprecated named Route
  *
  * @opensearch.internal
  */
-public class NamedRoute extends RestHandler.Route {
+public class DeprecatedNamedRoute extends RestHandler.DeprecatedRoute {
 
     private static final String VALID_ACTION_NAME_PATTERN = "^[a-zA-Z0-9:/*_]*$";
     static final int MAX_LENGTH_OF_ACTION_NAME = 250;
@@ -49,8 +49,8 @@ public class NamedRoute extends RestHandler.Route {
         return legacyActionNames;
     }
 
-    public NamedRoute(RestRequest.Method method, String path, String name) {
-        super(method, path);
+    public DeprecatedNamedRoute(RestRequest.Method method, String path, String deprecationMessage, String name) {
+        super(method, path, deprecationMessage);
         if (!isValidRouteName(name)) {
             throw new OpenSearchException(
                 "Invalid route name specified. The route name may include the following characters"
@@ -70,8 +70,14 @@ public class NamedRoute extends RestHandler.Route {
      * @param name - the shortname for this route
      * @param legacyActionNames - list of names of the transport action this route will be matched against
      */
-    public NamedRoute(RestRequest.Method method, String path, String name, Set<String> legacyActionNames) {
-        this(method, path, name);
+    public DeprecatedNamedRoute(
+        RestRequest.Method method,
+        String path,
+        String deprecationMessage,
+        String name,
+        Set<String> legacyActionNames
+    ) {
+        this(method, path, deprecationMessage, name);
         this.actionNames = validateLegacyActionNames(legacyActionNames);
     }
 
@@ -92,6 +98,16 @@ public class NamedRoute extends RestHandler.Route {
 
     @Override
     public String toString() {
-        return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + ", actionNames=" + actionNames + "]";
+        return "DeprecatedNamedRoute [method="
+            + method
+            + ", path="
+            + path
+            + ", deprecationMessage="
+            + getDeprecationMessage()
+            + ", name= "
+            + name
+            + ", actionNames= "
+            + actionNames
+            + "]";
     }
 }

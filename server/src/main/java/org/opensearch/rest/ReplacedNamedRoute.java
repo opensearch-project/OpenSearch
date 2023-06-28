@@ -19,7 +19,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public class NamedRoute extends RestHandler.Route {
+public class ReplacedNamedRoute extends RestHandler.ReplacedRoute {
 
     private static final String VALID_ACTION_NAME_PATTERN = "^[a-zA-Z0-9:/*_]*$";
     static final int MAX_LENGTH_OF_ACTION_NAME = 250;
@@ -49,8 +49,14 @@ public class NamedRoute extends RestHandler.Route {
         return legacyActionNames;
     }
 
-    public NamedRoute(RestRequest.Method method, String path, String name) {
-        super(method, path);
+    public ReplacedNamedRoute(
+        RestRequest.Method method,
+        String path,
+        RestRequest.Method deprecatedMethod,
+        String deprecatedPath,
+        String name
+    ) {
+        super(method, path, deprecatedMethod, deprecatedPath);
         if (!isValidRouteName(name)) {
             throw new OpenSearchException(
                 "Invalid route name specified. The route name may include the following characters"
@@ -70,9 +76,31 @@ public class NamedRoute extends RestHandler.Route {
      * @param name - the shortname for this route
      * @param legacyActionNames - list of names of the transport action this route will be matched against
      */
-    public NamedRoute(RestRequest.Method method, String path, String name, Set<String> legacyActionNames) {
-        this(method, path, name);
+    public ReplacedNamedRoute(
+        RestRequest.Method method,
+        String path,
+        RestRequest.Method deprecatedMethod,
+        String deprecatedPath,
+        String name,
+        Set<String> legacyActionNames
+    ) {
+        this(method, path, deprecatedMethod, deprecatedPath, name);
         this.actionNames = validateLegacyActionNames(legacyActionNames);
+    }
+
+    /**
+     * Allows registering a legacyName to match against transport action
+     * @param method - The REST method for this route
+     * @param path - the URL for this route
+     * @param name - the shortname for this route
+     * @param legacyActionNames - list of names of the transport action this route will be matched against
+     */
+    public ReplacedNamedRoute(RestRequest.Method method, String path, String deprecatedPath, String name, Set<String> legacyActionNames) {
+        this(method, path, method, deprecatedPath, name, legacyActionNames);
+    }
+
+    public ReplacedNamedRoute(RestHandler.Route route, String prefix, String deprecatedPrefix, String name, Set<String> legacyActionNames) {
+        this(route.getMethod(), prefix + route.getPath(), deprecatedPrefix + route.getPath(), name, legacyActionNames);
     }
 
     /**
@@ -92,6 +120,18 @@ public class NamedRoute extends RestHandler.Route {
 
     @Override
     public String toString() {
-        return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + ", actionNames=" + actionNames + "]";
+        return "ReplacedNamedRoute [method="
+            + method
+            + ", path="
+            + path
+            + ", deprecatedMethod="
+            + getDeprecatedMethod()
+            + ", deprecatedPath="
+            + getDeprecatedPath()
+            + ", name= "
+            + name
+            + ", actionNames= "
+            + actionNames
+            + "]";
     }
 }
