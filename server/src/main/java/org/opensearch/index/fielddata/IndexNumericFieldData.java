@@ -198,7 +198,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         MultiValueMode sortMode,
         Nested nested
     ) {
-        XFieldComparatorSource source = null;
+        final XFieldComparatorSource source;
         switch (targetNumericType) {
             case HALF_FLOAT:
             case FLOAT:
