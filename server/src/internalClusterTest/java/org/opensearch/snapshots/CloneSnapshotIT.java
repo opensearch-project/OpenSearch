@@ -838,7 +838,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .execute(
                     ActionRunnable.supply(
                         f,
-                        () -> repository.loadShardSnapshot(
+                        () -> (BlobStoreIndexShardSnapshot) repository.loadShardSnapshot(
                             repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
                             snapshotId
                         )

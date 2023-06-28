@@ -270,20 +270,16 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                             indexIdLookup = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
                         }
                         final ShardId shardId = shardEntry.getKey();
-                        final Repository repository = repositoriesService.repository(entry.repository());
-                        final IndexId indexId = indexIdLookup.get(shardId.getIndexName());
-                        final SnapshotId snapshotId = entry.snapshot().getSnapshotId();
-                        final IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndexName());
-                        final boolean isRemoteIndexShard = indexMetadata.getSettings()
-                            .getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
-                            && entry.remoteStoreIndexShallowCopy();
-                        final IndexShardSnapshotStatus shardSnapshotStatus;
-                        if (isRemoteIndexShard) {
-                            shardSnapshotStatus = repository.getShallowShardSnapshotStatus(snapshotId, indexId, shardId);
-                        } else {
-                            shardSnapshotStatus = repository.getShardSnapshotStatus(snapshotId, indexId, shardId);
-                        }
-                        shardStatus = new SnapshotIndexShardStatus(shardId, shardSnapshotStatus.asCopy());
+                        shardStatus = new SnapshotIndexShardStatus(
+                            shardId,
+                            repositoriesService.repository(entry.repository())
+                                .getShardSnapshotStatus(
+                                    entry.snapshot().getSnapshotId(),
+                                    indexIdLookup.get(shardId.getIndexName()),
+                                    shardId
+                                )
+                                .asCopy()
+                        );
                     } else {
                         shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), stage);
                     }
@@ -451,14 +447,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                             // could not be taken due to partial being set to false.
                             shardSnapshotStatus = IndexShardSnapshotStatus.newFailed("skipped");
                         } else {
-                            final boolean isRemoteIndexShard = indexMetadata.getSettings()
-                                .getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
-                                && repository.getSnapshotInfo(snapshotInfo.snapshotId()).isRemoteStoreIndexShallowCopyEnabled();
-                            if (isRemoteIndexShard) {
-                                shardSnapshotStatus = repository.getShallowShardSnapshotStatus(snapshotInfo.snapshotId(), indexId, shardId);
-                            } else {
-                                shardSnapshotStatus = repository.getShardSnapshotStatus(snapshotInfo.snapshotId(), indexId, shardId);
-                            }
+                            shardSnapshotStatus = repository.getShardSnapshotStatus(snapshotInfo.snapshotId(), indexId, shardId);
                         }
                         shardStatus.put(shardId, shardSnapshotStatus);
                     }

@@ -359,11 +359,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public IndexShardSnapshotStatus getShallowShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-            return null;
-        }
-
-        @Override
         public void updateState(final ClusterState state) {}
 
         @Override

@@ -236,11 +236,6 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public IndexShardSnapshotStatus getShallowShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        return in.getShallowShardSnapshotStatus(snapshotId, indexId, shardId);
-    }
-
-    @Override
     public void updateState(ClusterState state) {
         in.updateState(state);
     }
