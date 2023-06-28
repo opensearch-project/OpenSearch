@@ -50,7 +50,7 @@ import java.util.function.ToIntBiFunction;
 public abstract class AbstractBytesReference implements BytesReference {
 
     private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
-    static final int MAX_UTF16_LENGTH = Integer.MAX_VALUE >> 1;
+    private static final int MAX_UTF16_LENGTH = Integer.MAX_VALUE >> 1;
 
     @Override
     public int getInt(int index) {
@@ -82,7 +82,7 @@ public abstract class AbstractBytesReference implements BytesReference {
         }
     }
 
-    public int getMaxUTF16Length() {
+    protected int getMaxUTF16Length() {
         return MAX_UTF16_LENGTH;
     }
 
