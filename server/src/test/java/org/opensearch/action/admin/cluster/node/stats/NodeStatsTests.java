@@ -37,6 +37,7 @@ import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.cluster.coordination.PendingClusterStateStats;
 import org.opensearch.cluster.coordination.PublishClusterStateStats;
@@ -338,40 +339,31 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 if (ingestStats == null) {
                     assertNull(deserializedIngestStats);
                 } else {
-                    IngestStats.Stats totalStats = ingestStats.getTotalStats();
-                    assertEquals(totalStats.getIngestCount(), deserializedIngestStats.getTotalStats().getIngestCount());
-                    assertEquals(totalStats.getIngestCurrent(), deserializedIngestStats.getTotalStats().getIngestCurrent());
-                    assertEquals(totalStats.getIngestFailedCount(), deserializedIngestStats.getTotalStats().getIngestFailedCount());
-                    assertEquals(totalStats.getIngestTimeInMillis(), deserializedIngestStats.getTotalStats().getIngestTimeInMillis());
+                    OperationStats totalStats = ingestStats.getTotalStats();
+                    assertEquals(totalStats.getCount(), deserializedIngestStats.getTotalStats().getCount());
+                    assertEquals(totalStats.getCurrent(), deserializedIngestStats.getTotalStats().getCurrent());
+                    assertEquals(totalStats.getFailedCount(), deserializedIngestStats.getTotalStats().getFailedCount());
+                    assertEquals(totalStats.getTotalTimeInMillis(), deserializedIngestStats.getTotalStats().getTotalTimeInMillis());
                     assertEquals(ingestStats.getPipelineStats().size(), deserializedIngestStats.getPipelineStats().size());
                     for (IngestStats.PipelineStat pipelineStat : ingestStats.getPipelineStats()) {
                         String pipelineId = pipelineStat.getPipelineId();
-                        IngestStats.Stats deserializedPipelineStats = getPipelineStats(
-                            deserializedIngestStats.getPipelineStats(),
-                            pipelineId
-                        );
-                        assertEquals(pipelineStat.getStats().getIngestFailedCount(), deserializedPipelineStats.getIngestFailedCount());
-                        assertEquals(pipelineStat.getStats().getIngestTimeInMillis(), deserializedPipelineStats.getIngestTimeInMillis());
-                        assertEquals(pipelineStat.getStats().getIngestCurrent(), deserializedPipelineStats.getIngestCurrent());
-                        assertEquals(pipelineStat.getStats().getIngestCount(), deserializedPipelineStats.getIngestCount());
+                        OperationStats deserializedPipelineStats = getPipelineStats(deserializedIngestStats.getPipelineStats(), pipelineId);
+                        assertEquals(pipelineStat.getStats().getFailedCount(), deserializedPipelineStats.getFailedCount());
+                        assertEquals(pipelineStat.getStats().getTotalTimeInMillis(), deserializedPipelineStats.getTotalTimeInMillis());
+                        assertEquals(pipelineStat.getStats().getCurrent(), deserializedPipelineStats.getCurrent());
+                        assertEquals(pipelineStat.getStats().getCount(), deserializedPipelineStats.getCount());
                         List<IngestStats.ProcessorStat> processorStats = ingestStats.getProcessorStats().get(pipelineId);
                         // intentionally validating identical order
                         Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.getProcessorStats().get(pipelineId).iterator();
                         for (IngestStats.ProcessorStat processorStat : processorStats) {
                             IngestStats.ProcessorStat deserializedProcessorStat = it.next();
+                            assertEquals(processorStat.getStats().getFailedCount(), deserializedProcessorStat.getStats().getFailedCount());
                             assertEquals(
-                                processorStat.getStats().getIngestFailedCount(),
-                                deserializedProcessorStat.getStats().getIngestFailedCount()
+                                processorStat.getStats().getTotalTimeInMillis(),
+                                deserializedProcessorStat.getStats().getTotalTimeInMillis()
                             );
-                            assertEquals(
-                                processorStat.getStats().getIngestTimeInMillis(),
-                                deserializedProcessorStat.getStats().getIngestTimeInMillis()
-                            );
-                            assertEquals(
-                                processorStat.getStats().getIngestCurrent(),
-                                deserializedProcessorStat.getStats().getIngestCurrent()
-                            );
-                            assertEquals(processorStat.getStats().getIngestCount(), deserializedProcessorStat.getStats().getIngestCount());
+                            assertEquals(processorStat.getStats().getCurrent(), deserializedProcessorStat.getStats().getCurrent());
+                            assertEquals(processorStat.getStats().getCount(), deserializedProcessorStat.getStats().getCount());
                         }
                         assertFalse(it.hasNext());
                     }
@@ -650,7 +642,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             : null;
         IngestStats ingestStats = null;
         if (frequently()) {
-            IngestStats.Stats totalStats = new IngestStats.Stats(
+            OperationStats totalStats = new OperationStats(
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -665,7 +657,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 ingestPipelineStats.add(
                     new IngestStats.PipelineStat(
                         pipelineId,
-                        new IngestStats.Stats(
+                        new OperationStats(
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),
@@ -676,7 +668,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
                 List<IngestStats.ProcessorStat> processorPerPipeline = new ArrayList<>(numProcessors);
                 for (int j = 0; j < numProcessors; j++) {
-                    IngestStats.Stats processorStats = new IngestStats.Stats(
+                    OperationStats processorStats = new OperationStats(
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
@@ -750,11 +742,12 @@ public class NodeStatsTests extends OpenSearchTestCase {
             clusterManagerThrottlingStats,
             weightedRoutingStats,
             null,
+            null,
             null
         );
     }
 
-    private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
+    private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
         return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
     }
 }
