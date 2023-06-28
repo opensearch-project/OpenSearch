@@ -32,6 +32,7 @@
 
 package org.opensearch.geo.search.aggregations.metrics;
 
+import org.hamcrest.MatcherAssert;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.util.BigArray;
@@ -43,18 +44,18 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.closeTo;
+import static org.opensearch.geo.tests.common.AggregationBuilders.geoBounds;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
-import static org.opensearch.geo.tests.common.AggregationBuilders.geoBounds;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class GeoBoundsITTestCase extends AbstractGeoAggregatorModulePluginTestCase {
@@ -274,5 +275,37 @@ public class GeoBoundsITTestCase extends AbstractGeoAggregatorModulePluginTestCa
         assertThat(topLeft.lon(), closeTo(0.0, GEOHASH_TOLERANCE));
         assertThat(bottomRight.lat(), closeTo(1.0, GEOHASH_TOLERANCE));
         assertThat(bottomRight.lon(), closeTo(0.0, GEOHASH_TOLERANCE));
+    }
+
+    public void testGeoShapeValuedField() {
+        final SearchResponse response = client().prepareSearch(IDX_NAME)
+            .addAggregation(geoBounds(aggName).field(GEO_SHAPE_FIELD_NAME).wrapLongitude(false))
+            .get();
+        assertSearchResponse(response);
+        final GeoBounds geoBounds = response.getAggregations().get(aggName);
+        MatcherAssert.assertThat(geoBounds, notNullValue());
+        MatcherAssert.assertThat(geoBounds.getName(), equalTo(aggName));
+        final GeoPoint topLeft = geoBounds.topLeft();
+        final GeoPoint bottomRight = geoBounds.bottomRight();
+        MatcherAssert.assertThat(topLeft.lat(), closeTo(geoShapeTopLeft.lat(), GEOHASH_TOLERANCE));
+        MatcherAssert.assertThat(topLeft.lon(), closeTo(geoShapeTopLeft.lon(), GEOHASH_TOLERANCE));
+        MatcherAssert.assertThat(bottomRight.lat(), closeTo(geoShapeBottomRight.lat(), GEOHASH_TOLERANCE));
+        MatcherAssert.assertThat(bottomRight.lon(), closeTo(geoShapeBottomRight.lon(), GEOHASH_TOLERANCE));
+    }
+
+    public void testEmptyAggregationOnGeoShapes() {
+        final SearchResponse searchResponse = client().prepareSearch(EMPTY_IDX_NAME)
+            .setQuery(matchAllQuery())
+            .addAggregation(geoBounds(aggName).field(GEO_SHAPE_FIELD_NAME).wrapLongitude(false))
+            .get();
+
+        MatcherAssert.assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        final GeoBounds geoBounds = searchResponse.getAggregations().get(aggName);
+        MatcherAssert.assertThat(geoBounds, notNullValue());
+        MatcherAssert.assertThat(geoBounds.getName(), equalTo(aggName));
+        final GeoPoint topLeft = geoBounds.topLeft();
+        final GeoPoint bottomRight = geoBounds.bottomRight();
+        MatcherAssert.assertThat(topLeft, equalTo(null));
+        MatcherAssert.assertThat(bottomRight, equalTo(null));
     }
 }
