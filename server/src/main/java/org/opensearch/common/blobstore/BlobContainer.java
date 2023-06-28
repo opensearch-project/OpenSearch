@@ -199,9 +199,9 @@ public interface BlobContainer {
 
     default void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException {
         try {
-            ArrayList<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
+            List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
             blobNames.sort(Comparator.comparing(BlobMetadata::name));
-            listener.onResponse(blobNames);
+            listener.onResponse(blobNames.subList(0, limit));
         } catch (Exception e) {
             listener.onFailure(e);
         }
