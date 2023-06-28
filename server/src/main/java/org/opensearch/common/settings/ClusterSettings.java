@@ -40,6 +40,18 @@ import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+<<<<<<< HEAD
+=======
+import org.opensearch.search.backpressure.settings.NodeDuressSettings;
+import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
+import org.opensearch.search.backpressure.settings.SearchTaskSettings;
+import org.opensearch.tasks.TaskCancellationMonitoringSettings;
+import org.opensearch.tasks.TaskManager;
+import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
+import org.opensearch.telemetry.TelemetrySettings;
+>>>>>>> 03bc19220a7 (Add request tracing framework (#7648))
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -575,4 +587,25 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 
+<<<<<<< HEAD
+=======
+    /**
+     * Map of feature flag name to feature-flagged cluster settings. Once each feature
+     * is ready for production release, the feature flag can be removed, and the
+     * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
+     */
+    public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
+        List.of(FeatureFlags.REMOTE_STORE),
+        List.of(
+            IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
+            IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING,
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
+        ),
+        List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
+        List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING),
+        List.of(FeatureFlags.TELEMETRY),
+        List.of(TelemetrySettings.TRACER_ENABLED_SETTING)
+    );
+>>>>>>> 03bc19220a7 (Add request tracing framework (#7648))
 }
