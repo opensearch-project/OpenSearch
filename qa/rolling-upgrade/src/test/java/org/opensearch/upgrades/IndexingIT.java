@@ -59,6 +59,7 @@ import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_I
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 
+
 /**
  * Basic test that indexed documents survive the rolling restart. See
  * {@link RecoveryIT} for much more in depth testing of the mechanism
@@ -99,6 +100,11 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         // Verify segment store
         assertBusy(() -> {
+            /**
+             * Use default tabular output and sort response based on shard,segment,primaryOrReplica columns to allow line by
+             * line parsing where records related to a segment (e.g. _0) are chunked together with first record belonging
+             * to primary while remaining *replicaCount* records belongs to replica copies
+             * */
             Request segrepStatsRequest = new Request("GET", "/_cat/segments/" + index + "?s=shard,segment,primaryOrReplica");
             segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count");
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
@@ -127,7 +133,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     segmentsIndex++;
                 }
             }
-        });
+        }, 1, TimeUnit.MINUTES);
     }
 
     private void waitForClusterHealthWithNoShardMigration(String indexName, String status) throws IOException {
@@ -150,7 +156,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 String[] elements = statLine.split(" +");
                 assertEquals("Replica shard " + elements[0] + "not upto date with primary ", 0, Integer.parseInt(elements[2]));
             }
-        });
+        }, 1, TimeUnit.MINUTES);
     }
 
     public void testIndexing() throws IOException, ParseException {
