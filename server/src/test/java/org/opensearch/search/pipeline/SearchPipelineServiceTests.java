@@ -30,6 +30,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
@@ -785,5 +786,127 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchResponse response = new SearchResponse(null, null, 0, 0, 0, 0, null, null);
         // Exception thrown when processing response
         expectThrows(SearchPipelineProcessingException.class, () -> pipelinedRequest.transformResponse(response));
+    }
+
+    public void testStats() throws Exception {
+        SearchRequestProcessor throwingRequestProcessor = new FakeRequestProcessor("throwing_request", "1", null, r -> {
+            throw new RuntimeException();
+        });
+        Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessors = Map.of(
+            "successful_request",
+            (pf, t, f, c) -> new FakeRequestProcessor("successful_request", "2", null, r -> {}),
+            "throwing_request",
+            (pf, t, f, c) -> throwingRequestProcessor
+        );
+        SearchResponseProcessor throwingResponseProcessor = new FakeResponseProcessor("throwing_response", "3", null, r -> {
+            throw new RuntimeException();
+        });
+        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessors = Map.of(
+            "successful_response",
+            (pf, t, f, c) -> new FakeResponseProcessor("successful_response", "4", null, r -> {}),
+            "throwing_response",
+            (pf, t, f, c) -> throwingResponseProcessor
+        );
+        SearchPipelineService searchPipelineService = createWithProcessors(requestProcessors, responseProcessors);
+
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "good_response_pipeline",
+                new PipelineConfiguration(
+                    "good_response_pipeline",
+                    new BytesArray("{\"response_processors\" : [ { \"successful_response\": {} } ] }"),
+                    XContentType.JSON
+                ),
+                "bad_response_pipeline",
+                new PipelineConfiguration(
+                    "bad_response_pipeline",
+                    new BytesArray("{\"response_processors\" : [ { \"throwing_response\": {} } ] }"),
+                    XContentType.JSON
+                ),
+                "good_request_pipeline",
+                new PipelineConfiguration(
+                    "good_request_pipeline",
+                    new BytesArray("{\"request_processors\" : [ { \"successful_request\": {} } ] }"),
+                    XContentType.JSON
+                ),
+                "bad_request_pipeline",
+                new PipelineConfiguration(
+                    "bad_request_pipeline",
+                    new BytesArray("{\"request_processors\" : [ { \"throwing_request\": {} } ] }"),
+                    XContentType.JSON
+                )
+            )
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousState = clusterState;
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder().putCustom(SearchPipelineMetadata.TYPE, metadata))
+            .build();
+        searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
+
+        SearchRequest request = new SearchRequest();
+        SearchResponse response = new SearchResponse(null, null, 0, 0, 0, 0, null, null);
+
+        searchPipelineService.resolvePipeline(request.pipeline("good_request_pipeline")).transformResponse(response);
+        expectThrows(
+            SearchPipelineProcessingException.class,
+            () -> searchPipelineService.resolvePipeline(request.pipeline("bad_request_pipeline")).transformResponse(response)
+        );
+        searchPipelineService.resolvePipeline(request.pipeline("good_response_pipeline")).transformResponse(response);
+        expectThrows(
+            SearchPipelineProcessingException.class,
+            () -> searchPipelineService.resolvePipeline(request.pipeline("bad_response_pipeline")).transformResponse(response)
+        );
+
+        SearchPipelineStats stats = searchPipelineService.stats();
+        assertPipelineStats(stats.getTotalRequestStats(), 2, 1);
+        assertPipelineStats(stats.getTotalResponseStats(), 2, 1);
+        for (SearchPipelineStats.PerPipelineStats perPipelineStats : stats.getPipelineStats()) {
+            SearchPipelineStats.PipelineDetailStats detailStats = stats.getPerPipelineProcessorStats()
+                .get(perPipelineStats.getPipelineId());
+            switch (perPipelineStats.getPipelineId()) {
+                case "good_request_pipeline":
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 1, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
+                    assertEquals(1, detailStats.requestProcessorStats().size());
+                    assertEquals(0, detailStats.responseProcessorStats().size());
+                    assertEquals("successful_request:2", detailStats.requestProcessorStats().get(0).getProcessorName());
+                    assertEquals("successful_request", detailStats.requestProcessorStats().get(0).getProcessorType());
+                    assertPipelineStats(detailStats.requestProcessorStats().get(0).getStats(), 1, 0);
+                    break;
+                case "bad_request_pipeline":
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 1, 1);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
+                    assertEquals(1, detailStats.requestProcessorStats().size());
+                    assertEquals(0, detailStats.responseProcessorStats().size());
+                    assertEquals("throwing_request:1", detailStats.requestProcessorStats().get(0).getProcessorName());
+                    assertEquals("throwing_request", detailStats.requestProcessorStats().get(0).getProcessorType());
+                    assertPipelineStats(detailStats.requestProcessorStats().get(0).getStats(), 1, 1);
+                    break;
+                case "good_response_pipeline":
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 0, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 1, 0);
+                    assertEquals(0, detailStats.requestProcessorStats().size());
+                    assertEquals(1, detailStats.responseProcessorStats().size());
+                    assertEquals("successful_response:4", detailStats.responseProcessorStats().get(0).getProcessorName());
+                    assertEquals("successful_response", detailStats.responseProcessorStats().get(0).getProcessorType());
+                    assertPipelineStats(detailStats.responseProcessorStats().get(0).getStats(), 1, 0);
+                    break;
+                case "bad_response_pipeline":
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 0, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 1, 1);
+                    assertEquals(0, detailStats.requestProcessorStats().size());
+                    assertEquals(1, detailStats.responseProcessorStats().size());
+                    assertEquals("throwing_response:3", detailStats.responseProcessorStats().get(0).getProcessorName());
+                    assertEquals("throwing_response", detailStats.responseProcessorStats().get(0).getProcessorType());
+                    assertPipelineStats(detailStats.responseProcessorStats().get(0).getStats(), 1, 1);
+                    break;
+            }
+        }
+    }
+
+    private static void assertPipelineStats(OperationStats stats, long count, long failed) {
+        assertEquals(stats.getCount(), count);
+        assertEquals(stats.getFailedCount(), failed);
     }
 }

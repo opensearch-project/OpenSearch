@@ -52,6 +52,7 @@ import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -675,6 +676,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
         ),
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
-        List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+        List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING),
+        List.of(FeatureFlags.TELEMETRY),
+        List.of(TelemetrySettings.TRACER_ENABLED_SETTING)
     );
 }
