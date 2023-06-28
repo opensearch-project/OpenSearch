@@ -38,8 +38,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -195,6 +198,12 @@ public interface BlobContainer {
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 
     default void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException {
-        throw new UnsupportedOperationException("The configured remote store does not support listBlobsByPrefixInLexicographicOrder() method");
+        try {
+            ArrayList<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
+            blobNames.sort(Comparator.comparing(BlobMetadata::name));
+            listener.onResponse(blobNames);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 }
