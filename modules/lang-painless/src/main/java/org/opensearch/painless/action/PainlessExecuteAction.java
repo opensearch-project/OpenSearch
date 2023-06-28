@@ -90,6 +90,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
+import org.opensearch.script.UpdateScript;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -138,6 +139,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             supportedContexts.put("painless_test", PainlessTestScript.CONTEXT);
             supportedContexts.put("filter", FilterScript.CONTEXT);
             supportedContexts.put("score", ScoreScript.CONTEXT);
+            supportedContexts.put("update", UpdateScript.CONTEXT);
             SUPPORTED_CONTEXTS = Collections.unmodifiableMap(supportedContexts);
         }
 
@@ -576,6 +578,13 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
                     double result = scoreScript.execute(null);
                     return new Response(result);
+                }, indexService);
+            } else if (scriptContext == UpdateScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    UpdateScript.Factory factory = scriptService.compile(request.script, UpdateScript.CONTEXT);
+                    UpdateScript updateScript = factory.newInstance(request.getScript().getParams(), null);
+                    updateScript.execute();
+                    return new Response(null);
                 }, indexService);
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");
