@@ -201,7 +201,7 @@ public interface BlobContainer {
         try {
             List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
             blobNames.sort(Comparator.comparing(BlobMetadata::name));
-            listener.onResponse(blobNames.subList(0, limit));
+            listener.onResponse(blobNames.subList(0, Math.max(0, Math.min(blobNames.size(), limit))));
         } catch (Exception e) {
             listener.onFailure(e);
         }
