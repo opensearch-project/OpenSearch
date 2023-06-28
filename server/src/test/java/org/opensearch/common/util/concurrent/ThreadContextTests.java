@@ -76,8 +76,8 @@ public class ThreadContextTests extends OpenSearchTestCase {
         ThreadContext threadContext = new ThreadContext(build);
         threadContext.putHeader("foo", "bar");
         threadContext.putTransient("ctx.foo", 1);
-        threadContext.putDurableHeader("durable_foo", "baz");
-        threadContext.putDurableTransient("ctx.durable_foo", 10);
+        threadContext.putPersistentHeader("durable_foo", "baz");
+        threadContext.putPersistentTransient("ctx.durable_foo", 10);
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
@@ -86,18 +86,18 @@ public class ThreadContextTests extends OpenSearchTestCase {
             assertNull(threadContext.getTransient("ctx.foo"));
             assertEquals("1", threadContext.getHeader("default"));
 
-            assertEquals("baz", threadContext.getDurableHeader("durable_foo"));
-            assertEquals(Integer.valueOf(10), threadContext.getDurableTransient("ctx.durable_foo"));
-            assertEquals("1", threadContext.getDurableHeader("default"));
+            assertEquals("baz", threadContext.getPersistentHeader("durable_foo"));
+            assertEquals(Integer.valueOf(10), threadContext.getPersistentTransient("ctx.durable_foo"));
+            assertEquals("1", threadContext.getPersistentHeader("default"));
         }
 
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
 
-        assertEquals("baz", threadContext.getDurableHeader("durable_foo"));
-        assertEquals(Integer.valueOf(10), threadContext.getDurableTransient("ctx.durable_foo"));
-        assertEquals("1", threadContext.getDurableHeader("default"));
+        assertEquals("baz", threadContext.getPersistentHeader("durable_foo"));
+        assertEquals(Integer.valueOf(10), threadContext.getPersistentTransient("ctx.durable_foo"));
+        assertEquals("1", threadContext.getPersistentHeader("default"));
     }
 
     public void testNewContextWithClearedTransients() {
