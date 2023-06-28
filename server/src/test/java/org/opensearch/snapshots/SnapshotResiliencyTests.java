@@ -56,6 +56,8 @@ import org.opensearch.action.admin.cluster.snapshots.create.TransportCreateSnaps
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
+import org.opensearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -2130,6 +2132,17 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         threadPool,
                         allocationService,
+                        actionFilters,
+                        indexNameExpressionResolver
+                    )
+                );
+                actions.put(
+                    GetSnapshotsAction.INSTANCE,
+                    new TransportGetSnapshotsAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        repositoriesService,
                         actionFilters,
                         indexNameExpressionResolver
                     )
