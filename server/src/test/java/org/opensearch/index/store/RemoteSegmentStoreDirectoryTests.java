@@ -228,7 +228,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
      * @return ByteArrayIndexInput: metadata file bytes with header and footer
      * @throws IOException IOException
      */
-    private ByteArrayIndexInput createMetadataFileBytes(Map<String, String> segmentFilesMap, long generation) throws IOException {
+    private ByteArrayIndexInput createMetadataFileBytes(Map<String, String> segmentFilesMap, long generation, long primaryTerm)
+        throws IOException {
         ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
         segmentInfos.write(new ByteBuffersIndexOutput(byteBuffersIndexOutput, "", ""));
         byte[] byteArray = byteBuffersIndexOutput.toArrayCopy();
@@ -238,6 +239,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         CodecUtil.writeHeader(indexOutput, RemoteSegmentMetadata.METADATA_CODEC, RemoteSegmentMetadata.CURRENT_VERSION);
         indexOutput.writeMapOfStrings(segmentFilesMap);
         indexOutput.writeLong(generation);
+        indexOutput.writeLong(primaryTerm);
         indexOutput.writeLong(byteArray.length);
         indexOutput.writeBytes(byteArray, byteArray.length);
         CodecUtil.writeFooter(indexOutput);
@@ -261,14 +263,14 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         );
 
         when(remoteMetadataDirectory.openInput("metadata__1__5__abc", IOContext.DEFAULT)).thenReturn(
-            createMetadataFileBytes(metadataFilenameContentMapping.get("metadata__1__5__abc"), 1)
+            createMetadataFileBytes(metadataFilenameContentMapping.get("metadata__1__5__abc"), 1, 5)
         );
         when(remoteMetadataDirectory.openInput("metadata__1__6__pqr", IOContext.DEFAULT)).thenReturn(
-            createMetadataFileBytes(metadataFilenameContentMapping.get("metadata__1__6__pqr"), 1)
+            createMetadataFileBytes(metadataFilenameContentMapping.get("metadata__1__6__pqr"), 1, 6)
         );
         when(remoteMetadataDirectory.openInput("metadata__2__1__zxv", IOContext.DEFAULT)).thenReturn(
-            createMetadataFileBytes(metadataFilenameContentMapping.get("metadata__2__1__zxv"), 1),
-            createMetadataFileBytes(metadataFilenameContentMapping.get("metadata__2__1__zxv"), 1)
+            createMetadataFileBytes(metadataFilenameContentMapping.get("metadata__2__1__zxv"), 1, 2),
+            createMetadataFileBytes(metadataFilenameContentMapping.get("metadata__2__1__zxv"), 1, 2)
         );
 
         return metadataFilenameContentMapping;
@@ -503,7 +505,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         );
 
         when(remoteMetadataDirectory.openInput("metadata__1__5__abc", IOContext.DEFAULT)).thenReturn(
-            createMetadataFileBytes(metadataFilenameContentMapping.get("metadata__1__5__abc"), 1)
+            createMetadataFileBytes(metadataFilenameContentMapping.get("metadata__1__5__abc"), 1, 5)
         );
 
         assert (remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore(testPrimaryTerm, testGeneration).containsKey("segments_5"));
@@ -577,7 +579,9 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512");
         metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024");
 
-        when(remoteMetadataDirectory.openInput("metadata__1__5__abc", IOContext.DEFAULT)).thenReturn(createMetadataFileBytes(metadata, 1));
+        when(remoteMetadataDirectory.openInput("metadata__1__5__abc", IOContext.DEFAULT)).thenReturn(
+            createMetadataFileBytes(metadata, 1, 5)
+        );
 
         remoteSegmentStoreDirectory.init();
 

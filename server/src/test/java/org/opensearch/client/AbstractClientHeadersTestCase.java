@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteAction;
@@ -244,7 +244,7 @@ public abstract class AbstractClientHeadersTestCase extends OpenSearchTestCase {
                 }
                 if (counter++ > 10) {
                     // dear god, if we got more than 10 levels down, WTF? just bail
-                    fail("Exception cause unwrapping ran for 10 levels: " + BaseExceptionsHelper.stackTrace(t));
+                    fail("Exception cause unwrapping ran for 10 levels: " + ExceptionsHelper.stackTrace(t));
                     return null;
                 }
                 result = result.getCause();

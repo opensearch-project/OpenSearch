@@ -35,6 +35,7 @@ package org.opensearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchServerException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
@@ -168,6 +169,7 @@ public class TransportService extends AbstractLifecycleComponent
          * over the {@link StreamOutput} and {@link StreamInput} wire
          */
         Streamables.registerStreamables();
+        OpenSearchServerException.registerExceptions();
     }
 
     /** does nothing. easy way to ensure class is loaded so the above static block is called to register the streamables */
@@ -542,7 +544,10 @@ public class TransportService extends AbstractLifecycleComponent
     ) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
-            threadPool.getThreadContext().putHeader("extension_unique_id", extensionUniqueId);
+            String currentId = threadPool.getThreadContext().getHeader("extension_unique_id");
+            if (Strings.isNullOrEmpty(currentId) || !extensionUniqueId.equals(currentId)) {
+                threadPool.getThreadContext().putHeader("extension_unique_id", extensionUniqueId);
+            }
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
 

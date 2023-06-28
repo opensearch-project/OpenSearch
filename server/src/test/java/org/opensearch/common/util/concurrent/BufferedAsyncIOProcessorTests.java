@@ -58,7 +58,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             scaledRandomIntBetween(1, 2024),
             threadContext,
             threadpool,
-            TimeValue.timeValueMillis(50)
+            () -> TimeValue.timeValueMillis(50)
         ) {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
@@ -100,7 +100,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             scaledRandomIntBetween(1, 2024),
             threadContext,
             threadpool,
-            TimeValue.timeValueMillis(100)
+            () -> TimeValue.timeValueMillis(100)
         ) {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
@@ -156,7 +156,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             scaledRandomIntBetween(1, 2024),
             threadContext,
             threadpool,
-            TimeValue.timeValueMillis(100)
+            () -> TimeValue.timeValueMillis(100)
         ) {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
@@ -220,7 +220,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             scaledRandomIntBetween(1, 2024),
             threadContext,
             threadpool,
-            TimeValue.timeValueMillis(bufferIntervalMs)
+            () -> TimeValue.timeValueMillis(bufferIntervalMs)
         ) {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {

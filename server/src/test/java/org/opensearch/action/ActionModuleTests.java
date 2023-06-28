@@ -46,6 +46,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
@@ -65,6 +66,7 @@ import org.opensearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -124,7 +126,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
         );
     }
 
-    public void testSetupRestHandlerContainsKnownBuiltin() {
+    public void testSetupRestHandlerContainsKnownBuiltin() throws IOException {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
         ActionModule actionModule = new ActionModule(
@@ -139,7 +141,8 @@ public class ActionModuleTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(Settings.EMPTY, new ArrayList<>())
+            new IdentityService(Settings.EMPTY, new ArrayList<>()),
+            new ExtensionsManager(Set.of())
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -196,6 +199,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 usageService,
                 null,
+                null,
                 null
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
@@ -245,6 +249,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 null,
                 usageService,
+                null,
                 null,
                 null
             );
