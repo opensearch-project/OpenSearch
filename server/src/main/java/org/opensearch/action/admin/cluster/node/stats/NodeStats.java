@@ -60,6 +60,7 @@ import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
+import org.opensearch.search.pipeline.SearchPipelineStats;
 import org.opensearch.tasks.TaskCancellationStats;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
@@ -139,6 +140,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private TaskCancellationStats taskCancellationStats;
 
+    @Nullable
+    private SearchPipelineStats searchPipelineStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -202,6 +206,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             taskCancellationStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO Update to 2_9_0 when we backport to 2.x
+            searchPipelineStats = in.readOptionalWriteable(SearchPipelineStats::new);
+        } else {
+            searchPipelineStats = null;
+        }
     }
 
     public NodeStats(
@@ -227,7 +236,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats,
         @Nullable WeightedRoutingStats weightedRoutingStats,
         @Nullable FileCacheStats fileCacheStats,
-        @Nullable TaskCancellationStats taskCancellationStats
+        @Nullable TaskCancellationStats taskCancellationStats,
+        @Nullable SearchPipelineStats searchPipelineStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -252,6 +262,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.weightedRoutingStats = weightedRoutingStats;
         this.fileCacheStats = fileCacheStats;
         this.taskCancellationStats = taskCancellationStats;
+        this.searchPipelineStats = searchPipelineStats;
     }
 
     public long getTimestamp() {
@@ -384,6 +395,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return taskCancellationStats;
     }
 
+    @Nullable
+    public SearchPipelineStats getSearchPipelineStats() {
+        return searchPipelineStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -429,6 +445,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(taskCancellationStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update to 2_9_0 once we backport to 2.x
+            out.writeOptionalWriteable(searchPipelineStats);
         }
     }
 
@@ -516,6 +535,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getTaskCancellationStats() != null) {
             getTaskCancellationStats().toXContent(builder, params);
+        }
+        if (getSearchPipelineStats() != null) {
+            getSearchPipelineStats().toXContent(builder, params);
         }
 
         return builder;
