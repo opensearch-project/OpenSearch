@@ -32,7 +32,7 @@
 
 package org.opensearch.index.rankeval;
 
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
@@ -274,7 +274,7 @@ public class RankEvalRequestIT extends OpenSearchIntegTestCase {
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         assertEquals(1, response.getFailures().size());
-        BaseOpenSearchException[] rootCauses = BaseOpenSearchException.guessRootCauses(response.getFailures().get("broken_query"));
+        OpenSearchException[] rootCauses = OpenSearchException.guessRootCauses(response.getFailures().get("broken_query"));
         assertEquals("java.lang.NumberFormatException: For input string: \"noStringOnNumericFields\"", rootCauses[0].getCause().toString());
     }
 

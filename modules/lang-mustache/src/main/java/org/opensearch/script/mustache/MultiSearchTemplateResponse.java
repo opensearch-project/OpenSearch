@@ -32,7 +32,7 @@
 
 package org.opensearch.script.mustache;
 
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.common.Nullable;
@@ -166,7 +166,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         for (Item item : items) {
             if (item.isFailure()) {
                 builder.startObject();
-                BaseOpenSearchException.generateFailureXContent(builder, params, item.getFailure(), true);
+                OpenSearchException.generateFailureXContent(builder, params, item.getFailure(), true);
                 builder.endObject();
             } else {
                 item.getResponse().toXContent(builder, params);

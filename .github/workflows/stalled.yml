@@ -1,0 +1,28 @@
+name: Close Stalled PRs
+on:
+  schedule:
+    - cron: '15 15 * * *' # Run every day at 15:15 UTC / 7:15 PST / 8:15 PDT
+permissions:
+  pull-requests: write
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: GitHub App token
+        id: github_app_token
+        uses: tibdex/github-app-token@v1.5.0
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          installation_id: 22958780
+      - name: Stale PRs
+        uses: actions/stale@v8
+        with:
+          repo-token: ${{ steps.github_app_token.outputs.token }}
+          stale-pr-label: 'stalled'
+          stale-pr-message: 'This PR is stalled because it has been open for 30 days with no activity. Remove stalled label or comment or this will be closed in 7 days.'
+          close-pr-message: 'This PR was closed because it has been stalled for 7 days with no activity.'
+          days-before-pr-stale: 30
+          days-before-pr-close: 7
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
