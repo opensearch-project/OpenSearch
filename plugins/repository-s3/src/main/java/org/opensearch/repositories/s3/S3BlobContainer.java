@@ -298,13 +298,17 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException {
+    public void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener)
+        throws IOException {
         String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
         int maxKeys = Math.min(limit, 1000);
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            listener.onResponse(executeListing(clientReference, listObjectsRequest(prefix, maxKeys), limit).stream()
-                .flatMap(listing -> listing.contents().stream())
-                .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size())).collect(Collectors.toList()));
+            listener.onResponse(
+                executeListing(clientReference, listObjectsRequest(prefix, maxKeys), limit).stream()
+                    .flatMap(listing -> listing.contents().stream())
+                    .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
+                    .collect(Collectors.toList())
+            );
         } catch (final SdkException e) {
             listener.onFailure(new IOException("Exception when listing blobs by prefix [" + prefix + "]", e));
         }
@@ -356,12 +360,16 @@ class S3BlobContainer extends AbstractBlobContainer {
         return executeListing(clientReference, listObjectsRequest, -1);
     }
 
-    private static List<ListObjectsV2Response> executeListing(AmazonS3Reference clientReference, ListObjectsV2Request listObjectsRequest, int limit) {
+    private static List<ListObjectsV2Response> executeListing(
+        AmazonS3Reference clientReference,
+        ListObjectsV2Request listObjectsRequest,
+        int limit
+    ) {
         return SocketAccess.doPrivileged(() -> {
             final List<ListObjectsV2Response> results = new ArrayList<>();
             ListObjectsV2Iterable listObjectsIterable = clientReference.get().listObjectsV2Paginator(listObjectsRequest);
             listObjectsIterable.stream().takeWhile(n -> {
-                if(limit == -1) {
+                if (limit == -1) {
                     return true;
                 }
                 return (results.size() < limit);
