@@ -118,9 +118,9 @@ dependencies {
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.16.12'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
   api 'org.apache.maven:maven-model:3.9.2'
-  api 'com.networknt:json-schema-validator:1.0.84'
+  api 'com.networknt:json-schema-validator:1.0.85'
   api 'org.jruby.jcodings:jcodings:1.0.58'
-  api 'org.jruby.joni:joni:2.1.48'
+  api 'org.jruby.joni:joni:2.2.1'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.2.0"
 

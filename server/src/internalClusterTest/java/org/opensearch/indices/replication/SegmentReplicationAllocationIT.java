@@ -96,6 +96,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
      * This test in general passes without primary shard balance as well due to nature of allocation algorithm which
      * assigns all primary shards first followed by replica copies.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7751")
     public void testPerIndexPrimaryAllocation() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final int maxReplicaCount = 2;
