@@ -240,15 +240,18 @@ public final class BlobStoreTestUtil {
         final BlobContainer repoRoot = repository.blobContainer();
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).collect(Collectors.toList());
-        for (String prefix : new String[] { BlobStoreRepository.SNAPSHOT_PREFIX, BlobStoreRepository.METADATA_PREFIX }) {
-            final Collection<String> foundSnapshotUUIDs = repoRoot.listBlobs()
-                .keySet()
-                .stream()
-                .filter(p -> p.startsWith(prefix))
-                .map(p -> p.replace(prefix, "").replace(".dat", ""))
-                .collect(Collectors.toSet());
-            assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
+        Collection<String> foundSnapshotUUIDs = new HashSet<>();
+        for (String prefix : new String[] { BlobStoreRepository.SNAPSHOT_PREFIX, BlobStoreRepository.SHALLOW_SNAPSHOT_PREFIX }) {
+            foundSnapshotUUIDs.addAll(
+                repoRoot.listBlobs()
+                    .keySet()
+                    .stream()
+                    .filter(p -> p.startsWith(prefix))
+                    .map(p -> p.replace(prefix, "").replace(".dat", ""))
+                    .collect(Collectors.toSet())
+            );
         }
+        assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
 
         final BlobContainer indicesContainer = repository.getBlobContainer().children().get("indices");
         final Map<String, BlobContainer> indices;
@@ -303,10 +306,16 @@ public final class BlobStoreTestUtil {
                             .stream()
                             .noneMatch(shardFailure -> shardFailure.index().equals(index) && shardFailure.shardId() == shardId)) {
                         final Map<String, BlobMetadata> shardPathContents = shardContainer.listBlobs();
-                        assertThat(
-                            shardPathContents,
-                            hasKey(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID()))
+
+                        assertTrue(
+                            shardPathContents.containsKey(
+                                String.format(Locale.ROOT, BlobStoreRepository.SHALLOW_SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
+                            )
+                                || shardPathContents.containsKey(
+                                    String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
+                                )
                         );
+
                         assertThat(
                             shardPathContents.keySet()
                                 .stream()
