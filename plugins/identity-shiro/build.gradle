@@ -28,7 +28,7 @@ dependencies {
 
   implementation 'org.passay:passay:1.6.3'
 
-  implementation "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  implementation "org.bouncycastle:bcprov-jdk15to18:${versions.bouncycastle}"
 
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation project(path: ':plugins:transport-nio') // for http

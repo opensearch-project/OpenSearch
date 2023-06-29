@@ -71,9 +71,9 @@ dependencies {
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
   api "org.apache.pdfbox:jempbox:1.8.17"
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcmail-jdk15to18:${versions.bouncycastle}"
+  api "org.bouncycastle:bcprov-jdk15to18:${versions.bouncycastle}"
+  api "org.bouncycastle:bcpkix-jdk15to18:${versions.bouncycastle}"
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
