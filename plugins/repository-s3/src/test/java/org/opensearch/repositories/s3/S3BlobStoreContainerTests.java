@@ -33,6 +33,7 @@
 package org.opensearch.repositories.s3;
 
 import org.mockito.ArgumentCaptor;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
@@ -89,6 +90,7 @@ import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.any;
@@ -192,14 +194,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         private final long s3ObjectSize;
 
         private final AtomicInteger currInvocationCount = new AtomicInteger();
-        private final List<String> keysListed = new ArrayList<>();
+        private final List<String> keysListed;
         private final boolean throwExceptionOnNextInvocation;
 
         public MockListObjectsV2ResponseIterator(int totalPageCount, int s3ObjectsPerPage, long s3ObjectSize) {
-            this.totalPageCount = totalPageCount;
-            this.s3ObjectsPerPage = s3ObjectsPerPage;
-            this.s3ObjectSize = s3ObjectSize;
-            this.throwExceptionOnNextInvocation = false;
+            this(totalPageCount, s3ObjectsPerPage, s3ObjectSize, false);
         }
 
         public MockListObjectsV2ResponseIterator(
@@ -212,6 +211,12 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             this.s3ObjectsPerPage = s3ObjectsPerPage;
             this.s3ObjectSize = s3ObjectSize;
             this.throwExceptionOnNextInvocation = throwExceptionOnNextInvocation;
+            keysListed = new ArrayList<>();
+            for(int i = 0; i < totalPageCount * s3ObjectsPerPage; i++) {
+                keysListed.add(UUID.randomUUID().toString());
+            }
+            // S3 lists keys in lexicographic order
+            keysListed.sort(String::compareTo);
         }
 
         @Override
@@ -227,8 +232,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             if (currInvocationCount.getAndIncrement() < totalPageCount) {
                 List<S3Object> s3Objects = new ArrayList<>();
                 for (int i = 0; i < s3ObjectsPerPage; i++) {
-                    String s3ObjectKey = UUID.randomUUID().toString();
-                    keysListed.add(s3ObjectKey);
+                    String s3ObjectKey = keysListed.get((currInvocationCount.get() - 1) * s3ObjectsPerPage + i);
                     s3Objects.add(S3Object.builder().key(s3ObjectKey).size(s3ObjectSize).build());
                 }
                 return ListObjectsV2Response.builder().contents(s3Objects).build();
@@ -808,4 +812,61 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(keys, listOfBlobs.keySet());
     }
 
+    private void testListBlobsByPrefixInLexicographicOrder(int limit) throws IOException {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        BlobPath blobPath = mock(BlobPath.class);
+        when(blobPath.buildAsString()).thenReturn("/dummy/path");
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        Iterator<ListObjectsV2Response> iterator = new MockListObjectsV2ResponseIterator(2, 5, 100);
+        Stream<ListObjectsV2Response> stream = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, 0), false);
+        when(listObjectsV2Iterable.stream()).thenReturn(stream);
+
+        blobContainer.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<List<BlobMetadata>>() {
+            @Override
+            public void onResponse(List<BlobMetadata> blobMetadata) {
+                int actualLimit = Math.max(0, Math.min(limit, 10));
+                assertEquals(actualLimit, blobMetadata.size());
+
+                List<String> keys = ((MockListObjectsV2ResponseIterator) iterator).keysListed.stream()
+                    .map(s -> s.substring(blobPath.buildAsString().length()))
+                    .collect(Collectors.toList()).subList(0, actualLimit);
+                assertEquals(keys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("blobContainer.listBlobsByPrefixInLexicographicOrder failed with exception: " + e.getMessage());
+            }
+        });
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithNegativeLimit() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(-5);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithZeroLimit() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(0);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitLessThanPageSize() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(2);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanPageSize() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(8);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(12);
+    }
 }

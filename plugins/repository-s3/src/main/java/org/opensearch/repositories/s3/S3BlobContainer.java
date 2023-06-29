@@ -301,14 +301,13 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) {
         String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
-        int maxKeys = Math.min(limit, 1000);
+        limit = Math.max(0, limit);
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            listener.onResponse(
-                executeListing(clientReference, listObjectsRequest(prefix, maxKeys), limit).stream()
-                    .flatMap(listing -> listing.contents().stream())
-                    .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
-                    .collect(Collectors.toList())
-            );
+            List<BlobMetadata> blobs = executeListing(clientReference, listObjectsRequest(prefix, limit), limit).stream()
+                .flatMap(listing -> listing.contents().stream())
+                .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
+                .collect(Collectors.toList());
+            listener.onResponse(blobs.subList(0, Math.min(limit, blobs.size())));
         } catch (final SdkException e) {
             listener.onFailure(new IOException("Exception when listing blobs by prefix [" + prefix + "]", e));
         }
@@ -389,7 +388,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private ListObjectsV2Request listObjectsRequest(String keyPath, int limit) {
-        return listObjectsRequest(keyPath).toBuilder().maxKeys(limit).build();
+        return listObjectsRequest(keyPath).toBuilder().maxKeys(Math.min(limit, 1000)).build();
     }
 
     private String buildKey(String blobName) {
