@@ -82,6 +82,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -298,8 +299,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener)
-        throws IOException {
+    public void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) {
         String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
         int maxKeys = Math.min(limit, 1000);
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
@@ -367,12 +367,13 @@ class S3BlobContainer extends AbstractBlobContainer {
     ) {
         return SocketAccess.doPrivileged(() -> {
             final List<ListObjectsV2Response> results = new ArrayList<>();
+            AtomicInteger totalObjects = new AtomicInteger(0);
             ListObjectsV2Iterable listObjectsIterable = clientReference.get().listObjectsV2Paginator(listObjectsRequest);
-            listObjectsIterable.stream().takeWhile(n -> {
+            listObjectsIterable.stream().takeWhile(listObjectsV2Response -> {
                 if (limit == -1) {
                     return true;
                 }
-                return (results.size() < limit);
+                return (totalObjects.getAndAdd(listObjectsV2Response.contents().size()) < limit);
             }).forEach(results::add);
             return results;
         });

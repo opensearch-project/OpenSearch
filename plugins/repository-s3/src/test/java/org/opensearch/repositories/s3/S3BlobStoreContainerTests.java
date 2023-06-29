@@ -33,6 +33,7 @@
 package org.opensearch.repositories.s3;
 
 import org.mockito.ArgumentCaptor;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.DeleteResult;
@@ -74,22 +75,23 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.Spliterators;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
@@ -220,10 +222,14 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                 throw SdkException.builder().build();
             }
             if (currInvocationCount.getAndIncrement() < totalPageCount) {
-                String s3ObjectKey = UUID.randomUUID().toString();
-                keysListed.add(s3ObjectKey);
+                List<S3Object> s3Objects = new ArrayList<>();
+                for(int i = 0; i < s3ObjectsPerPage; i++) {
+                    String s3ObjectKey = UUID.randomUUID().toString();
+                    keysListed.add(s3ObjectKey);
+                    s3Objects.add(S3Object.builder().key(s3ObjectKey).size(s3ObjectSize).build());
+                }
                 return ListObjectsV2Response.builder()
-                    .contents(Collections.nCopies(s3ObjectsPerPage, S3Object.builder().key(s3ObjectKey).size(s3ObjectSize).build()))
+                    .contents(s3Objects)
                     .build();
             }
             throw new NoSuchElementException();
@@ -772,4 +778,31 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals("Expected number of parts [" + expectedParts + "] but got [" + result.v1() + "]", expectedParts, (long) result.v1());
         assertEquals("Expected remaining [" + expectedRemaining + "] but got [" + result.v2() + "]", expectedRemaining, (long) result.v2());
     }
+
+    public void testListBlobsByPrefix() throws IOException {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        BlobPath blobPath = mock(BlobPath.class);
+        when(blobPath.buildAsString()).thenReturn("/dummy/path");
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        Iterator<ListObjectsV2Response> iterator = new MockListObjectsV2ResponseIterator(2, 5, 100);
+        Stream<ListObjectsV2Response> stream = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, 0), false);
+        when(listObjectsV2Iterable.stream()).thenReturn(stream);
+
+        Map<String, BlobMetadata> listOfBlobs = blobContainer.listBlobsByPrefix(null);
+        assertEquals(10, listOfBlobs.size());
+
+        Set<String> keys = ((MockListObjectsV2ResponseIterator) iterator).keysListed.stream().map(s -> s.substring(blobPath.buildAsString().length())).collect(Collectors.toSet());
+        assertEquals(keys, listOfBlobs.keySet());
+    }
+
 }
