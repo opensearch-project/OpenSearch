@@ -76,7 +76,7 @@ public class IntValuesComparatorSource extends IndexFieldData.XFieldComparatorSo
         final int iMissingValue = (Integer) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new IntComparator(numHits, null, null, reversed, false) {
+        return new IntComparator(numHits, fieldname, null, reversed, enableSkipping && this.enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new IntLeafComparator(context) {
