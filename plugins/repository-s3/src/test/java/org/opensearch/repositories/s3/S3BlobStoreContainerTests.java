@@ -75,6 +75,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -284,10 +285,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         // keysDeleted will have blobPath also
         assertEquals(listObjectsV2ResponseIterator.getKeysListed().size(), keysDeleted.size() - 1);
         assertTrue(keysDeleted.contains(blobPath.buildAsString()));
-        assertArrayEquals(
-            listObjectsV2ResponseIterator.getKeysListed().toArray(String[]::new),
-            keysDeleted.stream().filter(key -> !blobPath.buildAsString().equals(key)).toArray(String[]::new)
-        );
+        keysDeleted.remove(blobPath.buildAsString());
+        assertEquals(new HashSet<>(listObjectsV2ResponseIterator.getKeysListed()), new HashSet<>(keysDeleted));
     }
 
     public void testDeleteItemLevelErrorsDuringDelete() {
