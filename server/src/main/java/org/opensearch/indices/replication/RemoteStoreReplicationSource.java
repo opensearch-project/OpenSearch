@@ -17,6 +17,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.util.Collections;
@@ -53,24 +54,28 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
         final Version version = indexShard.getSegmentInfosSnapshot().get().getCommitLuceneVersion();
         try {
-            metadataMap = remoteDirectory.readLatestMetadataFile()
-                .getMetadata()
-                .entrySet()
-                .stream()
-                .collect(
-                    Collectors.toMap(
-                        e -> e.getKey(),
-                        e -> new StoreFileMetadata(
-                            e.getValue().getOriginalFilename(),
-                            e.getValue().getLength(),
-                            Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
-                            version,
-                            null
+            RemoteSegmentMetadata mdFile = remoteDirectory.readLatestMetadataFile();
+            if (mdFile == null) {
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, Collections.emptyMap(), null));
+            } else {
+                metadataMap = mdFile.getMetadata()
+                    .entrySet()
+                    .stream()
+                    .collect(
+                        Collectors.toMap(
+                            e -> e.getKey(),
+                            e -> new StoreFileMetadata(
+                                e.getValue().getOriginalFilename(),
+                                e.getValue().getLength(),
+                                Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
+                                version,
+                                null
+                            )
                         )
-                    )
-                );
-            // TODO: GET current checkpoint from remote store.
-            listener.onResponse(new CheckpointInfoResponse(checkpoint, metadataMap, null));
+                    );
+                // TODO: GET current checkpoint from remote store.
+                listener.onResponse(new CheckpointInfoResponse(checkpoint, metadataMap, null));
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }

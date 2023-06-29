@@ -41,6 +41,8 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
 
     private IndexShard mockShard;
 
+    private Store remoteStore;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -59,7 +61,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         Store store = mock(Store.class);
         when(mockShard.store()).thenReturn(store);
         when(store.directory()).thenReturn(indexShard.store().directory());
-        Store remoteStore = mock(Store.class);
+        remoteStore = mock(Store.class);
         when(mockShard.remoteStore()).thenReturn(remoteStore);
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
             (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate())
@@ -111,6 +113,40 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res);
             res.get();
         });
+    }
+
+    public void testGetCheckpointMetadataEmpty() throws ExecutionException, InterruptedException, IOException {
+        when(mockShard.getSegmentInfosSnapshot()).thenReturn(indexShard.getSegmentInfosSnapshot());
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+            indexShard.shardId(),
+            PRIMARY_TERM,
+            SEGMENTS_GEN,
+            VERSION,
+            Codec.getDefault().getName()
+        );
+        IndexShard emptyIndexShard = null;
+        try {
+            emptyIndexShard = newStartedShard(
+                true,
+                Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true).build(),
+                new InternalEngineFactory()
+            );
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) emptyIndexShard.remoteStore().directory()).getDelegate())
+                    .getDelegate();
+            FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
+                new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
+            );
+            when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
+
+            final PlainActionFuture<CheckpointInfoResponse> res = PlainActionFuture.newFuture();
+            replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res);
+            CheckpointInfoResponse response = res.get();
+            assert (response.getCheckpoint().equals(checkpoint));
+            assert (response.getMetadataMap().isEmpty());
+        } finally {
+            closeShards(emptyIndexShard);
+        }
     }
 
     public void testGetSegmentFiles() throws ExecutionException, InterruptedException {
