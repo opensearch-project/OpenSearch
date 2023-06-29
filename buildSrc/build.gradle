@@ -100,6 +100,20 @@ repositories {
 
 dependencies {
 
+  modules {
+    module("org.bouncycastle:bcprov-jdk15on") {
+      replacedBy("org.bouncycastle:bcprov-jdk15to18", "the jdk15on artifacts are not supported anymore")
+    }
+    module("org.bouncycastle:bcpkix-jdk15on") {
+      replacedBy("org.bouncycastle:bcpkix-jdk15to18", "the jdk15on artifacts are not supported anymore")
+    }
+    module("org.bouncycastle:bcpg-jdk15on") {
+      replacedBy("org.bouncycastle:bcpg-jdk15to18", "the jdk15on artifacts are not supported anymore")
+    }
+    module("org.bouncycastle:bcutil-jdk15on") {
+      replacedBy("org.bouncycastle:bcutil-jdk15to18", "the jdk15on artifacts are not supported anymore")
+    }
+  }
   api localGroovy()
 
   api 'commons-codec:commons-codec:1.15'
@@ -118,10 +132,10 @@ dependencies {
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
-  api "org.bouncycastle:bcprov-jdk15on:${props.getProperty('bouncycastle')}"
-  api "org.bouncycastle:bcpkix-jdk15on:${props.getProperty('bouncycastle')}"
-  api "org.bouncycastle:bcpg-jdk15on:${props.getProperty('bouncycastle')}"
-  api "org.bouncycastle:bcutil-jdk15on:${props.getProperty('bouncycastle')}"
+  api "org.bouncycastle:bcprov-jdk15to18:${props.getProperty('bouncycastle')}"
+  api "org.bouncycastle:bcpkix-jdk15to18:${props.getProperty('bouncycastle')}"
+  api "org.bouncycastle:bcpg-jdk15to18:${props.getProperty('bouncycastle')}"
+  api "org.bouncycastle:bcutil-jdk15to18:${props.getProperty('bouncycastle')}"
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
