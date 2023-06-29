@@ -62,7 +62,7 @@ final class ExpandSearchPhase extends SearchPhase {
     private final AtomicArray<SearchPhaseResult> queryResults;
 
     ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        super("expand");
+        super(SearchPhaseName.EXPAND.getName());
         this.context = context;
         this.searchResponse = searchResponse;
         this.queryResults = queryResults;

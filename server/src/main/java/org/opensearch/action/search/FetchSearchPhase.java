@@ -92,7 +92,7 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseContext context,
         BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
-        super("fetch");
+        super(SearchPhaseName.FETCH.getName());
         if (context.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException(
                 "number of shards must match the length of the query results but doesn't:"

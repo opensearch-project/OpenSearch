@@ -73,6 +73,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private final ScriptService scriptService;
     private final Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories;
     private final Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories;
+    private final Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseInjectorProcessorFactories;
     private volatile Map<String, PipelineHolder> pipelines = Collections.emptyMap();
     private final ThreadPool threadPool;
     private final List<Consumer<ClusterState>> searchPipelineClusterStateListeners = new CopyOnWriteArrayList<>();
@@ -116,6 +117,10 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         );
         this.requestProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getRequestProcessors(parameters));
         this.responseProcessorFactories = processorFactories(searchPipelinePlugins, p -> p.getResponseProcessors(parameters));
+        this.phaseInjectorProcessorFactories = processorFactories(
+            searchPipelinePlugins,
+            p -> p.getSearchPhaseResultsProcessors(parameters)
+        );
         putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_SEARCH_PIPELINE_KEY, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SEARCH_PIPELINE_KEY, true);
         this.isEnabled = isEnabled;
@@ -181,6 +186,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                     newConfiguration.getConfigAsMap(),
                     requestProcessorFactories,
                     responseProcessorFactories,
+                    phaseInjectorProcessorFactories,
                     namedWriteableRegistry,
                     totalRequestProcessingMetrics,
                     totalResponseProcessingMetrics
@@ -280,6 +286,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             pipelineConfig,
             requestProcessorFactories,
             responseProcessorFactories,
+            phaseInjectorProcessorFactories,
             namedWriteableRegistry,
             new OperationMetrics(), // Use ephemeral metrics for validation
             new OperationMetrics()
@@ -359,7 +366,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return newState.build();
     }
 
-    public PipelinedRequest resolvePipeline(SearchRequest searchRequest) throws Exception {
+    public PipelinedRequest resolvePipeline(SearchRequest searchRequest) {
         Pipeline pipeline = Pipeline.NO_OP_PIPELINE;
 
         if (isEnabled == false) {
@@ -378,6 +385,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                     searchRequest.source().searchPipelineSource(),
                     requestProcessorFactories,
                     responseProcessorFactories,
+                    phaseInjectorProcessorFactories,
                     namedWriteableRegistry,
                     totalRequestProcessingMetrics,
                     totalResponseProcessingMetrics
