@@ -27,32 +27,65 @@ public class NamedRoute extends RestHandler.Route {
     private final String uniqueName;
     private final Set<String> actionNames;
 
+    /**
+     * Builder class for constructing instances of {@link NamedRoute}.
+     */
     public static class Builder {
         private RestRequest.Method method;
         private String path;
         private String uniqueName;
         private Set<String> legacyActionNames;
 
+        /**
+         * Sets the REST method for the route.
+         *
+         * @param method the REST method for the route
+         * @return the builder instance
+         */
         public Builder method(RestRequest.Method method) {
             this.method = method;
             return this;
         }
 
+        /**
+         * Sets the URL path for the route.
+         *
+         * @param path the URL path for the route
+         * @return the builder instance
+         */
         public Builder path(String path) {
             this.path = path;
             return this;
         }
 
+        /**
+         * Sets the name for the route.
+         *
+         * @param name the name for the route
+         * @return the builder instance
+         */
         public Builder uniqueName(String name) {
             this.uniqueName = name;
             return this;
         }
 
+        /**
+         * Sets the legacy action names for the route.
+         *
+         * @param legacyActionNames the legacy action names for the route
+         * @return the builder instance
+         */
         public Builder legacyActionNames(Set<String> legacyActionNames) {
             this.legacyActionNames = legacyActionNames;
             return this;
         }
 
+        /**
+         * Builds a new instance of {@link NamedRoute} based on the provided parameters.
+         *
+         * @return a new instance of {@link NamedRoute}
+         * @throws OpenSearchException if the route name is invalid
+         */
         public NamedRoute build() {
             return new NamedRoute(this);
         }
