@@ -80,7 +80,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
-    private final Map<String, List<String>> serverHeader;
+    private final Map<String, List<String>> serverVersion;
 
 
     @Nullable
@@ -104,7 +104,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
         this.tracerLog = tracerLog;
-        this.serverHeader = new HashMap<>();
+        this.serverVersion = new HashMap<>();
     }
 
     @Override
@@ -155,12 +155,12 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
 
             // Add server header
-            serverHeader.put(
+            serverVersion.put(
                 SERVER_VERSION,
                 Arrays.asList(OPEN_SEARCH_NAME + "/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")")
             );
 
-            addCustomHeaders(httpResponse, serverHeader);
+            addCustomHeaders(httpResponse, serverVersion);
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);

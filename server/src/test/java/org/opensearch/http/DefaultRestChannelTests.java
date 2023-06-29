@@ -192,7 +192,7 @@ public class DefaultRestChannelTests extends OpenSearchTestCase {
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
         assertEquals(
             "OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")",
-            headers.get("serverHeader").get(0)
+            headers.get("server-version").get(0)
         );
     }
 
