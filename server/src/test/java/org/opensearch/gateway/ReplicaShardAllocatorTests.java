@@ -33,9 +33,11 @@
 package org.opensearch.gateway;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -66,9 +68,8 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
-import org.opensearch.cluster.OpenSearchAllocationTestCase;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -664,7 +665,7 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
 
     class TestAllocator extends ReplicaShardAllocator {
 
-        private Map<DiscoveryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata> data = null;
+        private Map<DiscoveryNode, TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata> data = null;
         private AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
 
         public void clean() {
@@ -702,7 +703,7 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
             }
             data.put(
                 node,
-                new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
+                new TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata(
                     shardId,
                     new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt()),
                     peerRecoveryRetentionLeases
@@ -720,7 +721,7 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
             Map<DiscoveryNode, TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> tData = null;
             if (data != null) {
                 tData = new HashMap<>();
-                for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata> entry : data.entrySet()) {
+                for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata> entry : data.entrySet()) {
                     tData.put(
                         entry.getKey(),
                         new TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata(entry.getKey(), entry.getValue())
