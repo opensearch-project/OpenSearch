@@ -52,8 +52,6 @@ import org.opensearch.rest.RestStatus;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.HashMap;
-import java.util.Arrays;
 
 import static org.opensearch.tasks.Task.X_OPAQUE_ID;
 
@@ -73,7 +71,11 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String SET_COOKIE = "set-cookie";
     static final String SERVER_VERSION = "X-OpenSearch-Version";
     static final String OPEN_SEARCH_NAME = "OpenSearch";
-    static final String SERVER_VERSION_VALUE = "OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")";
+    static final String SERVER_VERSION_VALUE = "OpenSearch/"
+        + Build.CURRENT.getQualifiedVersion()
+        + " ("
+        + Build.CURRENT.getDistribution()
+        + ")";
 
     private final HttpRequest httpRequest;
     private final BigArrays bigArrays;
@@ -152,7 +154,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
 
-            addCustomHeaders(httpResponse, Map.of(SERVER_VERSION,List.of(SERVER_VERSION_VALUE)));
+            addCustomHeaders(httpResponse, Map.of(SERVER_VERSION, List.of(SERVER_VERSION_VALUE)));
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
