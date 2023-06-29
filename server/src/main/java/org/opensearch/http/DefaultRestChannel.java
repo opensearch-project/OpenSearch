@@ -70,7 +70,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String CONTENT_LENGTH = "content-length";
     static final String SET_COOKIE = "set-cookie";
     static final String SERVER_VERSION = "X-OpenSearch-Version";
-    static final String OPEN_SEARCH_NAME = "OpenSearch";
     static final String SERVER_VERSION_VALUE = "OpenSearch/"
         + Build.CURRENT.getQualifiedVersion()
         + " ("
