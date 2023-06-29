@@ -82,7 +82,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final CorsHandler corsHandler;
     private final Map<String, List<String>> serverVersion;
 
-
     @Nullable
     private final HttpTracer tracerLog;
 
