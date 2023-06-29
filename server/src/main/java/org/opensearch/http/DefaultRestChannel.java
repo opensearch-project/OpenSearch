@@ -71,6 +71,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String CONTENT_TYPE = "content-type";
     static final String CONTENT_LENGTH = "content-length";
     static final String SET_COOKIE = "set-cookie";
+    static final String SERVER_VERSION = "server-version";
+    static final String OPEN_SEARCH_NAME = "OpenSearch";
 
     private final HttpRequest httpRequest;
     private final BigArrays bigArrays;
@@ -79,6 +81,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
     private final Map<String, List<String>> serverHeader;
+
 
     @Nullable
     private final HttpTracer tracerLog;
@@ -153,8 +156,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             // Add server header
             serverHeader.put(
-                "serverHeader",
-                Arrays.asList("OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")")
+                SERVER_VERSION,
+                Arrays.asList(OPEN_SEARCH_NAME + "/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")")
             );
 
             addCustomHeaders(httpResponse, serverHeader);
