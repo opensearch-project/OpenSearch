@@ -57,6 +57,7 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -696,7 +697,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        executeNextPhase(this, getNextPhase(results, this));
+        final SearchPhase nextPhase = getNextPhase(results, this);
+        if (request instanceof PipelinedRequest && nextPhase != null) {
+            ((PipelinedRequest) request).transformSearchPhaseResults(results, this, this.getName(), nextPhase.getName());
+        }
+        executeNextPhase(this, nextPhase);
     }
 
     @Override
