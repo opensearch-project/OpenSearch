@@ -59,6 +59,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.doReturn;
+import static org.hamcrest.CoreMatchers.is;
 
 public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     private RemoteDirectory remoteDataDirectory;
@@ -779,7 +780,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         assertThrows(CorruptIndexException.class, () -> remoteSegmentStoreDirectory.init());
     }
 
-    public void testDeleteStaleCommitsException() throws IOException {
+    public void testDeleteStaleCommitsException() throws Exception {
         populateMetadata();
         when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX)).thenThrow(
             new IOException("Error reading")
@@ -790,11 +791,11 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         // invoked
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
 
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
         verify(remoteMetadataDirectory, times(0)).deleteFile(any(String.class));
-        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
     }
 
-    public void testDeleteStaleCommitsExceptionWhileScheduling() throws IOException {
+    public void testDeleteStaleCommitsExceptionWhileScheduling() throws Exception {
         populateMetadata();
         doThrow(new IllegalArgumentException()).when(threadPool).executor(any(String.class));
 
@@ -803,11 +804,11 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         // invoked
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
 
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
         verify(remoteMetadataDirectory, times(0)).deleteFile(any(String.class));
-        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
     }
 
-    public void testDeleteStaleCommitsWithDeletionAlreadyInProgress() throws IOException {
+    public void testDeleteStaleCommitsWithDeletionAlreadyInProgress() throws Exception {
         populateMetadata();
         remoteSegmentStoreDirectory.canDeleteStaleCommits.set(false);
 
@@ -816,22 +817,22 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         // invoked
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
 
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(false)));
         verify(remoteMetadataDirectory, times(0)).deleteFile(any(String.class));
-        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get() == false);
     }
 
-    public void testDeleteStaleCommitsWithinThreshold() throws IOException {
+    public void testDeleteStaleCommitsWithinThreshold() throws Exception {
         populateMetadata();
 
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=5 here so that none of the metadata files will be deleted
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(5);
 
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
         verify(remoteMetadataDirectory, times(0)).openInput(any(String.class), eq(IOContext.DEFAULT));
-        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
     }
 
-    public void testDeleteStaleCommitsActualDelete() throws IOException {
+    public void testDeleteStaleCommitsActualDelete() throws Exception {
         Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
         remoteSegmentStoreDirectory.init();
 
@@ -844,11 +845,11 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             verify(remoteDataDirectory).deleteFile(uploadedFilename);
         }
         ;
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
         verify(remoteMetadataDirectory).deleteFile("metadata__1__5__abc");
-        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
     }
 
-    public void testDeleteStaleCommitsActualDeleteIOException() throws IOException {
+    public void testDeleteStaleCommitsActualDeleteIOException() throws Exception {
         Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
         remoteSegmentStoreDirectory.init();
 
@@ -868,11 +869,11 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             verify(remoteDataDirectory).deleteFile(uploadedFilename);
         }
         ;
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
         verify(remoteMetadataDirectory, times(0)).deleteFile("metadata__1__5__abc");
-        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
     }
 
-    public void testDeleteStaleCommitsActualDeleteNoSuchFileException() throws IOException {
+    public void testDeleteStaleCommitsActualDeleteNoSuchFileException() throws Exception {
         Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
         remoteSegmentStoreDirectory.init();
 
@@ -892,8 +893,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             verify(remoteDataDirectory).deleteFile(uploadedFilename);
         }
         ;
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
         verify(remoteMetadataDirectory).deleteFile("metadata__1__5__abc");
-        assertTrue(remoteSegmentStoreDirectory.canDeleteStaleCommits.get());
     }
 
     public void testSegmentMetadataCurrentVersion() {
