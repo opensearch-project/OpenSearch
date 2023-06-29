@@ -8,6 +8,9 @@
 
 package org.opensearch.index.codec.customcodecs;
 
+import org.apache.logging.log4j.Logger;
+import org.opensearch.index.mapper.MapperService;
+
 /**
  * ZstdCodec provides ZSTD compressor using the <a href="https://github.com/luben/zstd-jni">zstd-jni</a> library.
  */
@@ -27,6 +30,10 @@ public class ZstdCodec extends Lucene95CustomCodec {
      */
     public ZstdCodec(int compressionLevel) {
         super(Mode.ZSTD, compressionLevel);
+    }
+
+    public ZstdCodec(MapperService mapperService, Logger logger) {
+        super(Mode.ZSTD, DEFAULT_COMPRESSION_LEVEL, mapperService, logger);
     }
 
     /** The name for this codec. */

@@ -8,21 +8,21 @@
 
 package org.opensearch.index.codec.customcodecs;
 
-import org.apache.lucene.tests.util.LineFileDocs;
-import org.apache.lucene.tests.util.TestUtil;
-import org.opensearch.test.OpenSearchTestCase;
 import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.tests.util.LineFileDocs;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.List;
-import java.nio.ByteBuffer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Random;
 
 /**

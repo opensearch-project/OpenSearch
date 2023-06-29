@@ -9,15 +9,16 @@
 package org.opensearch.index.codec.customcodecs;
 
 import com.github.luben.zstd.Zstd;
-import java.io.IOException;
 import org.apache.lucene.codecs.compressing.CompressionMode;
 import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+
+import java.io.IOException;
 
 /** ZSTD Compression Mode (without a dictionary support). */
 public class ZstdNoDictCompressionMode extends CompressionMode {

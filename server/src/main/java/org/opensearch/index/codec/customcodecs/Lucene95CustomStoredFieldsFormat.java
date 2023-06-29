@@ -8,8 +8,6 @@
 
 package org.opensearch.index.codec.customcodecs;
 
-import java.io.IOException;
-import java.util.Objects;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.StoredFieldsWriter;
@@ -19,6 +17,9 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+
+import java.io.IOException;
+import java.util.Objects;
 
 /** Stored field format used by pluggable codec */
 public class Lucene95CustomStoredFieldsFormat extends StoredFieldsFormat {
@@ -95,7 +96,7 @@ public class Lucene95CustomStoredFieldsFormat extends StoredFieldsFormat {
         return impl(mode).fieldsWriter(directory, si, context);
     }
 
-    private StoredFieldsFormat impl(Lucene95CustomCodec.Mode mode) {
+    StoredFieldsFormat impl(Lucene95CustomCodec.Mode mode) {
         switch (mode) {
             case ZSTD:
                 return new Lucene90CompressingStoredFieldsFormat(
@@ -105,7 +106,7 @@ public class Lucene95CustomStoredFieldsFormat extends StoredFieldsFormat {
                     ZSTD_MAX_DOCS_PER_BLOCK,
                     ZSTD_BLOCK_SHIFT
                 );
-            case ZSTDNODICT:
+            case ZSTD_NO_DICT:
                 return new Lucene90CompressingStoredFieldsFormat(
                     "CustomStoredFieldsZstdNoDict",
                     zstdNoDictCompressionMode,
@@ -116,5 +117,9 @@ public class Lucene95CustomStoredFieldsFormat extends StoredFieldsFormat {
             default:
                 throw new AssertionError();
         }
+    }
+
+    Lucene95CustomCodec.Mode getMode() {
+        return mode;
     }
 }
