@@ -19,20 +19,64 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public class NamedRoute extends RestHandler.Route implements NamedRouteWrapper {
+public class NamedRoute extends RestHandler.Route {
 
     private static final String VALID_ACTION_NAME_PATTERN = "^[a-zA-Z0-9:/*_]*$";
     static final int MAX_LENGTH_OF_ACTION_NAME = 250;
 
-    private String name;
+    private final String uniqueName;
+    private final Set<String> actionNames;
 
-    private Set<String> actionNames;
+    public static class Builder {
+        private RestRequest.Method method;
+        private String path;
+        private String uniqueName;
+        private Set<String> legacyActionNames;
+
+        public Builder method(RestRequest.Method method) {
+            this.method = method;
+            return this;
+        }
+
+        public Builder path(String path) {
+            this.path = path;
+            return this;
+        }
+
+        public Builder uniqueName(String name) {
+            this.uniqueName = name;
+            return this;
+        }
+
+        public Builder legacyActionNames(Set<String> legacyActionNames) {
+            this.legacyActionNames = legacyActionNames;
+            return this;
+        }
+
+        public NamedRoute build() {
+            return new NamedRoute(this);
+        }
+    }
+
+    private NamedRoute(Builder builder) {
+        super(builder.method, builder.path);
+        if (!isValidRouteName(builder.uniqueName)) {
+            throw new OpenSearchException(
+                "Invalid route name specified. The route name may include the following characters"
+                    + " 'a-z', 'A-Z', '0-9', ':', '/', '*', '_' and be less than "
+                    + MAX_LENGTH_OF_ACTION_NAME
+                    + " characters"
+            );
+        }
+        this.uniqueName = builder.uniqueName;
+        this.actionNames = validateLegacyActionNames(builder.legacyActionNames);
+    }
 
     public boolean isValidRouteName(String routeName) {
-        if (routeName == null || routeName.isBlank() || routeName.length() > MAX_LENGTH_OF_ACTION_NAME) {
-            return false;
-        }
-        return routeName.matches(VALID_ACTION_NAME_PATTERN);
+        return routeName != null
+            && !routeName.isBlank()
+            && routeName.length() <= MAX_LENGTH_OF_ACTION_NAME
+            && routeName.matches(VALID_ACTION_NAME_PATTERN);
     }
 
     private Set<String> validateLegacyActionNames(Set<String> legacyActionNames) {
@@ -49,37 +93,11 @@ public class NamedRoute extends RestHandler.Route implements NamedRouteWrapper {
         return legacyActionNames;
     }
 
-    public NamedRoute(RestRequest.Method method, String path, String name) {
-        super(method, path);
-        if (!isValidRouteName(name)) {
-            throw new OpenSearchException(
-                "Invalid route name specified. The route name may include the following characters"
-                    + " 'a-z', 'A-Z', '0-9', ':', '/', '*', '_' and be less than "
-                    + MAX_LENGTH_OF_ACTION_NAME
-                    + " characters"
-            );
-        }
-        this.name = name;
-        this.actionNames = new HashSet<>();
-    }
-
-    /**
-     * Allows registering a legacyName to match against transport action
-     * @param method - The REST method for this route
-     * @param path - the URL for this route
-     * @param name - the shortname for this route
-     * @param legacyActionNames - list of names of the transport action this route will be matched against
-     */
-    public NamedRoute(RestRequest.Method method, String path, String name, Set<String> legacyActionNames) {
-        this(method, path, name);
-        this.actionNames = validateLegacyActionNames(legacyActionNames);
-    }
-
     /**
      * The name of the Route. Must be unique across Route.
      */
     public String name() {
-        return this.name;
+        return this.uniqueName;
     }
 
     /**
@@ -92,6 +110,6 @@ public class NamedRoute extends RestHandler.Route implements NamedRouteWrapper {
 
     @Override
     public String toString() {
-        return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + ", actionNames=" + actionNames + "]";
+        return "NamedRoute [method=" + method + ", path=" + path + ", name=" + uniqueName + ", actionNames=" + actionNames + "]";
     }
 }

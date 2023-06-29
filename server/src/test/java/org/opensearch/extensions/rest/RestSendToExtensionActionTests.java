@@ -180,9 +180,15 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
         List<NamedRoute> expected = new ArrayList<>();
         String uriPrefix = "/_extensions/_uniqueid1";
-        expected.add(new NamedRoute(Method.GET, uriPrefix + "/foo", "foo"));
-        expected.add(new NamedRoute(Method.PUT, uriPrefix + "/bar", "bar"));
-        expected.add(new NamedRoute(Method.POST, uriPrefix + "/baz", "baz"));
+        NamedRoute nr1 = new NamedRoute.Builder().method(Method.GET).path(uriPrefix + "/foo").uniqueName("foo").build();
+
+        NamedRoute nr2 = new NamedRoute.Builder().method(Method.PUT).path(uriPrefix + "/bar").uniqueName("bar").build();
+
+        NamedRoute nr3 = new NamedRoute.Builder().method(Method.POST).path(uriPrefix + "/baz").uniqueName("baz").build();
+
+        expected.add(nr1);
+        expected.add(nr2);
+        expected.add(nr3);
 
         List<Route> routes = restSendToExtensionAction.routes();
         assertEquals(expected.size(), routes.size());
@@ -219,16 +225,25 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
         List<NamedRoute> expected = new ArrayList<>();
         String uriPrefix = "/_extensions/_uniqueid1";
-        expected.add(new NamedRoute(Method.GET, uriPrefix + "/foo", "foo", Set.of("cluster:admin/opensearch/abc/foo")));
-        expected.add(
-            new NamedRoute(
-                Method.PUT,
-                uriPrefix + "/bar",
-                "bar",
-                Set.of("cluster:admin/opensearch/jkl/bar", "cluster:admin/opendistro/mno/bar*")
-            )
-        );
-        expected.add(new NamedRoute(Method.POST, uriPrefix + "/baz", "baz", Set.of("cluster:admin/opensearch/xyz/baz")));
+        NamedRoute nr1 = new NamedRoute.Builder().method(Method.GET)
+            .path(uriPrefix + "/foo")
+            .uniqueName("foo")
+            .legacyActionNames(Set.of("cluster:admin/opensearch/abc/foo"))
+            .build();
+        NamedRoute nr2 = new NamedRoute.Builder().method(Method.PUT)
+            .path(uriPrefix + "/bar")
+            .uniqueName("bar")
+            .legacyActionNames(Set.of("cluster:admin/opensearch/jkl/bar", "cluster:admin/opendistro/mno/bar*"))
+            .build();
+        NamedRoute nr3 = new NamedRoute.Builder().method(Method.POST)
+            .path(uriPrefix + "/baz")
+            .uniqueName("baz")
+            .legacyActionNames(Set.of("cluster:admin/opensearch/xyz/baz"))
+            .build();
+
+        expected.add(nr1);
+        expected.add(nr2);
+        expected.add(nr3);
 
         List<Route> routes = restSendToExtensionAction.routes();
         assertEquals(expected.size(), routes.size());

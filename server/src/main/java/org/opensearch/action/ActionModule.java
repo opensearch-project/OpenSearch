@@ -308,7 +308,7 @@ import org.opensearch.persistent.StartPersistentTaskAction;
 import org.opensearch.persistent.UpdatePersistentTaskStatusAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
-import org.opensearch.rest.NamedRouteWrapper;
+import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
@@ -1045,8 +1045,8 @@ public class ActionModule extends AbstractModule {
 
         // A dynamic registry to add or remove Route / RestSendToExtensionAction pairs
         // at times other than node bootstrap.
-        private final Map<NamedRouteWrapper, RestSendToExtensionAction> routeRegistry = new ConcurrentHashMap<
-            NamedRouteWrapper,
+        private final Map<NamedRoute, RestSendToExtensionAction> routeRegistry = new ConcurrentHashMap<
+            NamedRoute,
             RestSendToExtensionAction>();
 
         private final Set<String> registeredActionNames = new ConcurrentSkipListSet<>();
@@ -1120,31 +1120,28 @@ public class ActionModule extends AbstractModule {
          * @param route The route instance to add
          * @param action The corresponding instance of RestSendToExtensionAction to execute
          */
-        public void registerDynamicRoute(NamedRouteWrapper route, RestSendToExtensionAction action) {
+        public void registerDynamicRoute(NamedRoute route, RestSendToExtensionAction action) {
             requireNonNull(route, "route is required");
             requireNonNull(action, "action is required");
 
             Optional<String> routeName = Optional.of(route.name());
-            if (isActionRegistered(routeName.get()) || registeredActionNames.contains(routeName.get())) {
+            if (isActionRegistered(routeName.get())) {
                 throw new IllegalArgumentException("route [" + route + "] already registered");
             }
             Set<String> actionNames = new HashSet<>(route.actionNames());
-            if (!actionNames.isEmpty()) {
-                actionNames.forEach(act -> {
-                    if (isActionRegistered(act) || registeredActionNames.contains(act)) {
-                        throw new IllegalArgumentException("action [" + act + "] already registered");
-                    }
-                });
-            }
+
+            actionNames.forEach(act -> {
+                if (isActionRegistered(act)) {
+                    throw new IllegalArgumentException("action [" + act + "] already registered");
+                }
+            });
 
             if (routeRegistry.containsKey(route)) {
                 throw new IllegalArgumentException("route [" + route + "] already registered");
             }
             routeRegistry.put(route, action);
             routeName.ifPresent(registeredActionNames::add);
-            if (!actionNames.isEmpty()) {
-                registeredActionNames.addAll(actionNames);
-            }
+            registeredActionNames.addAll(actionNames);
         }
 
         /**
@@ -1152,7 +1149,7 @@ public class ActionModule extends AbstractModule {
          *
          * @param route The route to remove
          */
-        public void unregisterDynamicRoute(NamedRouteWrapper route) {
+        public void unregisterDynamicRoute(NamedRoute route) {
             requireNonNull(route, "route is required");
             if (routeRegistry.remove(route) == null) {
                 throw new IllegalArgumentException("action [" + route + "] was not registered");
@@ -1160,9 +1157,7 @@ public class ActionModule extends AbstractModule {
 
             registeredActionNames.remove(route.name());
             Set<String> actionNames = route.actionNames();
-            if (actionNames != null && !actionNames.isEmpty()) {
-                registeredActionNames.removeAll(actionNames);
-            }
+            registeredActionNames.removeAll(actionNames);
         }
 
         /**
