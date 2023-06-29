@@ -120,7 +120,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         final long lMissingValue = (Long) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new LongComparator(numHits, null, null, reversed, false) {
+        return new LongComparator(numHits, fieldname, null, reversed, enableSkipping && this.enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new LongLeafComparator(context) {
