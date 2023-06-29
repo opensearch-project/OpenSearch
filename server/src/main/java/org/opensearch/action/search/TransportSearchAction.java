@@ -390,13 +390,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             relativeStartNanos,
             System::nanoTime
         );
-        SearchRequest searchRequest;
+        PipelinedRequest searchRequest;
         ActionListener<SearchResponse> listener;
         try {
-            PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(originalSearchRequest);
-            searchRequest = pipelinedRequest.transformedRequest();
+            searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest);
             listener = ActionListener.wrap(
-                r -> originalListener.onResponse(pipelinedRequest.transformResponse(r)),
+                r -> originalListener.onResponse(searchRequest.transformResponse(r)),
                 originalListener::onFailure
             );
         } catch (Exception e) {

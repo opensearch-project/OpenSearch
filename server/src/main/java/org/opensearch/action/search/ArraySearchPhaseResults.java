@@ -66,7 +66,7 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
     }
 
     @Override
-    AtomicArray<Result> getAtomicArray() {
+    public AtomicArray<Result> getAtomicArray() {
         return results;
     }
 }
