@@ -16,9 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Make remote cluster connection setup in async ([#8038](https://github.com/opensearch-project/OpenSearch/pull/8038))
 - Add API to initialize extensions ([#8029]()https://github.com/opensearch-project/OpenSearch/pull/8029)
 - Added GeoBounds aggregation on GeoShape field type.([#4266](https://github.com/opensearch-project/OpenSearch/pull/4266))
-  - Addition of Doc values on the GeoShape Field
-  - Addition of GeoShape ValueSource level code interfaces for accessing the DocValues.
-  - Addition of Missing Value feature in the GeoShape Aggregations.
+    - Addition of Doc values on the GeoShape Field
+    - Addition of GeoShape ValueSource level code interfaces for accessing the DocValues.
+    - Addition of Missing Value feature in the GeoShape Aggregations.
 - Enable Point based optimization for custom comparators ([#8168](https://github.com/opensearch-project/OpenSearch/pull/8168))
 - Add GeoTile and GeoHash Grid aggregations on GeoShapes. ([#5589](https://github.com/opensearch-project/OpenSearch/pull/5589))
 - Add distributed tracing framework ([#7543](https://github.com/opensearch-project/OpenSearch/issues/7543))
