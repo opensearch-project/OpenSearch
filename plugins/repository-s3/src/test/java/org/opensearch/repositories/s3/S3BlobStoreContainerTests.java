@@ -74,8 +74,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -91,7 +89,12 @@ import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
@@ -223,14 +226,12 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             }
             if (currInvocationCount.getAndIncrement() < totalPageCount) {
                 List<S3Object> s3Objects = new ArrayList<>();
-                for(int i = 0; i < s3ObjectsPerPage; i++) {
+                for (int i = 0; i < s3ObjectsPerPage; i++) {
                     String s3ObjectKey = UUID.randomUUID().toString();
                     keysListed.add(s3ObjectKey);
                     s3Objects.add(S3Object.builder().key(s3ObjectKey).size(s3ObjectSize).build());
                 }
-                return ListObjectsV2Response.builder()
-                    .contents(s3Objects)
-                    .build();
+                return ListObjectsV2Response.builder().contents(s3Objects).build();
             }
             throw new NoSuchElementException();
         }
@@ -801,7 +802,9 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         Map<String, BlobMetadata> listOfBlobs = blobContainer.listBlobsByPrefix(null);
         assertEquals(10, listOfBlobs.size());
 
-        Set<String> keys = ((MockListObjectsV2ResponseIterator) iterator).keysListed.stream().map(s -> s.substring(blobPath.buildAsString().length())).collect(Collectors.toSet());
+        Set<String> keys = ((MockListObjectsV2ResponseIterator) iterator).keysListed.stream()
+            .map(s -> s.substring(blobPath.buildAsString().length()))
+            .collect(Collectors.toSet());
         assertEquals(keys, listOfBlobs.keySet());
     }
 
