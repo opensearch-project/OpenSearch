@@ -19,6 +19,7 @@ import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
+import org.opensearch.rest.DeprecatedNamedRoute;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
@@ -125,21 +126,43 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         }
         this.routes = unmodifiableList(restActionsAsRoutes);
 
-        List<DeprecatedRoute> restActionsAsDeprecatedRoutes = new ArrayList<>();
+        List<DeprecatedNamedRoute> restActionsAsDeprecatedRoutes = new ArrayList<>();
         // Iterate in pairs of route / deprecation message
-        List<String> deprecatedActions = restActionsRequest.getDeprecatedRestActions();
-        for (int i = 0; i < deprecatedActions.size() - 1; i += 2) {
-            String restAction = deprecatedActions.get(i);
-            String message = deprecatedActions.get(i + 1);
-            int delim = restAction.indexOf(' ');
+        for (String restAction : restActionsRequest.getDeprecatedRestActions()) {
+            String message;
+            Optional<String> name;
+            Set<String> actionNames = new HashSet<>();
+            String[] parts = restAction.split(" ");
+            if (parts.length < 4) {
+                throw new IllegalArgumentException(
+                    "REST action must contain at least a REST method, a route, a deprecation message and a unique name"
+                );
+            }
             try {
-                method = RestRequest.Method.valueOf(restAction.substring(0, delim));
-                path = pathPrefix + restAction.substring(delim).trim();
+                method = RestRequest.Method.valueOf(parts[0].trim());
+                path = pathPrefix + parts[1].trim();
+                message = parts[2].trim();
+                name = Optional.of(parts[3].trim());
+
+                for (int i = 3; i < parts.length; i++) {
+                    String trimmed = parts[i].trim();
+                    if (!trimmed.isEmpty()) {
+                        actionNames.add(trimmed);
+                    }
+                }
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
             }
-            logger.info("Registering: " + method + " " + path + " with deprecation message " + message);
-            restActionsAsDeprecatedRoutes.add(new DeprecatedRoute(method, path, message));
+            logger.info("Registering: " + method + " " + path + " with deprecation message " + message + " and name:" + name.get());
+
+            DeprecatedNamedRoute dnr;
+            if (!actionNames.isEmpty()) {
+                dnr = new DeprecatedNamedRoute(method, path, message, name.get(), actionNames);
+            } else {
+                dnr = new DeprecatedNamedRoute(method, path, message, name.get());
+            }
+            dynamicActionRegistry.registerDynamicRoute(dnr, this);
+            restActionsAsDeprecatedRoutes.add(dnr);
         }
         this.deprecatedRoutes = unmodifiableList(restActionsAsDeprecatedRoutes);
 
