@@ -152,14 +152,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
 
-            // Add server header
-            Map<String, List<String>> serverVersion = new HashMap<>();
-            serverVersion.put(
-                SERVER_VERSION,
-                Arrays.asList(SERVER_VERSION_VALUE)
-            );
-
-            addCustomHeaders(httpResponse, serverVersion);
+            addCustomHeaders(httpResponse, Map.of(SERVER_VERSION,List.of(SERVER_VERSION_VALUE)));
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
