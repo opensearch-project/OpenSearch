@@ -308,7 +308,7 @@ import org.opensearch.persistent.StartPersistentTaskAction;
 import org.opensearch.persistent.UpdatePersistentTaskStatusAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
-import org.opensearch.rest.NamedRoute;
+import org.opensearch.rest.NamedRouteWrapper;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
@@ -1045,7 +1045,9 @@ public class ActionModule extends AbstractModule {
 
         // A dynamic registry to add or remove Route / RestSendToExtensionAction pairs
         // at times other than node bootstrap.
-        private final Map<RestHandler.Route, RestSendToExtensionAction> routeRegistry = new ConcurrentHashMap<>();
+        private final Map<NamedRouteWrapper, RestSendToExtensionAction> routeRegistry = new ConcurrentHashMap<
+            NamedRouteWrapper,
+            RestSendToExtensionAction>();
 
         private final Set<String> registeredActionNames = new ConcurrentSkipListSet<>();
 
@@ -1113,31 +1115,28 @@ public class ActionModule extends AbstractModule {
         }
 
         /**
-         * Add a dynamic action to the registry.
+         * Adds a dynamic route to the registry.
          *
          * @param route The route instance to add
          * @param action The corresponding instance of RestSendToExtensionAction to execute
          */
-        public void registerDynamicRoute(RestHandler.Route route, RestSendToExtensionAction action) {
+        public void registerDynamicRoute(NamedRouteWrapper route, RestSendToExtensionAction action) {
             requireNonNull(route, "route is required");
             requireNonNull(action, "action is required");
-            Optional<String> routeName = Optional.empty();
-            Set<String> actionNames = new HashSet<>();
-            if (route instanceof NamedRoute) {
-                NamedRoute nr = (NamedRoute) route;
-                routeName = Optional.of(nr.name());
-                if (isActionRegistered(routeName.get()) || registeredActionNames.contains(routeName.get())) {
-                    throw new IllegalArgumentException("route [" + route + "] already registered");
-                }
-                actionNames.addAll(nr.actionNames());
-                if (!actionNames.isEmpty()) {
-                    actionNames.forEach(act -> {
-                        if (isActionRegistered(act) || registeredActionNames.contains(act)) {
-                            throw new IllegalArgumentException("action [" + act + "] already registered");
-                        }
-                    });
-                }
+
+            Optional<String> routeName = Optional.of(route.name());
+            if (isActionRegistered(routeName.get()) || registeredActionNames.contains(routeName.get())) {
+                throw new IllegalArgumentException("route [" + route + "] already registered");
             }
+            Set<String> actionNames = new HashSet<>(route.actionNames());
+            if (!actionNames.isEmpty()) {
+                actionNames.forEach(act -> {
+                    if (isActionRegistered(act) || registeredActionNames.contains(act)) {
+                        throw new IllegalArgumentException("action [" + act + "] already registered");
+                    }
+                });
+            }
+
             if (routeRegistry.containsKey(route)) {
                 throw new IllegalArgumentException("route [" + route + "] already registered");
             }
@@ -1153,18 +1152,16 @@ public class ActionModule extends AbstractModule {
          *
          * @param route The route to remove
          */
-        public void unregisterDynamicRoute(RestHandler.Route route) {
+        public void unregisterDynamicRoute(NamedRouteWrapper route) {
             requireNonNull(route, "route is required");
             if (routeRegistry.remove(route) == null) {
                 throw new IllegalArgumentException("action [" + route + "] was not registered");
             }
-            if (route instanceof NamedRoute) {
-                NamedRoute nr = (NamedRoute) route;
-                registeredActionNames.remove(nr.name());
-                Set<String> actionNames = nr.actionNames();
-                if (actionNames != null && !actionNames.isEmpty()) {
-                    registeredActionNames.removeAll(actionNames);
-                }
+
+            registeredActionNames.remove(route.name());
+            Set<String> actionNames = route.actionNames();
+            if (actionNames != null && !actionNames.isEmpty()) {
+                registeredActionNames.removeAll(actionNames);
             }
         }
 
