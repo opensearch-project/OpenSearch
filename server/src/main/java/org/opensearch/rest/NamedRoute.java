@@ -19,7 +19,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public class NamedRoute extends RestHandler.Route {
+public class NamedRoute extends RestHandler.Route implements NamedRouteWrapper {
 
     private static final String VALID_ACTION_NAME_PATTERN = "^[a-zA-Z0-9:/*_]*$";
     static final int MAX_LENGTH_OF_ACTION_NAME = 250;

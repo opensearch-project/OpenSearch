@@ -15,11 +15,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * A named Route
+ * A replaced named Route
  *
  * @opensearch.internal
  */
-public class ReplacedNamedRoute extends RestHandler.ReplacedRoute {
+public class ReplacedNamedRoute extends RestHandler.ReplacedRoute implements NamedRouteWrapper {
 
     private static final String VALID_ACTION_NAME_PATTERN = "^[a-zA-Z0-9:/*_]*$";
     static final int MAX_LENGTH_OF_ACTION_NAME = 250;
