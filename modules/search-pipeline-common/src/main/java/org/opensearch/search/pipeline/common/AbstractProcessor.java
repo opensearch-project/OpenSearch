@@ -16,10 +16,12 @@ import org.opensearch.search.pipeline.Processor;
 abstract class AbstractProcessor implements Processor {
     private final String tag;
     private final String description;
+    private final Boolean ignoreFailure;
 
-    protected AbstractProcessor(String tag, String description) {
+    protected AbstractProcessor(String tag, String description, Boolean ignoreFailure) {
         this.tag = tag;
         this.description = description;
+        this.ignoreFailure = ignoreFailure;
     }
 
     @Override
@@ -30,5 +32,10 @@ abstract class AbstractProcessor implements Processor {
     @Override
     public String getDescription() {
         return description;
+    }
+
+    @Override
+    public Boolean getIgnoreFailure() {
+        return ignoreFailure;
     }
 }

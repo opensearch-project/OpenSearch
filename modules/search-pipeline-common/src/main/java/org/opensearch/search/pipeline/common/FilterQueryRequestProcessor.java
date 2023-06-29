@@ -53,12 +53,13 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
     /**
      * Constructor that takes a filter query.
      *
-     * @param tag         processor tag
-     * @param description processor description
+     * @param tag            processor tag
+     * @param description    processor description
+     * @param ignoreFailure  option to ignore failure
      * @param filterQuery the query that will be added as a filter to incoming queries
      */
-    public FilterQueryRequestProcessor(String tag, String description, QueryBuilder filterQuery) {
-        super(tag, description);
+    public FilterQueryRequestProcessor(String tag, String description, Boolean ignoreFailure, QueryBuilder filterQuery) {
+        super(tag, description, ignoreFailure);
         this.filterQuery = filterQuery;
     }
 
@@ -101,6 +102,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
             Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
             String tag,
             String description,
+            Boolean ignoreFailure,
             Map<String, Object> config
         ) throws Exception {
             try (
@@ -117,7 +119,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            return new FilterQueryRequestProcessor(tag, description, parseInnerQueryBuilder(parser));
+                            return new FilterQueryRequestProcessor(tag, description, ignoreFailure, parseInnerQueryBuilder(parser));
                         }
                     }
                 }

@@ -53,6 +53,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
      *
      * @param tag The processor's tag.
      * @param description The processor's description.
+     * @param ignoreFailure The option to ignore failure
      * @param script The {@link Script} to execute.
      * @param precompiledSearchScript The {@link Script} precompiled
      * @param scriptService The {@link ScriptService} used to execute the script.
@@ -60,11 +61,12 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
     ScriptRequestProcessor(
         String tag,
         String description,
+        Boolean ignoreFailure,
         Script script,
         @Nullable SearchScript precompiledSearchScript,
         ScriptService scriptService
     ) {
-        super(tag, description);
+        super(tag, description, ignoreFailure);
         this.script = script;
         this.precompiledSearchScript = precompiledSearchScript;
         this.scriptService = scriptService;
@@ -144,6 +146,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
          * @param registry The registry of processor factories.
          * @param processorTag The processor's tag.
          * @param description The processor's description.
+         * @param ignoreFailure  option to ignore failure
          * @param config The configuration options for the processor.
          * @return The created {@link ScriptRequestProcessor} instance.
          * @throws Exception if an error occurs during the creation process.
@@ -153,6 +156,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
             Map<String, Processor.Factory<SearchRequestProcessor>> registry,
             String processorTag,
             String description,
+            Boolean ignoreFailure,
             Map<String, Object> config
         ) throws Exception {
             try (
@@ -175,7 +179,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
                 } catch (ScriptException e) {
                     throw newConfigurationException(TYPE, processorTag, null, e);
                 }
-                return new ScriptRequestProcessor(processorTag, description, script, searchScript, scriptService);
+                return new ScriptRequestProcessor(processorTag, description, ignoreFailure, script, searchScript, scriptService);
             }
         }
     }

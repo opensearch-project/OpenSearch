@@ -67,6 +67,7 @@ public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
     public static final String DESCRIPTION_KEY = "description";
+    public static final String IGNORE_FAILURE_KEY = "ignore_failure";
 
     private ConfigurationUtils() {}
 

@@ -58,6 +58,7 @@ public class RenameFieldResponseProcessorTests extends OpenSearchTestCase {
         RenameFieldResponseProcessor renameFieldResponseProcessor = new RenameFieldResponseProcessor(
             null,
             null,
+            false,
             "field 0",
             "new field",
             false
@@ -74,6 +75,7 @@ public class RenameFieldResponseProcessorTests extends OpenSearchTestCase {
         RenameFieldResponseProcessor renameFieldResponseProcessor = new RenameFieldResponseProcessor(
             null,
             null,
+            false,
             "field 0",
             "new field",
             true
@@ -97,6 +99,7 @@ public class RenameFieldResponseProcessorTests extends OpenSearchTestCase {
         RenameFieldResponseProcessor renameFieldResponseProcessor = new RenameFieldResponseProcessor(
             null,
             null,
+            false,
             "field",
             "new field",
             false
@@ -115,12 +118,15 @@ public class RenameFieldResponseProcessorTests extends OpenSearchTestCase {
         config.put("target_field", newField);
 
         RenameFieldResponseProcessor.Factory factory = new RenameFieldResponseProcessor.Factory();
-        RenameFieldResponseProcessor processor = factory.create(Collections.emptyMap(), null, null, config);
+        RenameFieldResponseProcessor processor = factory.create(Collections.emptyMap(), null, null, false, config);
         assertEquals(processor.getType(), "rename_field");
         assertEquals(processor.getOldField(), oldField);
         assertEquals(processor.getNewField(), newField);
         assertFalse(processor.isIgnoreMissing());
 
-        expectThrows(OpenSearchParseException.class, () -> factory.create(Collections.emptyMap(), null, null, Collections.emptyMap()));
+        expectThrows(
+            OpenSearchParseException.class,
+            () -> factory.create(Collections.emptyMap(), null, null, false, Collections.emptyMap())
+        );
     }
 }

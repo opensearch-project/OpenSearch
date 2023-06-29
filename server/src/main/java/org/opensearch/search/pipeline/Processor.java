@@ -50,6 +50,11 @@ public interface Processor {
     String getDescription();
 
     /**
+     * Gets the setting of ignoreFailure of a processor.
+     */
+    Boolean getIgnoreFailure();
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory<T extends Processor> {
@@ -65,7 +70,13 @@ public interface Processor {
          *                           <b>Note:</b> Implementations are responsible for removing the used configuration
          *                           keys, so that after creation the config map should be empty.
          */
-        T create(Map<String, Factory<T>> processorFactories, String tag, String description, Map<String, Object> config) throws Exception;
+        T create(
+            Map<String, Factory<T>> processorFactories,
+            String tag,
+            String description,
+            Boolean ignoreFailure,
+            Map<String, Object> config
+        ) throws Exception;
     }
 
     /**

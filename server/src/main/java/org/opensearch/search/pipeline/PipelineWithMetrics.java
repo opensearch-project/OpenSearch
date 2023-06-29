@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.ingest.ConfigurationUtils.TAG_KEY;
+import static org.opensearch.ingest.ConfigurationUtils.IGNORE_FAILURE_KEY;
 import static org.opensearch.ingest.Pipeline.DESCRIPTION_KEY;
 import static org.opensearch.ingest.Pipeline.VERSION_KEY;
 
@@ -139,8 +140,9 @@ class PipelineWithMetrics extends Pipeline {
                 }
                 Map<String, Object> config = (Map<String, Object>) entry.getValue();
                 String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
+                Boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, IGNORE_FAILURE_KEY, false);
                 String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
-                processors.add(processorFactories.get(type).create(processorFactories, tag, description, config));
+                processors.add(processorFactories.get(type).create(processorFactories, tag, description, ignoreFailure, config));
             }
         }
         return Collections.unmodifiableList(processors);

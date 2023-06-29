@@ -41,14 +41,22 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
     /**
      * Constructor that takes a target field to rename and the new name
      *
-     * @param tag           processor tag
-     * @param description   processor description
-     * @param oldField      name of field to be renamed
-     * @param newField      name of field that will replace the old field
+     * @param tag            processor tag
+     * @param description    processor description
+     * @param ignoreFailure  option to ignore failure
+     * @param oldField       name of field to be renamed
+     * @param newField       name of field that will replace the old field
      * @param ignoreMissing if true, do not throw error if oldField does not exist within search response
      */
-    public RenameFieldResponseProcessor(String tag, String description, String oldField, String newField, boolean ignoreMissing) {
-        super(tag, description);
+    public RenameFieldResponseProcessor(
+        String tag,
+        String description,
+        Boolean ignoreFailure,
+        String oldField,
+        String newField,
+        boolean ignoreMissing
+    ) {
+        super(tag, description, ignoreFailure);
         this.oldField = oldField;
         this.newField = newField;
         this.ignoreMissing = ignoreMissing;
@@ -140,12 +148,13 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
             Map<String, Processor.Factory<SearchResponseProcessor>> processorFactories,
             String tag,
             String description,
+            Boolean ignoreFailure,
             Map<String, Object> config
         ) throws Exception {
             String oldField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             String newField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
-            return new RenameFieldResponseProcessor(tag, description, oldField, newField, ignoreMissing);
+            return new RenameFieldResponseProcessor(tag, description, ignoreFailure, oldField, newField, ignoreMissing);
         }
     }
 }

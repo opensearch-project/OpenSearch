@@ -8,6 +8,8 @@
 
 package org.opensearch.search.pipeline;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
@@ -32,6 +34,9 @@ class Pipeline {
     public static final String REQUEST_PROCESSORS_KEY = "request_processors";
     public static final String RESPONSE_PROCESSORS_KEY = "response_processors";
     public static final String PHASE_PROCESSORS_KEY = "phase_results_processors";
+
+    private static final Logger logger = LogManager.getLogger(Pipeline.class);
+
     private final String id;
     private final String description;
     private final Integer version;
@@ -43,6 +48,7 @@ class Pipeline {
     private final List<SearchPhaseResultsProcessor> searchPhaseResultsProcessors;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final LongSupplier relativeTimeSupplier;
+    private int processorFailureCount = 0;
 
     Pipeline(
         String id,
@@ -131,8 +137,15 @@ class Pipeline {
                     try {
                         request = processor.processRequest(request);
                     } catch (Exception e) {
-                        onRequestProcessorFailed(processor);
-                        throw e;
+                        if (processor.getIgnoreFailure()) {
+                            processorFailureCount = processorFailureCount + 1;
+                            logger.info("failed to process request process: " + processor.getType());
+                            logger.error("An error occurred in the processor", e);
+                            logger.info("the number of failing pipeline increments to " + processorFailureCount);
+                        } else {
+                            onRequestProcessorFailed(processor);
+                            throw e;
+                        }
                     } finally {
                         long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                         afterRequestProcessor(processor, took);
@@ -160,8 +173,15 @@ class Pipeline {
                     try {
                         response = processor.processResponse(request, response);
                     } catch (Exception e) {
-                        onResponseProcessorFailed(processor);
-                        throw e;
+                        if (processor.getIgnoreFailure()) {
+                            processorFailureCount = processorFailureCount + 1;
+                            logger.info("failed to process response process: " + processor.getType());
+                            logger.error("An error occurred in the processor", e);
+                            logger.info("the number of failing pipeline increments to " + processorFailureCount);
+                        } else {
+                            onRequestProcessorFailed(processor);
+                            throw e;
+                        }
                     } finally {
                         long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                         afterResponseProcessor(processor, took);
