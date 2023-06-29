@@ -290,6 +290,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
+        System.setProperty("opensearch.experimental.feature.telemetry.enabled", "true");
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
