@@ -50,7 +50,7 @@ import java.util.concurrent.Executor;
  *
  * @opensearch.internal
  */
-interface SearchPhaseContext extends Executor {
+public interface SearchPhaseContext extends Executor {
     // TODO maybe we can make this concrete later - for now we just implement this in the base class for all initial phases
 
     /**
