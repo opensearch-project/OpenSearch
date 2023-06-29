@@ -73,6 +73,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String SET_COOKIE = "set-cookie";
     static final String SERVER_VERSION = "server-version";
     static final String OPEN_SEARCH_NAME = "OpenSearch";
+    static final String SERVER_VERSION_VALUE = "OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")";
 
     private final HttpRequest httpRequest;
     private final BigArrays bigArrays;
@@ -80,7 +81,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
-    private final Map<String, List<String>> serverVersion;
 
     @Nullable
     private final HttpTracer tracerLog;
@@ -103,7 +103,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
         this.tracerLog = tracerLog;
-        this.serverVersion = new HashMap<>();
     }
 
     @Override
@@ -154,9 +153,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
 
             // Add server header
+            Map<String, List<String>> serverVersion = new HashMap<>();
             serverVersion.put(
                 SERVER_VERSION,
-                Arrays.asList(OPEN_SEARCH_NAME + "/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")")
+                Arrays.asList(SERVER_VERSION_VALUE)
             );
 
             addCustomHeaders(httpResponse, serverVersion);
