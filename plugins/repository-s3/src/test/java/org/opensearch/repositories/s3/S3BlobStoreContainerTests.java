@@ -212,7 +212,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             this.s3ObjectSize = s3ObjectSize;
             this.throwExceptionOnNextInvocation = throwExceptionOnNextInvocation;
             keysListed = new ArrayList<>();
-            for(int i = 0; i < totalPageCount * s3ObjectsPerPage; i++) {
+            for (int i = 0; i < totalPageCount * s3ObjectsPerPage; i++) {
                 keysListed.add(UUID.randomUUID().toString());
             }
             // S3 lists keys in lexicographic order
@@ -839,7 +839,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
                 List<String> keys = ((MockListObjectsV2ResponseIterator) iterator).keysListed.stream()
                     .map(s -> s.substring(blobPath.buildAsString().length()))
-                    .collect(Collectors.toList()).subList(0, actualLimit);
+                    .collect(Collectors.toList())
+                    .subList(0, actualLimit);
                 assertEquals(keys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
             }
 
