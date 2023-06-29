@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
@@ -92,7 +91,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
         List<Route> restActionsAsRoutes = new ArrayList<>();
         for (String restAction : restActionsRequest.getRestActions()) {
-            Optional<String> name;
+            String name;
             Set<String> actionNames = new HashSet<>();
             String[] parts = restAction.split(" ");
             if (parts.length < 3) {
@@ -101,25 +100,29 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             try {
                 method = RestRequest.Method.valueOf(parts[0].trim());
                 path = pathPrefix + parts[1].trim();
-                name = Optional.of(parts[2].trim());
+                name = parts[2].trim();
 
-                for (int i = 3; i < parts.length; i++) {
-                    String trimmed = parts[i].trim();
-                    if (!trimmed.isEmpty()) {
-                        actionNames.add(trimmed);
+                // comma-separated action names
+                if (parts.length > 3) {
+                    String[] actions = parts[3].split(",");
+                    for (String action : actions) {
+                        String trimmed = action.trim();
+                        if (!trimmed.isEmpty()) {
+                            actionNames.add(trimmed);
+                        }
                     }
                 }
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
             }
-            logger.info("Registering: " + method + " " + path + " " + name.get());
+            logger.info("Registering: " + method + " " + path + " " + name);
 
             // All extension routes being registered must have a unique name associated with them
             NamedRoute nr;
             if (!actionNames.isEmpty()) {
-                nr = new NamedRoute(method, path, name.get(), actionNames);
+                nr = new NamedRoute(method, path, name, actionNames);
             } else {
-                nr = new NamedRoute(method, path, name.get());
+                nr = new NamedRoute(method, path, name);
             }
             restActionsAsRoutes.add(nr);
             dynamicActionRegistry.registerDynamicRoute(nr, this);
@@ -127,39 +130,50 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         this.routes = unmodifiableList(restActionsAsRoutes);
 
         List<DeprecatedNamedRoute> restActionsAsDeprecatedRoutes = new ArrayList<>();
+        List<String> deprecatedActions = restActionsRequest.getDeprecatedRestActions();
         // Iterate in pairs of route / deprecation message
-        for (String restAction : restActionsRequest.getDeprecatedRestActions()) {
-            String message;
-            Optional<String> name;
-            Set<String> actionNames = new HashSet<>();
+        for (int i = 0; i < deprecatedActions.size() - 1; i += 2) {
+
+            String restAction = deprecatedActions.get(i);
+            String message = deprecatedActions.get(i + 1).trim();
+
+            // get the named route
             String[] parts = restAction.split(" ");
-            if (parts.length < 4) {
-                throw new IllegalArgumentException(
-                    "REST action must contain at least a REST method, a route, a deprecation message and a unique name"
-                );
-            }
+            String name;
+            Set<String> actionNames = new HashSet<>();
+
             try {
+                if (parts.length < 3 || message.isEmpty()) {
+                    throw new IllegalArgumentException();
+                }
+                // get method and path
                 method = RestRequest.Method.valueOf(parts[0].trim());
                 path = pathPrefix + parts[1].trim();
-                message = parts[2].trim();
-                name = Optional.of(parts[3].trim());
 
-                for (int i = 3; i < parts.length; i++) {
-                    String trimmed = parts[i].trim();
-                    if (!trimmed.isEmpty()) {
-                        actionNames.add(trimmed);
+                // get name and action names
+                name = parts[2].trim();
+                if (parts.length > 3) {
+                    String[] actions = parts[3].split(",");
+                    for (String action : actions) {
+                        String trimmed = action.trim();
+                        if (!trimmed.isEmpty()) {
+                            actionNames.add(trimmed);
+                        }
                     }
                 }
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
-                throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
+                throw new IllegalArgumentException(
+                    "Deprecated REST action must contain at least a REST method, a route, a deprecation message, and a unique name."
+                );
             }
-            logger.info("Registering: " + method + " " + path + " with deprecation message " + message + " and name:" + name.get());
+
+            logger.info("Registering: " + method + " " + path + " with deprecation message " + message + " and name:" + name);
 
             DeprecatedNamedRoute dnr;
             if (!actionNames.isEmpty()) {
-                dnr = new DeprecatedNamedRoute(method, path, message, name.get(), actionNames);
+                dnr = new DeprecatedNamedRoute(method, path, message, name, actionNames);
             } else {
-                dnr = new DeprecatedNamedRoute(method, path, message, name.get());
+                dnr = new DeprecatedNamedRoute(method, path, message, name);
             }
             dynamicActionRegistry.registerDynamicRoute(dnr, this);
             restActionsAsDeprecatedRoutes.add(dnr);

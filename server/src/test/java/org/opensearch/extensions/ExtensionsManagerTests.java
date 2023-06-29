@@ -456,7 +456,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz");
-        List<String> deprecatedActionsList = List.of("GET /deprecated/foo foo-deprecated", "It's deprecated!");
+        List<String> deprecatedActionsList = List.of("GET /deprecated/foo foo_deprecated", "It's deprecated!");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         TransportResponse response = extensionsManager.getRestActionsRequestHandler()
             .handleRegisterRestActionsRequest(registerActionsRequest, actionModule.getDynamicActionRegistry());

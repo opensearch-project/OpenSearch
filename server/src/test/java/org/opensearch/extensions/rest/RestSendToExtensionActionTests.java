@@ -136,7 +136,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
             List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz"),
-            List.of("GET /deprecated/foo foo-deprecated")
+            List.of("GET /deprecated/foo foo_deprecated", "Its deprecated")
         );
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
@@ -204,7 +204,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             "uniqueid1",
             List.of(
                 "GET /foo foo cluster:admin/opensearch/abc/foo",
-                "PUT /bar bar cluster:admin/opensearch/jkl/bar cluster:admin/opendistro/mno/bar*",
+                "PUT /bar bar cluster:admin/opensearch/jkl/bar,cluster:admin/opendistro/mno/bar*",
                 "POST /baz baz cluster:admin/opensearch/xyz/baz"
             ),
             List.of("GET /deprecated/foo foo_deprecated cluster:admin/opensearch/abc/foo_deprecated", "It's deprecated!")
@@ -360,7 +360,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
             List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz"),
-            List.of("GET /deprecated/foo foo-deprecated", "It's deprecated!")
+            List.of("GET /deprecated/foo foo_deprecated", "It's deprecated!")
         );
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
