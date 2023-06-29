@@ -96,7 +96,6 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
      * This test in general passes without primary shard balance as well due to nature of allocation algorithm which
      * assigns all primary shards first followed by replica copies.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7751")
     public void testPerIndexPrimaryAllocation() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final int maxReplicaCount = 2;
@@ -234,7 +233,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             RoutingNodes nodes = currentState.getRoutingNodes();
             for (final Map.Entry<String, IndexRoutingTable> index : currentState.getRoutingTable().indicesRouting().entrySet()) {
                 final int totalPrimaryShards = index.getValue().primaryShardsActive();
-                final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
+                final int avgPrimaryShardsPerNode = (int) Math.floor(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
                 for (RoutingNode node : nodes) {
                     final int primaryCount = node.shardsWithState(index.getKey(), STARTED)
                         .stream()
@@ -250,7 +249,8 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
                             avgPrimaryShardsPerNode
                         );
                     }
-                    assertTrue(primaryCount <= avgPrimaryShardsPerNode);
+                    // Asserts value is within the variance threshold (-1/+1 of the average value).
+                    assertTrue(avgPrimaryShardsPerNode - 1 <= primaryCount && primaryCount <= avgPrimaryShardsPerNode + 1);
                 }
             }
         }, 60, TimeUnit.SECONDS);
