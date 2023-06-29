@@ -603,7 +603,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store, IndexEventListener listener) {
         final int shardId = sId.id();
         final Settings indexSettings = this.getIndexSettings().getSettings();
-        Store remoteStore = indexShard.remoteStore();
+        Store remoteStore = null;
+        if (indexShard != null) {
+            remoteStore = indexShard.remoteStore();
+        }
         if (store != null) {
             store.beforeClose();
         }
