@@ -8,6 +8,8 @@
 
 package org.opensearch.search.pipeline;
 
+import org.opensearch.action.search.SearchPhaseContext;
+import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Nullable;
@@ -15,6 +17,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.search.SearchPhaseResult;
 
 import java.util.Collections;
 import java.util.List;
@@ -28,6 +31,7 @@ class Pipeline {
 
     public static final String REQUEST_PROCESSORS_KEY = "request_processors";
     public static final String RESPONSE_PROCESSORS_KEY = "response_processors";
+    public static final String PHASE_PROCESSORS_KEY = "phase_results_processors";
     private final String id;
     private final String description;
     private final Integer version;
@@ -36,7 +40,7 @@ class Pipeline {
     // Then these can be CompoundProcessors instead of lists.
     private final List<SearchRequestProcessor> searchRequestProcessors;
     private final List<SearchResponseProcessor> searchResponseProcessors;
-
+    private final List<SearchPhaseResultsProcessor> searchPhaseResultsProcessors;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final LongSupplier relativeTimeSupplier;
 
@@ -46,6 +50,7 @@ class Pipeline {
         @Nullable Integer version,
         List<SearchRequestProcessor> requestProcessors,
         List<SearchResponseProcessor> responseProcessors,
+        List<SearchPhaseResultsProcessor> phaseResultsProcessors,
         NamedWriteableRegistry namedWriteableRegistry,
         LongSupplier relativeTimeSupplier
     ) {
@@ -54,6 +59,7 @@ class Pipeline {
         this.version = version;
         this.searchRequestProcessors = Collections.unmodifiableList(requestProcessors);
         this.searchResponseProcessors = Collections.unmodifiableList(responseProcessors);
+        this.searchPhaseResultsProcessors = Collections.unmodifiableList(phaseResultsProcessors);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.relativeTimeSupplier = relativeTimeSupplier;
     }
@@ -76,6 +82,10 @@ class Pipeline {
 
     List<SearchResponseProcessor> getSearchResponseProcessors() {
         return searchResponseProcessors;
+    }
+
+    List<SearchPhaseResultsProcessor> getSearchPhaseResultsProcessors() {
+        return searchPhaseResultsProcessors;
     }
 
     protected void beforeTransformRequest() {}
@@ -168,14 +178,33 @@ class Pipeline {
         return response;
     }
 
+    <Result extends SearchPhaseResult> void runSearchPhaseResultsTransformer(
+        SearchPhaseResults<Result> searchPhaseResult,
+        SearchPhaseContext context,
+        String currentPhase,
+        String nextPhase
+    ) throws SearchPipelineProcessingException {
+
+        try {
+            for (SearchPhaseResultsProcessor searchPhaseResultsProcessor : searchPhaseResultsProcessors) {
+                if (currentPhase.equals(searchPhaseResultsProcessor.getBeforePhase().getName())
+                    && nextPhase.equals(searchPhaseResultsProcessor.getAfterPhase().getName())) {
+                    searchPhaseResultsProcessor.process(searchPhaseResult, context);
+                }
+            }
+        } catch (RuntimeException e) {
+            throw new SearchPipelineProcessingException(e);
+        }
+    }
+
     static final Pipeline NO_OP_PIPELINE = new Pipeline(
         SearchPipelineService.NOOP_PIPELINE_ID,
         "Pipeline that does not transform anything",
         0,
         Collections.emptyList(),
         Collections.emptyList(),
+        Collections.emptyList(),
         null,
         () -> 0L
     );
-
 }
