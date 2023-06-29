@@ -8,6 +8,9 @@
 
 package org.opensearch.index.codec.customcodecs;
 
+import org.apache.logging.log4j.Logger;
+import org.opensearch.index.mapper.MapperService;
+
 /**
  * ZstdNoDictCodec provides ZSTD compressor without a dictionary support.
  */
@@ -26,7 +29,11 @@ public class ZstdNoDictCodec extends Lucene95CustomCodec {
      * @param compressionLevel The compression level.
      */
     public ZstdNoDictCodec(int compressionLevel) {
-        super(Mode.ZSTDNODICT, compressionLevel);
+        super(Mode.ZSTD_NO_DICT, compressionLevel);
+    }
+
+    public ZstdNoDictCodec(MapperService mapperService, Logger logger) {
+        super(Mode.ZSTD_NO_DICT, DEFAULT_COMPRESSION_LEVEL, mapperService, logger);
     }
 
     /** The name for this codec. */
