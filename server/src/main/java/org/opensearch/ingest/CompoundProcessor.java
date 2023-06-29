@@ -34,6 +34,7 @@ package org.opensearch.ingest;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.metrics.OperationMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,7 +61,7 @@ public class CompoundProcessor implements Processor {
     private final boolean ignoreFailure;
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
-    private final List<Tuple<Processor, IngestMetric>> processorsWithMetrics;
+    private final List<Tuple<Processor, OperationMetrics>> processorsWithMetrics;
     private final LongSupplier relativeTimeProvider;
 
     CompoundProcessor(LongSupplier relativeTimeProvider, Processor... processor) {
@@ -87,10 +88,10 @@ public class CompoundProcessor implements Processor {
         this.onFailureProcessors = onFailureProcessors;
         this.relativeTimeProvider = relativeTimeProvider;
         this.processorsWithMetrics = new ArrayList<>(processors.size());
-        processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new IngestMetric())));
+        processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new OperationMetrics())));
     }
 
-    List<Tuple<Processor, IngestMetric>> getProcessorsWithMetrics() {
+    List<Tuple<Processor, OperationMetrics>> getProcessorsWithMetrics() {
         return processorsWithMetrics;
     }
 
@@ -155,17 +156,17 @@ public class CompoundProcessor implements Processor {
             return;
         }
 
-        Tuple<Processor, IngestMetric> processorWithMetric = processorsWithMetrics.get(currentProcessor);
+        Tuple<Processor, OperationMetrics> processorWithMetric = processorsWithMetrics.get(currentProcessor);
         final Processor processor = processorWithMetric.v1();
-        final IngestMetric metric = processorWithMetric.v2();
+        final OperationMetrics metric = processorWithMetric.v2();
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
-        metric.preIngest();
+        metric.before();
         processor.execute(ingestDocument, (result, e) -> {
             long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-            metric.postIngest(ingestTimeInMillis);
+            metric.after(ingestTimeInMillis);
 
             if (e != null) {
-                metric.ingestFailed();
+                metric.failed();
                 if (ignoreFailure) {
                     innerExecute(currentProcessor + 1, ingestDocument, handler);
                 } else {

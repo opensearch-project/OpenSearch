@@ -37,7 +37,7 @@ versions << [
 ]
 
 dependencies {
-  api("org.apache.hadoop:hadoop-minicluster:3.3.5") {
+  api("org.apache.hadoop:hadoop-minicluster:3.3.6") {
     exclude module: 'websocket-client'
     exclude module: 'jettison'
     exclude module: 'netty'
@@ -51,7 +51,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api "io.netty:netty-all:${versions.netty}"
   api 'com.google.code.gson:gson:2.10.1'
-  api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcpkix-jdk15to18:${versions.bouncycastle}"
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"

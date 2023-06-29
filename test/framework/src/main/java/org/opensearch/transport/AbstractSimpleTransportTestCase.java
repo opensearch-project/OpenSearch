@@ -39,7 +39,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
-import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
@@ -558,7 +557,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             serviceA.submitRequest(nodeB, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(OpenSearchException.class));
-            assertThat(BaseExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
+            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
         // use assert busy as callbacks are called on a different thread
@@ -577,7 +576,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             serviceB.submitRequest(nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(OpenSearchException.class));
-            assertThat(BaseExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
+            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
         // use assert busy as callbacks are called on a different thread
@@ -597,7 +596,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             serviceA.submitRequest(nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(OpenSearchException.class));
-            assertThat(BaseExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
+            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
         // use assert busy as callbacks are called on a different thread
@@ -1651,7 +1650,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
 
                 @Override
                 public void handleException(TransportException exp) {
-                    Throwable cause = BaseExceptionsHelper.unwrapCause(exp);
+                    Throwable cause = ExceptionsHelper.unwrapCause(exp);
                     assertThat(cause, instanceOf(ConnectTransportException.class));
                     assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
                 }
@@ -1662,7 +1661,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             res.txGet();
             fail("exception should be thrown");
         } catch (Exception e) {
-            Throwable cause = BaseExceptionsHelper.unwrapCause(e);
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
             assertThat(cause, instanceOf(ConnectTransportException.class));
             assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
         }
