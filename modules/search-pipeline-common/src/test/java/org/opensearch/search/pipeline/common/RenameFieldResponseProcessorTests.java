@@ -115,12 +115,15 @@ public class RenameFieldResponseProcessorTests extends OpenSearchTestCase {
         config.put("target_field", newField);
 
         RenameFieldResponseProcessor.Factory factory = new RenameFieldResponseProcessor.Factory();
-        RenameFieldResponseProcessor processor = factory.create(Collections.emptyMap(), null, null, config);
+        RenameFieldResponseProcessor processor = factory.create(Collections.emptyMap(), null, null, config, null);
         assertEquals(processor.getType(), "rename_field");
         assertEquals(processor.getOldField(), oldField);
         assertEquals(processor.getNewField(), newField);
         assertFalse(processor.isIgnoreMissing());
 
-        expectThrows(OpenSearchParseException.class, () -> factory.create(Collections.emptyMap(), null, null, Collections.emptyMap()));
+        expectThrows(
+            OpenSearchParseException.class,
+            () -> factory.create(Collections.emptyMap(), null, null, Collections.emptyMap(), null)
+        );
     }
 }

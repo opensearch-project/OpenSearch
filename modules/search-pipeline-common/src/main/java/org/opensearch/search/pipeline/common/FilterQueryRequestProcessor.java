@@ -101,7 +101,8 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
             Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            PipelineContext pipelineContext
         ) throws Exception {
             Map<String, Object> query = ConfigurationUtils.readOptionalMap(TYPE, tag, config, QUERY_KEY);
             if (query == null) {

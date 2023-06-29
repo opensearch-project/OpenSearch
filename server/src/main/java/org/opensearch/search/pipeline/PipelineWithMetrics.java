@@ -66,19 +66,28 @@ class PipelineWithMetrics extends Pipeline {
         Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories,
         NamedWriteableRegistry namedWriteableRegistry,
         OperationMetrics totalRequestProcessingMetrics,
-        OperationMetrics totalResponseProcessingMetrics
+        OperationMetrics totalResponseProcessingMetrics,
+        Processor.PipelineContext pipelineContext
     ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         List<Map<String, Object>> requestProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, REQUEST_PROCESSORS_KEY);
-        List<SearchRequestProcessor> requestProcessors = readProcessors(requestProcessorFactories, requestProcessorConfigs);
+        List<SearchRequestProcessor> requestProcessors = readProcessors(
+            requestProcessorFactories,
+            requestProcessorConfigs,
+            pipelineContext
+        );
         List<Map<String, Object>> responseProcessorConfigs = ConfigurationUtils.readOptionalList(
             null,
             null,
             config,
             RESPONSE_PROCESSORS_KEY
         );
-        List<SearchResponseProcessor> responseProcessors = readProcessors(responseProcessorFactories, responseProcessorConfigs);
+        List<SearchResponseProcessor> responseProcessors = readProcessors(
+            responseProcessorFactories,
+            responseProcessorConfigs,
+            pipelineContext
+        );
         if (config.isEmpty() == false) {
             throw new OpenSearchParseException(
                 "pipeline ["
@@ -103,7 +112,8 @@ class PipelineWithMetrics extends Pipeline {
 
     private static <T extends Processor> List<T> readProcessors(
         Map<String, Processor.Factory<T>> processorFactories,
-        List<Map<String, Object>> requestProcessorConfigs
+        List<Map<String, Object>> requestProcessorConfigs,
+        Processor.PipelineContext pipelineContext
     ) throws Exception {
         List<T> processors = new ArrayList<>();
         if (requestProcessorConfigs == null) {
@@ -118,7 +128,19 @@ class PipelineWithMetrics extends Pipeline {
                 Map<String, Object> config = (Map<String, Object>) entry.getValue();
                 String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
                 String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
-                processors.add(processorFactories.get(type).create(processorFactories, tag, description, config));
+                processors.add(processorFactories.get(type).create(processorFactories, tag, description, config, pipelineContext));
+                if (config.isEmpty() == false) {
+                    String processorName = type;
+                    if (tag != null) {
+                        processorName = processorName + ":" + tag;
+                    }
+                    throw new OpenSearchParseException(
+                        "processor ["
+                            + processorName
+                            + "] doesn't support one or more provided configuration parameters: "
+                            + Arrays.toString(config.keySet().toArray())
+                    );
+                }
             }
         }
         return Collections.unmodifiableList(processors);

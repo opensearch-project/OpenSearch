@@ -102,7 +102,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         this.scriptService = scriptService;
         this.threadPool = threadPool;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        Processor.Parameters parameters = new Processor.Parameters(
+        SearchPipelinePlugin.Parameters parameters = new SearchPipelinePlugin.Parameters(
             env,
             scriptService,
             analysisRegistry,
@@ -183,7 +183,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                     responseProcessorFactories,
                     namedWriteableRegistry,
                     totalRequestProcessingMetrics,
-                    totalResponseProcessingMetrics
+                    totalResponseProcessingMetrics,
+                    new Processor.PipelineContext(Processor.PipelineSource.UPDATE_PIPELINE)
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
@@ -282,7 +283,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             responseProcessorFactories,
             namedWriteableRegistry,
             new OperationMetrics(), // Use ephemeral metrics for validation
-            new OperationMetrics()
+            new OperationMetrics(),
+            new Processor.PipelineContext(Processor.PipelineSource.VALIDATE_PIPELINE)
         );
         List<Exception> exceptions = new ArrayList<>();
         for (SearchRequestProcessor processor : pipeline.getSearchRequestProcessors()) {
@@ -380,7 +382,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                     responseProcessorFactories,
                     namedWriteableRegistry,
                     totalRequestProcessingMetrics,
-                    totalResponseProcessingMetrics
+                    totalResponseProcessingMetrics,
+                    new Processor.PipelineContext(Processor.PipelineSource.SEARCH_REQUEST)
                 );
             } catch (Exception e) {
                 throw new SearchPipelineProcessingException(e);

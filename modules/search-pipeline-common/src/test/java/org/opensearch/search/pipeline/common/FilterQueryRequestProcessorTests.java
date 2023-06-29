@@ -39,10 +39,13 @@ public class FilterQueryRequestProcessorTests extends AbstractBuilderTestCase {
     public void testFactory() throws Exception {
         FilterQueryRequestProcessor.Factory factory = new FilterQueryRequestProcessor.Factory(this.xContentRegistry());
         Map<String, Object> configMap = new HashMap<>(Map.of("query", Map.of("term", Map.of("field", "value"))));
-        FilterQueryRequestProcessor processor = factory.create(Collections.emptyMap(), null, null, configMap);
+        FilterQueryRequestProcessor processor = factory.create(Collections.emptyMap(), null, null, configMap, null);
         assertEquals(new TermQueryBuilder("field", "value"), processor.filterQuery);
 
         // Missing "query" parameter:
-        expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), null, null, Collections.emptyMap()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.create(Collections.emptyMap(), null, null, Collections.emptyMap(), null)
+        );
     }
 }

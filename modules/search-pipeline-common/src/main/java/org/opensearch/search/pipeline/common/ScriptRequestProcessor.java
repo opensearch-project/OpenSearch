@@ -141,22 +141,13 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
             this.scriptService = scriptService;
         }
 
-        /**
-         * Creates a new instance of {@link ScriptRequestProcessor}.
-         *
-         * @param registry The registry of processor factories.
-         * @param processorTag The processor's tag.
-         * @param description The processor's description.
-         * @param config The configuration options for the processor.
-         * @return The created {@link ScriptRequestProcessor} instance.
-         * @throws Exception if an error occurs during the creation process.
-         */
         @Override
         public ScriptRequestProcessor create(
             Map<String, Processor.Factory<SearchRequestProcessor>> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            PipelineContext pipelineContext
         ) throws Exception {
             Map<String, Object> scriptConfig = new HashMap<>();
             for (String key : SCRIPT_CONFIG_KEYS) {

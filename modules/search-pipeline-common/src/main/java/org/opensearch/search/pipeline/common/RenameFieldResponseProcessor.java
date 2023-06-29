@@ -140,7 +140,8 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
             Map<String, Processor.Factory<SearchResponseProcessor>> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            PipelineContext pipelineContext
         ) throws Exception {
             String oldField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             String newField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field");
