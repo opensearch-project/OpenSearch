@@ -90,9 +90,8 @@ public class IngestStats implements Writeable, ToXContentFragment {
                 String processorType = "_NOT_AVAILABLE";
                 if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
                     processorType = in.readString();
-                    OperationStats processorStat = new OperationStats(in);
                 }
-                Stats processorStat = new Stats(in);
+                OperationStats processorStat = new OperationStats(in);
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
             this.processorStats.put(pipelineId, processorStatsPerPipeline);

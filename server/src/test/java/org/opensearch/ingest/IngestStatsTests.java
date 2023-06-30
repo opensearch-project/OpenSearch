@@ -60,7 +60,7 @@ public class IngestStatsTests extends OpenSearchTestCase {
     }
 
     public void testBWCIngestProcessorTypeStats() throws IOException {
-        IngestStats.Stats totalStats = new IngestStats.Stats(50, 100, 200, 300);
+        OperationStats totalStats = new OperationStats(50, 100, 200, 300);
         List<IngestStats.PipelineStat> pipelineStats = createPipelineStats();
         Map<String, List<IngestStats.ProcessorStat>> processorStats = createProcessorStats(pipelineStats);
         IngestStats expectedIngestStats = new IngestStats(totalStats, pipelineStats, processorStats);

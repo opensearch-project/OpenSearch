@@ -206,7 +206,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             taskCancellationStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO Update to 2_9_0 when we backport to 2.x
+        if (in.getVersion().onOrAfter(Version.V_2_9_0)) { // TODO Update to 2_9_0 when we backport to 2.x
             searchPipelineStats = in.readOptionalWriteable(SearchPipelineStats::new);
         } else {
             searchPipelineStats = null;
@@ -446,7 +446,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(taskCancellationStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update to 2_9_0 once we backport to 2.x
+        if (out.getVersion().onOrAfter(Version.V_2_9_0)) { // TODO: Update to 2_9_0 once we backport to 2.x
             out.writeOptionalWriteable(searchPipelineStats);
         }
     }
