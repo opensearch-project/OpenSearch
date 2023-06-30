@@ -37,7 +37,7 @@ public class NamedRoute extends RestHandler.Route {
         private RestRequest.Method method;
         private String path;
         private String uniqueName;
-        private Set<String> legacyActionNames;
+        private Set<String> legacyActionNames = new HashSet<>();
         private Function<RestRequest, RestResponse> handler;
 
         /**
@@ -80,7 +80,7 @@ public class NamedRoute extends RestHandler.Route {
          * @return the builder instance
          */
         public Builder legacyActionNames(Set<String> legacyActionNames) {
-            this.legacyActionNames = legacyActionNames;
+            this.legacyActionNames.addAll(legacyActionNames);
             return this;
         }
 
