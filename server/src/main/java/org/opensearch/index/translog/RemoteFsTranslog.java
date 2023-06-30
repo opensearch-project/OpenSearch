@@ -423,6 +423,20 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
+    public static void cleanup(Repository repository, ShardId shardId, ThreadPool threadPool) throws IOException {
+        assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
+        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
+        TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
+            blobStoreRepository,
+            threadPool,
+            shardId,
+            fileTransferTracker
+        );
+        // clean up all remote translog files
+        translogTransferManager.deleteTranslogFiles();
+    }
+
     protected void onDelete() {
         if (primaryModeSupplier.getAsBoolean() == false) {
             logger.trace("skipped delete translog");

@@ -105,6 +105,7 @@ import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestCase {
 
+    protected final static String TEST_REMOTE_STORE_REPO_SUFFIX = "__rs";
     private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
     // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
@@ -148,14 +149,19 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     @After
     public void assertRepoConsistency() {
         if (skipRepoConsistencyCheckReason == null) {
-            clusterAdmin().prepareGetRepositories().get().repositories().forEach(repositoryMetadata -> {
-                final String name = repositoryMetadata.name();
-                if (repositoryMetadata.settings().getAsBoolean("readonly", false) == false) {
-                    clusterAdmin().prepareDeleteSnapshot(name, OLD_VERSION_SNAPSHOT_PREFIX + "*").get();
-                    clusterAdmin().prepareCleanupRepository(name).get();
-                }
-                BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
-            });
+            clusterAdmin().prepareGetRepositories()
+                .get()
+                .repositories()
+                .stream()
+                .filter(repositoryMetadata -> !repositoryMetadata.name().endsWith(TEST_REMOTE_STORE_REPO_SUFFIX))
+                .forEach(repositoryMetadata -> {
+                    final String name = repositoryMetadata.name();
+                    if (repositoryMetadata.settings().getAsBoolean("readonly", false) == false) {
+                        clusterAdmin().prepareDeleteSnapshot(name, OLD_VERSION_SNAPSHOT_PREFIX + "*").get();
+                        clusterAdmin().prepareCleanupRepository(name).get();
+                    }
+                    BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
+                });
         } else {
             logger.info("--> skipped repo consistency checks because [{}]", skipRepoConsistencyCheckReason);
         }
@@ -367,8 +373,34 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
     }
 
+    protected void updateRepository(String repoName, String type, Settings.Builder settings) {
+        logger.info("--> updating repository [{}] [{}]", repoName, type);
+        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
+    }
+
     protected void createRepository(String repoName, String type, Path location) {
         createRepository(repoName, type, Settings.builder().put("location", location));
+    }
+
+    protected Settings.Builder getRepositorySettings(Path location, boolean shallowCopyEnabled) {
+        Settings.Builder settingsBuilder = randomRepositorySettings();
+        settingsBuilder.put("location", location);
+        if (shallowCopyEnabled) {
+            settingsBuilder.put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true);
+        }
+        return settingsBuilder;
+    }
+
+    protected Settings.Builder getRepositorySettings(Path location, String basePath, boolean shallowCopyEnabled) {
+        Settings.Builder settingsBuilder = randomRepositorySettings();
+        settingsBuilder.put("location", location);
+        if (shallowCopyEnabled) {
+            settingsBuilder.put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true);
+        }
+        if (basePath != null) {
+            settingsBuilder.put("base_path", basePath);
+        }
+        return settingsBuilder;
     }
 
     protected void createRepository(String repoName, String type) {

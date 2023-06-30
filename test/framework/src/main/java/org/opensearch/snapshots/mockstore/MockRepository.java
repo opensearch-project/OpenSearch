@@ -114,7 +114,7 @@ public class MockRepository extends FsRepository {
         return failureCounter.get();
     }
 
-    private final double randomControlIOExceptionRate;
+    private volatile double randomControlIOExceptionRate;
 
     private final double randomDataFileIOExceptionRate;
 
@@ -244,6 +244,10 @@ public class MockRepository extends FsRepository {
         blockOnWriteShardLevelMeta = false;
         blockOnReadIndexMeta = false;
         this.notifyAll();
+    }
+
+    public void setRandomControlIOExceptionRate(double randomControlIOExceptionRate) {
+        this.randomControlIOExceptionRate = randomControlIOExceptionRate;
     }
 
     public void blockOnDataFiles(boolean blocked) {

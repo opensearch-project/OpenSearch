@@ -89,15 +89,15 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
                 processorStats.compute(stat.getType(), (key, value) -> {
                     if (value == null) {
                         return new long[] {
-                            stat.getStats().getIngestCount(),
-                            stat.getStats().getIngestFailedCount(),
-                            stat.getStats().getIngestCurrent(),
-                            stat.getStats().getIngestTimeInMillis() };
+                            stat.getStats().getCount(),
+                            stat.getStats().getFailedCount(),
+                            stat.getStats().getCurrent(),
+                            stat.getStats().getTotalTimeInMillis() };
                     } else {
-                        value[0] += stat.getStats().getIngestCount();
-                        value[1] += stat.getStats().getIngestFailedCount();
-                        value[2] += stat.getStats().getIngestCurrent();
-                        value[3] += stat.getStats().getIngestTimeInMillis();
+                        value[0] += stat.getStats().getCount();
+                        value[1] += stat.getStats().getFailedCount();
+                        value[2] += stat.getStats().getCurrent();
+                        value[3] += stat.getStats().getTotalTimeInMillis();
                         return value;
                     }
                 });

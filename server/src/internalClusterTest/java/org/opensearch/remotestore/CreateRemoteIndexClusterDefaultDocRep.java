@@ -12,6 +12,7 @@ import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -46,7 +47,15 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
             .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
             .get();
         Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(indexSettings, "true", "my-segment-repo-1", "false", null, ReplicationType.SEGMENT.toString(), null);
+        verifyRemoteStoreIndexSettings(
+            indexSettings,
+            "true",
+            "my-segment-repo-1",
+            "false",
+            null,
+            ReplicationType.SEGMENT.toString(),
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+        );
     }
 
     @Override
@@ -61,7 +70,7 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
         );
         assertThat(
             exc.getMessage(),
-            containsString("Cannot enable [index.remote_store.enabled] when [cluster.indices.replication.strategy] is DOCUMENT")
+            containsString("Cannot enable [index.remote_store.enabled] when [index.replication.type] is DOCUMENT")
         );
     }
 
@@ -84,7 +93,7 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
             "true",
             "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
-            null
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
     }
 }

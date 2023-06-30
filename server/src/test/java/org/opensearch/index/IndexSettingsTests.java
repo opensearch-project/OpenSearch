@@ -326,7 +326,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     public void testRefreshInterval() {
-        String refreshInterval = getRandomTimeString();
+        String refreshInterval = getRandomTimeString(false);
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder()
@@ -343,7 +343,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             ),
             settings.getRefreshInterval()
         );
-        String newRefreshInterval = getRandomTimeString();
+        String newRefreshInterval = getRandomTimeString(false);
         settings.updateIndexMetadata(
             newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), newRefreshInterval).build())
         );
@@ -357,8 +357,12 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
     }
 
-    private String getRandomTimeString() {
-        int refreshIntervalInt = randomFrom(-1, Math.abs(randomInt()));
+    private String getRandomTimeString(boolean nonNegativeOnly) {
+        int start = -1;
+        if (nonNegativeOnly) {
+            start = 0;
+        }
+        int refreshIntervalInt = randomFrom(start, Math.abs(randomInt()));
         String refreshInterval = Integer.toString(refreshIntervalInt);
         if (refreshIntervalInt >= 0) {
             refreshInterval += randomFrom("s", "ms", "h");
@@ -965,7 +969,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-store")
-                .put(IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
+                .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
@@ -1009,38 +1013,57 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
             .build();
-        assertEquals(TimeValue.timeValueMillis(100), IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings));
-    }
-
-    public void testSetRemoteTranslogBufferIntervalFailsWhenRemoteTranslogIsNotEnabled() {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "200ms")
-            .build();
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
-        );
-        assertEquals(
-            "Setting index.remote_store.translog.buffer_interval can only be set when index.remote_store.translog.enabled is set to true",
-            iae.getMessage()
-        );
+        assertEquals(TimeValue.timeValueMillis(650), IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings));
     }
 
     public void testSetRemoteTranslogBufferIntervalFailsWhenEmpty() {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "")
+            .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
+            () -> IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
         );
         assertEquals(
             "failed to parse setting [index.remote_store.translog.buffer_interval] with value [] as a time value: unit is missing or unrecognized",
             iae.getMessage()
+        );
+    }
+
+    public void testUpdateRemoteTranslogBufferInterval() {
+        String bufferInterval = getRandomTimeString(true);
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), bufferInterval)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(
+            TimeValue.parseTimeValue(
+                bufferInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRemoteTranslogUploadBufferInterval()
+        );
+        String newBufferInterval = getRandomTimeString(true);
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder().put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), newBufferInterval).build()
+            )
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                newBufferInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRemoteTranslogUploadBufferInterval()
         );
     }
 

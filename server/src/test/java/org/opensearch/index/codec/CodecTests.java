@@ -47,6 +47,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.codec.customcodecs.Lucene95CustomCodec;
+import org.opensearch.index.codec.customcodecs.Lucene95CustomStoredFieldsFormat;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.mapper.MapperRegistry;
@@ -63,40 +65,75 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CodecTests extends OpenSearchTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
-        CodecService codecService = createCodecService();
+        CodecService codecService = createCodecService(false);
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
         assertThat(codecService.codec("default"), instanceOf(Lucene95Codec.class));
     }
 
     public void testDefault() throws Exception {
-        Codec codec = createCodecService().codec("default");
+        Codec codec = createCodecService(false).codec("default");
         assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_SPEED, codec);
     }
 
     public void testBestCompression() throws Exception {
-        Codec codec = createCodecService().codec("best_compression");
+        Codec codec = createCodecService(false).codec("best_compression");
         assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_COMPRESSION, codec);
+    }
+
+    public void testZstd() throws Exception {
+        Codec codec = createCodecService(false).codec("zstd");
+        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD, codec);
+    }
+
+    public void testZstdNoDict() throws Exception {
+        Codec codec = createCodecService(false).codec("zstd_no_dict");
+        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD_NO_DICT, codec);
+    }
+
+    public void testDefaultMapperServiceNull() throws Exception {
+        Codec codec = createCodecService(true).codec("default");
+        assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_SPEED, codec);
+    }
+
+    public void testBestCompressionMapperServiceNull() throws Exception {
+        Codec codec = createCodecService(true).codec("best_compression");
+        assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_COMPRESSION, codec);
+    }
+
+    public void testZstdMapperServiceNull() throws Exception {
+        Codec codec = createCodecService(true).codec("zstd");
+        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD, codec);
+    }
+
+    public void testZstdNoDictMapperServiceNull() throws Exception {
+        Codec codec = createCodecService(true).codec("zstd_no_dict");
+        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD_NO_DICT, codec);
+    }
+
+    public void testExceptionCodecNull() {
+        assertThrows(IllegalArgumentException.class, () -> createCodecService(true).codec(null));
     }
 
     // write some docs with it, inspect .si to see this was the used compression
     private void assertStoredFieldsCompressionEquals(Lucene95Codec.Mode expected, Codec actual) throws Exception {
-        Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(null);
-        iwc.setCodec(actual);
-        IndexWriter iw = new IndexWriter(dir, iwc);
-        iw.addDocument(new Document());
-        iw.commit();
-        iw.close();
-        DirectoryReader ir = DirectoryReader.open(dir);
-        SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
+        SegmentReader sr = getSegmentReader(actual);
         String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
         assertEquals(expected, Lucene95Codec.Mode.valueOf(v));
-        ir.close();
-        dir.close();
     }
 
-    private CodecService createCodecService() throws IOException {
+    private void assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode expected, Codec actual) throws Exception {
+        SegmentReader sr = getSegmentReader(actual);
+        String v = sr.getSegmentInfo().info.getAttribute(Lucene95CustomStoredFieldsFormat.MODE_KEY);
+        assertNotNull(v);
+        assertEquals(expected, Lucene95CustomCodec.Mode.valueOf(v));
+    }
+
+    private CodecService createCodecService(boolean isMapperServiceNull) throws IOException {
+
+        if (isMapperServiceNull) {
+            return new CodecService(null, LogManager.getLogger("test"));
+        }
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
         SimilarityService similarityService = new SimilarityService(settings, null, Collections.emptyMap());
@@ -115,4 +152,18 @@ public class CodecTests extends OpenSearchTestCase {
         return new CodecService(service, LogManager.getLogger("test"));
     }
 
+    private SegmentReader getSegmentReader(Codec codec) throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(null);
+        iwc.setCodec(codec);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+        iw.addDocument(new Document());
+        iw.commit();
+        iw.close();
+        DirectoryReader ir = DirectoryReader.open(dir);
+        SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
+        ir.close();
+        dir.close();
+        return sr;
+    }
 }

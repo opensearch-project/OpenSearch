@@ -1,0 +1,32 @@
+---
+"Empty aggs Body":
+  - skip:
+      version: "- 2.8.99"
+      reason: "the fix was introduced in 2.9.0"
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "double" : 42 }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "double" : 100 }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "double" : 50 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { } }
+
+  - match: { hits.total: 3 }

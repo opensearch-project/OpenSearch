@@ -85,7 +85,7 @@ public class TransportClearIndicesCacheActionTests extends OpenSearchTestCase {
             when(shardRouting.shardId()).thenReturn(shardId);
             final ShardPath shardPath = ShardPath.loadFileCachePath(nodeEnvironment, shardId);
             final Path cacheEntryPath = shardPath.getDataPath();
-            final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(1024 * 1024 * 1024, 16, new NoopCircuitBreaker(""));
+            final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(1024 * 1024, 16, new NoopCircuitBreaker(""));
 
             when(testNode.fileCache()).thenReturn(fileCache);
             when(testNode.getNodeEnvironment()).thenReturn(nodeEnvironment);

@@ -67,6 +67,7 @@ import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -101,6 +102,9 @@ import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
+import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
+import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
@@ -574,7 +578,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService = null;
             if (indexSettings.isRemoteStoreEnabled()) {
                 if (remoteStore == null) {
-                    remoteStore = createRemoteStore(createTempDir(), routing, indexMetadata);
+                    Path remoteStorePath;
+                    String remoteStoreRepository = indexSettings.getRemoteStoreRepository();
+                    if (remoteStoreRepository != null && remoteStoreRepository.endsWith("__test")) {
+                        remoteStorePath = PathUtils.get(remoteStoreRepository.replace("__test", ""));
+                    } else {
+                        remoteStorePath = createTempDir();
+                    }
+                    remoteStore = createRemoteStore(remoteStorePath, routing, indexMetadata);
                 }
                 remoteRefreshSegmentPressureService = new RemoteRefreshSegmentPressureService(clusterService, indexSettings.getSettings());
             }
@@ -642,21 +653,30 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
     protected Store createRemoteStore(Path path, ShardRouting shardRouting, IndexMetadata metadata) throws IOException {
         Settings nodeSettings = Settings.builder().put("node.name", shardRouting.currentNodeId()).build();
+        ShardId shardId = shardRouting.shardId();
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = createRemoteSegmentStoreDirectory(shardId, path);
+        return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory);
+    }
 
-        ShardId shardId = new ShardId("index", "_na_", 0);
+    protected RemoteSegmentStoreDirectory createRemoteSegmentStoreDirectory(ShardId shardId, Path path) throws IOException {
         NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(path);
         ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
         RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
         RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, null);
-        return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory);
+        RemoteStoreLockManager remoteStoreLockManager = new RemoteStoreMetadataLockManager(
+            new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex()))
+        );
+        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager);
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
+        return new RemoteDirectory(getBlobContainer(f));
+    }
+
+    protected BlobContainer getBlobContainer(Path f) throws IOException {
         FsBlobStore fsBlobStore = new FsBlobStore(1024, f, false);
         BlobPath blobPath = new BlobPath();
-        BlobContainer fsBlobContainer = new FsBlobContainer(fsBlobStore, blobPath, f);
-        return new RemoteDirectory(fsBlobContainer);
+        return new FsBlobContainer(fsBlobStore, blobPath, f);
     }
 
     /**

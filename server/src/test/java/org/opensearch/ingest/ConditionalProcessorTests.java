@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest;
 
+import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.script.IngestConditionalScript;
 import org.opensearch.script.MockScriptEngine;
@@ -250,10 +251,10 @@ public class ConditionalProcessorTests extends OpenSearchTestCase {
     }
 
     private static void assertStats(ConditionalProcessor conditionalProcessor, long count, long failed, long time) {
-        IngestStats.Stats stats = conditionalProcessor.getMetric().createStats();
-        assertThat(stats.getIngestCount(), equalTo(count));
-        assertThat(stats.getIngestCurrent(), equalTo(0L));
-        assertThat(stats.getIngestFailedCount(), equalTo(failed));
-        assertThat(stats.getIngestTimeInMillis(), greaterThanOrEqualTo(time));
+        OperationStats stats = conditionalProcessor.getMetric().createStats();
+        assertThat(stats.getCount(), equalTo(count));
+        assertThat(stats.getCurrent(), equalTo(0L));
+        assertThat(stats.getFailedCount(), equalTo(failed));
+        assertThat(stats.getTotalTimeInMillis(), greaterThanOrEqualTo(time));
     }
 }

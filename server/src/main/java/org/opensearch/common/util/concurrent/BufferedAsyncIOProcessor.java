@@ -17,10 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * A variant of {@link AsyncIOProcessor} that allows to batch and buffer processing items at every
- * {@link BufferedAsyncIOProcessor#bufferInterval} in a separate threadpool.
+ * {@link BufferedAsyncIOProcessor#getBufferInterval()} in a separate threadpool.
  * <p>
  * Requests are buffered till processor thread calls @{link drainAndProcessAndRelease} after bufferInterval.
  * If more requests are enqueued between invocations of drainAndProcessAndRelease, another processor thread
@@ -32,18 +33,18 @@ import java.util.function.Consumer;
 public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<Item> {
 
     private final ThreadPool threadpool;
-    private final TimeValue bufferInterval;
+    private final Supplier<TimeValue> bufferIntervalSupplier;
 
     protected BufferedAsyncIOProcessor(
         Logger logger,
         int queueSize,
         ThreadContext threadContext,
         ThreadPool threadpool,
-        TimeValue bufferInterval
+        Supplier<TimeValue> bufferIntervalSupplier
     ) {
         super(logger, queueSize, threadContext);
         this.threadpool = threadpool;
-        this.bufferInterval = bufferInterval;
+        this.bufferIntervalSupplier = bufferIntervalSupplier;
     }
 
     @Override
@@ -81,11 +82,12 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
     }
 
     private TimeValue getBufferInterval() {
+        long bufferInterval = bufferIntervalSupplier.get().getNanos();
         long timeSinceLastRunStartInNS = System.nanoTime() - getLastRunStartTimeInNs();
-        if (timeSinceLastRunStartInNS >= bufferInterval.getNanos()) {
+        if (timeSinceLastRunStartInNS >= bufferInterval) {
             return TimeValue.ZERO;
         }
-        return TimeValue.timeValueNanos(bufferInterval.getNanos() - timeSinceLastRunStartInNS);
+        return TimeValue.timeValueNanos(bufferInterval - timeSinceLastRunStartInNS);
     }
 
     protected abstract String getBufferProcessThreadPoolName();

@@ -70,7 +70,7 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
     }
 
-    protected void setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) {
+    protected String setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) {
         logger.info("--> Creating repository={} at the path={}", REPOSITORY_NAME, repoLocation);
         // The random_control_io_exception_rate setting ensures that 10-25% of all operations to remote store results in
         /// IOException. skip_exception_on_verification_file & skip_exception_on_list_blobs settings ensures that the
@@ -88,13 +88,14 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
                 .put("max_failure_number", maxFailure)
         );
 
-        internalCluster().startDataOnlyNodes(1);
+        String dataNodeName = internalCluster().startDataOnlyNodes(1).get(0);
         createIndex(INDEX_NAME);
         logger.info("--> Created index={}", INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         logger.info("--> Cluster is yellow with no initializing shards");
         ensureGreen(INDEX_NAME);
         logger.info("--> Cluster is green");
+        return dataNodeName;
     }
 
     /**
