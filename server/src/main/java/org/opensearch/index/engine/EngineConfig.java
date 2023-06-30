@@ -82,7 +82,6 @@ public final class EngineConfig {
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
-    private final int compressionLevel;
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
     private final Store store;
@@ -143,6 +142,12 @@ public final class EngineConfig {
                 return s;
         }
     }, Property.IndexScope, Property.NodeScope);
+
+    /**
+     * Index setting to change the compression level of zstd and zstd_no_dict lucene codecs.
+     * Compression Level gives a trade-off between compression ratio and speed. The higher compression level results in higher compression ratio but slower compression and decompression speeds.
+     * This setting is <b>not</b> realtime updateable.
+     */
     public static final Setting<Integer> INDEX_CODEC_COMPRESSION_LEVEL_SETTING = Setting.intSetting(
         "index.codec.compression_level",
         6,
@@ -187,7 +192,6 @@ public final class EngineConfig {
         this.codecService = builder.codecService;
         this.eventListener = builder.eventListener;
         codecName = builder.indexSettings.getValue(INDEX_CODEC_SETTING);
-        compressionLevel = builder.indexSettings.getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
@@ -259,9 +263,6 @@ public final class EngineConfig {
      * </p>
      */
     public Codec getCodec() {
-        if (codecName.equals(CodecService.ZSTD_CODEC) || codecName.equals(CodecService.ZSTD_NO_DICT_CODEC)) {
-            return codecService.codec(codecName, compressionLevel);
-        }
         return codecService.codec(codecName);
     }
 

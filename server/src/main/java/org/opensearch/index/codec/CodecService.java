@@ -38,12 +38,13 @@ import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec.Mode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
-import org.opensearch.index.codec.customcodecs.Lucene95CustomCodec;
 import org.opensearch.index.codec.customcodecs.ZstdCodec;
 import org.opensearch.index.codec.customcodecs.ZstdNoDictCodec;
 import org.opensearch.index.mapper.MapperService;
 
 import java.util.Map;
+
+import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
@@ -74,10 +75,11 @@ public class CodecService {
             codecs.put(ZSTD_CODEC, new ZstdCodec());
             codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec());
         } else {
+            int compressionLevel = mapperService.getIndexSettings().getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
             codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
             codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
-            codecs.put(ZSTD_CODEC, new ZstdCodec(mapperService, logger));
-            codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(mapperService, logger));
+            codecs.put(ZSTD_CODEC, new ZstdCodec(mapperService, logger, compressionLevel));
+            codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(mapperService, logger, compressionLevel));
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {
@@ -91,15 +93,6 @@ public class CodecService {
         if (codec == null) {
             throw new IllegalArgumentException("failed to find codec [" + name + "]");
         }
-        return codec;
-    }
-
-    public Codec codec(String name, int compressionLevel) {
-        Lucene95CustomCodec codec = (Lucene95CustomCodec) codecs.get(name);
-        if (codec == null) {
-            throw new IllegalArgumentException("failed to find codec [" + name + "]");
-        }
-        codec.updateCompressionLevel(compressionLevel);
         return codec;
     }
 
