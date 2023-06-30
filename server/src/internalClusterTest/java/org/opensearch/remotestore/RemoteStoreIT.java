@@ -292,16 +292,14 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
         // Delete is async.
         assertBusy(() -> {
-            try {
-                int actualFileCount = getFileCount(indexPath);
-                if (numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP) {
-                    assertEquals(numberOfIterations, actualFileCount);
-                } else {
-                    // As delete is async its possible that the file gets created before the deletion or after
-                    // deletion.
-                    assertTrue(actualFileCount >= 10 || actualFileCount <= 11);
-                }
-            } catch (Exception e) {}
+            int actualFileCount = getFileCount(indexPath);
+            if (numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP) {
+                assertEquals(numberOfIterations, actualFileCount);
+            } else {
+                // As delete is async its possible that the file gets created before the deletion or after
+                // deletion.
+                assertTrue(actualFileCount >= 10 || actualFileCount <= 11);
+            }
         }, 30, TimeUnit.SECONDS);
     }
 
