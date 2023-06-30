@@ -196,6 +196,12 @@ public interface BlobContainer {
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 
+    /**
+     * Lists all blobs in the container that match the specified prefix in lexicographic order
+     * @param blobNamePrefix The prefix to match against blob names in the container.
+     * @param limit Limits the result size to min(limit, number of keys)
+     * @param listener the listener to be notified upon request completion
+     */
     default void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) {
         if (limit < 0) {
             throw new IllegalArgumentException("limit should not be a negative value");
