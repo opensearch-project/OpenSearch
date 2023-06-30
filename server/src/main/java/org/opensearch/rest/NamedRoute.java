@@ -13,6 +13,7 @@ import org.opensearch.transport.TransportService;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A named Route
@@ -27,6 +28,8 @@ public class NamedRoute extends RestHandler.Route {
     private final String uniqueName;
     private final Set<String> actionNames;
 
+    private Function<RestRequest, RestResponse> handler;
+
     /**
      * Builder class for constructing instances of {@link NamedRoute}.
      */
@@ -35,6 +38,7 @@ public class NamedRoute extends RestHandler.Route {
         private String path;
         private String uniqueName;
         private Set<String> legacyActionNames;
+        private Function<RestRequest, RestResponse> handler;
 
         /**
          * Sets the REST method for the route.
@@ -77,6 +81,17 @@ public class NamedRoute extends RestHandler.Route {
          */
         public Builder legacyActionNames(Set<String> legacyActionNames) {
             this.legacyActionNames = legacyActionNames;
+            return this;
+        }
+
+        /**
+         * Sets the handler for this route
+         *
+         * @param handler the handler for this route
+         * @return the builder instance
+         */
+        public Builder handler(Function<RestRequest, RestResponse> handler) {
+            this.handler = handler;
             return this;
         }
 
@@ -139,6 +154,14 @@ public class NamedRoute extends RestHandler.Route {
      */
     public Set<String> actionNames() {
         return this.actionNames;
+    }
+
+    /**
+     * The handler associated with this route
+     * @return the handler associated with this route
+     */
+    public Function<RestRequest, RestResponse> handler() {
+        return handler;
     }
 
     @Override
