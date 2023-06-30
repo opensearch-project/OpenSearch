@@ -99,7 +99,6 @@ class PipelineWithMetrics extends Pipeline {
             responseProcessorConfigs,
             pipelineContext
         );
-        List<SearchResponseProcessor> responseProcessors = readProcessors(responseProcessorFactories, responseProcessorConfigs);
         List<Map<String, Object>> phaseResultsProcessorConfigs = ConfigurationUtils.readOptionalList(
             null,
             null,
@@ -108,7 +107,8 @@ class PipelineWithMetrics extends Pipeline {
         );
         List<SearchPhaseResultsProcessor> phaseResultsProcessors = readProcessors(
             phaseResultsProcessorFactories,
-            phaseResultsProcessorConfigs
+            phaseResultsProcessorConfigs,
+            pipelineContext
         );
         if (config.isEmpty() == false) {
             throw new OpenSearchParseException(

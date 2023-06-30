@@ -85,11 +85,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             return Map.of("bar", (factories, tag, description, config, ctx) -> null);
         }
 
-        @Override
-        public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(
-            Processor.Parameters parameters
-        ) {
-            return Map.of("zoe", (factories, tag, description, config) -> null);
+        public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(Parameters parameters) {
+            return Map.of("zoe", (factories, tag, description, config, ctx) -> null);
         }
     };
 
@@ -319,7 +316,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         });
 
         Map<String, Processor.Factory<SearchPhaseResultsProcessor>> searchPhaseProcessors = new HashMap<>();
-        searchPhaseProcessors.put("max_score", (processorFactories, tag, description, config) -> {
+        searchPhaseProcessors.put("max_score", (processorFactories, tag, description, config, ctx) -> {
             final float finalScore = config.containsKey("score") ? ((Number) config.remove("score")).floatValue() : 100f;
             final Consumer<SearchPhaseResult> querySearchResultConsumer = (result) -> result.queryResult().topDocs().maxScore = finalScore;
             return new FakeSearchPhaseResultsProcessor("max_score", tag, description, querySearchResultConsumer);
@@ -363,10 +360,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     return responseProcessors;
                 }
 
-                @Override
-                public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(
-                    Processor.Parameters parameters
-                ) {
+                public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(Parameters parameters) {
                     return phaseProcessors;
                 }
 
@@ -897,15 +891,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
     }
 
     public void testExceptionOnPipelineCreation() {
-        Map<String, Processor.Factory<SearchRequestProcessor>> badFactory = Map.of(
-            "bad_factory",
-            (pf, t, f, c) -> { throw new RuntimeException(); }
-        );
-        SearchPipelineService searchPipelineService = createWithProcessors(badFactory, Collections.emptyMap(), Collections.emptyMap());
         Map<String, Processor.Factory<SearchRequestProcessor>> badFactory = Map.of("bad_factory", (pf, t, f, c, ctx) -> {
             throw new RuntimeException();
         });
-        SearchPipelineService searchPipelineService = createWithProcessors(badFactory, Collections.emptyMap());
+        SearchPipelineService searchPipelineService = createWithProcessors(badFactory, Collections.emptyMap(), Collections.emptyMap());
 
         Map<String, Object> pipelineSourceMap = new HashMap<>();
         pipelineSourceMap.put(Pipeline.REQUEST_PROCESSORS_KEY, List.of(Map.of("bad_factory", Collections.emptyMap())));
@@ -1102,7 +1091,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             return new FakeRequestProcessor(processorType, t, d, r -> {});
         });
 
-        SearchPipelineService searchPipelineService = createWithProcessors(requestProcessorFactories, Collections.emptyMap());
+        SearchPipelineService searchPipelineService = createWithProcessors(
+            requestProcessorFactories,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
 
         String id = "_id";
         SearchPipelineService.PipelineHolder pipeline = searchPipelineService.getPipelines().get(id);
