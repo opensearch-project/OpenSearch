@@ -1521,13 +1521,17 @@ public class MetadataTests extends OpenSearchTestCase {
             assertEquals(previousMetadata.getConcreteVisibleClosedIndices(), newMetadata.getConcreteVisibleClosedIndices());
             assertEquals(previousMetadata.getConcreteVisibleOpenIndices(), newMetadata.getConcreteVisibleOpenIndices());
             assertEquals(previousMetadata.getIndicesLookup(), newMetadata.getIndicesLookup());
-            assertEquals(previousMetadata.getCustoms(), newMetadata.getCustoms());
+            assertEquals(previousMetadata.getCustoms().get(DataStreamMetadata.TYPE), newMetadata.getCustoms().get(DataStreamMetadata.TYPE));
         }
 
         if (compareTemplates == true) {
             assertEquals(previousMetadata.templates(), newMetadata.templates());
             assertEquals(previousMetadata.templatesV2(), newMetadata.templatesV2());
             assertEquals(previousMetadata.componentTemplates(), newMetadata.componentTemplates());
+        }
+
+        if (compareIndicesLookups == true && compareTemplates == true) {
+            assertEquals(previousMetadata.getCustoms(), newMetadata.getCustoms());
         }
 
         if (checkVersionIncrement == true) {
