@@ -197,10 +197,13 @@ public interface BlobContainer {
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 
     default void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
         try {
             List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
             blobNames.sort(Comparator.comparing(BlobMetadata::name));
-            listener.onResponse(blobNames.subList(0, Math.max(0, Math.min(blobNames.size(), limit))));
+            listener.onResponse(blobNames.subList(0, Math.min(blobNames.size(), limit)));
         } catch (Exception e) {
             listener.onFailure(e);
         }

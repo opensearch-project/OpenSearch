@@ -82,7 +82,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -300,8 +299,10 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
         String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
-        limit = Math.max(0, limit);
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             List<BlobMetadata> blobs = executeListing(clientReference, listObjectsRequest(prefix, limit), limit).stream()
                 .flatMap(listing -> listing.contents().stream())
@@ -366,14 +367,15 @@ class S3BlobContainer extends AbstractBlobContainer {
     ) {
         return SocketAccess.doPrivileged(() -> {
             final List<ListObjectsV2Response> results = new ArrayList<>();
-            AtomicInteger totalObjects = new AtomicInteger(0);
+            int totalObjects = 0;
             ListObjectsV2Iterable listObjectsIterable = clientReference.get().listObjectsV2Paginator(listObjectsRequest);
-            listObjectsIterable.stream().takeWhile(listObjectsV2Response -> {
-                if (limit == -1) {
-                    return true;
+            for (ListObjectsV2Response listObjectsV2Response : listObjectsIterable) {
+                results.add(listObjectsV2Response);
+                totalObjects += listObjectsV2Response.contents().size();
+                if (limit != -1 && totalObjects > limit) {
+                    break;
                 }
-                return (totalObjects.getAndAdd(listObjectsV2Response.contents().size()) < limit);
-            }).forEach(results::add);
+            }
             return results;
         });
     }

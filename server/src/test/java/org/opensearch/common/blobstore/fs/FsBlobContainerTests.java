@@ -142,21 +142,34 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
             path
         );
 
-        container.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<List<BlobMetadata>>() {
-            @Override
-            public void onResponse(List<BlobMetadata> blobMetadata) {
-                int actualLimit = Math.max(0, Math.min(limit, 10));
-                assertEquals(actualLimit, blobMetadata.size());
+        if (limit >= 0) {
+            container.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<List<BlobMetadata>>() {
+                @Override
+                public void onResponse(List<BlobMetadata> blobMetadata) {
+                    int actualLimit = Math.min(limit, 10);
+                    assertEquals(actualLimit, blobMetadata.size());
 
-                List<String> keys = blobsInFileSystem.subList(0, actualLimit);
-                assertEquals(keys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
-            }
+                    List<String> keys = blobsInFileSystem.subList(0, actualLimit);
+                    assertEquals(keys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("blobContainer.listBlobsByPrefixInLexicographicOrder failed with exception: " + e.getMessage());
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    fail("blobContainer.listBlobsByPrefixInLexicographicOrder failed with exception: " + e.getMessage());
+                }
+            });
+        } else {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> container.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<>() {
+                    @Override
+                    public void onResponse(List<BlobMetadata> blobMetadata) {}
+
+                    @Override
+                    public void onFailure(Exception e) {}
+                })
+            );
+        }
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithNegativeLimit() throws IOException {

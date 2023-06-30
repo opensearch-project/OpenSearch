@@ -81,13 +81,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.Spliterators;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -243,6 +240,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         public List<String> getKeysListed() {
             return keysListed;
+        }
+
+        public int numberOfPagesFetched() {
+            return currInvocationCount.get();
         }
     }
 
@@ -798,20 +799,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
         when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
 
-        Iterator<ListObjectsV2Response> iterator = new MockListObjectsV2ResponseIterator(2, 5, 100);
-        Stream<ListObjectsV2Response> stream = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, 0), false);
-        when(listObjectsV2Iterable.stream()).thenReturn(stream);
+        MockListObjectsV2ResponseIterator iterator = new MockListObjectsV2ResponseIterator(2, 5, 100);
+        when(listObjectsV2Iterable.iterator()).thenReturn(iterator);
 
         Map<String, BlobMetadata> listOfBlobs = blobContainer.listBlobsByPrefix(null);
         assertEquals(10, listOfBlobs.size());
 
-        Set<String> keys = ((MockListObjectsV2ResponseIterator) iterator).keysListed.stream()
+        Set<String> keys = iterator.keysListed.stream()
             .map(s -> s.substring(blobPath.buildAsString().length()))
             .collect(Collectors.toSet());
         assertEquals(keys, listOfBlobs.keySet());
     }
 
-    private void testListBlobsByPrefixInLexicographicOrder(int limit) throws IOException {
+    private void testListBlobsByPrefixInLexicographicOrder(int limit, int expectedNumberofPagesFetched) throws IOException {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
 
@@ -826,47 +826,60 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
         when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
 
-        Iterator<ListObjectsV2Response> iterator = new MockListObjectsV2ResponseIterator(2, 5, 100);
-        Stream<ListObjectsV2Response> stream = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, 0), false);
-        when(listObjectsV2Iterable.stream()).thenReturn(stream);
+        MockListObjectsV2ResponseIterator iterator = new MockListObjectsV2ResponseIterator(2, 5, 100);
+        when(listObjectsV2Iterable.iterator()).thenReturn(iterator);
 
-        blobContainer.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<List<BlobMetadata>>() {
-            @Override
-            public void onResponse(List<BlobMetadata> blobMetadata) {
-                int actualLimit = Math.max(0, Math.min(limit, 10));
-                assertEquals(actualLimit, blobMetadata.size());
+        if (limit >= 0) {
+            blobContainer.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<>() {
+                @Override
+                public void onResponse(List<BlobMetadata> blobMetadata) {
+                    int actualLimit = Math.max(0, Math.min(limit, 10));
+                    assertEquals(actualLimit, blobMetadata.size());
 
-                List<String> keys = ((MockListObjectsV2ResponseIterator) iterator).keysListed.stream()
-                    .map(s -> s.substring(blobPath.buildAsString().length()))
-                    .collect(Collectors.toList())
-                    .subList(0, actualLimit);
-                assertEquals(keys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
-            }
+                    List<String> keys = iterator.keysListed.stream()
+                        .map(s -> s.substring(blobPath.buildAsString().length()))
+                        .collect(Collectors.toList())
+                        .subList(0, actualLimit);
+                    assertEquals(keys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
+                    assertEquals(expectedNumberofPagesFetched, iterator.numberOfPagesFetched());
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("blobContainer.listBlobsByPrefixInLexicographicOrder failed with exception: " + e.getMessage());
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    fail("blobContainer.listBlobsByPrefixInLexicographicOrder failed with exception: " + e.getMessage());
+                }
+            });
+        } else {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> blobContainer.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<>() {
+                    @Override
+                    public void onResponse(List<BlobMetadata> blobMetadata) {}
+
+                    @Override
+                    public void onFailure(Exception e) {}
+                })
+            );
+        }
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithNegativeLimit() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(-5);
+        testListBlobsByPrefixInLexicographicOrder(-5, 0);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithZeroLimit() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(0);
+        testListBlobsByPrefixInLexicographicOrder(0, 1);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitLessThanPageSize() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(2);
+        testListBlobsByPrefixInLexicographicOrder(2, 1);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanPageSize() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(8);
+        testListBlobsByPrefixInLexicographicOrder(8, 2);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(12);
+        testListBlobsByPrefixInLexicographicOrder(12, 2);
     }
 }
