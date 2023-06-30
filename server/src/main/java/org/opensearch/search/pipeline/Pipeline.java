@@ -137,13 +137,13 @@ class Pipeline {
                     try {
                         request = processor.processRequest(request);
                     } catch (Exception e) {
+                        onRequestProcessorFailed(processor);
                         if (processor.getIgnoreFailure()) {
                             processorFailureCount = processorFailureCount + 1;
                             logger.info("failed to process request process: " + processor.getType());
                             logger.error("An error occurred in the processor", e);
                             logger.info("the number of failing pipeline increments to " + processorFailureCount);
                         } else {
-                            onRequestProcessorFailed(processor);
                             throw e;
                         }
                     } finally {
@@ -173,13 +173,13 @@ class Pipeline {
                     try {
                         response = processor.processResponse(request, response);
                     } catch (Exception e) {
+                        onResponseProcessorFailed(processor);
                         if (processor.getIgnoreFailure()) {
                             processorFailureCount = processorFailureCount + 1;
                             logger.info("failed to process response process: " + processor.getType());
                             logger.error("An error occurred in the processor", e);
                             logger.info("the number of failing pipeline increments to " + processorFailureCount);
                         } else {
-                            onRequestProcessorFailed(processor);
                             throw e;
                         }
                     } finally {
