@@ -44,9 +44,18 @@ import java.util.Objects;
  */
 abstract class SearchPhase implements CheckedRunnable<IOException> {
     private final String name;
+    private long startTime;
 
     protected SearchPhase(String name) {
         this.name = Objects.requireNonNull(name, "name must not be null");
+    }
+
+    public void setStartTimeInNanos(long startTime) {
+        this.startTime = startTime;
+    }
+
+    public long getStartTime() {
+        return startTime;
     }
 
     /**

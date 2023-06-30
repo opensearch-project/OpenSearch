@@ -68,6 +68,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -107,7 +108,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final AtomicInteger skippedOps = new AtomicInteger();
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
-
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final int expectedTotalOps;
@@ -116,7 +116,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
 
+    private SearchPhase currentPhase;
+
     private final List<Releasable> releasables = new ArrayList<>();
+
+    private SearchRequestOperationsListener searchRequestOperationsListener;
+    private List<SearchRequestOperationsListener> searchListenersList;
 
     AbstractSearchAsyncAction(
         String name,
@@ -171,6 +176,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
+
+    }
+
+    public void setSearchListenerList(List<SearchRequestOperationsListener> searchListenersList) {
+        this.searchListenersList = searchListenersList;
+        this.searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(this.searchListenersList, logger);
     }
 
     @Override
@@ -371,6 +382,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 : OpenSearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
             logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
+
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
@@ -419,12 +431,56 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     clusterState.version()
                 );
             }
+            onPhaseEnd(this);
             executePhase(nextPhase);
+        }
+    }
+
+    public void onPhaseEnd(SearchPhaseContext searchPhaseContext) {
+        if (searchRequestOperationsListener == null) {
+            return;
+        }
+        long tookTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime());
+
+        if (searchPhaseContext.getCurrentPhase() instanceof SearchDfsQueryThenFetchAsyncAction) {
+            searchRequestOperationsListener.onDFSPreQueryPhaseEnd(searchPhaseContext, tookTimeInMillis);
+        } else if (searchPhaseContext.getCurrentPhase() instanceof CanMatchPreFilterSearchPhase) {
+            searchRequestOperationsListener.onCanMatchPhaseEnd(searchPhaseContext, tookTimeInMillis);
+        } else if (searchPhaseContext.getCurrentPhase() instanceof DfsQueryPhase) {
+            searchRequestOperationsListener.onQueryPhaseEnd(searchPhaseContext, tookTimeInMillis);
+        }else if (searchPhaseContext.getCurrentPhase() instanceof SearchQueryThenFetchAsyncAction) {
+            searchRequestOperationsListener.onQueryPhaseEnd(searchPhaseContext, tookTimeInMillis);
+        } else if (searchPhaseContext.getCurrentPhase() instanceof FetchSearchPhase) {
+            searchRequestOperationsListener.onFetchPhaseEnd(searchPhaseContext, tookTimeInMillis);
+        } else if (searchPhaseContext.getCurrentPhase() instanceof ExpandSearchPhase) {
+            searchRequestOperationsListener.onExpandSearchPhaseEnd(searchPhaseContext, tookTimeInMillis);
+        }
+    }
+
+    public void onPhaseStart(SearchPhase phase, SearchPhaseContext searchPhaseContext) {
+        setCurrentPhase(phase);
+        phase.setStartTimeInNanos(System.nanoTime());
+        if (searchRequestOperationsListener == null) {
+            return;
+        }
+        if (searchPhaseContext.getCurrentPhase() instanceof SearchDfsQueryThenFetchAsyncAction) {
+            searchRequestOperationsListener.onDFSPreQueryPhaseStart(searchPhaseContext);
+        } else if (searchPhaseContext.getCurrentPhase() instanceof CanMatchPreFilterSearchPhase) {
+            searchRequestOperationsListener.onCanMatchPhaseStart(searchPhaseContext);
+        } else if (searchPhaseContext.getCurrentPhase() instanceof DfsQueryPhase) {
+            searchRequestOperationsListener.onQueryPhaseStart(searchPhaseContext);
+        } else if (searchPhaseContext.getCurrentPhase() instanceof SearchQueryThenFetchAsyncAction) {
+            searchRequestOperationsListener.onQueryPhaseStart(searchPhaseContext);
+        } else if (searchPhaseContext.getCurrentPhase() instanceof FetchSearchPhase) {
+            searchRequestOperationsListener.onFetchPhaseStart(searchPhaseContext);
+        } else if (searchPhaseContext.getCurrentPhase() instanceof ExpandSearchPhase) {
+            searchRequestOperationsListener.onExpandSearchPhaseStart(searchPhaseContext);
         }
     }
 
     private void executePhase(SearchPhase phase) {
         try {
+            onPhaseStart(phase, this);
             phase.run();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
@@ -603,6 +659,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
+    public SearchPhase getCurrentPhase() {
+        return currentPhase;
+    }
+
+    public void setCurrentPhase(SearchPhase phase) {
+        currentPhase = phase;
+    }
+
     @Override
     public final int getNumShards() {
         return results.getNumShards();
@@ -670,10 +734,27 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
+        onPhaseEnd(this);
+        setCurrentPhase(null);
     }
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+        if (searchRequestOperationsListener != null) {
+            if (this.currentPhase instanceof SearchDfsQueryThenFetchAsyncAction) {
+                searchRequestOperationsListener.onDFSPreQueryPhaseFailure(this);
+            } else if (this.currentPhase instanceof CanMatchPreFilterSearchPhase) {
+                searchRequestOperationsListener.onCanMatchPhaseFailure(this);
+            } else if (this.currentPhase instanceof DfsQueryPhase) {
+                searchRequestOperationsListener.onQueryPhaseFailure(this);
+            } else if (this.currentPhase instanceof SearchQueryThenFetchAsyncAction) {
+                searchRequestOperationsListener.onQueryPhaseFailure(this);
+            } else if (this.currentPhase instanceof FetchSearchPhase) {
+                searchRequestOperationsListener.onFetchPhaseFailure(this);
+            } else if (this.currentPhase instanceof ExpandSearchPhase) {
+                searchRequestOperationsListener.onExpandSearchPhaseFailure(this);
+            }
+        }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }
 

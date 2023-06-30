@@ -156,6 +156,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
     private final SearchPipelineService searchPipelineService;
+    final List<SearchRequestOperationsListener> searchListenersList = new ArrayList<>();
 
     @Inject
     public TransportSearchAction(
@@ -170,7 +171,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
-        SearchPipelineService searchPipelineService
+        SearchPipelineService searchPipelineService,
+        SearchCoordinatorStats searchCoordinatorStats
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -185,6 +187,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.searchPipelineService = searchPipelineService;
+        this.searchListenersList.add(searchCoordinatorStats);
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -329,25 +332,26 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ThreadPool threadPool,
                 SearchResponse.Clusters clusters
             ) {
-                return new AbstractSearchAsyncAction<SearchPhaseResult>(
-                    actionName,
-                    logger,
-                    searchTransportService,
-                    connectionLookup,
-                    aliasFilter,
-                    concreteIndexBoosts,
-                    indexRoutings,
-                    executor,
-                    searchRequest,
-                    listener,
-                    shardsIts,
-                    timeProvider,
-                    clusterState,
-                    task,
-                    new ArraySearchPhaseResults<>(shardsIts.size()),
-                    searchRequest.getMaxConcurrentShardRequests(),
-                    clusters
-                ) {
+                AbstractSearchAsyncAction<SearchPhaseResult> returnAbstractSearchAsyncAction = new AbstractSearchAsyncAction<
+                    SearchPhaseResult>(
+                        actionName,
+                        logger,
+                        searchTransportService,
+                        connectionLookup,
+                        aliasFilter,
+                        concreteIndexBoosts,
+                        indexRoutings,
+                        executor,
+                        searchRequest,
+                        listener,
+                        shardsIts,
+                        timeProvider,
+                        clusterState,
+                        task,
+                        new ArraySearchPhaseResults<>(shardsIts.size()),
+                        searchRequest.getMaxConcurrentShardRequests(),
+                        clusters
+                    ) {
                     @Override
                     protected void executePhaseOnShard(
                         SearchShardIterator shardIt,
@@ -374,6 +378,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         return includeSearchContext;
                     }
                 };
+                returnAbstractSearchAsyncAction.setSearchListenerList(searchListenersList);
+                return returnAbstractSearchAsyncAction;
             }
         }, listener);
     }
@@ -1218,6 +1224,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
             }
+            searchAsyncAction.setSearchListenerList(searchListenersList);
             return searchAsyncAction;
         }
     }

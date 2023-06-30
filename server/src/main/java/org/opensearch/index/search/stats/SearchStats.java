@@ -33,6 +33,8 @@
 package org.opensearch.index.search.stats;
 
 import org.opensearch.Version;
+import org.opensearch.action.CoordinatorStats;
+import org.opensearch.action.search.SearchCoordinatorStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -61,6 +63,24 @@ public class SearchStats implements Writeable, ToXContentFragment {
      *
      * @opensearch.internal
      */
+
+    public static class CoordinatorStatsLongHolder {
+        public long dfsPreQueryMetric;
+        public long dfsPreQueryCurrent;
+        public long dfsPreQueryTotal;
+        public long canMatchMetric;
+        public long canMatchCurrent;
+        public long canMatchTotal;
+        public long queryMetric;
+        public long queryCurrent;
+        public long queryTotal;
+        public long fetchMetric;
+        public long fetchCurrent;
+        public long fetchTotal;
+        public long expandSearchMetric;
+        public long expandSearchCurrent;
+        public long expandSearchTotal;
+    }
     public static class Stats implements Writeable, ToXContentFragment {
 
         private long queryCount;
@@ -83,6 +103,16 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long pitTimeInMillis;
         private long pitCurrent;
 
+        @Nullable
+        public CoordinatorStatsLongHolder coordinatorStatsLongHolder;
+
+        public CoordinatorStatsLongHolder getCoordinatorStatsLongHolder() {
+            if (coordinatorStatsLongHolder == null) {
+                return null;
+            }
+            return coordinatorStatsLongHolder;
+        }
+
         private Stats() {
             // for internal use, initializes all counts to 0
         }
@@ -104,6 +134,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long suggestTimeInMillis,
             long suggestCurrent
         ) {
+            this.coordinatorStatsLongHolder = new CoordinatorStatsLongHolder();
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
             this.queryCurrent = queryCurrent;
@@ -146,6 +177,29 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 pitCount = in.readVLong();
                 pitTimeInMillis = in.readVLong();
                 pitCurrent = in.readVLong();
+            }
+
+            if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+                this.coordinatorStatsLongHolder = new CoordinatorStatsLongHolder();
+                coordinatorStatsLongHolder.dfsPreQueryMetric = in.readVLong();
+                coordinatorStatsLongHolder.dfsPreQueryCurrent= in.readVLong();
+                coordinatorStatsLongHolder.dfsPreQueryTotal = in.readVLong();
+
+                coordinatorStatsLongHolder.canMatchMetric = in.readVLong();
+                coordinatorStatsLongHolder.canMatchCurrent= in.readVLong();
+                coordinatorStatsLongHolder.canMatchTotal = in.readVLong();
+
+                coordinatorStatsLongHolder.queryMetric = in.readVLong();
+                coordinatorStatsLongHolder.queryCurrent= in.readVLong();
+                coordinatorStatsLongHolder.queryTotal = in.readVLong();
+
+                coordinatorStatsLongHolder.fetchMetric = in.readVLong();
+                coordinatorStatsLongHolder.fetchCurrent= in.readVLong();
+                coordinatorStatsLongHolder.fetchTotal = in.readVLong();
+
+                coordinatorStatsLongHolder.expandSearchMetric = in.readVLong();
+                coordinatorStatsLongHolder.expandSearchCurrent= in.readVLong();
+                coordinatorStatsLongHolder.expandSearchTotal = in.readVLong();
             }
         }
 
@@ -298,6 +352,28 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(pitTimeInMillis);
                 out.writeVLong(pitCurrent);
             }
+
+            if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+                out.writeVLong(coordinatorStatsLongHolder.dfsPreQueryMetric);
+                out.writeVLong(coordinatorStatsLongHolder.dfsPreQueryCurrent);
+                out.writeVLong(coordinatorStatsLongHolder.dfsPreQueryTotal);
+
+                out.writeVLong(coordinatorStatsLongHolder.canMatchMetric);
+                out.writeVLong(coordinatorStatsLongHolder.canMatchCurrent);
+                out.writeVLong(coordinatorStatsLongHolder.canMatchTotal);
+
+                out.writeVLong(coordinatorStatsLongHolder.queryMetric);
+                out.writeVLong(coordinatorStatsLongHolder.queryCurrent);
+                out.writeVLong(coordinatorStatsLongHolder.queryTotal);
+
+                out.writeVLong(coordinatorStatsLongHolder.fetchMetric);
+                out.writeVLong(coordinatorStatsLongHolder.fetchCurrent);
+                out.writeVLong(coordinatorStatsLongHolder.fetchTotal);
+
+                out.writeVLong(coordinatorStatsLongHolder.expandSearchMetric);
+                out.writeVLong(coordinatorStatsLongHolder.expandSearchCurrent);
+                out.writeVLong(coordinatorStatsLongHolder.expandSearchTotal);
+            }
         }
 
         @Override
@@ -322,6 +398,51 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, getSuggestTime());
             builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
 
+            if (coordinatorStatsLongHolder != null) {
+                builder.startObject(Fields.COORDINATOR);
+
+                builder.humanReadableField(
+                    Fields.DFS_PREQUERY_TIME_IN_MILLIS,
+                    Fields.QUERY_TIME,
+                    new TimeValue(coordinatorStatsLongHolder.dfsPreQueryMetric)
+                );
+                builder.field(Fields.DFS_PREQUERY_CURRENT, coordinatorStatsLongHolder.dfsPreQueryCurrent);
+                builder.field(Fields.DFS_PREQUERY_TOTAL, coordinatorStatsLongHolder.dfsPreQueryTotal);
+
+                builder.humanReadableField(
+                    Fields.CANMATCH_TIME_IN_MILLIS,
+                    Fields.QUERY_TIME,
+                    new TimeValue(coordinatorStatsLongHolder.canMatchMetric)
+                );
+                builder.field(Fields.CANMATCH_CURRENT, coordinatorStatsLongHolder.canMatchCurrent);
+                builder.field(Fields.CANMATCH_TOTAL, coordinatorStatsLongHolder.canMatchTotal);
+
+                builder.humanReadableField(
+                    Fields.QUERY_TIME_IN_MILLIS,
+                    Fields.QUERY_TIME,
+                    new TimeValue(coordinatorStatsLongHolder.queryMetric)
+                );
+                builder.field(Fields.QUERY_CURRENT, coordinatorStatsLongHolder.queryCurrent);
+                builder.field(Fields.QUERY_TOTAL, coordinatorStatsLongHolder.queryTotal);
+
+                builder.humanReadableField(
+                    Fields.FETCH_TIME_IN_MILLIS,
+                    Fields.FETCH_TIME,
+                    new TimeValue(coordinatorStatsLongHolder.fetchMetric)
+                );
+                builder.field(Fields.FETCH_CURRENT, coordinatorStatsLongHolder.fetchCurrent);
+                builder.field(Fields.FETCH_TOTAL, coordinatorStatsLongHolder.fetchTotal);
+
+                builder.humanReadableField(
+                    Fields.EXPAND_TIME_IN_MILLIS,
+                    Fields.FETCH_TIME,
+                    new TimeValue(coordinatorStatsLongHolder.expandSearchMetric)
+                );
+                builder.field(Fields.EXPAND_CURRENT, coordinatorStatsLongHolder.expandSearchCurrent);
+                builder.field(Fields.EXPAND_TOTAL, coordinatorStatsLongHolder.expandSearchTotal);
+
+                builder.endObject();
+            }
             return builder;
         }
     }
@@ -334,6 +455,32 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
     public SearchStats() {
         totalStats = new Stats();
+    }
+
+    // Set the different Coordinator Stats fields in here
+    public void setSearchCoordinatorStats(SearchCoordinatorStats searchCoordinatorStats) {
+        if (totalStats.coordinatorStatsLongHolder == null) {
+            totalStats.coordinatorStatsLongHolder = new CoordinatorStatsLongHolder();
+        }
+        totalStats.coordinatorStatsLongHolder.dfsPreQueryMetric = searchCoordinatorStats.getDFSPreQueryMetric();
+        totalStats.coordinatorStatsLongHolder.dfsPreQueryCurrent = searchCoordinatorStats.getDFSPreQueryCurrent();
+        totalStats.coordinatorStatsLongHolder.dfsPreQueryTotal = searchCoordinatorStats.getDFSPreQueryTotal();
+
+        totalStats.coordinatorStatsLongHolder.canMatchMetric = searchCoordinatorStats.getCanMatchMetric();
+        totalStats.coordinatorStatsLongHolder.canMatchCurrent = searchCoordinatorStats.getCanMatchCurrent();
+        totalStats.coordinatorStatsLongHolder.canMatchTotal = searchCoordinatorStats.getCanMatchTotal();
+
+        totalStats.coordinatorStatsLongHolder.queryMetric = searchCoordinatorStats.getQueryMetric();
+        totalStats.coordinatorStatsLongHolder.queryCurrent = searchCoordinatorStats.getQueryCurrent();
+        totalStats.coordinatorStatsLongHolder.queryTotal = searchCoordinatorStats.getQueryTotal();
+
+        totalStats.coordinatorStatsLongHolder.fetchMetric = searchCoordinatorStats.getFetchMetric();
+        totalStats.coordinatorStatsLongHolder.fetchCurrent = searchCoordinatorStats.getFetchCurrent();
+        totalStats.coordinatorStatsLongHolder.fetchTotal = searchCoordinatorStats.getFetchTotal();
+
+        totalStats.coordinatorStatsLongHolder.expandSearchMetric = searchCoordinatorStats.getExpandSearchMetric();
+        totalStats.coordinatorStatsLongHolder.expandSearchCurrent = searchCoordinatorStats.getExpandSearchCurrent();
+        totalStats.coordinatorStatsLongHolder.expandSearchTotal = searchCoordinatorStats.getExpandSearchTotal();
     }
 
     public SearchStats(Stats totalStats, long openContexts, @Nullable Map<String, Stats> groupStats) {
@@ -446,6 +593,16 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SUGGEST_TIME = "suggest_time";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
+        static final String COORDINATOR = "coordinator";
+        static final String DFS_PREQUERY_TIME_IN_MILLIS = "dfs_prequery_time_in_millis";
+        static final String DFS_PREQUERY_CURRENT = "dfs_prequery_current";
+        static final String DFS_PREQUERY_TOTAL = "dfs_prequery_total";
+        static final String CANMATCH_TIME_IN_MILLIS = "canmatch_time_in_millis";
+        static final String CANMATCH_CURRENT = "canmatch_current";
+        static final String CANMATCH_TOTAL = "canmatch_total";
+        static final String EXPAND_TIME_IN_MILLIS = "expand_time_in_millis";
+        static final String EXPAND_CURRENT = "expand_current";
+        static final String EXPAND_TOTAL = "expand_total";
     }
 
     @Override
