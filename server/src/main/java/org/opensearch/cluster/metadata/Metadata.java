@@ -1433,12 +1433,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 ? (DataStreamMetadata) this.previousMetadata.customs.get(DataStreamMetadata.TYPE)
                 : null;
 
-            boolean recomputeRequired = (previousMetadata == null)
+            boolean recomputeRequiredforIndicesLookups = (previousMetadata == null)
                 || (indices.equals(previousMetadata.indices) == false)
                 || (previousDataStreamMetadata != null && previousDataStreamMetadata.equals(dataStreamMetadata) == false)
                 || (dataStreamMetadata != null && dataStreamMetadata.equals(previousDataStreamMetadata) == false);
 
-            return (recomputeRequired == false) ? buildMetadataWithPreviousIndicesLookups() : buildMetadataWithRecomputedIndicesLookups();
+            return (recomputeRequiredforIndicesLookups == false)
+                ? buildMetadataWithPreviousIndicesLookups()
+                : buildMetadataWithRecomputedIndicesLookups();
         }
 
         protected Metadata buildMetadataWithPreviousIndicesLookups() {

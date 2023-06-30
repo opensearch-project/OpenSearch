@@ -1366,6 +1366,55 @@ public class MetadataTests extends OpenSearchTestCase {
         }
     }
 
+    public void testMetadataBuildInvocations() {
+        Metadata previousMetadata = randomMetadata();
+        Metadata.Builder spyBuilder = Mockito.spy(Metadata.builder());
+
+        // previous Metadata state was not provided to Builder during assignment - indices lookups should get re-computed
+        spyBuilder.build();
+        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithRecomputedIndicesLookups();
+        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithPreviousIndicesLookups();
+
+        // no changes in builder method after initialization from previous Metadata - indices lookups should not be re-computed
+        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
+        spyBuilder.build();
+        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithRecomputedIndicesLookups();
+        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithPreviousIndicesLookups();
+        Mockito.reset(spyBuilder);
+
+        // Adding new index - all indices lookups should get re-computed
+        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
+        String index = "new-index";
+        spyBuilder.indices(
+            Collections.singletonMap(
+                index,
+                IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build()
+            )
+        ).build();
+        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithRecomputedIndicesLookups();
+        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithPreviousIndicesLookups();
+        Mockito.reset(spyBuilder);
+
+        // Adding new templates - indices lookups should not get recomputed
+        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
+        spyBuilder.put("component_template_new_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
+            .put("index_template_v2_new_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance())
+            .build();
+        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithRecomputedIndicesLookups();
+        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithPreviousIndicesLookups();
+        Mockito.reset(spyBuilder);
+
+        // Adding new data-stream - indices lookups should get re-computed
+        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
+        DataStream dataStream = DataStreamTests.randomInstance();
+        for (Index backingIndex : dataStream.getIndices()) {
+            spyBuilder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(backingIndex));
+        }
+        spyBuilder.put(dataStream).build();
+        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithRecomputedIndicesLookups();
+        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithPreviousIndicesLookups();
+    }
+
     public static Metadata randomMetadata() {
         Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
@@ -1436,51 +1485,5 @@ public class MetadataTests extends OpenSearchTestCase {
             this.backingIndices = backingIndices;
             this.metadata = metadata;
         }
-    }
-
-    public void testMetadataBuild() {
-        Metadata previousMetadata = randomMetadata();
-        Metadata.Builder spyBuilder = Mockito.spy(Metadata.builder());
-
-        // previous Metadata state was not provided to Builder during assignment - indices lookups should get re-computed
-        spyBuilder.build();
-        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithRecomputedIndicesLookups();
-        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithPreviousIndicesLookups();
-
-        // no changes in builder method after initialization from previous Metadata - indices lookups should not be re-computed
-        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
-        spyBuilder.build();
-        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithRecomputedIndicesLookups();
-        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithPreviousIndicesLookups();
-        Mockito.reset(spyBuilder);
-
-        // Adding new index - all indices lookups should get re-computed
-        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
-        String index = "new-index";
-        spyBuilder.indices(Collections.singletonMap(index, IndexMetadata.builder(index)
-            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build()))
-            .build();
-        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithRecomputedIndicesLookups();
-        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithPreviousIndicesLookups();
-        Mockito.reset(spyBuilder);
-
-        // Adding new templates - indices lookups should not get recomputed
-        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
-        spyBuilder.put("component_template_new_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
-            .put("index_template_v2_new_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance())
-            .build();
-        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithRecomputedIndicesLookups();
-        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithPreviousIndicesLookups();
-        Mockito.reset(spyBuilder);
-
-        // Adding new data-stream - indices lookups should get re-computed
-        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
-        DataStream dataStream = DataStreamTests.randomInstance();
-        for (Index backingIndex : dataStream.getIndices()) {
-            spyBuilder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(backingIndex));
-        }
-        spyBuilder.put(dataStream).build();
-        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithRecomputedIndicesLookups();
-        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithPreviousIndicesLookups();
     }
 }
