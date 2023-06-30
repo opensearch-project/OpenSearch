@@ -43,7 +43,7 @@ import org.opensearch.client.Client;
 import org.opensearch.client.ProtobufClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -166,7 +166,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     RemoteClusterService(Settings settings, ProtobufTransportService transportService) {
         super(settings);
-        this.enabled = ProtobufDiscoveryNode.isRemoteClusterClient(settings);
+        this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.protobufTransportService = transportService;
         this.transportService = null;
     }
@@ -238,7 +238,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      *
      * @throws IllegalArgumentException if the remote cluster is unknown
      */
-    public Transport.ProtobufConnection getConnectionProtobuf(ProtobufDiscoveryNode node, String cluster) {
+    public Transport.ProtobufConnection getConnectionProtobuf(DiscoveryNode node, String cluster) {
         return getRemoteClusterConnectionProtobuf(cluster).getConnection(node);
     }
 

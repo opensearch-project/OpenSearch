@@ -9,7 +9,7 @@
 package org.opensearch.transport;
 
 import com.google.protobuf.CodedInputStream;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.io.IOException;
 
@@ -20,7 +20,7 @@ import java.io.IOException;
 */
 public class ProtobufNodeDisconnectedException extends ProtobufConnectTransportException {
 
-    public ProtobufNodeDisconnectedException(ProtobufDiscoveryNode node, String action) {
+    public ProtobufNodeDisconnectedException(DiscoveryNode node, String action) {
         super(node, "disconnected", action, null);
     }
 

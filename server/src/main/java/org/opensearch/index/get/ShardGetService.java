@@ -113,6 +113,16 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
+    public ProtobufGetStats protobufStats() {
+        return new ProtobufGetStats(
+            existsMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()),
+            missingMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()),
+            currentMetric.count()
+        );
+    }
+
     public GetResult get(
         String id,
         String[] gFields,

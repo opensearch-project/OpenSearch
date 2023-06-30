@@ -14,8 +14,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.ProtobufHandledTransportAction;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ProtobufClusterName;
-import org.opensearch.cluster.ProtobufClusterState;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
@@ -48,7 +47,7 @@ public class ProtobufTransportMainAction extends ProtobufHandledTransportAction<
     @Override
     protected void doExecute(ProtobufTask task, ProtobufMainRequest request, ActionListener<ProtobufMainResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        ProtobufClusterName clusterName = new ProtobufClusterName(clusterState.getClusterName().value());
+        ClusterName clusterName = new ClusterName(clusterState.getClusterName().value());
         listener.onResponse(
             new ProtobufMainResponse(nodeName, Version.CURRENT, clusterName, clusterState.metadata().clusterUUID(), Build.CURRENT)
         );

@@ -56,7 +56,12 @@ public class ProtobufClusterStateObserver {
      *                       will fail any existing or new #waitForNextChange calls. Set to null
      *                       to wait indefinitely
      */
-    public ProtobufClusterStateObserver(ClusterService clusterService, @Nullable TimeValue timeout, Logger logger, ThreadContext contextHolder) {
+    public ProtobufClusterStateObserver(
+        ClusterService clusterService,
+        @Nullable TimeValue timeout,
+        Logger logger,
+        ThreadContext contextHolder
+    ) {
         this(clusterService.protobufState(), clusterService, timeout, logger, contextHolder);
     }
 
@@ -177,8 +182,8 @@ public class ProtobufClusterStateObserver {
                 throw new OpenSearchException("already waiting for a cluster state change");
             }
             // clusterApplierService.addTimeoutListener(
-            //     timeoutTimeLeftMS == null ? null : new TimeValue(timeoutTimeLeftMS),
-            //     clusterStateListener
+            // timeoutTimeLeftMS == null ? null : new TimeValue(timeoutTimeLeftMS),
+            // clusterStateListener
             // );
         }
     }

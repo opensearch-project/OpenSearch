@@ -32,11 +32,16 @@
 
 package org.opensearch.index.seqno;
 
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
+
 import org.opensearch.core.xcontent.XContent;
 
 import java.io.IOException;
@@ -47,7 +52,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public final class RetentionLeaseStats implements ToXContentFragment, Writeable {
+public final class RetentionLeaseStats implements ToXContentFragment, Writeable, ProtobufWriteable {
 
     private final RetentionLeases retentionLeases;
 
@@ -89,6 +94,27 @@ public final class RetentionLeaseStats implements ToXContentFragment, Writeable 
      */
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
+        retentionLeases.writeTo(out);
+    }
+
+    /**
+     * Constructs a new retention lease stats object from a stream. The retention lease stats should have been written.
+     *
+     * @param in the stream to construct the retention lease stats from
+     * @throws IOException if an I/O exception occurs reading from the stream
+     */
+    public RetentionLeaseStats(final CodedInputStream in) throws IOException {
+        retentionLeases = new RetentionLeases(in);
+    }
+
+    /**
+     * Writes a retention lease stats object to a stream in a manner suitable for later reconstruction.
+     *
+     * @param out the stream to write the retention lease stats to
+     * @throws IOException if an I/O exception occurs writing to the stream
+     */
+    @Override
+    public void writeTo(final CodedOutputStream out) throws IOException {
         retentionLeases.writeTo(out);
     }
 

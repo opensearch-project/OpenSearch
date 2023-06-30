@@ -11,6 +11,9 @@ package org.opensearch.ingest;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.xcontent.ToXContent.Params;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -19,7 +22,7 @@ import java.io.IOException;
 *
 * @opensearch.internal
 */
-public class ProtobufProcessorInfo implements ProtobufWriteable {
+public class ProtobufProcessorInfo implements ProtobufWriteable, ToXContentObject {
 
     private final String type;
 
@@ -44,5 +47,13 @@ public class ProtobufProcessorInfo implements ProtobufWriteable {
     */
     public String getType() {
         return type;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("type", type);
+        builder.endObject();
+        return null;
     }
 }

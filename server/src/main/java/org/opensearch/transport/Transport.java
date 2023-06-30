@@ -35,7 +35,7 @@ package org.opensearch.transport;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.transport.BoundTransportAddress;
@@ -119,7 +119,6 @@ public interface Transport extends LifecycleComponent {
     */
     ProtobufTransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException;
 
-
     /**
      * Returns a list of all local addresses for this transport
      */
@@ -136,7 +135,7 @@ public interface Transport extends LifecycleComponent {
      * The ActionListener will be called on the calling thread or the generic thread pool.
      */
     void openProtobufConnection(
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         ProtobufConnectionProfile profile,
         ActionListener<Transport.ProtobufConnection> listener
     );
@@ -204,13 +203,13 @@ public interface Transport extends LifecycleComponent {
     }
 
     /**
-     * A unidirectional connection to a {@link ProtobufDiscoveryNode}
+     * A unidirectional connection to a {@link DiscoveryNode}
     */
     interface ProtobufConnection extends Closeable {
         /**
          * The node this connection is associated with
         */
-        ProtobufDiscoveryNode getNode();
+        DiscoveryNode getNode();
 
         /**
          * Sends the request to the node this connection is associated with
@@ -484,8 +483,8 @@ public interface Transport extends LifecycleComponent {
 
         private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
 
-        private volatile Map<String, ProtobufRequestHandlerRegistry<? extends ProtobufTransportRequest>> protobufRequestHandlers = Collections
-            .emptyMap();
+        private volatile Map<String, ProtobufRequestHandlerRegistry<? extends ProtobufTransportRequest>> protobufRequestHandlers =
+            Collections.emptyMap();
 
         synchronized <Request extends TransportRequest> void registerHandler(RequestHandlerRegistry<Request> reg) {
             if (requestHandlers.containsKey(reg.getAction())) {

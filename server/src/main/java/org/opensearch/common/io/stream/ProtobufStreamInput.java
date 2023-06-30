@@ -290,7 +290,7 @@ public class ProtobufStreamInput {
     /**
      * Reads a collection of objects
      */
-    private <T, C extends Collection<? super T>> C readCollection(ProtobufWriteable.Reader<T> reader, IntFunction<C> constructor, C empty)
+    public <T, C extends Collection<? super T>> C readCollection(ProtobufWriteable.Reader<T> reader, IntFunction<C> constructor, C empty)
         throws IOException {
         int count = readArraySize();
         if (count == 0) {

@@ -57,6 +57,16 @@ final class InternalIndexingStats implements IndexingOperationListener {
         return new IndexingStats(total);
     }
 
+    /**
+     * Returns the stats, including type specific stats. If the types are null/0 length, then nothing
+     * is returned for them. If they are set, then only types provided will be returned, or
+     * {@code _all} for all types.
+     */
+    ProtobufIndexingStats protobufStats(boolean isThrottled, long currentThrottleInMillis) {
+        ProtobufIndexingStats.Stats total = totalStats.protobufStats(isThrottled, currentThrottleInMillis);
+        return new ProtobufIndexingStats(total);
+    }
+
     @Override
     public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
         if (operation.origin().isRecovery() == false) {
@@ -144,6 +154,21 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
         IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
             return new IndexingStats.Stats(
+                indexMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()),
+                indexCurrent.count(),
+                indexFailed.count(),
+                deleteMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()),
+                deleteCurrent.count(),
+                noopUpdates.count(),
+                isThrottled,
+                TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis)
+            );
+        }
+
+        ProtobufIndexingStats.Stats protobufStats(boolean isThrottled, long currentThrottleMillis) {
+            return new ProtobufIndexingStats.Stats(
                 indexMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()),
                 indexCurrent.count(),

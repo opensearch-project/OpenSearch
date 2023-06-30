@@ -10,6 +10,9 @@ package org.opensearch.monitor.process;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ProtobufReportingService;
 
 import java.io.IOException;
@@ -61,5 +64,23 @@ public class ProtobufProcessInfo implements ProtobufReportingService.ProtobufInf
 
     public boolean isMlockall() {
         return mlockall;
+    }
+
+    static final class Fields {
+        static final String PROCESS = "process";
+        static final String REFRESH_INTERVAL = "refresh_interval";
+        static final String REFRESH_INTERVAL_IN_MILLIS = "refresh_interval_in_millis";
+        static final String ID = "id";
+        static final String MLOCKALL = "mlockall";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Fields.PROCESS);
+        builder.humanReadableField(Fields.REFRESH_INTERVAL_IN_MILLIS, Fields.REFRESH_INTERVAL, new TimeValue(refreshInterval));
+        builder.field(Fields.ID, id);
+        builder.field(Fields.MLOCKALL, mlockall);
+        builder.endObject();
+        return builder;
     }
 }

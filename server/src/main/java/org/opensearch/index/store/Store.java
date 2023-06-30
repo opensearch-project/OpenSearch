@@ -482,6 +482,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
+     * @param reservedBytes a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
+     */
+    public ProtobufStoreStats protobufStats(long reservedBytes) throws IOException {
+        ensureOpen();
+        return new ProtobufStoreStats(directory.estimateSize(), reservedBytes);
+    }
+
+    /**
      * Increments the refCount of this Store instance.  RefCounts are used to determine when a
      * Store can be closed safely, i.e. as soon as there are no more references. Be sure to always call a
      * corresponding {@link #decRef}, in a finally clause; otherwise the store may never be closed.  Note that

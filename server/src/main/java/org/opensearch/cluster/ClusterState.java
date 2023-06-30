@@ -34,6 +34,7 @@ package org.opensearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -769,6 +770,25 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         builder.minimumClusterManagerNodesOnPublishingClusterManager = in.readVInt();
         return builder.build();
     }
+
+    // public static ClusterState readFrom(CodedInputStream in, DiscoveryNode localNode) throws IOException {
+    // ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+    // ClusterName clusterName = new ClusterName(in);
+    // Builder builder = new Builder(clusterName);
+    // builder.version = in.readInt64();
+    // builder.uuid = in.readString();
+    // builder.metadata = Metadata.readFrom(in);
+    // builder.routingTable = RoutingTable.readFrom(in);
+    // builder.nodes = ProtobufDiscoveryNodes.readFrom(in, localNode);
+    // builder.blocks = ClusterBlocks.readFrom(in);
+    // int customSize = in.readInt32();
+    // for (int i = 0; i < customSize; i++) {
+    // Custom customIndexMetadata = protobufStreamInput.readNamedWriteable(Custom.class);
+    // builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
+    // }
+    // builder.minimumClusterManagerNodesOnPublishingClusterManager = in.readInt32();
+    // return builder.build();
+    // }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

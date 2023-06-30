@@ -10,6 +10,8 @@ package org.opensearch.search.pipeline;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.ingest.ProtobufProcessorInfo;
 import org.opensearch.node.ProtobufReportingService;
 
@@ -52,5 +54,17 @@ public class ProtobufSearchPipelineInfo implements ProtobufReportingService.Prot
 
     public boolean containsProcessor(String type) {
         return processors.contains(new ProtobufProcessorInfo(type));
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("search_pipelines");
+        builder.startArray("processors");
+        for (ProtobufProcessorInfo info : processors) {
+            info.toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
     }
 }

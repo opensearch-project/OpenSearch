@@ -689,6 +689,10 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return cacheHolder.get().stats();
     }
 
+    public ProtobufScriptStats protobufStats() {
+        return cacheHolder.get().protobufStats();
+    }
+
     public ScriptCacheStats cacheStats() {
         return cacheHolder.get().cacheStats();
     }
@@ -811,6 +815,18 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 contextStats.add(cache.stats(entry.getKey()));
             }
             return new ScriptStats(contextStats);
+        }
+
+        ProtobufScriptStats protobufStats() {
+            if (general != null) {
+                return general.protobufStats();
+            }
+            List<ProtobufScriptContextStats> contextStats = new ArrayList<>(contextCache.size());
+            for (Map.Entry<String, AtomicReference<ScriptCache>> entry : contextCache.entrySet()) {
+                ScriptCache cache = entry.getValue().get();
+                contextStats.add(cache.protobufStats(entry.getKey()));
+            }
+            return new ProtobufScriptStats(contextStats);
         }
 
         ScriptCacheStats cacheStats() {

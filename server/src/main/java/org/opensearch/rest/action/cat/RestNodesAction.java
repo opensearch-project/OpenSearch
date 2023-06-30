@@ -354,7 +354,6 @@ public class RestNodesAction extends AbstractCatAction {
         NodesInfoResponse nodesInfo,
         NodesStatsResponse nodesStats
     ) {
-
         DiscoveryNodes nodes = state.getState().nodes();
         String clusterManagerId = nodes.getClusterManagerNodeId();
         Table table = getTableWithHeader(req);

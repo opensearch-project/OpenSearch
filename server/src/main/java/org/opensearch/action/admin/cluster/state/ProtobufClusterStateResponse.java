@@ -17,7 +17,7 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ProtobufClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ProtobufClusterState;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
@@ -31,19 +31,19 @@ import java.io.IOException;
 */
 public class ProtobufClusterStateResponse extends ProtobufActionResponse {
 
-    private ProtobufClusterName clusterName;
+    private ClusterName clusterName;
     private ProtobufClusterState clusterState;
     private boolean waitForTimedOut = false;
 
     public ProtobufClusterStateResponse(CodedInputStream in) throws IOException {
         super(in);
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        clusterName = new ProtobufClusterName(in);
+        clusterName = new ClusterName(in);
         clusterState = protobufStreamInput.readOptionalWriteable(innerIn -> ProtobufClusterState.readFrom(innerIn, null));
         waitForTimedOut = in.readBool();
     }
 
-    public ProtobufClusterStateResponse(ProtobufClusterName clusterName, ProtobufClusterState clusterState, boolean waitForTimedOut) {
+    public ProtobufClusterStateResponse(ClusterName clusterName, ProtobufClusterState clusterState, boolean waitForTimedOut) {
         this.clusterName = clusterName;
         this.clusterState = clusterState;
         this.waitForTimedOut = waitForTimedOut;
@@ -60,7 +60,7 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
     /**
      * The name of the cluster.
     */
-    public ProtobufClusterName getClusterName() {
+    public ClusterName getClusterName() {
         return this.clusterName;
     }
 
@@ -78,5 +78,10 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
         clusterName.writeTo(out);
         protobufStreamOutput.writeOptionalWriteable(clusterState);
         out.writeBoolNoTag(waitForTimedOut);
+    }
+
+    @Override
+    public String toString() {
+        return "ClusterStateResponse{" + "clusterState=" + clusterState + '}';
     }
 }

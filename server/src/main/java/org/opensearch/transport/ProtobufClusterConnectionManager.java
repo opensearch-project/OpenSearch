@@ -11,7 +11,7 @@ package org.opensearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -39,16 +39,14 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
 
     private static final Logger logger = LogManager.getLogger(ProtobufClusterConnectionManager.class);
 
-    private final ConcurrentMap<ProtobufDiscoveryNode, Transport.ProtobufConnection> connectedNodes = ConcurrentCollections
-        .newConcurrentMap();
-    private final ConcurrentMap<ProtobufDiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections
-        .newConcurrentMap();
+    private final ConcurrentMap<DiscoveryNode, Transport.ProtobufConnection> connectedNodes = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
-            Iterator<Map.Entry<ProtobufDiscoveryNode, Transport.ProtobufConnection>> iterator = connectedNodes.entrySet().iterator();
+            Iterator<Map.Entry<DiscoveryNode, Transport.ProtobufConnection>> iterator = connectedNodes.entrySet().iterator();
             while (iterator.hasNext()) {
-                Map.Entry<ProtobufDiscoveryNode, Transport.ProtobufConnection> next = iterator.next();
+                Map.Entry<DiscoveryNode, Transport.ProtobufConnection> next = iterator.next();
                 try {
                     IOUtils.closeWhileHandlingException(next.getValue());
                 } finally {
@@ -85,7 +83,7 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
 
     @Override
     public void openConnection(
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         ProtobufConnectionProfile connectionProfile,
         ActionListener<Transport.ProtobufConnection> listener
     ) {
@@ -100,7 +98,7 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
     */
     @Override
     public void connectToNode(
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         ProtobufConnectionProfile connectionProfile,
         ConnectionValidator connectionValidator,
         ActionListener<Void> listener
@@ -180,10 +178,10 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
     * maintained by this connection manager
     *
     * @throws ProtobufNodeNotConnectedException if the node is not connected
-    * @see #connectToNode(ProtobufDiscoveryNode, ProtobufConnectionProfile, ConnectionValidator, ActionListener)
+    * @see #connectToNode(DiscoveryNode, ProtobufConnectionProfile, ConnectionValidator, ActionListener)
     */
     @Override
-    public Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode node) {
+    public Transport.ProtobufConnection getConnection(DiscoveryNode node) {
         Transport.ProtobufConnection connection = connectedNodes.get(node);
         if (connection == null) {
             throw new ProtobufNodeNotConnectedException(node, "Node not connected");
@@ -195,7 +193,7 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
      * Returns {@code true} if the node is connected.
     */
     @Override
-    public boolean nodeConnected(ProtobufDiscoveryNode node) {
+    public boolean nodeConnected(DiscoveryNode node) {
         return connectedNodes.containsKey(node);
     }
 
@@ -203,7 +201,7 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
      * Disconnected from the given node, if not connected, will do nothing.
     */
     @Override
-    public void disconnectFromNode(ProtobufDiscoveryNode node) {
+    public void disconnectFromNode(DiscoveryNode node) {
         Transport.ProtobufConnection nodeChannels = connectedNodes.remove(node);
         if (nodeChannels != null) {
             // if we found it and removed it we close
@@ -220,7 +218,7 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
     }
 
     @Override
-    public Set<ProtobufDiscoveryNode> getAllConnectedNodes() {
+    public Set<DiscoveryNode> getAllConnectedNodes() {
         return Collections.unmodifiableSet(connectedNodes.keySet());
     }
 
@@ -250,7 +248,7 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
     }
 
     private void internalOpenConnection(
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         ProtobufConnectionProfile connectionProfile,
         ActionListener<Transport.ProtobufConnection> listener
     ) {
@@ -268,12 +266,7 @@ public class ProtobufClusterConnectionManager implements ProtobufConnectionManag
         }));
     }
 
-    private void failConnectionListeners(
-        ProtobufDiscoveryNode node,
-        RunOnce releaseOnce,
-        Exception e,
-        ListenableFuture<Void> expectedListener
-    ) {
+    private void failConnectionListeners(DiscoveryNode node, RunOnce releaseOnce, Exception e, ListenableFuture<Void> expectedListener) {
         ListenableFuture<Void> future = pendingConnections.remove(node);
         releaseOnce.run();
         if (future != null) {

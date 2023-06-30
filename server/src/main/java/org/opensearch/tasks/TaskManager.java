@@ -51,7 +51,7 @@ import org.opensearch.cluster.ProtobufClusterChangedEvent;
 import org.opensearch.cluster.ProtobufClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
@@ -138,7 +138,8 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
 
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
-    private final Map<TcpChannel, ProtobufChannelPendingTaskTracker> protobufChannelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
+    private final Map<TcpChannel, ProtobufChannelPendingTaskTracker> protobufChannelPendingTaskTrackers = ConcurrentCollections
+        .newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
     private final SetOnce<ProtobufTaskCancellationService> protobufCancellationService = new SetOnce<>();
 
@@ -480,7 +481,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
      * Register a node on which a child task will execute. The returned {@link Releasable} must be called
     * to unregister the child node once the child task is completed or failed.
     */
-    public Releasable registerProtobufChildNode(long taskId, ProtobufDiscoveryNode node) {
+    public Releasable registerProtobufChildNode(long taskId, DiscoveryNode node) {
         final ProtobufCancellableTaskHolder holder = protobufCancellableTasks.get(taskId);
         if (holder != null) {
             logger.trace("register child node [{}] task [{}]", node, taskId);
@@ -493,7 +494,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
         return () -> {};
     }
 
-    public ProtobufDiscoveryNode localProtobufNode() {
+    public DiscoveryNode localProtobufNode() {
         return lastDiscoveryNodesProtobuf.getLocalNode();
     }
 
@@ -537,7 +538,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
         Exception error,
         ActionListener<Response> listener
     ) {
-        ProtobufDiscoveryNode localNode = lastDiscoveryNodesProtobuf.getLocalNode();
+        DiscoveryNode localNode = lastDiscoveryNodesProtobuf.getLocalNode();
         if (localNode == null) {
             // too early to store anything, shouldn't really be here - just pass the error along
             listener.onFailure(error);
@@ -607,7 +608,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
         Response response,
         ActionListener<Response> listener
     ) {
-        ProtobufDiscoveryNode localNode = lastDiscoveryNodesProtobuf.getLocalNode();
+        DiscoveryNode localNode = lastDiscoveryNodesProtobuf.getLocalNode();
         if (localNode == null) {
             // too early to store anything, shouldn't really be here - just pass the response along
             logger.warn("couldn't store response {}, the node didn't join the cluster yet", response);
@@ -790,11 +791,11 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
         }
     }
 
-        /**
-     * Returns the number of currently banned tasks.
-     * <p>
-     * Will be used in task manager stats and for debugging.
-     */
+    /**
+    * Returns the number of currently banned tasks.
+    * <p>
+    * Will be used in task manager stats and for debugging.
+    */
     public int getBanCountProtobuf() {
         return banedParentsProtobuf.size();
     }
@@ -816,7 +817,11 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
                 banedParentsProtobuf.put(parentTaskId, reason);
             }
         }
-        return protobufCancellableTasks.values().stream().filter(t -> t.hasParent(parentTaskId)).map(t -> t.task).collect(Collectors.toList());
+        return protobufCancellableTasks.values()
+            .stream()
+            .filter(t -> t.hasParent(parentTaskId))
+            .map(t -> t.task)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -841,7 +846,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
      * @param onChildTasksCompleted called when all child tasks are completed or failed
      * @return the set of current nodes that have outstanding child tasks
      */
-    public Collection<ProtobufDiscoveryNode> startBanOnChildrenNodesProtobuf(long taskId, Runnable onChildTasksCompleted) {
+    public Collection<DiscoveryNode> startBanOnChildrenNodesProtobuf(long taskId, Runnable onChildTasksCompleted) {
         final ProtobufCancellableTaskHolder holder = protobufCancellableTasks.get(taskId);
         if (holder != null) {
             return holder.startBan(onChildTasksCompleted);
@@ -1094,7 +1099,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
         private final ProtobufCancellableTask task;
         private boolean finished = false;
         private List<Runnable> cancellationListeners = null;
-        private ObjectIntMap<ProtobufDiscoveryNode> childTasksPerNode = null;
+        private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
         private boolean banChildren = false;
         private List<Runnable> childTaskCompletedListeners = null;
 
@@ -1171,7 +1176,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
             return task;
         }
 
-        synchronized void registerChildNode(ProtobufDiscoveryNode node) {
+        synchronized void registerChildNode(DiscoveryNode node) {
             if (banChildren) {
                 throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
             }
@@ -1181,7 +1186,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
             childTasksPerNode.addTo(node, 1);
         }
 
-        void unregisterChildNode(ProtobufDiscoveryNode node) {
+        void unregisterChildNode(DiscoveryNode node) {
             final List<Runnable> listeners;
             synchronized (this) {
                 if (childTasksPerNode.addTo(node, -1) == 0) {
@@ -1197,8 +1202,8 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
             notifyListeners(listeners);
         }
 
-        Set<ProtobufDiscoveryNode> startBan(Runnable onChildTasksCompleted) {
-            final Set<ProtobufDiscoveryNode> pendingChildNodes;
+        Set<DiscoveryNode> startBan(Runnable onChildTasksCompleted) {
+            final Set<DiscoveryNode> pendingChildNodes;
             final Runnable toRun;
             synchronized (this) {
                 banChildren = true;
@@ -1224,6 +1229,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
             return pendingChildNodes;
         }
     }
+
     /**
      * Start tracking a cancellable task with its tcp channel, so if the channel gets closed we can get a set of
      * pending tasks associated that channel and cancel them as these results won't be retrieved by the parent task.

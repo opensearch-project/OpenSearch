@@ -35,6 +35,7 @@ package org.opensearch.index.fielddata;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.FieldMemoryStats;
+import org.opensearch.common.ProtobufFieldMemoryStats;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.util.CollectionUtils;
@@ -69,6 +70,23 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
             totalMetric.count(),
             evictionsMetric.count(),
             fieldTotals == null ? null : new FieldMemoryStats(fieldTotals)
+        );
+    }
+
+    public ProtobufFieldDataStats protobufStats(String... fields) {
+        ObjectLongHashMap<String> fieldTotals = null;
+        if (CollectionUtils.isEmpty(fields) == false) {
+            fieldTotals = new ObjectLongHashMap<>();
+            for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
+                if (Regex.simpleMatch(fields, entry.getKey())) {
+                    fieldTotals.put(entry.getKey(), entry.getValue().count());
+                }
+            }
+        }
+        return new ProtobufFieldDataStats(
+            totalMetric.count(),
+            evictionsMetric.count(),
+            fieldTotals == null ? null : new ProtobufFieldMemoryStats(fieldTotals)
         );
     }
 

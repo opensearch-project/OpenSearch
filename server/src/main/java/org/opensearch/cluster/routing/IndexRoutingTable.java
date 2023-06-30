@@ -35,6 +35,8 @@ package org.opensearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.google.protobuf.CodedInputStream;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -342,6 +344,18 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         Builder builder = new Builder(index);
 
         int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));
+        }
+
+        return builder.build();
+    }
+
+    public static IndexRoutingTable readFrom(CodedInputStream in) throws IOException {
+        Index index = new Index(in);
+        Builder builder = new Builder(index);
+
+        int size = in.readInt32();
         for (int i = 0; i < size; i++) {
             builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));
         }

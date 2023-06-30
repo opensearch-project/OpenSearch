@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 
-
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.OpenSearchParseException;
@@ -130,7 +129,12 @@ public class ProtobufIndexNameExpressionResolver {
         return concreteIndexNames(context, indexExpressions);
     }
 
-    public String[] concreteIndexNames(ProtobufClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
+    public String[] concreteIndexNames(
+        ProtobufClusterState state,
+        IndicesOptions options,
+        boolean includeDataStreams,
+        String... indexExpressions
+    ) {
         Context context = new Context(state, options, false, false, includeDataStreams, isSystemIndexAccessAllowed());
         return concreteIndexNames(context, indexExpressions);
     }
@@ -173,7 +177,12 @@ public class ProtobufIndexNameExpressionResolver {
         return concreteIndices(state, options, false, indexExpressions);
     }
 
-    public Index[] concreteIndices(ProtobufClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
+    public Index[] concreteIndices(
+        ProtobufClusterState state,
+        IndicesOptions options,
+        boolean includeDataStreams,
+        String... indexExpressions
+    ) {
         Context context = new Context(state, options, false, false, includeDataStreams, isSystemIndexAccessAllowed());
         return concreteIndices(context, indexExpressions);
     }

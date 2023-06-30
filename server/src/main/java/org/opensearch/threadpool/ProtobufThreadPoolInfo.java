@@ -13,6 +13,7 @@ import com.google.protobuf.CodedOutputStream;
 
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ProtobufReportingService;
 
 import java.io.IOException;
@@ -47,5 +48,19 @@ public class ProtobufThreadPoolInfo implements ProtobufReportingService.Protobuf
     @Override
     public Iterator<ThreadPool.Info> iterator() {
         return infos.iterator();
+    }
+
+    static final class Fields {
+        static final String THREAD_POOL = "thread_pool";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Fields.THREAD_POOL);
+        for (ThreadPool.Info info : infos) {
+            info.toXContent(builder, params);
+        }
+        builder.endObject();
+        return builder;
     }
 }

@@ -33,6 +33,9 @@
 package org.opensearch.index.seqno;
 
 import org.opensearch.core.ParseField;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
+import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -43,6 +46,9 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.gateway.MetadataStateFormat;
+
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -59,7 +65,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class RetentionLeases implements ToXContentFragment, Writeable {
+public class RetentionLeases implements ToXContentFragment, Writeable, ProtobufWriteable {
 
     private final long primaryTerm;
 
@@ -191,6 +197,33 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
         out.writeVLong(primaryTerm);
         out.writeVLong(version);
         out.writeCollection(leases.values());
+    }
+
+    /**
+     * Constructs a new retention lease collection from a stream. The retention lease collection should have been written.
+     *
+     * @param in the stream to construct the retention lease collection from
+     * @throws IOException if an I/O exception occurs reading from the stream
+     */
+    public RetentionLeases(final CodedInputStream in) throws IOException {
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        primaryTerm = in.readInt64();
+        version = in.readInt64();
+        leases = Collections.unmodifiableMap(toMap(protobufStreamInput.readList(RetentionLease::new)));
+    }
+
+    /**
+     * Writes a retention lease collection to a stream in a manner suitable for later reconstruction.
+     *
+     * @param out the stream to write the retention lease collection to
+     * @throws IOException if an I/O exception occurs writing to the stream
+     */
+    @Override
+    public void writeTo(final CodedOutputStream out) throws IOException {
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        out.writeInt64NoTag(primaryTerm);
+        out.writeInt64NoTag(version);
+        protobufStreamOutput.writeCollection(leases.values(), (o, v) -> v.writeTo(o));
     }
 
     private static final ParseField PRIMARY_TERM_FIELD = new ParseField("primary_term");

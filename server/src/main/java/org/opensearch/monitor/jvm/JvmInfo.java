@@ -36,12 +36,19 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
+import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
+
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
@@ -61,7 +68,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class JvmInfo implements ReportingService.Info {
+public class JvmInfo implements ReportingService.Info, ProtobufReportingService.ProtobufInfo {
 
     private static JvmInfo INSTANCE;
 
@@ -355,6 +362,65 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(useCompressedOops);
     }
 
+    public JvmInfo(CodedInputStream in) throws IOException {
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        pid = in.readInt64();
+        version = in.readString();
+        vmName = in.readString();
+        vmVersion = in.readString();
+        vmVendor = in.readString();
+        bundledJdk = in.readBool();
+        usingBundledJdk = protobufStreamInput.readOptionalBoolean();
+        startTime = in.readInt64();
+        inputArguments = new String[in.readInt32()];
+        for (int i = 0; i < inputArguments.length; i++) {
+            inputArguments[i] = in.readString();
+        }
+        bootClassPath = in.readString();
+        classPath = in.readString();
+        systemProperties = protobufStreamInput.readMap(CodedInputStream::readString, CodedInputStream::readString);
+        mem = new Mem(in);
+        gcCollectors = protobufStreamInput.readStringArray();
+        memoryPools = protobufStreamInput.readStringArray();
+        useCompressedOops = in.readString();
+        // the following members are only used locally for bootstrap checks, never serialized nor printed out
+        this.configuredMaxHeapSize = -1;
+        this.configuredInitialHeapSize = -1;
+        this.onError = null;
+        this.onOutOfMemoryError = null;
+        this.useG1GC = "unknown";
+        this.useSerialGC = "unknown";
+        this.g1RegionSize = -1;
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        out.writeInt64NoTag(pid);
+        out.writeStringNoTag(version);
+        out.writeStringNoTag(vmName);
+        out.writeStringNoTag(vmVersion);
+        out.writeStringNoTag(vmVendor);
+        out.writeBoolNoTag(bundledJdk);
+        protobufStreamOutput.writeOptionalBoolean(usingBundledJdk);
+        out.writeInt64NoTag(startTime);
+        out.writeInt32NoTag(inputArguments.length);
+        for (String inputArgument : inputArguments) {
+            out.writeStringNoTag(inputArgument);
+        }
+        out.writeStringNoTag(bootClassPath);
+        out.writeStringNoTag(classPath);
+        out.writeInt32NoTag(this.systemProperties.size());
+        for (Map.Entry<String, String> entry : systemProperties.entrySet()) {
+            out.writeStringNoTag(entry.getKey());
+            out.writeStringNoTag(entry.getValue());
+        }
+        mem.writeTo(out);
+        protobufStreamOutput.writeStringArray(gcCollectors);
+        protobufStreamOutput.writeStringArray(memoryPools);
+        out.writeStringNoTag(useCompressedOops);
+    }
+
     /**
      * The process id.
      */
@@ -596,7 +662,7 @@ public class JvmInfo implements ReportingService.Info {
      *
      * @opensearch.internal
      */
-    public static class Mem implements Writeable {
+    public static class Mem implements Writeable, ProtobufWriteable {
 
         private final long heapInit;
         private final long heapMax;
@@ -627,6 +693,23 @@ public class JvmInfo implements ReportingService.Info {
             out.writeVLong(nonHeapInit);
             out.writeVLong(nonHeapMax);
             out.writeVLong(directMemoryMax);
+        }
+
+        public Mem(CodedInputStream in) throws IOException {
+            this.heapInit = in.readInt64();
+            this.heapMax = in.readInt64();
+            this.nonHeapInit = in.readInt64();
+            this.nonHeapMax = in.readInt64();
+            this.directMemoryMax = in.readInt64();
+        }
+
+        @Override
+        public void writeTo(CodedOutputStream out) throws IOException {
+            out.writeInt64NoTag(heapInit);
+            out.writeInt64NoTag(heapMax);
+            out.writeInt64NoTag(nonHeapInit);
+            out.writeInt64NoTag(nonHeapMax);
+            out.writeInt64NoTag(directMemoryMax);
         }
 
         public ByteSizeValue getHeapInit() {

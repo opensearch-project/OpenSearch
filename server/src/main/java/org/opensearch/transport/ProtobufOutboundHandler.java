@@ -15,7 +15,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.NotifyOnceListener;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lease.Releasable;
@@ -78,7 +78,7 @@ final class ProtobufOutboundHandler {
     * objects back to the caller.
     */
     void sendRequest(
-        final ProtobufDiscoveryNode node,
+        final DiscoveryNode node,
         final TcpChannel channel,
         final long requestId,
         final String action,

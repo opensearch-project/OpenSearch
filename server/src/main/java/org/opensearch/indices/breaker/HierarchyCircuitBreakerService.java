@@ -341,6 +341,39 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         );
     }
 
+    @Override
+    public ProtobufAllCircuitBreakerStats protobufStats() {
+        List<ProtobufCircuitBreakerStats> allStats = new ArrayList<>(this.breakers.size());
+        // Gather the "estimated" count for the parent breaker by adding the
+        // estimations for each individual breaker
+        for (CircuitBreaker breaker : this.breakers.values()) {
+            allStats.add(protobufStats(breaker.getName()));
+        }
+        // Manually add the parent breaker settings since they aren't part of the breaker map
+        allStats.add(
+            new ProtobufCircuitBreakerStats(
+                CircuitBreaker.PARENT,
+                parentSettings.getLimit(),
+                memoryUsed(0L).totalUsage,
+                1.0,
+                parentTripCount.get()
+            )
+        );
+        return new ProtobufAllCircuitBreakerStats(allStats.toArray(new ProtobufCircuitBreakerStats[0]));
+    }
+
+    @Override
+    public ProtobufCircuitBreakerStats protobufStats(String name) {
+        CircuitBreaker breaker = this.breakers.get(name);
+        return new ProtobufCircuitBreakerStats(
+            breaker.getName(),
+            breaker.getLimit(),
+            breaker.getUsed(),
+            breaker.getOverhead(),
+            breaker.getTrippedCount()
+        );
+    }
+
     /**
      * Tracks memory usage
      *

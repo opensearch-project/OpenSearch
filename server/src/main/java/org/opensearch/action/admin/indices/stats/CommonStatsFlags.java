@@ -34,9 +34,15 @@ package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
+import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,7 +53,7 @@ import java.util.EnumSet;
  *
  * @opensearch.internal
  */
-public class CommonStatsFlags implements Writeable, Cloneable {
+public class CommonStatsFlags implements Writeable, ProtobufWriteable, Cloneable {
 
     public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
     public static final CommonStatsFlags NONE = new CommonStatsFlags().clear();
@@ -109,6 +115,48 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeBoolean(includeUnloadedSegments);
         out.writeBoolean(includeAllShardIndexingPressureTrackers);
         out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
+    }
+
+    public CommonStatsFlags(CodedInputStream in) throws IOException {
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        final long longFlags = in.readInt64();
+        flags.clear();
+        for (Flag flag : Flag.values()) {
+            if ((longFlags & (1 << flag.getIndex())) != 0) {
+                flags.add(flag);
+            }
+        }
+        if (protobufStreamInput.getVersion().before(Version.V_2_0_0)) {
+            protobufStreamInput.readStringArray();
+        }
+        groups = protobufStreamInput.readStringArray();
+        fieldDataFields = protobufStreamInput.readStringArray();
+        completionDataFields = protobufStreamInput.readStringArray();
+        includeSegmentFileSizes = in.readBool();
+        includeUnloadedSegments = in.readBool();
+        includeAllShardIndexingPressureTrackers = in.readBool();
+        includeOnlyTopIndexingPressureMetrics = in.readBool();
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        long longFlags = 0;
+        for (Flag flag : flags) {
+            longFlags |= (1 << flag.getIndex());
+        }
+        out.writeInt64NoTag(longFlags);
+
+        if (protobufStreamOutput.getVersion().before(Version.V_2_0_0)) {
+            protobufStreamOutput.writeStringArrayNullable(Strings.EMPTY_ARRAY);
+        }
+        protobufStreamOutput.writeStringArrayNullable(groups);
+        protobufStreamOutput.writeStringArrayNullable(fieldDataFields);
+        protobufStreamOutput.writeStringArrayNullable(completionDataFields);
+        out.writeBoolNoTag(includeSegmentFileSizes);
+        out.writeBoolNoTag(includeUnloadedSegments);
+        out.writeBoolNoTag(includeAllShardIndexingPressureTrackers);
+        out.writeBoolNoTag(includeOnlyTopIndexingPressureMetrics);
     }
 
     /**

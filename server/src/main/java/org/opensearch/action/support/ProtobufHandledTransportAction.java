@@ -22,9 +22,8 @@ import org.opensearch.transport.ProtobufTransportService;
 *
 * @opensearch.internal
 */
-public abstract class ProtobufHandledTransportAction<Request extends ProtobufActionRequest, Response extends ProtobufActionResponse> extends ProtobufTransportAction<
-    Request,
-    Response> {
+public abstract class ProtobufHandledTransportAction<Request extends ProtobufActionRequest, Response extends ProtobufActionResponse> extends
+    ProtobufTransportAction<Request, Response> {
 
     protected ProtobufHandledTransportAction(
         String actionName,

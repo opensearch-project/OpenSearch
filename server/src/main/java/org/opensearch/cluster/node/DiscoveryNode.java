@@ -34,15 +34,22 @@ package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
+import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
+
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -66,7 +73,7 @@ import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
  *
  * @opensearch.internal
  */
-public class DiscoveryNode implements Writeable, ToXContentFragment {
+public class DiscoveryNode implements Writeable, ProtobufWriteable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
 
@@ -347,6 +354,53 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.version = Version.readVersion(in);
     }
 
+    /**
+     * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
+    * @param in the stream
+    * @throws IOException if there is an error while reading from the stream
+    */
+    public DiscoveryNode(CodedInputStream in) throws IOException {
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        this.nodeName = in.readString();
+        this.nodeId = in.readString();
+        this.ephemeralId = in.readString();
+        this.hostName = in.readString();
+        this.hostAddress = in.readString();
+        ProtobufTransportAddress protobufTransportAddress = new ProtobufTransportAddress(in);
+        this.address = new TransportAddress(protobufTransportAddress.address());
+        // this.address = new TransportAddress(in);
+        int size = in.readInt32();
+        this.attributes = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            this.attributes.put(in.readString(), in.readString());
+        }
+        int rolesSize = in.readInt32();
+        final Set<DiscoveryNodeRole> roles = new HashSet<>(rolesSize);
+        for (int i = 0; i < rolesSize; i++) {
+            final String roleName = in.readString();
+            final String roleNameAbbreviation = in.readString();
+            final boolean canContainData = in.readBool();
+            final DiscoveryNodeRole role = roleMap.get(roleName);
+            if (role == null) {
+                if (protobufStreamInput.getVersion().onOrAfter(Version.V_2_1_0)) {
+                    roles.add(new DiscoveryNodeRole.DynamicRole(roleName, roleNameAbbreviation, canContainData));
+                } else {
+                    roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
+                }
+            } else {
+                assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
+                assert roleNameAbbreviation.equals(role.roleNameAbbreviation()) : "role name abbreviation ["
+                    + roleName
+                    + "] does not match role ["
+                    + role.roleNameAbbreviation()
+                    + "]";
+                roles.add(role);
+            }
+        }
+        this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
+        this.version = Version.readVersionProtobuf(in);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
@@ -370,11 +424,44 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Version.writeVersion(version, out);
     }
 
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        out.writeStringNoTag(nodeName);
+        out.writeStringNoTag(nodeId);
+        out.writeStringNoTag(ephemeralId);
+        out.writeStringNoTag(hostName);
+        out.writeStringNoTag(hostAddress);
+        ProtobufTransportAddress protobufTransportAddress = new ProtobufTransportAddress(address.address());
+        protobufTransportAddress.writeTo(out);
+        // address.writeTo(out);
+        out.writeInt32NoTag(attributes.size());
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            out.writeStringNoTag(entry.getKey());
+            out.writeStringNoTag(entry.getValue());
+        }
+        out.writeInt32NoTag(roles.size());
+        for (final DiscoveryNodeRole role : roles) {
+            final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(protobufStreamOutput.getVersion());
+            out.writeStringNoTag(compatibleRole.roleName());
+            out.writeStringNoTag(compatibleRole.roleNameAbbreviation());
+            out.writeBoolNoTag(compatibleRole.canContainData());
+        }
+        out.writeInt32NoTag(version.id);
+    }
+
     /**
      * The address that the node can be communicated with.
      */
     public TransportAddress getAddress() {
         return address;
+    }
+
+    /**
+     * The address that the node can be communicated with.
+     */
+    public ProtobufTransportAddress getProtobufAddress() {
+        return new ProtobufTransportAddress(address.address());
     }
 
     /**

@@ -10,6 +10,8 @@ package org.opensearch.action.admin.indices.stats;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+
+import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
@@ -28,11 +30,13 @@ import org.opensearch.index.merge.ProtobufMergeStats;
 import org.opensearch.index.recovery.ProtobufRecoveryStats;
 import org.opensearch.index.refresh.ProtobufRefreshStats;
 import org.opensearch.index.search.stats.ProtobufSearchStats;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ProtobufDocsStats;
 import org.opensearch.index.shard.ProtobufIndexingStats;
 import org.opensearch.index.store.ProtobufStoreStats;
 import org.opensearch.index.translog.ProtobufTranslogStats;
 import org.opensearch.index.warmer.ProtobufWarmerStats;
+import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.search.suggest.completion.ProtobufCompletionStats;
 
 import java.io.IOException;
@@ -96,13 +100,13 @@ public class ProtobufCommonStats implements ProtobufWriteable, ToXContentFragmen
     public ProtobufRecoveryStats recoveryStats;
 
     public ProtobufCommonStats() {
-        this(ProtobufCommonStatsFlags.NONE);
+        this(CommonStatsFlags.NONE);
     }
 
-    public ProtobufCommonStats(ProtobufCommonStatsFlags flags) {
-        ProtobufCommonStatsFlags.Flag[] setFlags = flags.getFlags();
+    public ProtobufCommonStats(CommonStatsFlags flags) {
+        CommonStatsFlags.Flag[] setFlags = flags.getFlags();
 
-        for (ProtobufCommonStatsFlags.Flag flag : setFlags) {
+        for (CommonStatsFlags.Flag flag : setFlags) {
             switch (flag) {
                 case Docs:
                     docs = new ProtobufDocsStats();
@@ -154,6 +158,68 @@ public class ProtobufCommonStats implements ProtobufWriteable, ToXContentFragmen
                     break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
+            }
+        }
+    }
+
+    public ProtobufCommonStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
+        CommonStatsFlags.Flag[] setFlags = flags.getFlags();
+        for (CommonStatsFlags.Flag flag : setFlags) {
+            try {
+                switch (flag) {
+                    case Docs:
+                        docs = indexShard.protobufDocsStats();
+                        break;
+                    case Store:
+                        store = indexShard.protobufStoreStats();
+                        break;
+                    case Indexing:
+                        indexing = indexShard.protobufIndexingStats();
+                        break;
+                    case Get:
+                        get = indexShard.getProtobufStats();
+                        break;
+                    case Search:
+                        search = indexShard.protobufSearchStats(flags.groups());
+                        break;
+                    case Merge:
+                        merge = indexShard.protobufMergeStats();
+                        break;
+                    case Refresh:
+                        refresh = indexShard.protobufRefreshStats();
+                        break;
+                    case Flush:
+                        flush = indexShard.protobufFlushStats();
+                        break;
+                    case Warmer:
+                        warmer = indexShard.protobufWarmerStats();
+                        break;
+                    case QueryCache:
+                        queryCache = indicesQueryCache.getProtobufStats(indexShard.shardId());
+                        break;
+                    case FieldData:
+                        fieldData = indexShard.protobufFieldDataStats(flags.fieldDataFields());
+                        break;
+                    // case Completion:
+                    // completion = indexShard.completionStats(flags.completionDataFields());
+                    // break;
+                    case Segments:
+                        segments = indexShard.protobufSegmentStats(flags.includeSegmentFileSizes(), flags.includeUnloadedSegments());
+                        break;
+                    // case Translog:
+                    // translog = indexShard.translogStats();
+                    // break;
+                    case RequestCache:
+                        requestCache = indexShard.requestCache().protobufStats();
+                        break;
+                    case Recovery:
+                        recoveryStats = indexShard.protobufRecoveryStats();
+                        break;
+                    default:
+                        throw new IllegalStateException("Unknown Flag: " + flag);
+                }
+            } catch (AlreadyClosedException e) {
+                // shard is closed - no stats is fine
             }
         }
     }

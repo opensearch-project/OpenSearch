@@ -22,9 +22,10 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
@@ -80,8 +81,7 @@ import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 */
 public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffable<ProtobufClusterState> {
 
-    public static final ProtobufClusterState EMPTY_STATE = builder(ProtobufClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-        .build();
+    public static final ProtobufClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
     /**
      * An interface that implementors use when a class requires a client to maybe have a feature.
@@ -159,7 +159,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
 
     private final ImmutableOpenMap<String, Custom> customs;
 
-    private final ProtobufClusterName clusterName;
+    private final ClusterName clusterName;
 
     private final boolean wasReadFromDiff;
 
@@ -184,7 +184,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
     }
 
     public ProtobufClusterState(
-        ProtobufClusterName clusterName,
+        ClusterName clusterName,
         long version,
         String stateUUID,
         Metadata metadata,
@@ -287,7 +287,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         return (T) customs.getOrDefault(type, defaultValue);
     }
 
-    public ProtobufClusterName getClusterName() {
+    public ClusterName getClusterName() {
         return this.clusterName;
     }
 
@@ -426,7 +426,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         // nodes
         if (metrics.contains(Metric.NODES)) {
             builder.startObject("nodes");
-            for (ProtobufDiscoveryNode node : nodes) {
+            for (DiscoveryNode node : nodes) {
                 node.toXContent(builder, params);
             }
             builder.endObject();
@@ -490,12 +490,80 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         return builder;
     }
 
-    public static Builder builder(ProtobufClusterName clusterName) {
+    public static Builder builder(ClusterName clusterName) {
         return new Builder(clusterName);
     }
 
     public static Builder builder(ProtobufClusterState state) {
         return new Builder(state);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        final String TAB = "   ";
+        sb.append("cluster uuid: ")
+            .append(metadata.clusterUUID())
+            .append(" [committed: ")
+            .append(metadata.clusterUUIDCommitted())
+            .append("]")
+            .append("\n");
+        sb.append("version: ").append(version).append("\n");
+        sb.append("state uuid: ").append(stateUUID).append("\n");
+        sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
+        sb.append("meta data version: ").append(metadata.version()).append("\n");
+        sb.append(TAB).append("coordination_metadata:\n");
+        sb.append(TAB).append(TAB).append("term: ").append(coordinationMetadata().term()).append("\n");
+        sb.append(TAB)
+            .append(TAB)
+            .append("last_committed_config: ")
+            .append(coordinationMetadata().getLastCommittedConfiguration())
+            .append("\n");
+        sb.append(TAB)
+            .append(TAB)
+            .append("last_accepted_config: ")
+            .append(coordinationMetadata().getLastAcceptedConfiguration())
+            .append("\n");
+        sb.append(TAB).append(TAB).append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
+        for (IndexMetadata indexMetadata : metadata) {
+            sb.append(TAB).append(indexMetadata.getIndex());
+            sb.append(": v[")
+                .append(indexMetadata.getVersion())
+                .append("], mv[")
+                .append(indexMetadata.getMappingVersion())
+                .append("], sv[")
+                .append(indexMetadata.getSettingsVersion())
+                .append("], av[")
+                .append(indexMetadata.getAliasesVersion())
+                .append("]\n");
+            for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
+                sb.append(TAB).append(TAB).append(shard).append(": ");
+                sb.append("p_term [").append(indexMetadata.primaryTerm(shard)).append("], ");
+                sb.append("isa_ids ").append(indexMetadata.inSyncAllocationIds(shard)).append("\n");
+            }
+        }
+        if (metadata.customs().isEmpty() == false) {
+            sb.append("metadata customs:\n");
+            for (final Map.Entry<String, Metadata.Custom> cursor : metadata.customs().entrySet()) {
+                final String type = cursor.getKey();
+                final Metadata.Custom custom = cursor.getValue();
+                sb.append(TAB).append(type).append(": ").append(custom);
+            }
+            sb.append("\n");
+        }
+        sb.append(blocks());
+        sb.append(nodes());
+        sb.append(routingTable());
+        // sb.append(getRoutingNodes());
+        if (customs.isEmpty() == false) {
+            sb.append("customs:\n");
+            for (ObjectObjectCursor<String, Custom> cursor : customs) {
+                final String type = cursor.key;
+                final Custom custom = cursor.value;
+                sb.append(TAB).append(type).append(": ").append(custom);
+            }
+        }
+        return sb.toString();
     }
 
     /**
@@ -505,7 +573,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
     */
     public static class Builder {
 
-        private final ProtobufClusterName clusterName;
+        private final ClusterName clusterName;
         private long version = 0;
         private String uuid = UNKNOWN_UUID;
         private Metadata metadata = Metadata.EMPTY_METADATA;
@@ -529,7 +597,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
             this.fromDiff = false;
         }
 
-        public Builder(ProtobufClusterName clusterName) {
+        public Builder(ClusterName clusterName) {
             customs = ImmutableOpenMap.builder();
             this.clusterName = clusterName;
         }
@@ -659,7 +727,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
 
     public static ProtobufClusterState readFrom(CodedInputStream in, DiscoveryNode localNode) throws IOException {
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        ProtobufClusterName clusterName = new ProtobufClusterName(in);
+        ClusterName clusterName = new ClusterName(in);
         Builder builder = new Builder(clusterName);
         builder.version = in.readInt64();
         builder.uuid = in.readString();
@@ -715,7 +783,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
 
         private final String toUuid;
 
-        private final ProtobufClusterName clusterName;
+        private final ClusterName clusterName;
 
         private final ProtobufDiff<RoutingTable> routingTable;
 
@@ -748,7 +816,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         }
 
         ClusterStateDiff(CodedInputStream in, DiscoveryNode localNode) throws IOException {
-            clusterName = new ProtobufClusterName(in);
+            clusterName = new ClusterName(in);
             fromUuid = in.readString();
             toUuid = in.readString();
             toVersion = in.readInt64();

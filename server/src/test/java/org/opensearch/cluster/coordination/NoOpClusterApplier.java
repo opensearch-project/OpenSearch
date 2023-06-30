@@ -32,6 +32,7 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ProtobufClusterState;
 import org.opensearch.cluster.service.ClusterApplier;
 
 import java.util.function.Supplier;
@@ -45,5 +46,10 @@ public class NoOpClusterApplier implements ClusterApplier {
     @Override
     public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
         listener.onSuccess(source);
+    }
+
+    @Override
+    public void setInitialProtobufState(ProtobufClusterState initialState) {
+
     }
 }

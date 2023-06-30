@@ -20,6 +20,8 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.transport.ProtobufBoundTransportAddress;
 import org.opensearch.common.transport.ProtobufTransportAddress;
+import org.opensearch.common.transport.ProtobufBoundTransportAddress;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ProtobufReportingService;
 
 import java.io.IOException;
@@ -134,5 +136,25 @@ public class ProtobufTransportInfo implements ProtobufReportingService.ProtobufI
 
     public Map<String, ProtobufBoundTransportAddress> profileAddresses() {
         return profileAddresses;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Fields.TRANSPORT);
+        builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
+        builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString("transport.publish_address", address.publishAddress()));
+        builder.startObject(Fields.PROFILES);
+        if (profileAddresses != null && profileAddresses.size() > 0) {
+            for (Map.Entry<String, ProtobufBoundTransportAddress> entry : profileAddresses.entrySet()) {
+                builder.startObject(entry.getKey());
+                builder.array(Fields.BOUND_ADDRESS, (Object[]) entry.getValue().boundAddresses());
+                String propertyName = "transport." + entry.getKey() + ".publish_address";
+                builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString(propertyName, entry.getValue().publishAddress()));
+                builder.endObject();
+            }
+        }
+        builder.endObject();
+        builder.endObject();
+        return builder;
     }
 }

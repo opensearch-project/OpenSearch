@@ -120,15 +120,19 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
+import org.opensearch.index.engine.ProtobufSegmentsStats;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.fielddata.FieldDataStats;
+import org.opensearch.index.fielddata.ProtobufFieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
 import org.opensearch.index.flush.FlushStats;
+import org.opensearch.index.flush.ProtobufFlushStats;
 import org.opensearch.index.get.GetStats;
+import org.opensearch.index.get.ProtobufGetStats;
 import org.opensearch.index.get.ShardGetService;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
@@ -140,8 +144,12 @@ import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.ProtobufMergeStats;
+import org.opensearch.index.recovery.ProtobufRecoveryStats;
 import org.opensearch.index.recovery.RecoveryStats;
+import org.opensearch.index.refresh.ProtobufRefreshStats;
 import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.search.stats.ProtobufSearchStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -153,6 +161,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.ProtobufStoreStats;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
@@ -163,6 +172,7 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.index.warmer.ProtobufWarmerStats;
 import org.opensearch.index.warmer.ShardIndexWarmerService;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.indices.IndexingMemoryController;
@@ -283,6 +293,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile RecoveryState recoveryState;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
+    private final ProtobufRecoveryStats protobufRecoveryStats = new ProtobufRecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
@@ -1236,13 +1247,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
+    public ProtobufRefreshStats protobufRefreshStats() {
+        int listeners = refreshListeners.pendingCount();
+        return new ProtobufRefreshStats(
+            refreshMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()),
+            externalRefreshMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(externalRefreshMetric.sum()),
+            listeners
+        );
+    }
+
     public FlushStats flushStats() {
         return new FlushStats(flushMetric.count(), periodicFlushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
+    }
+
+    public ProtobufFlushStats protobufFlushStats() {
+        return new ProtobufFlushStats(flushMetric.count(), periodicFlushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
     }
 
     public DocsStats docStats() {
         readAllowed();
         return getEngine().docStats();
+    }
+
+    public ProtobufDocsStats protobufDocsStats() {
+        readAllowed();
+        return getEngine().protobufDocsStats();
     }
 
     /**
@@ -1275,12 +1306,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return internalIndexingStats.stats(throttled, throttleTimeInMillis);
     }
 
+    public ProtobufIndexingStats protobufIndexingStats() {
+        Engine engine = getEngineOrNull();
+        final boolean throttled;
+        final long throttleTimeInMillis;
+        if (engine == null) {
+            throttled = false;
+            throttleTimeInMillis = 0;
+        } else {
+            throttled = engine.isThrottled();
+            throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
+        }
+        return internalIndexingStats.protobufStats(throttled, throttleTimeInMillis);
+    }
+
     public SearchStats searchStats(String... groups) {
         return searchStats.stats(groups);
     }
 
+    public ProtobufSearchStats protobufSearchStats(String... groups) {
+        return searchStats.protobufStats(groups);
+    }
+
     public GetStats getStats() {
         return getService.stats();
+    }
+
+    public ProtobufGetStats getProtobufStats() {
+        return getService.protobufStats();
     }
 
     public StoreStats storeStats() {
@@ -1288,6 +1341,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final RecoveryState recoveryState = this.recoveryState;
             final long bytesStillToRecover = recoveryState == null ? -1L : recoveryState.getIndex().bytesStillToRecover();
             return store.stats(bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover);
+        } catch (IOException e) {
+            failShard("Failing shard because of exception during storeStats", e);
+            throw new OpenSearchException("io exception while building 'store stats'", e);
+        }
+    }
+
+    public ProtobufStoreStats protobufStoreStats() {
+        try {
+            final RecoveryState recoveryState = this.recoveryState;
+            final long bytesStillToRecover = recoveryState == null ? -1L : recoveryState.getIndex().bytesStillToRecover();
+            return store.protobufStats(bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover);
         } catch (IOException e) {
             failShard("Failing shard because of exception during storeStats", e);
             throw new OpenSearchException("io exception while building 'store stats'", e);
@@ -1302,8 +1366,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.getMergeStats();
     }
 
+    public ProtobufMergeStats protobufMergeStats() {
+        final Engine engine = getEngineOrNull();
+        if (engine == null) {
+            return new ProtobufMergeStats();
+        }
+        return engine.getProtobufMergeStats();
+    }
+
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
+        segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
+        return segmentsStats;
+    }
+
+    public ProtobufSegmentsStats protobufSegmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        ProtobufSegmentsStats segmentsStats = getEngine().protobufSegmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
     }
@@ -1312,8 +1390,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return shardWarmerService.stats();
     }
 
+    public ProtobufWarmerStats protobufWarmerStats() {
+        return shardWarmerService.protobufStats();
+    }
+
     public FieldDataStats fieldDataStats(String... fields) {
         return shardFieldData.stats(fields);
+    }
+
+    public ProtobufFieldDataStats protobufFieldDataStats(String... fields) {
+        return shardFieldData.protobufStats(fields);
     }
 
     public TranslogStats translogStats() {
@@ -2270,6 +2356,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public RecoveryStats recoveryStats() {
         return recoveryStats;
+    }
+
+    /**
+     * returns stats about ongoing recoveries, both source and target
+     */
+    public ProtobufRecoveryStats protobufRecoveryStats() {
+        return protobufRecoveryStats;
     }
 
     /**

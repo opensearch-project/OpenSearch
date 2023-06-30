@@ -167,6 +167,14 @@ public class PublicationTransportHandler {
         );
     }
 
+    public ProtobufPublishClusterStateStats protobufStats() {
+        return new ProtobufPublishClusterStateStats(
+            fullClusterStateReceivedCount.get(),
+            incompatibleClusterStateDiffReceivedCount.get(),
+            compatibleClusterStateDiffReceivedCount.get()
+        );
+    }
+
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         final Compressor compressor = CompressorFactory.compressor(request.bytes());
         StreamInput in = request.bytes().streamInput();

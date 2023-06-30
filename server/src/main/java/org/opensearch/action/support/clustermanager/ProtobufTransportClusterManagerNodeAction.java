@@ -28,12 +28,12 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.ProtobufIndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
@@ -53,8 +53,9 @@ import java.util.function.Predicate;
  *
  * @opensearch.internal
  */
-public abstract class ProtobufTransportClusterManagerNodeAction<Request extends ProtobufClusterManagerNodeRequest<Request>, Response extends ProtobufActionResponse>
-    extends ProtobufHandledTransportAction<Request, Response> {
+public abstract class ProtobufTransportClusterManagerNodeAction<
+    Request extends ProtobufClusterManagerNodeRequest<Request>,
+    Response extends ProtobufActionResponse> extends ProtobufHandledTransportAction<Request, Response> {
 
     private static final Logger logger = LogManager.getLogger(ProtobufTransportClusterManagerNodeAction.class);
 
@@ -108,7 +109,8 @@ public abstract class ProtobufTransportClusterManagerNodeAction<Request extends 
     }
 
     // TODO: Add abstract keyword after removing the deprecated masterOperation()
-    protected void clusterManagerOperation(Request request, ProtobufClusterState state, ActionListener<Response> listener) throws Exception {
+    protected void clusterManagerOperation(Request request, ProtobufClusterState state, ActionListener<Response> listener)
+        throws Exception {
         masterOperation(request, state, listener);
     }
 
@@ -117,7 +119,8 @@ public abstract class ProtobufTransportClusterManagerNodeAction<Request extends 
      * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ProtobufTask, ProtobufClusterManagerNodeRequest, ProtobufClusterState, ActionListener)}
      */
     @Deprecated
-    protected void masterOperation(ProtobufTask task, Request request, ProtobufClusterState state, ActionListener<Response> listener) throws Exception {
+    protected void masterOperation(ProtobufTask task, Request request, ProtobufClusterState state, ActionListener<Response> listener)
+        throws Exception {
         clusterManagerOperation(request, state, listener);
     }
 
@@ -125,8 +128,12 @@ public abstract class ProtobufTransportClusterManagerNodeAction<Request extends 
      * Override this operation if access to the task parameter is needed
      */
     // TODO: Change the implementation to call 'clusterManagerOperation(request...)' after removing the deprecated masterOperation()
-    protected void clusterManagerOperation(ProtobufTask task, Request request, ProtobufClusterState state, ActionListener<Response> listener)
-        throws Exception {
+    protected void clusterManagerOperation(
+        ProtobufTask task,
+        Request request,
+        ProtobufClusterState state,
+        ActionListener<Response> listener
+    ) throws Exception {
         masterOperation(task, request, state, listener);
     }
 
@@ -209,7 +216,8 @@ public abstract class ProtobufTransportClusterManagerNodeAction<Request extends 
         protected void doStart(ProtobufClusterState clusterState) {
             try {
                 final ProtobufDiscoveryNodes nodes = clusterState.nodes();
-                if (nodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
+                final DiscoveryNodes discoveryNodes = clusterService.state().nodes();
+                if (discoveryNodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
                     // check for block, if blocked, retry, else, execute locally
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
@@ -252,13 +260,16 @@ public abstract class ProtobufTransportClusterManagerNodeAction<Request extends 
                         logger.debug("no known cluster-manager node, scheduling a retry");
                         retryOnMasterChange(clusterState, null);
                     } else {
-                        ProtobufDiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
+                        DiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
                         final String actionName = getClusterManagerActionName(clusterManagerNode);
                         transportService.sendRequest(
                             clusterManagerNode,
                             actionName,
                             request,
-                            new ProtobufActionListenerResponseHandler<Response>(listener, ProtobufTransportClusterManagerNodeAction.this::read) {
+                            new ProtobufActionListenerResponseHandler<Response>(
+                                listener,
+                                ProtobufTransportClusterManagerNodeAction.this::read
+                            ) {
                                 @Override
                                 public void handleException(final ProtobufTransportException exp) {
                                     Throwable cause = exp.unwrapCause();
@@ -334,7 +345,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<Request extends 
      * Allows to conditionally return a different cluster-manager node action name in the case an action gets renamed.
      * This mainly for backwards compatibility should be used rarely
      */
-    protected String getClusterManagerActionName(ProtobufDiscoveryNode node) {
+    protected String getClusterManagerActionName(DiscoveryNode node) {
         return actionName;
     }
 
@@ -342,10 +353,10 @@ public abstract class ProtobufTransportClusterManagerNodeAction<Request extends 
      * Allows to conditionally return a different cluster-manager node action name in the case an action gets renamed.
      * This mainly for backwards compatibility should be used rarely
      *
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #getClusterManagerActionName(ProtobufDiscoveryNode)}
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #getClusterManagerActionName(DiscoveryNode)}
      */
     @Deprecated
-    protected String getMasterActionName(ProtobufDiscoveryNode node) {
+    protected String getMasterActionName(DiscoveryNode node) {
         return getClusterManagerActionName(node);
     }
 

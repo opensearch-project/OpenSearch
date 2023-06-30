@@ -9,7 +9,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.io.Closeable;
 import java.util.Set;
@@ -27,25 +27,25 @@ public interface ProtobufConnectionManager extends Closeable {
     void removeListener(ProtobufTransportConnectionListener listener);
 
     void openConnection(
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         ProtobufConnectionProfile connectionProfile,
         ActionListener<Transport.ProtobufConnection> listener
     );
 
     void connectToNode(
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         ProtobufConnectionProfile connectionProfile,
         ConnectionValidator connectionValidator,
         ActionListener<Void> listener
     ) throws ConnectTransportException;
 
-    Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode node);
+    Transport.ProtobufConnection getConnection(DiscoveryNode node);
 
-    boolean nodeConnected(ProtobufDiscoveryNode node);
+    boolean nodeConnected(DiscoveryNode node);
 
-    void disconnectFromNode(ProtobufDiscoveryNode node);
+    void disconnectFromNode(DiscoveryNode node);
 
-    Set<ProtobufDiscoveryNode> getAllConnectedNodes();
+    Set<DiscoveryNode> getAllConnectedNodes();
 
     int size();
 
@@ -76,14 +76,14 @@ public interface ProtobufConnectionManager extends Closeable {
         private final CopyOnWriteArrayList<ProtobufTransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
-        public void onNodeDisconnected(ProtobufDiscoveryNode key, Transport.ProtobufConnection connection) {
+        public void onNodeDisconnected(DiscoveryNode key, Transport.ProtobufConnection connection) {
             for (ProtobufTransportConnectionListener listener : listeners) {
                 listener.onNodeDisconnected(key, connection);
             }
         }
 
         @Override
-        public void onNodeConnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {
+        public void onNodeConnected(DiscoveryNode node, Transport.ProtobufConnection connection) {
             for (ProtobufTransportConnectionListener listener : listeners) {
                 listener.onNodeConnected(node, connection);
             }

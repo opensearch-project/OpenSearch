@@ -270,7 +270,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Registers a REST handler with the controller. The REST handler declares the {@code method}
      * and {@code path} combinations.
      */
-    public void registerHandler(final RestHandler restHandler) {    
+    public void registerHandler(final RestHandler restHandler) {
         restHandler.routes().forEach(route -> registerHandler(route.getMethod(), route.getPath(), restHandler));
         restHandler.deprecatedRoutes()
             .forEach(route -> registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
@@ -290,27 +290,24 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Registers a REST handler with the controller. The REST handler declares the {@code method}
      * and {@code path} combinations.
      */
-    public void registerProtobufHandler(final ProtobufRestHandler restHandler) {    
-        System.out.println("Registering route");
-        restHandler.routes().forEach(route -> System.out.println(route.getMethod() + " " + route.getPath()));
+    public void registerProtobufHandler(final ProtobufRestHandler restHandler) {
         restHandler.routes().forEach(route -> registerProtobufHandler(route.getMethod(), route.getPath(), restHandler));
         // restHandler.deprecatedRoutes()
-        //     .forEach(route -> registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
+        // .forEach(route -> registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
         // restHandler.replacedRoutes()
-        //     .forEach(
-        //         route -> registerWithDeprecatedHandler(
-        //             route.getMethod(),
-        //             route.getPath(),
-        //             restHandler,
-        //             route.getDeprecatedMethod(),
-        //             route.getDeprecatedPath()
-        //         )
-        //     );
+        // .forEach(
+        // route -> registerWithDeprecatedHandler(
+        // route.getMethod(),
+        // route.getPath(),
+        // restHandler,
+        // route.getDeprecatedMethod(),
+        // route.getDeprecatedPath()
+        // )
+        // );
     }
 
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-        System.out.println("Dispatching request");
         try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
@@ -390,7 +387,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void dispatchProtobufRequest(RestRequest request, RestChannel channel, ProtobufRestHandler handler) throws Exception {
-        System.out.println("Dispatching protobuf request");
         final int contentLength = request.content().length();
         if (contentLength > 0) {
             final XContentType xContentType = request.getXContentType();
@@ -466,8 +462,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
-        System.out.println("Trying all handlers");
-        System.out.println("Request: " + request.toString());
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getAllHeaderValues(name);
@@ -499,9 +493,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String rawPath = request.rawPath();
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
-        System.out.println("raw path: " + rawPath);
-        System.out.println("uri: " + uri);
-        System.out.println("request method: " + request.method().toString());
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
@@ -510,22 +501,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
             while (allHandlers.hasNext()) {
                 final RestHandler handler;
                 final ProtobufRestHandler protobufHandler;
-                System.out.println("All handlers has next");
                 final MethodHandlers handlers = allHandlers.next();
-                System.out.println("Handlers: " + handlers);
                 if (handlers == null) {
-                    System.out.println("Handlers is null");
                     handler = null;
                     protobufHandler = null;
                 } else {
                     if (rawPath.contains("protobuf")) {
                         handler = null;
                         protobufHandler = handlers.getProtobufHandler(requestMethod);
-                        System.out.println("Protobuf handler: " + protobufHandler);
                     } else {
                         protobufHandler = null;
                         handler = handlers.getHandler(requestMethod);
-                        System.out.println("Handler: " + handler);
                     }
                 }
                 if (handler == null && protobufHandler == null) {
@@ -550,9 +536,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {
-        System.out.println("Getting all handlers");
-        System.out.println("Request params: " + requestParamsRef);
-        System.out.println("Raw path: " + rawPath);
         final Supplier<Map<String, String>> paramsSupplier;
         if (requestParamsRef == null) {
             paramsSupplier = () -> null;

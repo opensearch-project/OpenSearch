@@ -63,6 +63,16 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
      */
     public abstract CircuitBreakerStats stats(String name);
 
+    /**
+     * @return stats about all breakers
+     */
+    public abstract ProtobufAllCircuitBreakerStats protobufStats();
+
+    /**
+     * @return stats about a specific breaker
+     */
+    public abstract ProtobufCircuitBreakerStats protobufStats(String name);
+
     @Override
     protected void doStart() {}
 

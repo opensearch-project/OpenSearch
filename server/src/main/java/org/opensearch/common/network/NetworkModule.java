@@ -304,9 +304,9 @@ public final class NetworkModule {
         }
     }
 
-     /**
-     * Registers a new {@link TransportInterceptor}
-     */
+    /**
+    * Registers a new {@link TransportInterceptor}
+    */
     private void registerProtobufTransportInterceptor(ProtobufTransportInterceptor interceptor) {
         this.protobufTransportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }

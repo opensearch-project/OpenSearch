@@ -13,15 +13,16 @@ import com.google.protobuf.CodedOutputStream;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.cluster.ProtobufClusterName;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.ProtobufTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -93,8 +94,8 @@ public class ProtobufProxyConnectionStrategy extends ProtobufRemoteConnectionStr
     private final int maxNumConnections;
     private final String configuredAddress;
     private final String configuredServerName;
-    private final Supplier<ProtobufTransportAddress> address;
-    private final AtomicReference<ProtobufClusterName> remoteClusterName = new AtomicReference<>();
+    private final Supplier<TransportAddress> address;
+    private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
     private final ProtobufConnectionManager.ConnectionValidator clusterNameValidator;
 
     ProtobufProxyConnectionStrategy(
@@ -162,7 +163,7 @@ public class ProtobufProxyConnectionStrategy extends ProtobufRemoteConnectionStr
         Settings settings,
         int maxNumConnections,
         String configuredAddress,
-        Supplier<ProtobufTransportAddress> address,
+        Supplier<TransportAddress> address,
         String configuredServerName
     ) {
         super(clusterAlias, transportService, connectionManager, settings);
@@ -176,12 +177,12 @@ public class ProtobufProxyConnectionStrategy extends ProtobufRemoteConnectionStr
             actualProfile.getHandshakeTimeout().millis(),
             cn -> true,
             ActionListener.map(listener, resp -> {
-                ProtobufClusterName remote = resp.getClusterName();
+                ClusterName remote = resp.getClusterName();
                 if (remoteClusterName.compareAndSet(null, remote)) {
                     return null;
                 } else {
                     if (remoteClusterName.get().equals(remote) == false) {
-                        ProtobufDiscoveryNode node = newConnection.getNode();
+                        DiscoveryNode node = newConnection.getNode();
                         throw new ProtobufConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
                     }
                     return null;
@@ -234,7 +235,7 @@ public class ProtobufProxyConnectionStrategy extends ProtobufRemoteConnectionStr
 
     private void openConnections(ActionListener<Void> finished, int attemptNumber) {
         if (attemptNumber <= MAX_CONNECT_ATTEMPTS_PER_RUN) {
-            ProtobufTransportAddress resolved = address.get();
+            TransportAddress resolved = address.get();
 
             int remaining = maxNumConnections - connectionManager.size();
             ActionListener<Void> compositeListener = new ActionListener<Void>() {
@@ -270,9 +271,9 @@ public class ProtobufProxyConnectionStrategy extends ProtobufRemoteConnectionStr
                 } else {
                     attributes = Collections.singletonMap("server_name", configuredServerName);
                 }
-                ProtobufDiscoveryNode node = new ProtobufDiscoveryNode(
+                DiscoveryNode node = new DiscoveryNode(
                     id,
-                    resolved,
+                    new TransportAddress(resolved.address()),
                     attributes,
                     DiscoveryNodeRole.BUILT_IN_ROLES,
                     Version.CURRENT.minimumCompatibilityVersion()
@@ -316,8 +317,8 @@ public class ProtobufProxyConnectionStrategy extends ProtobufRemoteConnectionStr
         }
     }
 
-    private static ProtobufTransportAddress resolveAddress(String address) {
-        return new ProtobufTransportAddress(parseConfiguredAddress(address));
+    private static TransportAddress resolveAddress(String address) {
+        return new TransportAddress(parseConfiguredAddress(address));
     }
 
     /**

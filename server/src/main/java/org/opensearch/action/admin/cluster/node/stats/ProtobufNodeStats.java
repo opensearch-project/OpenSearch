@@ -11,7 +11,7 @@ package org.opensearch.action.admin.cluster.node.stats;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.support.nodes.ProtobufBaseNodeResponse;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
@@ -105,7 +105,7 @@ public class ProtobufNodeStats extends ProtobufBaseNodeResponse implements ToXCo
     }
 
     public ProtobufNodeStats(
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         long timestamp,
         @Nullable ProtobufNodeIndicesStats indices,
         @Nullable ProtobufOsStats os,

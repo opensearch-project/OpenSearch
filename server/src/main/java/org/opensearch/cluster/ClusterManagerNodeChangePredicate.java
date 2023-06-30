@@ -33,7 +33,7 @@
 package org.opensearch.cluster;
 
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.util.function.Predicate;
 
@@ -76,10 +76,10 @@ public final class ClusterManagerNodeChangePredicate {
      */
     public static Predicate<ProtobufClusterState> buildProtobuf(ProtobufClusterState currentState) {
         final long currentVersion = currentState.version();
-        final ProtobufDiscoveryNode clusterManagerNode = currentState.nodes().getClusterManagerNode();
+        final DiscoveryNode clusterManagerNode = currentState.nodes().getClusterManagerNode();
         final String currentMasterId = clusterManagerNode == null ? null : clusterManagerNode.getEphemeralId();
         return newState -> {
-            final ProtobufDiscoveryNode newClusterManager = newState.nodes().getClusterManagerNode();
+            final DiscoveryNode newClusterManager = newState.nodes().getClusterManagerNode();
             final boolean accept;
             if (newClusterManager == null) {
                 accept = false;

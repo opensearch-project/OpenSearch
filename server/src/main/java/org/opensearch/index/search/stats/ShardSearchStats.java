@@ -84,6 +84,31 @@ public final class ShardSearchStats implements SearchOperationListener {
         return new SearchStats(total, openContexts.count(), groupsSt);
     }
 
+    /**
+     * Returns the stats, including group specific stats. If the groups are null/0 length, then nothing
+     * is returned for them. If they are set, then only groups provided will be returned, or
+     * {@code _all} for all groups.
+     */
+    public ProtobufSearchStats protobufStats(String... groups) {
+        ProtobufSearchStats.Stats total = totalStats.protobufStats();
+        Map<String, ProtobufSearchStats.Stats> groupsSt = null;
+        if (CollectionUtils.isEmpty(groups) == false) {
+            groupsSt = new HashMap<>(groupsStats.size());
+            if (groups.length == 1 && groups[0].equals("_all")) {
+                for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {
+                    groupsSt.put(entry.getKey(), entry.getValue().protobufStats());
+                }
+            } else {
+                for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {
+                    if (Regex.simpleMatch(groups, entry.getKey())) {
+                        groupsSt.put(entry.getKey(), entry.getValue().protobufStats());
+                    }
+                }
+            }
+        }
+        return new ProtobufSearchStats(total, openContexts.count(), groupsSt);
+    }
+
     @Override
     public void onPreQueryPhase(SearchContext searchContext) {
         computeStats(searchContext, statsHolder -> {
@@ -225,6 +250,26 @@ public final class ShardSearchStats implements SearchOperationListener {
 
         SearchStats.Stats stats() {
             return new SearchStats.Stats(
+                queryMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
+                queryCurrent.count(),
+                fetchMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()),
+                fetchCurrent.count(),
+                scrollMetric.count(),
+                TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()),
+                scrollCurrent.count(),
+                pitMetric.count(),
+                TimeUnit.MICROSECONDS.toMillis(pitMetric.sum()),
+                pitCurrent.count(),
+                suggestMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
+                suggestCurrent.count()
+            );
+        }
+
+        ProtobufSearchStats.Stats protobufStats() {
+            return new ProtobufSearchStats.Stats(
                 queryMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
                 queryCurrent.count(),

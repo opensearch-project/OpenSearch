@@ -34,7 +34,7 @@ package org.opensearch.test.transport;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.ProtobufBoundTransportAddress;
@@ -163,8 +163,7 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
     }
 
     @Override
-    public void openProtobufConnection(ProtobufDiscoveryNode node, ProtobufConnectionProfile profile,
-            ActionListener<ProtobufConnection> listener) {
+    public void openProtobufConnection(DiscoveryNode node, ProtobufConnectionProfile profile, ActionListener<ProtobufConnection> listener) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'openProtobufConnection'");
     }

@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
 
 import java.util.HashMap;
@@ -43,9 +44,10 @@ import java.util.concurrent.atomic.LongAdder;
  *
  * @opensearch.internal
  */
-public class AggregationUsageService implements ReportingService<AggregationInfo> {
+public class AggregationUsageService implements ReportingService<AggregationInfo>, ProtobufReportingService<ProtobufAggregationInfo> {
     private final Map<String, Map<String, LongAdder>> aggs;
     private final AggregationInfo info;
+    private final ProtobufAggregationInfo protobufInfo;
 
     public static final String OTHER_SUBTYPE = "other";
 
@@ -82,6 +84,7 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
     private AggregationUsageService(Builder builder) {
         this.aggs = builder.aggs;
         info = new AggregationInfo(aggs);
+        protobufInfo = new ProtobufAggregationInfo(aggs);
     }
 
     public void incAggregationUsage(String aggregationName, String valuesSourceType) {
@@ -117,5 +120,10 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
     @Override
     public AggregationInfo info() {
         return info;
+    }
+
+    @Override
+    public ProtobufAggregationInfo protobufInfo() {
+        return protobufInfo;
     }
 }

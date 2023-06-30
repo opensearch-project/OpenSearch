@@ -38,7 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ContextPreservingActionListener;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.settings.Setting;
@@ -361,7 +361,7 @@ public abstract class ProtobufRemoteConnectionStrategy implements ProtobufTransp
     protected abstract ProtobufConnectionStrategy strategyType();
 
     @Override
-    public void onNodeDisconnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {
+    public void onNodeDisconnected(DiscoveryNode node, Transport.ProtobufConnection connection) {
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(

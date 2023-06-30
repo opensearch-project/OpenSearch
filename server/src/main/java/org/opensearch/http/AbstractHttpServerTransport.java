@@ -49,6 +49,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.transport.PortsRange;
+import org.opensearch.common.transport.ProtobufBoundTransportAddress;
+import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
@@ -157,8 +159,32 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     @Override
+    public ProtobufHttpInfo protobufInfo() {
+        BoundTransportAddress boundTransportAddress = boundAddress();
+        if (boundTransportAddress == null) {
+            return null;
+        }
+        TransportAddress[] transportAddress = boundTransportAddress.boundAddresses();
+        TransportAddress publishAddress = boundTransportAddress.publishAddress();
+        ProtobufTransportAddress[] protobufTransportAddresses = new ProtobufTransportAddress[transportAddress.length];
+        for (int i = 0; i < transportAddress.length; i++) {
+            protobufTransportAddresses[i] = new ProtobufTransportAddress(transportAddress[i].address());
+        }
+        ProtobufBoundTransportAddress protobufBoundTransportAddress = new ProtobufBoundTransportAddress(
+            protobufTransportAddresses,
+            new ProtobufTransportAddress(publishAddress.address())
+        );
+        return new ProtobufHttpInfo(protobufBoundTransportAddress, maxContentLength.getBytes());
+    }
+
+    @Override
     public HttpStats stats() {
         return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
+    }
+
+    @Override
+    public ProtobufHttpStats protobufStats() {
+        return new ProtobufHttpStats(httpChannels.size(), totalChannelsAccepted.get());
     }
 
     protected void bindServer() {
@@ -369,7 +395,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
-        System.out.println("HttpServerTransport.handleIncomingRequest");
         if (exception == null) {
             HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
             if (earlyResponse != null) {
@@ -443,7 +468,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             channel = innerChannel;
         }
 
-        System.out.println("RestRequest " + restRequest);
         dispatchRequest(restRequest, channel, badRequestCause);
     }
 

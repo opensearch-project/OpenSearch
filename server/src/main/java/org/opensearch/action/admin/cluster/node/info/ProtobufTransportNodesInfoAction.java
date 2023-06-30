@@ -13,11 +13,9 @@ import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ProtobufFailedNodeException;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.nodes.ProtobufTransportNodesAction;
-import org.opensearch.cluster.ProtobufClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.node.ProtobufNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ProtobufTransportRequest;
@@ -68,7 +66,7 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
         List<ProtobufNodeInfo> responses,
         List<ProtobufFailedNodeException> failures
     ) {
-        return new ProtobufNodesInfoResponse(new ProtobufClusterName(clusterService.getClusterName().value()), responses, failures);
+        return new ProtobufNodesInfoResponse(new ClusterName(clusterService.getClusterName().value()), responses, failures);
     }
 
     @Override
@@ -85,20 +83,21 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
     protected ProtobufNodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
         ProtobufNodesInfoRequest request = nodeRequest.request;
         Set<String> metrics = request.requestedMetrics();
-        return nodeService.info(
-            metrics.contains(NodesInfoRequest.Metric.SETTINGS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.OS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.PROCESS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.JVM.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.THREAD_POOL.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.TRANSPORT.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.HTTP.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.PLUGINS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.INGEST.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.AGGREGATIONS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.INDICES.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.SEARCH_PIPELINES.metricName())
+        ProtobufNodeInfo protobufNodeInfo = nodeService.info(
+            metrics.contains(ProtobufNodesInfoRequest.Metric.SETTINGS.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.OS.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.PROCESS.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.JVM.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.THREAD_POOL.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.TRANSPORT.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.HTTP.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.PLUGINS.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.INGEST.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.AGGREGATIONS.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.INDICES.metricName()),
+            metrics.contains(ProtobufNodesInfoRequest.Metric.SEARCH_PIPELINES.metricName())
         );
+        return protobufNodeInfo;
     }
 
     /**

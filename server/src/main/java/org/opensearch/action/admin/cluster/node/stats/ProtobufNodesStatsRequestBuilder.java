@@ -8,7 +8,7 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import org.opensearch.action.admin.indices.stats.ProtobufCommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.ProtobufNodesOperationRequestBuilder;
 import org.opensearch.client.ProtobufOpenSearchClient;
 
@@ -75,7 +75,7 @@ public class ProtobufNodesStatsRequestBuilder extends ProtobufNodesOperationRequ
     /**
      * Should the node indices stats be returned.
     */
-    public ProtobufNodesStatsRequestBuilder setIndices(ProtobufCommonStatsFlags indices) {
+    public ProtobufNodesStatsRequestBuilder setIndices(CommonStatsFlags indices) {
         request.indices(indices);
         return this;
     }

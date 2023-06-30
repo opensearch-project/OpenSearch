@@ -33,12 +33,18 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
+import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -49,7 +55,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public final class CommitStats implements Writeable, ToXContentFragment {
+public final class CommitStats implements Writeable, ToXContentFragment, ProtobufWriteable {
 
     private final Map<String, String> userData;
     private final long generation;
@@ -76,8 +82,25 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         numDocs = in.readInt();
     }
 
+    CommitStats(CodedInputStream in) throws IOException {
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        MapBuilder<String, String> builder = MapBuilder.newMapBuilder();
+        for (int i = in.readInt32(); i > 0; i--) {
+            builder.put(in.readString(), in.readString());
+        }
+        userData = builder.immutableMap();
+        generation = in.readInt64();
+        id = protobufStreamInput.readOptionalString();
+        numDocs = in.readInt32();
+    }
+
     public static CommitStats readOptionalCommitStatsFrom(StreamInput in) throws IOException {
         return in.readOptionalWriteable(CommitStats::new);
+    }
+
+    public static CommitStats readOptionalCommitStatsFromProtobuf(CodedInputStream in) throws IOException {
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
+        return protobufStreamInput.readOptionalWriteable(CommitStats::new);
     }
 
     public Map<String, String> getUserData() {
@@ -110,6 +133,19 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         out.writeLong(generation);
         out.writeOptionalString(id);
         out.writeInt(numDocs);
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
+        out.writeInt32NoTag(userData.size());
+        for (Map.Entry<String, String> entry : userData.entrySet()) {
+            out.writeStringNoTag(entry.getKey());
+            out.writeStringNoTag(entry.getValue());
+        }
+        out.writeInt64NoTag(generation);
+        protobufStreamOutput.writeOptionalString(id);
+        out.writeInt32NoTag(numDocs);
     }
 
     /**

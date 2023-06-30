@@ -41,7 +41,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.opensearch.common.breaker.CircuitBreaker;
@@ -140,6 +140,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
+    private final ConcurrentMap<String, ProtobufBoundTransportAddress> profileProtobufBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
     private final Set<TcpChannel> acceptedChannels = ConcurrentCollections.newConcurrentSet();
 
@@ -147,6 +148,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     private volatile BoundTransportAddress boundAddress;
+    private volatile ProtobufBoundTransportAddress protobufBoundAddress;
 
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
@@ -401,6 +403,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
+    public ProtobufBoundTransportAddress boundProtobufAddress() {
+        return this.protobufBoundAddress;
+    }
+
+    @Override
+    public Map<String, ProtobufBoundTransportAddress> profileProtobufBoundAddresses() {
+        return unmodifiableMap(new HashMap<>(profileProtobufBoundAddresses));
+    }
+
+    @Override
     public List<String> getDefaultSeedAddresses() {
         List<String> local = new ArrayList<>();
         local.add("127.0.0.1");
@@ -438,11 +450,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         final BoundTransportAddress boundTransportAddress = createBoundTransportAddress(profileSettings, boundAddresses);
+        final ProtobufBoundTransportAddress protobufBoundTransportAddress = createProtobufBoundTransportAddress(boundTransportAddress);
 
         if (profileSettings.isDefaultProfile) {
             this.boundAddress = boundTransportAddress;
+            this.protobufBoundAddress = protobufBoundTransportAddress;
         } else {
             profileBoundAddresses.put(profileSettings.profileName, boundTransportAddress);
+            profileProtobufBoundAddresses.put(profileSettings.profileName, protobufBoundTransportAddress);
         }
     }
 
@@ -510,6 +525,43 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final int publishPort = resolvePublishPort(profileSettings, boundAddresses, publishInetAddress);
         final TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
         return new BoundTransportAddress(transportBoundAddresses, publishAddress);
+    }
+
+    private ProtobufBoundTransportAddress createProtobufBoundTransportAddress(BoundTransportAddress boundTransportAddress) {
+        TransportAddress[] transportBoundAddresses = boundTransportAddress.boundAddresses();
+        TransportAddress publishAddress = boundTransportAddress.publishAddress();
+        ProtobufTransportAddress[] transportBoundAddressesProtobuf = new ProtobufTransportAddress[transportBoundAddresses.length];
+        for (int i = 0; i < transportBoundAddresses.length; i++) {
+            transportBoundAddressesProtobuf[i] = new ProtobufTransportAddress(transportBoundAddresses[i].address());
+        }
+        return new ProtobufBoundTransportAddress(transportBoundAddressesProtobuf, new ProtobufTransportAddress(publishAddress.address()));
+        // String[] boundAddressesHostStrings = new String[boundAddresses.size()];
+        // ProtobufTransportAddress[] transportBoundAddresses = new ProtobufTransportAddress[boundAddresses.size()];
+        // for (int i = 0; i < boundAddresses.size(); i++) {
+        // InetSocketAddress boundAddress = boundAddresses.get(i);
+        // boundAddressesHostStrings[i] = boundAddress.getHostString();
+        // transportBoundAddresses[i] = new ProtobufTransportAddress(boundAddress);
+        // }
+
+        // List<String> publishHosts = profileSettings.publishHosts;
+        // if (profileSettings.isDefaultProfile == false && publishHosts.isEmpty()) {
+        // publishHosts = Arrays.asList(boundAddressesHostStrings);
+        // }
+        // if (publishHosts.isEmpty()) {
+        // publishHosts = NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings);
+        // }
+
+        // final InetAddress publishInetAddress;
+        // try {
+        // publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts.toArray(Strings.EMPTY_ARRAY));
+        // } catch (Exception e) {
+        // throw new BindTransportException("Failed to resolve publish address", e);
+        // }
+
+        // final int publishPort = resolvePublishPort(profileSettings, boundAddresses, publishInetAddress);
+        // final ProtobufTransportAddress publishAddress = new ProtobufTransportAddress(new InetSocketAddress(publishInetAddress,
+        // publishPort));
+        // return new ProtobufBoundTransportAddress(transportBoundAddresses, publishAddress);
     }
 
     // package private for tests
@@ -1024,20 +1076,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public void setMessageListener(ProtobufTransportMessageListener listener) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setMessageListener'");
-    }
-
-    @Override
-    public ProtobufBoundTransportAddress boundProtobufAddress() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'boundProtobufAddress'");
-    }
-
-    @Override
-    public Map<String, ProtobufBoundTransportAddress> profileProtobufBoundAddresses() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'profileProtobufBoundAddresses'");
+        outboundHandler.setProtobufMessageListener(listener);
+        inboundHandler.setProtobufMessageListener(listener);
     }
 
     @Override
@@ -1047,8 +1087,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public void openProtobufConnection(ProtobufDiscoveryNode node, ProtobufConnectionProfile profile,
-            ActionListener<ProtobufConnection> listener) {
+    public void openProtobufConnection(DiscoveryNode node, ProtobufConnectionProfile profile, ActionListener<ProtobufConnection> listener) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'openProtobufConnection'");
     }

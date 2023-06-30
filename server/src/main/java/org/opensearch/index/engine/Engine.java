@@ -81,9 +81,11 @@ import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.ProtobufMergeStats;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.shard.ProtobufDocsStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -205,6 +207,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return new MergeStats();
     }
 
+    public ProtobufMergeStats getProtobufMergeStats() {
+        return new ProtobufMergeStats();
+    }
+
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
 
@@ -260,6 +266,41 @@ public abstract class Engine implements LifecycleAware, Closeable {
             }
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+    }
+
+    /**
+     * Returns the {@link DocsStats} for this engine
+     */
+    public ProtobufDocsStats protobufDocsStats() {
+        // we calculate the doc stats based on the internal searcher that is more up-to-date and not subject
+        // to external refreshes. For instance we don't refresh an external searcher if we flush and indices with
+        // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
+        // when indexing but not refreshing in general. Yet, if a refresh happens the internal searcher is refresh as well so we are
+        // safe here.
+        try (Searcher searcher = acquireSearcher("docStats", SearcherScope.INTERNAL)) {
+            return protobufDocsStats(searcher.getIndexReader());
+        }
+    }
+
+    protected final ProtobufDocsStats protobufDocsStats(IndexReader indexReader) {
+        long numDocs = 0;
+        long numDeletedDocs = 0;
+        long sizeInBytes = 0;
+        // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
+        // the next scheduled refresh to go through and refresh the stats as well
+        for (LeafReaderContext readerContext : indexReader.leaves()) {
+            // we go on the segment level here to get accurate numbers
+            final SegmentReader segmentReader = Lucene.segmentReader(readerContext.reader());
+            SegmentCommitInfo info = segmentReader.getSegmentInfo();
+            numDocs += readerContext.reader().numDocs();
+            numDeletedDocs += readerContext.reader().numDeletedDocs();
+            try {
+                sizeInBytes += info.sizeInBytes();
+            } catch (IOException e) {
+                logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+            }
+        }
+        return new ProtobufDocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
     /**
@@ -926,6 +967,34 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return stats;
     }
 
+    /**
+     * Global stats on segments.
+     */
+    public ProtobufSegmentsStats protobufSegmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        ensureOpen();
+        Set<String> segmentName = new HashSet<>();
+        ProtobufSegmentsStats stats = new ProtobufSegmentsStats();
+        try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.INTERNAL)) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
+                SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
+                protobufFillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
+                segmentName.add(segmentReader.getSegmentName());
+            }
+        }
+
+        try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.EXTERNAL)) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
+                SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
+                if (segmentName.contains(segmentReader.getSegmentName()) == false) {
+                    protobufFillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
+                }
+            }
+        }
+        stats.addVersionMapMemoryInBytes(0);
+        stats.addIndexWriterMemoryInBytes(0);
+        return stats;
+    }
+
     protected TranslogDeletionPolicy getTranslogDeletionPolicy(EngineConfig engineConfig) {
         TranslogDeletionPolicy customTranslogDeletionPolicy = null;
         if (engineConfig.getCustomTranslogDeletionPolicyFactory() != null) {
@@ -943,6 +1012,14 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     protected void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
+        stats.add(1);
+        if (includeSegmentFileSizes) {
+            // TODO: consider moving this to StoreStats
+            stats.addFileSizes(getSegmentFileSizes(segmentReader));
+        }
+    }
+
+    protected void protobufFillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, ProtobufSegmentsStats stats) {
         stats.add(1);
         if (includeSegmentFileSizes) {
             // TODO: consider moving this to StoreStats

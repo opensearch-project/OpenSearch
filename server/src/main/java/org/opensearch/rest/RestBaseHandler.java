@@ -8,13 +8,11 @@
 
 package org.opensearch.rest;
 
-import org.opensearch.client.node.ProtobufNodeClient;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.rest.RestRequest.Method;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -59,10 +57,10 @@ public interface RestBaseHandler<T> {
     }
 
     // /**
-    //  * The list of {@link Route}s that this RestHandler is responsible for handling.
-    //  */
+    // * The list of {@link Route}s that this RestHandler is responsible for handling.
+    // */
     // default List<Route> routes() {
-    //     return Collections.emptyList();
+    // return Collections.emptyList();
     // }
 
     /**

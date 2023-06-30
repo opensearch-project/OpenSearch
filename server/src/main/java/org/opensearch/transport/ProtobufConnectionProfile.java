@@ -8,7 +8,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -84,14 +84,11 @@ public final class ProtobufConnectionProfile {
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
         // if we are not cluster-manager eligible we don't need a dedicated channel to publish the state
         builder.addConnections(
-            ProtobufDiscoveryNode.isClusterManagerNode(settings) ? connectionsPerNodeState : 0,
+            DiscoveryNode.isClusterManagerNode(settings) ? connectionsPerNodeState : 0,
             TransportRequestOptions.Type.STATE
         );
         // if we are not a data-node we don't need any dedicated channels for recovery
-        builder.addConnections(
-            ProtobufDiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0,
-            TransportRequestOptions.Type.RECOVERY
-        );
+        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
         builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
         return builder.build();
     }

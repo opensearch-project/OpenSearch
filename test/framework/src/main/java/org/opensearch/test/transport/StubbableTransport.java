@@ -35,7 +35,7 @@ package org.opensearch.test.transport;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.transport.BoundTransportAddress;
@@ -342,8 +342,7 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
-    public void openProtobufConnection(ProtobufDiscoveryNode node, ProtobufConnectionProfile profile,
-            ActionListener<ProtobufConnection> listener) {
+    public void openProtobufConnection(DiscoveryNode node, ProtobufConnectionProfile profile, ActionListener<ProtobufConnection> listener) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'openProtobufConnection'");
     }

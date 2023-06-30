@@ -49,6 +49,8 @@ import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.ProtobufBoundTransportAddress;
+import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
@@ -57,6 +59,10 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ConnectionProfile;
+import org.opensearch.transport.ProtobufConnectionProfile;
+import org.opensearch.transport.ProtobufTransportMessageListener;
+import org.opensearch.transport.ProtobufTransportRequest;
+import org.opensearch.transport.ProtobufTransportStats;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportMessageListener;
@@ -67,6 +73,7 @@ import org.opensearch.transport.TransportStats;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -592,6 +599,8 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
     private static final class MockTransport implements Transport {
         private final ResponseHandlers responseHandlers = new ResponseHandlers();
         private final RequestHandlers requestHandlers = new RequestHandlers();
+        private final ProtobufResponseHandlers protobufResponseHandlers = new ProtobufResponseHandlers();
+        private final ProtobufRequestHandlers protobufRequestHandlers = new ProtobufRequestHandlers();
         private volatile boolean randomConnectionExceptions = false;
         private final ThreadPool threadPool;
 
@@ -684,6 +693,76 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         @Override
         public RequestHandlers getRequestHandlers() {
             return requestHandlers;
+        }
+
+        @Override
+        public void setMessageListener(ProtobufTransportMessageListener listener) {}
+
+        @Override
+        public ProtobufBoundTransportAddress boundProtobufAddress() {
+            return null;
+        }
+
+        @Override
+        public Map<String, ProtobufBoundTransportAddress> profileProtobufBoundAddresses() {
+            return null;
+        }
+
+        @Override
+        public ProtobufTransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException {
+            return new ProtobufTransportAddress[0];
+        }
+
+        @Override
+        public void openProtobufConnection(
+            DiscoveryNode node,
+            ProtobufConnectionProfile profile,
+            ActionListener<ProtobufConnection> listener
+        ) {
+            if (profile == null && randomConnectionExceptions && randomBoolean()) {
+                threadPool.generic().execute(() -> listener.onFailure(new ConnectTransportException(node, "simulated")));
+            } else {
+                threadPool.generic().execute(() -> listener.onResponse(new ProtobufConnection() {
+                    @Override
+                    public DiscoveryNode getNode() {
+                        return node;
+                    }
+
+                    @Override
+                    public void sendRequest(
+                        long requestId,
+                        String action,
+                        ProtobufTransportRequest request,
+                        TransportRequestOptions options
+                    ) throws TransportException {}
+
+                    @Override
+                    public void addCloseListener(ActionListener<Void> listener) {}
+
+                    @Override
+                    public void close() {}
+
+                    @Override
+                    public boolean isClosed() {
+                        return false;
+                    }
+                }));
+            }
+        }
+
+        @Override
+        public ProtobufTransportStats getProtobufStats() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ProtobufResponseHandlers getProtobufResponseHandlers() {
+            return protobufResponseHandlers;
+        }
+
+        @Override
+        public ProtobufRequestHandlers getProtobufRequestHandlers() {
+            return protobufRequestHandlers;
         }
     }
 }

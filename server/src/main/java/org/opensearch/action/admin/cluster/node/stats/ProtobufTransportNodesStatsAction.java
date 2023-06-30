@@ -13,11 +13,9 @@ import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ProtobufFailedNodeException;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.nodes.ProtobufTransportNodesAction;
-import org.opensearch.cluster.ProtobufClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.node.ProtobufNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ProtobufTransportRequest;
@@ -63,8 +61,12 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
     }
 
     @Override
-    protected ProtobufNodesStatsResponse newResponse(ProtobufNodesStatsRequest request, List<ProtobufNodeStats> responses, List<ProtobufFailedNodeException> failures) {
-        return new ProtobufNodesStatsResponse(new ProtobufClusterName(clusterService.getClusterName().value()), responses, failures);
+    protected ProtobufNodesStatsResponse newResponse(
+        ProtobufNodesStatsRequest request,
+        List<ProtobufNodeStats> responses,
+        List<ProtobufFailedNodeException> failures
+    ) {
+        return new ProtobufNodesStatsResponse(new ClusterName(clusterService.getClusterName().value()), responses, failures);
     }
 
     @Override

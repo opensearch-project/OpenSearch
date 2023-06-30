@@ -10,6 +10,8 @@ package org.opensearch.search.aggregations.support;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ProtobufReportingService;
 
 import java.io.IOException;
@@ -67,5 +69,21 @@ public class ProtobufAggregationInfo implements ProtobufReportingService.Protobu
 
     public Map<String, Set<String>> getAggregations() {
         return aggs;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("aggregations");
+        for (Map.Entry<String, Set<String>> e : aggs.entrySet()) {
+            builder.startObject(e.getKey());
+            builder.startArray("types");
+            for (String s : e.getValue()) {
+                builder.value(s);
+            }
+            builder.endArray();
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
     }
 }

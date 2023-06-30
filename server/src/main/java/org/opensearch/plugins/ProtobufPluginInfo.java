@@ -16,6 +16,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.xcontent.ToXContent.Params;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,7 +38,7 @@ import java.util.stream.Collectors;
 *
 * @opensearch.api
 */
-public class ProtobufPluginInfo implements ProtobufWriteable {
+public class ProtobufPluginInfo implements ProtobufWriteable, ToXContentObject {
 
     public static final String OPENSEARCH_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String OPENSEARCH_PLUGIN_POLICY = "plugin-security.policy";
@@ -346,5 +349,24 @@ public class ProtobufPluginInfo implements ProtobufWriteable {
     */
     public String getTargetFolderName() {
         return (this.customFolderName == null || this.customFolderName.isEmpty()) ? this.name : this.customFolderName;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        {
+            builder.field("name", name);
+            builder.field("version", version);
+            builder.field("opensearch_version", opensearchVersion);
+            builder.field("java_version", javaVersion);
+            builder.field("description", description);
+            builder.field("classname", classname);
+            builder.field("custom_foldername", customFolderName);
+            builder.field("extended_plugins", extendedPlugins);
+            builder.field("has_native_controller", hasNativeController);
+        }
+        builder.endObject();
+
+        return builder;
     }
 }

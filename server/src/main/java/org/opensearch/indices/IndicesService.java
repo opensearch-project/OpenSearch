@@ -46,6 +46,9 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.admin.indices.stats.ProtobufCommonStats;
+import org.opensearch.action.admin.indices.stats.ProtobufIndexShardStats;
+import org.opensearch.action.admin.indices.stats.ProtobufShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.client.Client;
@@ -113,14 +116,20 @@ import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
+import org.opensearch.index.flush.ProtobufFlushStats;
 import org.opensearch.index.get.GetStats;
+import org.opensearch.index.get.ProtobufGetStats;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.ProtobufMergeStats;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
+import org.opensearch.index.recovery.ProtobufRecoveryStats;
 import org.opensearch.index.recovery.RecoveryStats;
+import org.opensearch.index.refresh.ProtobufRefreshStats;
 import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.search.stats.ProtobufSearchStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -131,6 +140,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
+import org.opensearch.index.shard.ProtobufIndexingStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.translog.InternalTranslogFactory;
@@ -308,6 +318,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
+    private final ProtobufOldShardsStats protobufOldShardsStats = new ProtobufOldShardsStats();
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final IndexingMemoryController indexingMemoryController;
@@ -672,6 +683,38 @@ public class IndicesService extends AbstractLifecycleComponent
         return new NodeIndicesStats(commonStats, statsByShard(this, flags));
     }
 
+    public ProtobufNodeIndicesStats protobufStats(CommonStatsFlags flags) {
+        ProtobufCommonStats commonStats = new ProtobufCommonStats(flags);
+        // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
+        for (Flag flag : flags.getFlags()) {
+            switch (flag) {
+                case Get:
+                    commonStats.get.add(protobufOldShardsStats.getStats);
+                    break;
+                case Indexing:
+                    commonStats.indexing.add(protobufOldShardsStats.indexingStats);
+                    break;
+                case Search:
+                    commonStats.search.add(protobufOldShardsStats.searchStats);
+                    break;
+                case Merge:
+                    commonStats.merge.add(protobufOldShardsStats.mergeStats);
+                    break;
+                case Refresh:
+                    commonStats.refresh.add(protobufOldShardsStats.refreshStats);
+                    break;
+                case Recovery:
+                    commonStats.recoveryStats.add(protobufOldShardsStats.recoveryStats);
+                    break;
+                case Flush:
+                    commonStats.flush.add(protobufOldShardsStats.flushStats);
+                    break;
+            }
+        }
+
+        return new ProtobufNodeIndicesStats(commonStats, statsByShardProtobuf(this, flags));
+    }
+
     Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
         final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
 
@@ -679,6 +722,37 @@ public class IndicesService extends AbstractLifecycleComponent
             for (final IndexShard indexShard : indexService) {
                 try {
                     final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags);
+
+                    if (indexShardStats == null) {
+                        continue;
+                    }
+
+                    if (statsByShard.containsKey(indexService.index()) == false) {
+                        statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));
+                    } else {
+                        statsByShard.get(indexService.index()).add(indexShardStats);
+                    }
+                } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
+                    // we can safely ignore illegal state on ones that are closing for example
+                    logger.trace(() -> new ParameterizedMessage("{} ignoring shard stats", indexShard.shardId()), e);
+                }
+            }
+        }
+
+        return statsByShard;
+    }
+
+    Map<Index, List<ProtobufIndexShardStats>> statsByShardProtobuf(final IndicesService indicesService, final CommonStatsFlags flags) {
+        final Map<Index, List<ProtobufIndexShardStats>> statsByShard = new HashMap<>();
+
+        for (final IndexService indexService : indicesService) {
+            for (final IndexShard indexShard : indexService) {
+                try {
+                    final ProtobufIndexShardStats indexShardStats = indicesService.indexShardStatsProtobuf(
+                        indicesService,
+                        indexShard,
+                        flags
+                    );
 
                     if (indexShardStats == null) {
                         continue;
@@ -725,6 +799,43 @@ public class IndicesService extends AbstractLifecycleComponent
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
                     new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                    commitStats,
+                    seqNoStats,
+                    retentionLeaseStats
+                ) }
+        );
+    }
+
+    ProtobufIndexShardStats indexShardStatsProtobuf(
+        final IndicesService indicesService,
+        final IndexShard indexShard,
+        final CommonStatsFlags flags
+    ) {
+        if (indexShard.routingEntry() == null) {
+            return null;
+        }
+
+        CommitStats commitStats;
+        SeqNoStats seqNoStats;
+        RetentionLeaseStats retentionLeaseStats;
+        try {
+            commitStats = indexShard.commitStats();
+            seqNoStats = indexShard.seqNoStats();
+            retentionLeaseStats = indexShard.getRetentionLeaseStats();
+        } catch (AlreadyClosedException e) {
+            // shard is closed - no stats is fine
+            commitStats = null;
+            seqNoStats = null;
+            retentionLeaseStats = null;
+        }
+
+        return new ProtobufIndexShardStats(
+            indexShard.shardId(),
+            new ProtobufShardStats[] {
+                new ProtobufShardStats(
+                    indexShard.routingEntry(),
+                    indexShard.shardPath(),
+                    new ProtobufCommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats
@@ -1154,6 +1265,36 @@ public class IndicesService extends AbstractLifecycleComponent
                 refreshStats.addTotals(indexShard.refreshStats());
                 flushStats.addTotals(indexShard.flushStats());
                 recoveryStats.addTotals(indexShard.recoveryStats());
+            }
+        }
+    }
+
+    /**
+     * Statistics for old shards
+     *
+     * @opensearch.internal
+     */
+    static class ProtobufOldShardsStats implements IndexEventListener {
+
+        final ProtobufSearchStats searchStats = new ProtobufSearchStats();
+        final ProtobufGetStats getStats = new ProtobufGetStats();
+        final ProtobufIndexingStats indexingStats = new ProtobufIndexingStats();
+        final ProtobufMergeStats mergeStats = new ProtobufMergeStats();
+        final ProtobufRefreshStats refreshStats = new ProtobufRefreshStats();
+        final ProtobufFlushStats flushStats = new ProtobufFlushStats();
+        final ProtobufRecoveryStats recoveryStats = new ProtobufRecoveryStats();
+
+        @Override
+        public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+            if (indexShard != null) {
+                getStats.addTotals(indexShard.getProtobufStats());
+                indexingStats.addTotals(indexShard.protobufIndexingStats());
+                // if this index was closed or deleted, we should eliminate the effect of the current scroll for this shard
+                searchStats.addTotalsForClosingShard(indexShard.protobufSearchStats());
+                mergeStats.addTotals(indexShard.protobufMergeStats());
+                refreshStats.addTotals(indexShard.protobufRefreshStats());
+                flushStats.addTotals(indexShard.protobufFlushStats());
+                recoveryStats.addTotals(indexShard.protobufRecoveryStats());
             }
         }
     }

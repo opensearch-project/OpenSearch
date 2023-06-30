@@ -14,7 +14,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.action.support.ContextPreservingActionListener;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -106,7 +106,7 @@ final class ProtobufRemoteClusterConnection implements Closeable {
     }
 
     /**
-     * Collects all nodes on the connected cluster and returns / passes a nodeID to {@link ProtobufDiscoveryNode} lookup function
+     * Collects all nodes on the connected cluster and returns / passes a nodeID to {@link DiscoveryNode} lookup function
     * that returns <code>null</code> if the node ID is not found.
     *
     * The requests to get cluster state on the connected cluster are made in the system context because logically
@@ -114,10 +114,10 @@ final class ProtobufRemoteClusterConnection implements Closeable {
     * user who made the request that is using this method in its implementation is authorized to view the entire
     * cluster state.
     */
-    void collectNodes(ActionListener<Function<String, ProtobufDiscoveryNode>> listener) {
+    void collectNodes(ActionListener<Function<String, DiscoveryNode>> listener) {
         Runnable runnable = () -> {
             final ThreadContext threadContext = threadPool.getThreadContext();
-            final ContextPreservingActionListener<Function<String, ProtobufDiscoveryNode>> contextPreservingActionListener =
+            final ContextPreservingActionListener<Function<String, DiscoveryNode>> contextPreservingActionListener =
                 new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 // we stash any context here since this is an internal execution and should not leak any existing context information
@@ -172,10 +172,10 @@ final class ProtobufRemoteClusterConnection implements Closeable {
     }
 
     /**
-     * Returns a connection to the remote cluster, preferably a direct connection to the provided {@link ProtobufDiscoveryNode}.
+     * Returns a connection to the remote cluster, preferably a direct connection to the provided {@link DiscoveryNode}.
     * If such node is not connected, the returned connection will be a proxy connection that redirects to it.
     */
-    Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode remoteClusterNode) {
+    Transport.ProtobufConnection getConnection(DiscoveryNode remoteClusterNode) {
         return remoteConnectionManager.getConnection(remoteClusterNode);
     }
 
@@ -197,7 +197,7 @@ final class ProtobufRemoteClusterConnection implements Closeable {
         return connectionStrategy.assertNoRunningConnections();
     }
 
-    boolean isNodeConnected(final ProtobufDiscoveryNode node) {
+    boolean isNodeConnected(final DiscoveryNode node) {
         return remoteConnectionManager.nodeConnected(node);
     }
 

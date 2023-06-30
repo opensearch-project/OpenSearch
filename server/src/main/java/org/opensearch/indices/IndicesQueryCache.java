@@ -49,6 +49,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.index.cache.query.ProtobufQueryCacheStats;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.shard.ShardId;
 
@@ -138,6 +139,35 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
             final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
             shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
+        }
+        return shardStats;
+    }
+
+    /** Get usage statistics for the given shard. */
+    public ProtobufQueryCacheStats getProtobufStats(ShardId shard) {
+        final Map<ShardId, ProtobufQueryCacheStats> stats = new HashMap<>();
+        for (Map.Entry<ShardId, Stats> entry : shardStats.entrySet()) {
+            stats.put(entry.getKey(), entry.getValue().toProtobufQueryCacheStats());
+        }
+        ProtobufQueryCacheStats shardStats = new ProtobufQueryCacheStats();
+        ProtobufQueryCacheStats info = stats.get(shard);
+        if (info == null) {
+            info = new ProtobufQueryCacheStats();
+        }
+        shardStats.add(info);
+
+        // We also have some shared ram usage that we try to distribute to
+        // proportionally to their number of cache entries of each shard
+        if (stats.isEmpty()) {
+            shardStats.add(new ProtobufQueryCacheStats(sharedRamBytesUsed, 0, 0, 0, 0));
+        } else {
+            long totalSize = 0;
+            for (ProtobufQueryCacheStats s : stats.values()) {
+                totalSize += s.getCacheSize();
+            }
+            final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
+            final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
+            shardStats.add(new ProtobufQueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
         }
         return shardStats;
     }
@@ -240,6 +270,10 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
         QueryCacheStats toQueryCacheStats() {
             return new QueryCacheStats(ramBytesUsed, hitCount, missCount, cacheCount, cacheSize);
+        }
+
+        ProtobufQueryCacheStats toProtobufQueryCacheStats() {
+            return new ProtobufQueryCacheStats(ramBytesUsed, hitCount, missCount, cacheCount, cacheSize);
         }
 
         @Override

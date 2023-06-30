@@ -295,7 +295,6 @@ import org.opensearch.client.node.ProtobufNodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProtobufIndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
@@ -545,9 +544,11 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.protobufIndexNameExpressionResolver = null;
-        this.protobufActionPlugins = new ArrayList<>();;
+        this.protobufActionPlugins = new ArrayList<>();
+        ;
         this.protobufActions = new HashMap<String, ProtobufActionPlugin.ActionHandler<?, ?>>();
-        this.protobufActionFilters = setupProtobufActionFilters(this.protobufActionPlugins);;
+        this.protobufActionFilters = setupProtobufActionFilters(this.protobufActionPlugins);
+        ;
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
@@ -646,7 +647,15 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList())
         );
 
-        restController = new RestController(headers, restWrapper, nodeClient, protobufRestWrapper, protobufNodeClient, circuitBreakerService, usageService);
+        restController = new RestController(
+            headers,
+            restWrapper,
+            nodeClient,
+            protobufRestWrapper,
+            protobufNodeClient,
+            circuitBreakerService,
+            usageService
+        );
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -1106,17 +1115,17 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new ProtobufRestNodesAction());
 
         // for (ActionPlugin plugin : actionPlugins) {
-        //     for (ProtobufActionPlugin handler : plugin.getRestHandlers(
-        //         settings,
-        //         restController,
-        //         clusterSettings,
-        //         indexScopedSettings,
-        //         settingsFilter,
-        //         indexNameExpressionResolver,
-        //         nodesInCluster
-        //     )) {
-        //         registerHandler.accept(handler);
-        //     }
+        // for (ProtobufActionPlugin handler : plugin.getRestHandlers(
+        // settings,
+        // restController,
+        // clusterSettings,
+        // indexScopedSettings,
+        // settingsFilter,
+        // indexNameExpressionResolver,
+        // nodesInCluster
+        // )) {
+        // registerHandler.accept(handler);
+        // }
         // }
         registerHandler.accept(new ProtobufRestCatAction(catActions));
     }
@@ -1172,7 +1181,6 @@ public class ActionModule extends AbstractModule {
 
         // register dynamic ActionType -> transportAction Map used by NodeClient
         bind(ProtobufDynamicActionRegistry.class).toInstance(protobufDynamicActionRegistry);
-
 
     }
 

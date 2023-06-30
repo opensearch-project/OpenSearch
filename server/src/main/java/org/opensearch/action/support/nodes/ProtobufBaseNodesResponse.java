@@ -17,7 +17,7 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.action.ProtobufFailedNodeException;
-import org.opensearch.cluster.ProtobufClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 
@@ -34,7 +34,7 @@ import java.util.Objects;
 */
 public abstract class ProtobufBaseNodesResponse<TNodeResponse extends ProtobufBaseNodeResponse> extends ProtobufActionResponse {
 
-    private ProtobufClusterName clusterName;
+    private ClusterName clusterName;
     private List<ProtobufFailedNodeException> failures;
     private List<TNodeResponse> nodes;
     private Map<String, TNodeResponse> nodesMap;
@@ -42,27 +42,23 @@ public abstract class ProtobufBaseNodesResponse<TNodeResponse extends ProtobufBa
     protected ProtobufBaseNodesResponse(CodedInputStream in) throws IOException {
         super(in);
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        clusterName = new ProtobufClusterName(in);
+        clusterName = new ClusterName(in);
         nodes = readNodesFrom(in);
         failures = protobufStreamInput.readList(ProtobufFailedNodeException::new);
     }
 
-    protected ProtobufBaseNodesResponse(
-        ProtobufClusterName clusterName,
-        List<TNodeResponse> nodes,
-        List<ProtobufFailedNodeException> failures
-    ) {
+    protected ProtobufBaseNodesResponse(ClusterName clusterName, List<TNodeResponse> nodes, List<ProtobufFailedNodeException> failures) {
         this.clusterName = Objects.requireNonNull(clusterName);
         this.failures = Objects.requireNonNull(failures);
         this.nodes = Objects.requireNonNull(nodes);
     }
 
     /**
-     * Get the {@link ProtobufClusterName} associated with all of the nodes.
+     * Get the {@link ClusterName} associated with all of the nodes.
     *
     * @return Never {@code null}.
     */
-    public ProtobufClusterName getClusterName() {
+    public ClusterName getClusterName() {
         return clusterName;
     }
 

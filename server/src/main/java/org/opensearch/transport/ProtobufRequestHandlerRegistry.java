@@ -74,7 +74,10 @@ public final class ProtobufRequestHandlerRegistry<Request extends ProtobufTransp
                 // );
                 // }
                 final TcpChannel tcpChannel = ((ProtobufTcpTransportChannel) channel).getChannel();
-                final Releasable stopTracking = taskManager.startProtobufTrackingCancellableChannelTask(tcpChannel, (ProtobufCancellableTask) task);
+                final Releasable stopTracking = taskManager.startProtobufTrackingCancellableChannelTask(
+                    tcpChannel,
+                    (ProtobufCancellableTask) task
+                );
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
             final ProtobufTaskTransportChannel taskTransportChannel = new ProtobufTaskTransportChannel(channel, unregisterTask);

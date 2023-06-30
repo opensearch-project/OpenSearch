@@ -42,6 +42,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalClusterUpdateTask;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ProtobufClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -52,6 +54,7 @@ import org.opensearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
@@ -80,6 +83,7 @@ import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.discovery.HandshakingTransportAddressConnector;
 import org.opensearch.discovery.PeerFinder;
+import org.opensearch.discovery.ProtobufDiscoveryStats;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.SeedHostsResolver;
 import org.opensearch.monitor.NodeHealthService;
@@ -850,14 +854,28 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .build();
+            ProtobufClusterState protobufInitialState = ProtobufClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+                .blocks(
+                    ClusterBlocks.builder()
+                        .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+                        .addGlobalBlock(noClusterManagerBlockService.getNoClusterManagerBlock())
+                )
+                .nodes(ProtobufDiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
+                .build();
             applierState = initialState;
             clusterApplier.setInitialState(initialState);
+            clusterApplier.setInitialProtobufState(protobufInitialState);
         }
     }
 
     @Override
     public DiscoveryStats stats() {
         return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats());
+    }
+
+    @Override
+    public ProtobufDiscoveryStats protobufStats() {
+        return new ProtobufDiscoveryStats(new ProtobufPendingClusterStateStats(0, 0, 0), publicationHandler.protobufStats());
     }
 
     @Override

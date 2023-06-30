@@ -97,6 +97,33 @@ public class FsProbe {
         return new FsInfo(System.currentTimeMillis(), ioStats, paths);
     }
 
+    public ProtobufFsInfo protobufStats(ProtobufFsInfo previous) throws IOException {
+        if (!nodeEnv.hasNodeFile()) {
+            return new ProtobufFsInfo(System.currentTimeMillis(), null, new ProtobufFsInfo.Path[0]);
+        }
+        NodePath[] dataLocations = nodeEnv.nodePaths();
+        ProtobufFsInfo.Path[] paths = new ProtobufFsInfo.Path[dataLocations.length];
+        for (int i = 0; i < dataLocations.length; i++) {
+            paths[i] = getProtobufFsInfo(dataLocations[i]);
+            if (fileCache != null && dataLocations[i].fileCacheReservedSize != ByteSizeValue.ZERO) {
+                paths[i].fileCacheReserved = adjustForHugeFilesystems(dataLocations[i].fileCacheReservedSize.getBytes());
+                paths[i].fileCacheUtilized = adjustForHugeFilesystems(fileCache.usage().usage());
+                paths[i].available -= (paths[i].fileCacheReserved - paths[i].fileCacheUtilized);
+            }
+        }
+        ProtobufFsInfo.IoStats ioStats = null;
+        if (Constants.LINUX) {
+            Set<Tuple<Integer, Integer>> devicesNumbers = new HashSet<>();
+            for (NodePath dataLocation : dataLocations) {
+                if (dataLocation.majorDeviceNumber != -1 && dataLocation.minorDeviceNumber != -1) {
+                    devicesNumbers.add(Tuple.tuple(dataLocation.majorDeviceNumber, dataLocation.minorDeviceNumber));
+                }
+            }
+            ioStats = protobufIoStats(devicesNumbers, previous);
+        }
+        return new ProtobufFsInfo(System.currentTimeMillis(), ioStats, paths);
+    }
+
     final FsInfo.IoStats ioStats(final Set<Tuple<Integer, Integer>> devicesNumbers, final FsInfo previous) {
         try {
             final Map<Tuple<Integer, Integer>, FsInfo.DeviceStats> deviceMap = new HashMap<>();
@@ -149,6 +176,58 @@ public class FsProbe {
         }
     }
 
+    final ProtobufFsInfo.IoStats protobufIoStats(final Set<Tuple<Integer, Integer>> devicesNumbers, final ProtobufFsInfo previous) {
+        try {
+            final Map<Tuple<Integer, Integer>, ProtobufFsInfo.DeviceStats> deviceMap = new HashMap<>();
+            if (previous != null && previous.getIoStats() != null && previous.getIoStats().devicesStats != null) {
+                for (int i = 0; i < previous.getIoStats().devicesStats.length; i++) {
+                    ProtobufFsInfo.DeviceStats deviceStats = previous.getIoStats().devicesStats[i];
+                    deviceMap.put(Tuple.tuple(deviceStats.majorDeviceNumber, deviceStats.minorDeviceNumber), deviceStats);
+                }
+            }
+
+            List<ProtobufFsInfo.DeviceStats> devicesStats = new ArrayList<>();
+
+            List<String> lines = readProcDiskStats();
+            if (!lines.isEmpty()) {
+                for (String line : lines) {
+                    String fields[] = line.trim().split("\\s+");
+                    final int majorDeviceNumber = Integer.parseInt(fields[0]);
+                    final int minorDeviceNumber = Integer.parseInt(fields[1]);
+                    if (!devicesNumbers.contains(Tuple.tuple(majorDeviceNumber, minorDeviceNumber))) {
+                        continue;
+                    }
+                    final String deviceName = fields[2];
+                    final long readsCompleted = Long.parseLong(fields[3]);
+                    final long sectorsRead = Long.parseLong(fields[5]);
+                    final long writesCompleted = Long.parseLong(fields[7]);
+                    final long sectorsWritten = Long.parseLong(fields[9]);
+                    final ProtobufFsInfo.DeviceStats deviceStats = new ProtobufFsInfo.DeviceStats(
+                        majorDeviceNumber,
+                        minorDeviceNumber,
+                        deviceName,
+                        readsCompleted,
+                        sectorsRead,
+                        writesCompleted,
+                        sectorsWritten,
+                        deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber))
+                    );
+                    devicesStats.add(deviceStats);
+                }
+            }
+
+            return new ProtobufFsInfo.IoStats(devicesStats.toArray(new ProtobufFsInfo.DeviceStats[0]));
+        } catch (Exception e) {
+            // do not fail Elasticsearch if something unexpected
+            // happens here
+            logger.debug(
+                () -> new ParameterizedMessage("unexpected exception processing /proc/diskstats for devices {}", devicesNumbers),
+                e
+            );
+            return null;
+        }
+    }
+
     @SuppressForbidden(reason = "read /proc/diskstats")
     List<String> readProcDiskStats() throws IOException {
         return Files.readAllLines(PathUtils.get("/proc/diskstats"));
@@ -168,6 +247,22 @@ public class FsProbe {
 
     public static FsInfo.Path getFSInfo(NodePath nodePath) throws IOException {
         FsInfo.Path fsPath = new FsInfo.Path();
+        fsPath.path = nodePath.path.toString();
+
+        // NOTE: we use already cached (on node startup) FileStore and spins
+        // since recomputing these once per second (default) could be costly,
+        // and they should not change:
+        fsPath.total = adjustForHugeFilesystems(nodePath.fileStore.getTotalSpace());
+        fsPath.free = adjustForHugeFilesystems(nodePath.fileStore.getUnallocatedSpace());
+        fsPath.available = adjustForHugeFilesystems(nodePath.fileStore.getUsableSpace());
+        fsPath.fileCacheReserved = adjustForHugeFilesystems(nodePath.fileCacheReservedSize.getBytes());
+        fsPath.type = nodePath.fileStore.type();
+        fsPath.mount = nodePath.fileStore.toString();
+        return fsPath;
+    }
+
+    public static ProtobufFsInfo.Path getProtobufFsInfo(NodePath nodePath) throws IOException {
+        ProtobufFsInfo.Path fsPath = new ProtobufFsInfo.Path();
         fsPath.path = nodePath.path.toString();
 
         // NOTE: we use already cached (on node startup) FileStore and spins

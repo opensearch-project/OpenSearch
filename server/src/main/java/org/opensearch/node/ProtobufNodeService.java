@@ -8,13 +8,12 @@
 
 package org.opensearch.node;
 
-import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.ProtobufNodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodeStats;
-import org.opensearch.action.admin.indices.stats.ProtobufCommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -27,7 +26,7 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.ingest.IngestService;
-import org.opensearch.monitor.MonitorService;
+import org.opensearch.monitor.ProtobufMonitorService;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
@@ -48,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 public class ProtobufNodeService implements Closeable {
     private final Settings settings;
     private final ThreadPool threadPool;
-    private final MonitorService monitorService;
+    private final ProtobufMonitorService monitorService;
     private final ProtobufTransportService transportService;
     private final IndicesService indicesService;
     private final PluginsService pluginService;
@@ -70,7 +69,7 @@ public class ProtobufNodeService implements Closeable {
     ProtobufNodeService(
         Settings settings,
         ThreadPool threadPool,
-        MonitorService monitorService,
+        ProtobufMonitorService monitorService,
         Discovery discovery,
         ProtobufTransportService transportService,
         IndicesService indicesService,
@@ -131,44 +130,44 @@ public class ProtobufNodeService implements Closeable {
         if (settings) {
             builder.setSettings(settingsFilter.filter(this.settings));
         }
-        // if (os) {
-        //     builder.setOs(monitorService.osService().info());
-        // }
-        // if (process) {
-        //     builder.setProcess(monitorService.processService().info());
-        // }
-        // if (jvm) {
-        //     builder.setJvm(monitorService.jvmService().info());
-        // }
+        if (os) {
+            builder.setOs(monitorService.osService().protobufInfo());
+        }
+        if (process) {
+            builder.setProcess(monitorService.processService().protobufInfo());
+        }
+        if (jvm) {
+            builder.setJvm(monitorService.jvmService().protobufInfo());
+        }
         if (threadPool) {
             builder.setThreadPool(this.threadPool.protobufInfo());
         }
         if (transport) {
             builder.setTransport(transportService.protobufInfo());
         }
-        // if (http && httpServerTransport != null) {
-        //     builder.setHttp(httpServerTransport.info());
-        // }
+        if (http && httpServerTransport != null) {
+            builder.setHttp(httpServerTransport.protobufInfo());
+        }
         // if (plugin && pluginService != null) {
-        //     builder.setPlugins(pluginService.info());
+        // builder.setPlugins(pluginService.info());
         // }
-        // if (ingest && ingestService != null) {
-        //     builder.setIngest(ingestService.info());
-        // }
-        // if (aggs && aggregationUsageService != null) {
-        //     builder.setAggsInfo(aggregationUsageService.info());
-        // }
+        if (ingest && ingestService != null) {
+            builder.setIngest(ingestService.protobufInfo());
+        }
+        if (aggs && aggregationUsageService != null) {
+            builder.setAggsInfo(aggregationUsageService.protobufInfo());
+        }
         if (indices) {
             builder.setTotalIndexingBuffer(indicesService.getTotalIndexingBufferBytes());
         }
-        // if (searchPipeline && searchPipelineService != null) {
-        //     builder.setSearchPipelineInfo(searchPipelineService.info());
-        // }
+        if (searchPipeline && searchPipelineService != null) {
+            builder.setProtobufSearchPipelineInfo(searchPipelineService.protobufInfo());
+        }
         return builder.build();
     }
 
     public ProtobufNodeStats stats(
-        ProtobufCommonStatsFlags indices,
+        CommonStatsFlags indices,
         boolean os,
         boolean process,
         boolean jvm,
@@ -194,19 +193,26 @@ public class ProtobufNodeService implements Closeable {
         return new ProtobufNodeStats(
             transportService.getLocalNode(),
             System.currentTimeMillis(),
-            null,
-            null,
-            null,
-            null,
+            indices.anySet() ? indicesService.protobufStats(indices) : null,
+            os ? monitorService.osService().stats() : null,
+            process ? monitorService.processService().stats() : null,
+            jvm ? monitorService.jvmService().stats() : null,
             threadPool ? this.threadPool.protobufStats() : null,
-            null,
+            fs ? monitorService.fsService().stats() : null,
             transport ? transportService.stats() : null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
+            http ? (httpServerTransport == null ? null : httpServerTransport.protobufStats()) : null,
+            circuitBreaker ? circuitBreakerService.protobufStats() : null,
+            script ? scriptService.protobufStats() : null,
+            discoveryStats ? discovery.protobufStats() : null,
+            ingest ? ingestService.protobufStats() : null,
+            adaptiveSelection ? responseCollectorService.getProtobufAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null
+            // scriptCache ? scriptService.cacheStats() : null,
+            // indexingPressure ? this.indexingPressureService.nodeStats() : null,
+            // shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
+            // searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
+            // clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
+            // weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
+            // fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null
         );
     }
 
@@ -214,7 +220,7 @@ public class ProtobufNodeService implements Closeable {
         return ingestService;
     }
 
-    public MonitorService getMonitorService() {
+    public ProtobufMonitorService getMonitorService() {
         return monitorService;
     }
 

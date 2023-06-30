@@ -63,4 +63,14 @@ public class NoneCircuitBreakerService extends CircuitBreakerService {
         return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
     }
 
+    @Override
+    public ProtobufAllCircuitBreakerStats protobufStats() {
+        return new ProtobufAllCircuitBreakerStats(new ProtobufCircuitBreakerStats[] { protobufStats(CircuitBreaker.FIELDDATA) });
+    }
+
+    @Override
+    public ProtobufCircuitBreakerStats protobufStats(String name) {
+        return new ProtobufCircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
+    }
+
 }

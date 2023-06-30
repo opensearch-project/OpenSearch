@@ -16,6 +16,7 @@ package org.opensearch.common.transport;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.common.network.InetAddresses;
 
 import java.io.IOException;
 
@@ -64,5 +65,28 @@ public class ProtobufBoundTransportAddress implements ProtobufWriteable {
             address.writeTo(out);
         }
         publishAddress.writeTo(out);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("publish_address {");
+        String hostString = publishAddress.address().getHostString();
+        String publishAddressString = publishAddress.toString();
+        if (InetAddresses.isInetAddress(hostString) == false) {
+            publishAddressString = hostString + '/' + publishAddress.toString();
+        }
+        builder.append(publishAddressString);
+        builder.append("}, bound_addresses ");
+        boolean firstAdded = false;
+        for (ProtobufTransportAddress address : boundAddresses) {
+            if (firstAdded) {
+                builder.append(", ");
+            } else {
+                firstAdded = true;
+            }
+
+            builder.append("{").append(address).append("}");
+        }
+        return builder.toString();
     }
 }

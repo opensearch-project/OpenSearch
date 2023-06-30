@@ -15,7 +15,7 @@ import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.client.ProtobufClient;
 import org.opensearch.client.support.ProtobufAbstractClient;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -30,12 +30,7 @@ final class ProtobufRemoteClusterAwareClient extends ProtobufAbstractClient {
     private final String clusterAlias;
     private final RemoteClusterService remoteClusterService;
 
-    ProtobufRemoteClusterAwareClient(
-        Settings settings,
-        ThreadPool threadPool,
-        ProtobufTransportService service,
-        String clusterAlias
-    ) {
+    ProtobufRemoteClusterAwareClient(Settings settings, ThreadPool threadPool, ProtobufTransportService service, String clusterAlias) {
         super(settings, threadPool);
         this.service = service;
         this.clusterAlias = clusterAlias;
@@ -50,8 +45,8 @@ final class ProtobufRemoteClusterAwareClient extends ProtobufAbstractClient {
     ) {
         remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(v -> {
             Transport.ProtobufConnection connection;
-            if (request instanceof ProtobufRemoteClusterAwareRequest) {
-                ProtobufDiscoveryNode preferredTargetNode = ((ProtobufRemoteClusterAwareRequest) request).getPreferredTargetNode();
+            if (request instanceof RemoteClusterAwareRequest) {
+                DiscoveryNode preferredTargetNode = ((RemoteClusterAwareRequest) request).getPreferredTargetNode();
                 connection = remoteClusterService.getConnectionProtobuf(preferredTargetNode, clusterAlias);
             } else {
                 connection = remoteClusterService.getConnectionProtobuf(clusterAlias);

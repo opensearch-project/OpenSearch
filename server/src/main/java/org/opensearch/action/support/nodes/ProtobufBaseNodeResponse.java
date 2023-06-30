@@ -15,7 +15,7 @@ package org.opensearch.action.support.nodes;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.transport.ProtobufTransportResponse;
 
 import java.io.IOException;
@@ -27,14 +27,14 @@ import java.io.IOException;
 */
 public abstract class ProtobufBaseNodeResponse extends ProtobufTransportResponse {
 
-    private ProtobufDiscoveryNode node;
+    private DiscoveryNode node;
 
     protected ProtobufBaseNodeResponse(CodedInputStream in) throws IOException {
         super(in);
-        node = new ProtobufDiscoveryNode(in);
+        node = new DiscoveryNode(in);
     }
 
-    protected ProtobufBaseNodeResponse(ProtobufDiscoveryNode node) {
+    protected ProtobufBaseNodeResponse(DiscoveryNode node) {
         assert node != null;
         this.node = node;
     }
@@ -42,7 +42,7 @@ public abstract class ProtobufBaseNodeResponse extends ProtobufTransportResponse
     /**
      * The node this information relates to.
     */
-    public ProtobufDiscoveryNode getNode() {
+    public DiscoveryNode getNode() {
         return node;
     }
 

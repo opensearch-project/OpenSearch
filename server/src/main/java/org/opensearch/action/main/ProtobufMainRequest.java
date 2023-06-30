@@ -11,7 +11,6 @@ package org.opensearch.action.main;
 import com.google.protobuf.CodedInputStream;
 import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
