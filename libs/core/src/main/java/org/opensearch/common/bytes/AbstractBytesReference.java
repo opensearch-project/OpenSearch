@@ -33,6 +33,7 @@ package org.opensearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -49,6 +50,7 @@ import java.util.function.ToIntBiFunction;
 public abstract class AbstractBytesReference implements BytesReference {
 
     private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
+    private static final int MAX_UTF16_LENGTH = Integer.MAX_VALUE >> 1;
 
     @Override
     public int getInt(int index) {
@@ -80,9 +82,19 @@ public abstract class AbstractBytesReference implements BytesReference {
         }
     }
 
+    protected int getMaxUTF16Length() {
+        return MAX_UTF16_LENGTH;
+    }
+
     @Override
     public String utf8ToString() {
-        return toBytesRef().utf8ToString();
+        BytesRef bytesRef = toBytesRef();
+        final char[] ref = new char[bytesRef.length];
+        final int len = UnicodeUtil.UTF8toUTF16(bytesRef, ref);
+        if (len > getMaxUTF16Length()) {
+            throw new IllegalArgumentException("UTF16 String size is " + len + ", should be less than " + getMaxUTF16Length());
+        }
+        return new String(ref, 0, len);
     }
 
     @Override

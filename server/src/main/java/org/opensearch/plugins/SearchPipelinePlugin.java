@@ -16,6 +16,7 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.search.pipeline.SearchPhaseResultsProcessor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 import org.opensearch.threadpool.Scheduler;
@@ -51,6 +52,17 @@ public interface SearchPipelinePlugin {
      * to create the processor from a given pipeline configuration.
      */
     default Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Parameters parameters) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns additional search pipeline search phase results processor types added by this plugin.
+     *
+     * The key of the returned {@link Map} is the unique name for the processor which is specified
+     * in pipeline configurations, and the value is a {@link org.opensearch.search.pipeline.Processor.Factory}
+     * to create the processor from a given pipeline configuration.
+     */
+    default Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(Processor.Parameters parameters) {
         return Collections.emptyMap();
     }
 
@@ -124,4 +136,6 @@ public interface SearchPipelinePlugin {
         }
 
     }
+
+
 }

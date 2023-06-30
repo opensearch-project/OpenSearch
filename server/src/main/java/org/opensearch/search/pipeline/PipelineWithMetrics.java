@@ -43,12 +43,22 @@ class PipelineWithMetrics extends Pipeline {
         Integer version,
         List<SearchRequestProcessor> requestProcessors,
         List<SearchResponseProcessor> responseProcessors,
+        List<SearchPhaseResultsProcessor> phaseResultsProcessors,
         NamedWriteableRegistry namedWriteableRegistry,
         OperationMetrics totalRequestMetrics,
         OperationMetrics totalResponseMetrics,
         LongSupplier relativeTimeSupplier
     ) {
-        super(id, description, version, requestProcessors, responseProcessors, namedWriteableRegistry, relativeTimeSupplier);
+        super(
+            id,
+            description,
+            version,
+            requestProcessors,
+            responseProcessors,
+            phaseResultsProcessors,
+            namedWriteableRegistry,
+            relativeTimeSupplier
+        );
         this.totalRequestMetrics = totalRequestMetrics;
         this.totalResponseMetrics = totalResponseMetrics;
         for (Processor requestProcessor : getSearchRequestProcessors()) {
@@ -64,6 +74,7 @@ class PipelineWithMetrics extends Pipeline {
         Map<String, Object> config,
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories,
         Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories,
+        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseResultsProcessorFactories,
         NamedWriteableRegistry namedWriteableRegistry,
         OperationMetrics totalRequestProcessingMetrics,
         OperationMetrics totalResponseProcessingMetrics,
@@ -88,6 +99,17 @@ class PipelineWithMetrics extends Pipeline {
             responseProcessorConfigs,
             pipelineContext
         );
+        List<SearchResponseProcessor> responseProcessors = readProcessors(responseProcessorFactories, responseProcessorConfigs);
+        List<Map<String, Object>> phaseResultsProcessorConfigs = ConfigurationUtils.readOptionalList(
+            null,
+            null,
+            config,
+            PHASE_PROCESSORS_KEY
+        );
+        List<SearchPhaseResultsProcessor> phaseResultsProcessors = readProcessors(
+            phaseResultsProcessorFactories,
+            phaseResultsProcessorConfigs
+        );
         if (config.isEmpty() == false) {
             throw new OpenSearchParseException(
                 "pipeline ["
@@ -102,6 +124,7 @@ class PipelineWithMetrics extends Pipeline {
             version,
             requestProcessors,
             responseProcessors,
+            phaseResultsProcessors,
             namedWriteableRegistry,
             totalRequestProcessingMetrics,
             totalResponseProcessingMetrics,
