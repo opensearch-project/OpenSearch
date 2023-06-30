@@ -94,7 +94,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     ) {
         // We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super(
-            "can_match",
+            SearchPhaseName.CAN_MATCH.getName(),
             logger,
             searchTransportService,
             nodeIdToConnection,

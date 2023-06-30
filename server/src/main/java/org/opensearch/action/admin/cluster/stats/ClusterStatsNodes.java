@@ -40,6 +40,7 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
@@ -800,18 +801,18 @@ public class ClusterStatsNodes implements ToXContentFragment {
                         pipelineIds.add(processorStats.getKey());
                         for (org.opensearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
                             stats.compute(stat.getType(), (k, v) -> {
-                                org.opensearch.ingest.IngestStats.Stats nodeIngestStats = stat.getStats();
+                                OperationStats nodeIngestStats = stat.getStats();
                                 if (v == null) {
                                     return new long[] {
-                                        nodeIngestStats.getIngestCount(),
-                                        nodeIngestStats.getIngestFailedCount(),
-                                        nodeIngestStats.getIngestCurrent(),
-                                        nodeIngestStats.getIngestTimeInMillis() };
+                                        nodeIngestStats.getCount(),
+                                        nodeIngestStats.getFailedCount(),
+                                        nodeIngestStats.getCurrent(),
+                                        nodeIngestStats.getTotalTimeInMillis() };
                                 } else {
-                                    v[0] += nodeIngestStats.getIngestCount();
-                                    v[1] += nodeIngestStats.getIngestFailedCount();
-                                    v[2] += nodeIngestStats.getIngestCurrent();
-                                    v[3] += nodeIngestStats.getIngestTimeInMillis();
+                                    v[0] += nodeIngestStats.getCount();
+                                    v[1] += nodeIngestStats.getFailedCount();
+                                    v[2] += nodeIngestStats.getCurrent();
+                                    v[3] += nodeIngestStats.getTotalTimeInMillis();
                                     return v;
                                 }
                             });
