@@ -91,7 +91,7 @@ public class NamedRoute extends RestHandler.Route {
         }
     }
 
-    public NamedRoute(Builder builder) {
+    private NamedRoute(Builder builder) {
         super(builder.method, builder.path);
         if (!isValidRouteName(builder.uniqueName)) {
             throw new OpenSearchException(
