@@ -11,6 +11,8 @@ package org.opensearch.rest;
 import org.opensearch.OpenSearchException;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.function.Function;
+
 import static org.opensearch.rest.NamedRoute.MAX_LENGTH_OF_ACTION_NAME;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
@@ -89,9 +91,26 @@ public class NamedRouteTests extends OpenSearchTestCase {
     public void testNamedRouteWithValidActionNameWithUnderscore() {
         try {
             NamedRoute r = new NamedRoute.Builder().method(GET).path("foo/bar").uniqueName("foo:bar_baz").build();
-            ;
         } catch (OpenSearchException e) {
             fail("Did not expect NamedRoute to throw exception on valid action name");
+        }
+    }
+
+    public void testNamedRouteWithHandler() {
+        Function<RestRequest, RestResponse> fooHandler = restRequest -> null;
+        try {
+            NamedRoute r = new NamedRoute.Builder().method(GET).path("foo/bar").uniqueName("foo:bar_baz").handler(fooHandler).build();
+        } catch (OpenSearchException e) {
+            fail("Did not expect NamedRoute to throw exception");
+        }
+    }
+
+    public void testNamedRouteWithNullHandler() {
+        try {
+            NamedRoute r = new NamedRoute.Builder().method(GET).path("foo/bar").uniqueName("foo:bar_baz").handler(null).build();
+            fail("Expected NamedRoute to throw exception as handler should not be null");
+        } catch (OpenSearchException e) {
+            assertEquals("Route handler must not be null.", e.getMessage());
         }
     }
 }

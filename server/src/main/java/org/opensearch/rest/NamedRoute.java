@@ -91,6 +91,9 @@ public class NamedRoute extends RestHandler.Route {
          * @return the builder instance
          */
         public Builder handler(Function<RestRequest, RestResponse> handler) {
+            if (handler == null) {
+                throw new OpenSearchException("Route handler must not be null.");
+            }
             this.handler = handler;
             return this;
         }
@@ -118,6 +121,7 @@ public class NamedRoute extends RestHandler.Route {
         }
         this.uniqueName = builder.uniqueName;
         this.actionNames = validateLegacyActionNames(builder.legacyActionNames);
+        this.handler = builder.handler;
     }
 
     public boolean isValidRouteName(String routeName) {
