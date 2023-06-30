@@ -1,5 +1,8 @@
 ---
 "Empty aggs Body":
+  - skip:
+      version: "- 2.8.99"
+      reason: "the fix was introduced in 2.9.0"
   - do:
       index:
         index: test
