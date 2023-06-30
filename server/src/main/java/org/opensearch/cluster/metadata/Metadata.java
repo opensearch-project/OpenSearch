@@ -55,7 +55,6 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
@@ -1429,7 +1428,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Metadata build() {
-            TimeValue buildStartTime = TimeValue.timeValueMillis(System.nanoTime());
             DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
             DataStreamMetadata previousDataStreamMetadata = (previousMetadata != null)
                 ? (DataStreamMetadata) this.previousMetadata.customs.get(DataStreamMetadata.TYPE)
@@ -1439,23 +1437,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 || (indices.equals(previousMetadata.indices) == false)
                 || (previousDataStreamMetadata != null && previousDataStreamMetadata.equals(dataStreamMetadata) == false)
                 || (dataStreamMetadata != null && dataStreamMetadata.equals(previousDataStreamMetadata) == false);
-            TimeValue recomputeEndTime = TimeValue.timeValueMillis(System.nanoTime());
-            logger.info(
-                "Recompute required: {}, time taken for comparing indices: {} ms",
-                recomputeRequired,
-                (recomputeEndTime.getNanos() - buildStartTime.getNanos()) / 1000000L
-            );
 
-            Metadata metadata = (recomputeRequired == false)
-                ? buildMetadataWithPreviousIndicesLookups()
-                : buildMetadataWithRecomputedIndicesLookups();
-            TimeValue endBuildTime = TimeValue.timeValueMillis(System.nanoTime());
-            // Logging for testing only - will remove in future iterations
-            logger.info("built metadata in {} ms", (endBuildTime.millis() - buildStartTime.millis()) / 1000000L);
-            return metadata;
+            return (recomputeRequired == false) ? buildMetadataWithPreviousIndicesLookups() : buildMetadataWithRecomputedIndicesLookups();
         }
 
-        private Metadata buildMetadataWithPreviousIndicesLookups() {
+        protected Metadata buildMetadataWithPreviousIndicesLookups() {
             return new Metadata(
                 clusterUUID,
                 clusterUUIDCommitted,
@@ -1473,11 +1459,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 Arrays.copyOf(previousMetadata.visibleOpenIndices, previousMetadata.visibleOpenIndices.length),
                 Arrays.copyOf(previousMetadata.allClosedIndices, previousMetadata.allClosedIndices.length),
                 Arrays.copyOf(previousMetadata.visibleClosedIndices, previousMetadata.visibleClosedIndices.length),
-                new TreeMap<>(previousMetadata.indicesLookup)
+                Collections.unmodifiableSortedMap(previousMetadata.indicesLookup)
             );
         }
 
-        private Metadata buildMetadataWithRecomputedIndicesLookups() {
+        protected Metadata buildMetadataWithRecomputedIndicesLookups() {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             // while these datastructures aren't even used.
@@ -1564,15 +1550,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 );
             }
 
-            TimeValue startTime = TimeValue.timeValueNanos(System.nanoTime());
             SortedMap<String, IndexAbstraction> indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup());
-            TimeValue endTime = TimeValue.timeValueNanos(System.nanoTime());
-            // Logging for testing only - will remove in future iterations
-            logger.debug(
-                "rebuilt indicesLookupMap in {} ms, {} entries",
-                (endTime.nanos() - startTime.nanos()) / 1000000L,
-                indicesLookup.size()
-            );
 
             validateDataStreams(indicesLookup, (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE));
 
