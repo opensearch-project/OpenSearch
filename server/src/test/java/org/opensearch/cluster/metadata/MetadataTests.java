@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.cluster.ClusterModule;
@@ -78,6 +77,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class MetadataTests extends OpenSearchTestCase {
 
@@ -1367,52 +1370,59 @@ public class MetadataTests extends OpenSearchTestCase {
     }
 
     public void testMetadataBuildInvocations() {
-        Metadata previousMetadata = randomMetadata();
-        Metadata.Builder spyBuilder = Mockito.spy(Metadata.builder());
+        final Metadata previousMetadata = randomMetadata();
+        Metadata builtMetadata;
+        Metadata.Builder spyBuilder;
 
         // previous Metadata state was not provided to Builder during assignment - indices lookups should get re-computed
-        spyBuilder.build();
-        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithRecomputedIndicesLookups();
-        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithPreviousIndicesLookups();
+        spyBuilder = spy(Metadata.builder());
+        builtMetadata = spyBuilder.build();
+        verify(spyBuilder, times(1)).buildMetadataWithRecomputedIndicesLookups();
+        verify(spyBuilder, times(0)).buildMetadataWithPreviousIndicesLookups();
+        compareMetadata(Metadata.EMPTY_METADATA, builtMetadata, true, true, false);
 
         // no changes in builder method after initialization from previous Metadata - indices lookups should not be re-computed
-        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
-        spyBuilder.build();
-        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithRecomputedIndicesLookups();
-        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithPreviousIndicesLookups();
-        Mockito.reset(spyBuilder);
+        spyBuilder = spy(Metadata.builder(previousMetadata));
+        builtMetadata = spyBuilder.version(previousMetadata.version() + 1).build();
+        verify(spyBuilder, times(0)).buildMetadataWithRecomputedIndicesLookups();
+        verify(spyBuilder, times(1)).buildMetadataWithPreviousIndicesLookups();
+        compareMetadata(previousMetadata, builtMetadata, true, true, true);
+        reset(spyBuilder);
 
-        // Adding new index - all indices lookups should get re-computed
-        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
-        String index = "new-index";
-        spyBuilder.indices(
+        // adding new index - all indices lookups should get re-computed
+        spyBuilder = spy(Metadata.builder(previousMetadata));
+        String index = "new_index_" + randomAlphaOfLength(3);
+        builtMetadata = spyBuilder.indices(
             Collections.singletonMap(
                 index,
                 IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build()
             )
         ).build();
-        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithRecomputedIndicesLookups();
-        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithPreviousIndicesLookups();
-        Mockito.reset(spyBuilder);
+        verify(spyBuilder, times(1)).buildMetadataWithRecomputedIndicesLookups();
+        verify(spyBuilder, times(0)).buildMetadataWithPreviousIndicesLookups();
+        compareMetadata(previousMetadata, builtMetadata, false, true, false);
+        reset(spyBuilder);
 
-        // Adding new templates - indices lookups should not get recomputed
-        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
-        spyBuilder.put("component_template_new_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
+        // adding new templates - indices lookups should not get recomputed
+        spyBuilder = spy(Metadata.builder(previousMetadata));
+        builtMetadata = spyBuilder.put("component_template_new_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
             .put("index_template_v2_new_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance())
             .build();
-        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithRecomputedIndicesLookups();
-        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithPreviousIndicesLookups();
-        Mockito.reset(spyBuilder);
+        verify(spyBuilder, times(0)).buildMetadataWithRecomputedIndicesLookups();
+        verify(spyBuilder, times(1)).buildMetadataWithPreviousIndicesLookups();
+        compareMetadata(previousMetadata, builtMetadata, true, false, false);
+        reset(spyBuilder);
 
-        // Adding new data-stream - indices lookups should get re-computed
-        spyBuilder = Mockito.spy(Metadata.builder(previousMetadata));
+        // adding new data stream - indices lookups should get re-computed
+        spyBuilder = spy(Metadata.builder(previousMetadata));
         DataStream dataStream = DataStreamTests.randomInstance();
         for (Index backingIndex : dataStream.getIndices()) {
             spyBuilder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(backingIndex));
         }
-        spyBuilder.put(dataStream).build();
-        Mockito.verify(spyBuilder, Mockito.times(1)).buildMetadataWithRecomputedIndicesLookups();
-        Mockito.verify(spyBuilder, Mockito.times(0)).buildMetadataWithPreviousIndicesLookups();
+        builtMetadata = spyBuilder.put(dataStream).version(previousMetadata.version() + 1).build();
+        verify(spyBuilder, times(1)).buildMetadataWithRecomputedIndicesLookups();
+        verify(spyBuilder, times(0)).buildMetadataWithPreviousIndicesLookups();
+        compareMetadata(previousMetadata, builtMetadata, false, true, true);
     }
 
     public static Metadata randomMetadata() {
@@ -1484,6 +1494,44 @@ public class MetadataTests extends OpenSearchTestCase {
             this.indices = indices;
             this.backingIndices = backingIndices;
             this.metadata = metadata;
+        }
+    }
+
+    private static void compareMetadata(
+        final Metadata previousMetadata,
+        final Metadata newMetadata,
+        final boolean compareIndicesLookups,
+        final boolean compareTemplates,
+        final boolean checkVersionIncrement
+    ) {
+        assertEquals(previousMetadata.clusterUUID(), newMetadata.clusterUUID());
+        assertEquals(previousMetadata.clusterUUIDCommitted(), newMetadata.clusterUUIDCommitted());
+        assertEquals(previousMetadata.coordinationMetadata(), newMetadata.coordinationMetadata());
+        assertEquals(previousMetadata.settings(), newMetadata.settings());
+        assertEquals(previousMetadata.transientSettings(), newMetadata.transientSettings());
+        assertEquals(previousMetadata.persistentSettings(), newMetadata.persistentSettings());
+        assertEquals(previousMetadata.hashesOfConsistentSettings(), newMetadata.hashesOfConsistentSettings());
+
+        if (compareIndicesLookups == true) {
+            assertEquals(previousMetadata.indices(), newMetadata.indices());
+            assertEquals(previousMetadata.getConcreteAllIndices(), newMetadata.getConcreteAllIndices());
+            assertEquals(previousMetadata.getConcreteAllClosedIndices(), newMetadata.getConcreteAllClosedIndices());
+            assertEquals(previousMetadata.getConcreteAllOpenIndices(), newMetadata.getConcreteAllOpenIndices());
+            assertEquals(previousMetadata.getConcreteVisibleIndices(), newMetadata.getConcreteVisibleIndices());
+            assertEquals(previousMetadata.getConcreteVisibleClosedIndices(), newMetadata.getConcreteVisibleClosedIndices());
+            assertEquals(previousMetadata.getConcreteVisibleOpenIndices(), newMetadata.getConcreteVisibleOpenIndices());
+            assertEquals(previousMetadata.getIndicesLookup(), newMetadata.getIndicesLookup());
+            assertEquals(previousMetadata.getCustoms(), newMetadata.getCustoms());
+        }
+
+        if (compareTemplates == true) {
+            assertEquals(previousMetadata.templates(), newMetadata.templates());
+            assertEquals(previousMetadata.templatesV2(), newMetadata.templatesV2());
+            assertEquals(previousMetadata.componentTemplates(), newMetadata.componentTemplates());
+        }
+
+        if (checkVersionIncrement == true) {
+            assertEquals(previousMetadata.version() + 1, newMetadata.version());
         }
     }
 }
