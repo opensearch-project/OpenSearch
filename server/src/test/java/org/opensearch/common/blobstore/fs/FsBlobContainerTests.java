@@ -34,6 +34,8 @@ package org.opensearch.common.blobstore.fs;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
@@ -54,10 +56,13 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,6 +121,62 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
     public void testIsTempBlobName() {
         final String tempBlobName = FsBlobContainer.tempBlobName(randomAlphaOfLengthBetween(1, 20));
         assertThat(FsBlobContainer.isTempBlobName(tempBlobName), is(true));
+    }
+
+    private void testListBlobsByPrefixInLexicographicOrder(int limit) throws IOException {
+
+        final Path path = PathUtils.get(createTempDir().toString());
+
+        List<String> blobsInFileSystem = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+            final byte[] blobData = randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
+            Files.write(path.resolve(blobName), blobData);
+            blobsInFileSystem.add(blobName);
+        }
+        blobsInFileSystem.sort(String::compareTo);
+
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.cleanPath(),
+            path
+        );
+
+        container.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<List<BlobMetadata>>() {
+            @Override
+            public void onResponse(List<BlobMetadata> blobMetadata) {
+                int actualLimit = Math.max(0, Math.min(limit, 10));
+                assertEquals(actualLimit, blobMetadata.size());
+
+                List<String> keys = blobsInFileSystem.subList(0, actualLimit);
+                assertEquals(keys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("blobContainer.listBlobsByPrefixInLexicographicOrder failed with exception: " + e.getMessage());
+            }
+        });
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithNegativeLimit() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(-5);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithZeroLimit() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(0);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitLessThanNumberOfRecords() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(8);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitNumberOfRecords() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(10);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(12);
     }
 
     static class MockFileSystemProvider extends FilterFileSystemProvider {

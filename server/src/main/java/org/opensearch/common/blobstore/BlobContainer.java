@@ -196,8 +196,7 @@ public interface BlobContainer {
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 
-    default void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener)
-        throws IOException {
+    default void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) {
         try {
             List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
             blobNames.sort(Comparator.comparing(BlobMetadata::name));
