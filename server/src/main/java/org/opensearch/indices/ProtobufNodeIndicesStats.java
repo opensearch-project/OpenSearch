@@ -10,11 +10,15 @@ package org.opensearch.indices;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+
+import org.opensearch.action.admin.indices.stats.ProtobufIndexShardStats;
 import org.opensearch.action.admin.indices.stats.ProtobufCommonStats;
+import org.opensearch.action.admin.indices.stats.ProtobufShardStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.Index;
 import org.opensearch.index.cache.query.ProtobufQueryCacheStats;
 import org.opensearch.index.cache.request.ProtobufRequestCacheStats;
 import org.opensearch.index.engine.ProtobufSegmentsStats;
@@ -33,6 +37,8 @@ import org.opensearch.index.warmer.ProtobufWarmerStats;
 import org.opensearch.search.suggest.completion.ProtobufCompletionStats;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Global information on indices stats running on a specific node.
@@ -42,14 +48,25 @@ import java.io.IOException;
 public class ProtobufNodeIndicesStats implements ProtobufWriteable, ToXContentFragment {
 
     private ProtobufCommonStats stats;
+    private Map<Index, List<ProtobufIndexShardStats>> statsByShard;
 
     public ProtobufNodeIndicesStats(CodedInputStream in) throws IOException {
         stats = new ProtobufCommonStats(in);
     }
 
-    public ProtobufNodeIndicesStats(ProtobufCommonStats oldStats) {
+    public ProtobufNodeIndicesStats(ProtobufCommonStats oldStats, Map<Index, List<ProtobufIndexShardStats>> statsByShard) {
+        // this.stats = stats;
+        this.statsByShard = statsByShard;
+
         // make a total common stats from old ones and current ones
         this.stats = oldStats;
+        for (List<ProtobufIndexShardStats> shardStatsList : statsByShard.values()) {
+            for (ProtobufIndexShardStats indexShardStats : shardStatsList) {
+                for (ProtobufShardStats shardStats : indexShardStats.getShards()) {
+                    stats.add(shardStats.getStats());
+                }
+            }
+        }
     }
 
     @Nullable

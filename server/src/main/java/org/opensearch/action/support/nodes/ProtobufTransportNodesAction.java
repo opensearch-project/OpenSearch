@@ -16,9 +16,8 @@ import org.opensearch.action.ProtobufFailedNodeException;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.ProtobufHandledTransportAction;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.threadpool.ThreadPool;
@@ -165,7 +164,11 @@ public abstract class ProtobufTransportNodesAction<
     * @return Never {@code null}.
     * @throws NullPointerException if any parameter is {@code null}.
     */
-    protected abstract NodesResponse newResponse(NodesRequest request, List<NodeResponse> responses, List<ProtobufFailedNodeException> failures);
+    protected abstract NodesResponse newResponse(
+        NodesRequest request,
+        List<NodeResponse> responses,
+        List<ProtobufFailedNodeException> failures
+    );
 
     protected abstract NodeRequest newNodeRequest(NodesRequest request);
 
@@ -183,13 +186,13 @@ public abstract class ProtobufTransportNodesAction<
     protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
         String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
-        request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(ProtobufDiscoveryNode[]::new));
+        request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
     }
 
     /**
      * Get a backwards compatible transport action name
     */
-    protected String getTransportNodeAction(ProtobufDiscoveryNode node) {
+    protected String getTransportNodeAction(DiscoveryNode node) {
         return transportNodeAction;
     }
 
@@ -218,7 +221,7 @@ public abstract class ProtobufTransportNodesAction<
         }
 
         void start() {
-            final ProtobufDiscoveryNode[] nodes = request.concreteNodes();
+            final DiscoveryNode[] nodes = request.concreteNodes();
             if (nodes.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
@@ -230,7 +233,7 @@ public abstract class ProtobufTransportNodesAction<
             }
             for (int i = 0; i < nodes.length; i++) {
                 final int idx = i;
-                final ProtobufDiscoveryNode node = nodes[i];
+                final DiscoveryNode node = nodes[i];
                 final String nodeId = node.getId();
                 try {
                     ProtobufTransportRequest nodeRequest = newNodeRequest(request);

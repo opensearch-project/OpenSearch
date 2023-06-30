@@ -10,7 +10,7 @@ package org.opensearch.transport;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.threadpool.ThreadPool;
@@ -53,7 +53,7 @@ public final class ProtobufTransportActionProxy {
 
         @Override
         public void messageReceived(T request, ProtobufTransportChannel channel, ProtobufTask task) throws Exception {
-            ProtobufDiscoveryNode targetNode = request.targetNode;
+            DiscoveryNode targetNode = request.targetNode;
             ProtobufTransportRequest wrappedRequest = request.wrapped;
             service.sendRequest(
                 targetNode,
@@ -115,16 +115,16 @@ public final class ProtobufTransportActionProxy {
     */
     static class ProxyRequest<T extends ProtobufTransportRequest> extends ProtobufTransportRequest {
         final T wrapped;
-        final ProtobufDiscoveryNode targetNode;
+        final DiscoveryNode targetNode;
 
-        ProxyRequest(T wrapped, ProtobufDiscoveryNode targetNode) {
+        ProxyRequest(T wrapped, DiscoveryNode targetNode) {
             this.wrapped = wrapped;
             this.targetNode = targetNode;
         }
 
         ProxyRequest(CodedInputStream in, ProtobufWriteable.Reader<T> reader) throws IOException {
             super(in);
-            targetNode = new ProtobufDiscoveryNode(in);
+            targetNode = new DiscoveryNode(in);
             wrapped = reader.read(in);
         }
 
@@ -188,7 +188,7 @@ public final class ProtobufTransportActionProxy {
     /**
      * Wraps the actual request in a proxy request object that encodes the target node.
     */
-    public static ProtobufTransportRequest wrapRequest(ProtobufDiscoveryNode node, ProtobufTransportRequest request) {
+    public static ProtobufTransportRequest wrapRequest(DiscoveryNode node, ProtobufTransportRequest request) {
         return new ProxyRequest<>(request, node);
     }
 

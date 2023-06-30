@@ -147,10 +147,20 @@ public class ProcessProbe {
         return new ProcessInfo(jvmInfo().pid(), BootstrapInfo.isMemoryLocked(), refreshInterval);
     }
 
+    public ProtobufProcessInfo protobufProcessInfo(long refreshInterval) {
+        return new ProtobufProcessInfo(jvmInfo().pid(), BootstrapInfo.isMemoryLocked(), refreshInterval);
+    }
+
     public ProcessStats processStats() {
         ProcessStats.Cpu cpu = new ProcessStats.Cpu(getProcessCpuPercent(), getProcessCpuTotalTime());
         ProcessStats.Mem mem = new ProcessStats.Mem(getTotalVirtualMemorySize());
         return new ProcessStats(System.currentTimeMillis(), getOpenFileDescriptorCount(), getMaxFileDescriptorCount(), cpu, mem);
+    }
+
+    public ProtobufProcessStats processProtobufStats() {
+        ProtobufProcessStats.Cpu cpu = new ProtobufProcessStats.Cpu(getProcessCpuPercent(), getProcessCpuTotalTime());
+        ProtobufProcessStats.Mem mem = new ProtobufProcessStats.Mem(getTotalVirtualMemorySize());
+        return new ProtobufProcessStats(System.currentTimeMillis(), getOpenFileDescriptorCount(), getMaxFileDescriptorCount(), cpu, mem);
     }
 
     /**

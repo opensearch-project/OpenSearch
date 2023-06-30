@@ -54,6 +54,8 @@ import org.opensearch.http.HttpResponse;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.http.ProtobufHttpInfo;
+import org.opensearch.http.ProtobufHttpStats;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -228,7 +230,7 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         controller.registerAsDeprecatedHandler(method, path, handler, deprecationMessage);
 
-        verify(controller).registerProtobufHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
+        verify(controller).registerHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
     }
 
     public void testRegisterWithDeprecatedHandler() {
@@ -255,7 +257,7 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         controller.registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath);
 
-        verify(controller).registerProtobufHandler(method, path, handler);
+        verify(controller).registerHandler(method, path, handler);
         verify(controller).registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
     }
 
@@ -689,6 +691,16 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         @Override
         public HttpStats stats() {
+            return null;
+        }
+
+        @Override
+        public ProtobufHttpInfo protobufInfo() {
+            return null;
+        }
+
+        @Override
+        public ProtobufHttpStats protobufStats() {
             return null;
         }
     }

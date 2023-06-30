@@ -8,7 +8,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 /**
  * Listens for transport messages
@@ -53,7 +53,7 @@ public interface ProtobufTransportMessageListener {
     * @param finalOptions the request options
     */
     default void onRequestSent(
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         long requestId,
         String action,
         ProtobufTransportRequest request,

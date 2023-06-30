@@ -13,10 +13,8 @@ import com.google.protobuf.CodedOutputStream;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.ProtobufActionResponse;
-import org.opensearch.cluster.ProtobufClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -34,7 +32,7 @@ public class ProtobufMainResponse extends ProtobufActionResponse implements ToXC
 
     private String nodeName;
     private Version version;
-    private ProtobufClusterName clusterName;
+    private ClusterName clusterName;
     private String clusterUuid;
     private Build build;
     public static final String TAGLINE = "The OpenSearch Project: https://opensearch.org/";
@@ -45,12 +43,12 @@ public class ProtobufMainResponse extends ProtobufActionResponse implements ToXC
         super(in);
         nodeName = in.readString();
         version = Version.readVersionProtobuf(in);
-        clusterName = new ProtobufClusterName(in);
+        clusterName = new ClusterName(in);
         clusterUuid = in.readString();
         build = Build.readBuildProtobuf(in);
     }
 
-    public ProtobufMainResponse(String nodeName, Version version, ProtobufClusterName clusterName, String clusterUuid, Build build) {
+    public ProtobufMainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
         this.nodeName = nodeName;
         this.version = version;
         this.clusterName = clusterName;
@@ -66,7 +64,7 @@ public class ProtobufMainResponse extends ProtobufActionResponse implements ToXC
         return version;
     }
 
-    public ProtobufClusterName getClusterName() {
+    public ClusterName getClusterName() {
         return clusterName;
     }
 
@@ -117,7 +115,7 @@ public class ProtobufMainResponse extends ProtobufActionResponse implements ToXC
 
     static {
         PARSER.declareString((response, value) -> response.nodeName = value, new ParseField("name"));
-        PARSER.declareString((response, value) -> response.clusterName = new ProtobufClusterName(value), new ParseField("cluster_name"));
+        PARSER.declareString((response, value) -> response.clusterName = new ClusterName(value), new ParseField("cluster_name"));
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
         PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {

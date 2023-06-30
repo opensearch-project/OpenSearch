@@ -71,4 +71,8 @@ public class ShardIndexWarmerService extends AbstractIndexShardComponent {
     public WarmerStats stats() {
         return new WarmerStats(current.count(), warmerMetric.count(), TimeUnit.NANOSECONDS.toMillis(warmerMetric.sum()));
     }
+
+    public ProtobufWarmerStats protobufStats() {
+        return new ProtobufWarmerStats(current.count(), warmerMetric.count(), TimeUnit.NANOSECONDS.toMillis(warmerMetric.sum()));
+    }
 }

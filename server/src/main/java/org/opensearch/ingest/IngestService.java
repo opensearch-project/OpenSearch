@@ -71,6 +71,7 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.script.ScriptService;
@@ -98,7 +99,7 @@ import java.util.function.IntConsumer;
  *
  * @opensearch.internal
  */
-public class IngestService implements ClusterStateApplier, ReportingService<IngestInfo> {
+public class IngestService implements ClusterStateApplier, ReportingService<IngestInfo>, ProtobufReportingService<ProtobufIngestInfo> {
 
     public static final String NOOP_PIPELINE_NAME = "_none";
 
@@ -433,6 +434,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return new IngestInfo(processorInfoList);
     }
 
+    @Override
+    public ProtobufIngestInfo protobufInfo() {
+        Map<String, Processor.Factory> processorFactories = getProcessorFactories();
+        List<ProtobufProcessorInfo> processorInfoList = new ArrayList<>(processorFactories.size());
+        for (Map.Entry<String, Processor.Factory> entry : processorFactories.entrySet()) {
+            processorInfoList.add(new ProtobufProcessorInfo(entry.getKey()));
+        }
+        return new ProtobufIngestInfo(processorInfoList);
+    }
+
     Map<String, PipelineHolder> pipelines() {
         return pipelines;
     }
@@ -686,6 +697,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             processorMetrics.forEach(t -> {
                 Processor processor = t.v1();
                 OperationMetrics processorMetric = t.v2();
+                statsBuilder.addProcessorMetrics(id, getProcessorName(processor), processor.getType(), processorMetric);
+            });
+        });
+        return statsBuilder.build();
+    }
+
+    public ProtobufIngestStats protobufStats() {
+        ProtobufIngestStats.Builder statsBuilder = new ProtobufIngestStats.Builder();
+        statsBuilder.addTotalMetrics(totalMetrics);
+        pipelines.forEach((id, holder) -> {
+            Pipeline pipeline = holder.pipeline;
+            CompoundProcessor rootProcessor = pipeline.getCompoundProcessor();
+            statsBuilder.addPipelineMetrics(id, pipeline.getMetrics());
+            List<Tuple<Processor, IngestMetric>> processorMetrics = new ArrayList<>();
+            getProcessorMetrics(rootProcessor, processorMetrics);
+            processorMetrics.forEach(t -> {
+                Processor processor = t.v1();
+                IngestMetric processorMetric = t.v2();
                 statsBuilder.addProcessorMetrics(id, getProcessorName(processor), processor.getType(), processorMetric);
             });
         });

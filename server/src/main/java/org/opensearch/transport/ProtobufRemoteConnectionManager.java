@@ -10,7 +10,7 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,19 +29,19 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
     private final String clusterAlias;
     private final ProtobufConnectionManager delegate;
     private final AtomicLong counter = new AtomicLong();
-    private volatile List<ProtobufDiscoveryNode> connectedNodes = Collections.emptyList();
+    private volatile List<DiscoveryNode> connectedNodes = Collections.emptyList();
 
     ProtobufRemoteConnectionManager(String clusterAlias, ProtobufConnectionManager delegate) {
         this.clusterAlias = clusterAlias;
         this.delegate = delegate;
         this.delegate.addListener(new ProtobufTransportConnectionListener() {
             @Override
-            public void onNodeConnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {
+            public void onNodeConnected(DiscoveryNode node, Transport.ProtobufConnection connection) {
                 addConnectedNode(node);
             }
 
             @Override
-            public void onNodeDisconnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.ProtobufConnection connection) {
                 removeConnectedNode(node);
             }
         });
@@ -49,7 +49,7 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
 
     @Override
     public void connectToNode(
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         ProtobufConnectionProfile connectionProfile,
         ProtobufConnectionManager.ConnectionValidator connectionValidator,
         ActionListener<Void> listener
@@ -69,7 +69,7 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
 
     @Override
     public void openConnection(
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         ProtobufConnectionProfile profile,
         ActionListener<Transport.ProtobufConnection> listener
     ) {
@@ -77,7 +77,7 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
     }
 
     @Override
-    public Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode node) {
+    public Transport.ProtobufConnection getConnection(DiscoveryNode node) {
         try {
             return delegate.getConnection(node);
         } catch (NodeNotConnectedException e) {
@@ -86,12 +86,12 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
     }
 
     @Override
-    public boolean nodeConnected(ProtobufDiscoveryNode node) {
+    public boolean nodeConnected(DiscoveryNode node) {
         return delegate.nodeConnected(node);
     }
 
     @Override
-    public void disconnectFromNode(ProtobufDiscoveryNode node) {
+    public void disconnectFromNode(DiscoveryNode node) {
         delegate.disconnectFromNode(node);
     }
 
@@ -101,22 +101,20 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
     }
 
     public Transport.ProtobufConnection getAnyRemoteConnection() {
-        List<ProtobufDiscoveryNode> localConnectedNodes = this.connectedNodes;
+        List<DiscoveryNode> localConnectedNodes = this.connectedNodes;
         long curr;
         while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE)
             ;
         if (localConnectedNodes.isEmpty() == false) {
-            ProtobufDiscoveryNode nextNode = localConnectedNodes.get(
-                Math.toIntExact(Math.floorMod(curr, (long) localConnectedNodes.size()))
-            );
+            DiscoveryNode nextNode = localConnectedNodes.get(Math.toIntExact(Math.floorMod(curr, (long) localConnectedNodes.size())));
             try {
                 return delegate.getConnection(nextNode);
             } catch (NodeNotConnectedException e) {
                 // Ignore. We will manually create an iterator of open nodes
             }
         }
-        Set<ProtobufDiscoveryNode> allConnectionNodes = getAllConnectedNodes();
-        for (ProtobufDiscoveryNode connectedNode : allConnectionNodes) {
+        Set<DiscoveryNode> allConnectionNodes = getAllConnectedNodes();
+        for (DiscoveryNode connectedNode : allConnectionNodes) {
             try {
                 return delegate.getConnection(connectedNode);
             } catch (NodeNotConnectedException e) {
@@ -127,7 +125,7 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
     }
 
     @Override
-    public Set<ProtobufDiscoveryNode> getAllConnectedNodes() {
+    public Set<DiscoveryNode> getAllConnectedNodes() {
         return delegate.getAllConnectedNodes();
     }
 
@@ -146,16 +144,16 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
         delegate.closeNoBlock();
     }
 
-    private synchronized void addConnectedNode(ProtobufDiscoveryNode addedNode) {
-        ArrayList<ProtobufDiscoveryNode> newConnections = new ArrayList<>(this.connectedNodes);
+    private synchronized void addConnectedNode(DiscoveryNode addedNode) {
+        ArrayList<DiscoveryNode> newConnections = new ArrayList<>(this.connectedNodes);
         newConnections.add(addedNode);
         this.connectedNodes = Collections.unmodifiableList(newConnections);
     }
 
-    private synchronized void removeConnectedNode(ProtobufDiscoveryNode removedNode) {
+    private synchronized void removeConnectedNode(DiscoveryNode removedNode) {
         int newSize = this.connectedNodes.size() - 1;
-        ArrayList<ProtobufDiscoveryNode> newConnectedNodes = new ArrayList<>(newSize);
-        for (ProtobufDiscoveryNode connectedNode : this.connectedNodes) {
+        ArrayList<DiscoveryNode> newConnectedNodes = new ArrayList<>(newSize);
+        for (DiscoveryNode connectedNode : this.connectedNodes) {
             if (connectedNode.equals(removedNode) == false) {
                 newConnectedNodes.add(connectedNode);
             }
@@ -166,15 +164,15 @@ public class ProtobufRemoteConnectionManager implements ProtobufConnectionManage
 
     static final class ProxyConnection implements Transport.ProtobufConnection {
         private final Transport.ProtobufConnection connection;
-        private final ProtobufDiscoveryNode targetNode;
+        private final DiscoveryNode targetNode;
 
-        private ProxyConnection(Transport.ProtobufConnection connection, ProtobufDiscoveryNode targetNode) {
+        private ProxyConnection(Transport.ProtobufConnection connection, DiscoveryNode targetNode) {
             this.connection = connection;
             this.targetNode = targetNode;
         }
 
         @Override
-        public ProtobufDiscoveryNode getNode() {
+        public DiscoveryNode getNode() {
             return targetNode;
         }
 

@@ -10,7 +10,7 @@ package org.opensearch.transport;
 
 import com.google.protobuf.CodedInputStream;
 import org.opensearch.OpenSearchWrapperException;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.io.IOException;
 
@@ -21,8 +21,8 @@ import java.io.IOException;
 */
 public class ProtobufSendRequestTransportException extends ProtobufActionTransportException implements OpenSearchWrapperException {
 
-    public ProtobufSendRequestTransportException(ProtobufDiscoveryNode node, String action, Throwable cause) {
-        super(node == null ? null : node.getName(), node == null ? null : node.getAddress(), action, cause);
+    public ProtobufSendRequestTransportException(DiscoveryNode node, String action, Throwable cause) {
+        super(node == null ? null : node.getName(), node == null ? null : node.getProtobufAddress(), action, cause);
     }
 
     public ProtobufSendRequestTransportException(CodedInputStream in) throws IOException {

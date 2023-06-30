@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster.routing;
 
+import com.google.protobuf.CodedInputStream;
+
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.Diffable;
 import org.opensearch.cluster.DiffableUtils;
@@ -374,6 +376,18 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         Builder builder = new Builder();
         builder.version = in.readLong();
         int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            IndexRoutingTable index = IndexRoutingTable.readFrom(in);
+            builder.add(index);
+        }
+
+        return builder.build();
+    }
+
+    public static RoutingTable readFrom(CodedInputStream in) throws IOException {
+        Builder builder = new Builder();
+        builder.version = in.readInt64();
+        int size = in.readInt32();
         for (int i = 0; i < size; i++) {
             IndexRoutingTable index = IndexRoutingTable.readFrom(in);
             builder.add(index);

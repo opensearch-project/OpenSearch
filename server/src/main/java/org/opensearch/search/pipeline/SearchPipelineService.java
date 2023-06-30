@@ -41,6 +41,8 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.ingest.ProtobufProcessorInfo;
+import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.script.ScriptService;
@@ -63,7 +65,11 @@ import java.util.stream.Collectors;
  * The main entry point for search pipelines. Handles CRUD operations and exposes the API to execute search pipelines
  * against requests and responses.
  */
-public class SearchPipelineService implements ClusterStateApplier, ReportingService<SearchPipelineInfo> {
+public class SearchPipelineService
+    implements
+        ClusterStateApplier,
+        ReportingService<SearchPipelineInfo>,
+        ProtobufReportingService<ProtobufSearchPipelineInfo> {
 
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
     public static final String AD_HOC_PIPELINE_ID = "_ad_hoc_pipeline";
@@ -443,6 +449,15 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             pipeline.populateStats(builder);
         }
         return builder.build();
+    }
+
+    @Override
+    public ProtobufSearchPipelineInfo protobufInfo() {
+        List<ProtobufProcessorInfo> processorInfoList = new ArrayList<>();
+        for (Map.Entry<String, Processor.Factory> entry : processorFactories.entrySet()) {
+            processorInfoList.add(new ProtobufProcessorInfo(entry.getKey()));
+        }
+        return new ProtobufSearchPipelineInfo(processorInfoList);
     }
 
     public static List<PipelineConfiguration> getPipelines(ClusterState clusterState, String... ids) {

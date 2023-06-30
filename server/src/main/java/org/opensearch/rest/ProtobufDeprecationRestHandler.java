@@ -1,0 +1,105 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.rest;
+
+import org.opensearch.client.node.ProtobufNodeClient;
+import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
+
+import java.util.Objects;
+
+/**
+ * {@code ProtobufDeprecationRestHandler} provides a proxy for any existing {@link ProtobufRestHandler} so that usage of the handler can be
+ * logged using the {@link DeprecationLogger}.
+ *
+ * @opensearch.api
+ */
+public class ProtobufDeprecationRestHandler implements ProtobufRestHandler {
+
+    private final ProtobufRestHandler handler;
+    private final String deprecationMessage;
+    private final DeprecationLogger deprecationLogger;
+
+    /**
+     * Create a {@link ProtobufDeprecationRestHandler} that encapsulates the {@code handler} using the {@code deprecationLogger} to log
+     * deprecation {@code warning}.
+     *
+     * @param handler The rest handler to deprecate (it's possible that the handler is reused with a different name!)
+     * @param deprecationMessage The message to warn users with when they use the {@code handler}
+     * @param deprecationLogger The deprecation logger
+     * @throws NullPointerException if any parameter except {@code deprecationMessage} is {@code null}
+     * @throws IllegalArgumentException if {@code deprecationMessage} is not a valid header
+     */
+    public ProtobufDeprecationRestHandler(ProtobufRestHandler handler, String deprecationMessage, DeprecationLogger deprecationLogger) {
+        this.handler = Objects.requireNonNull(handler);
+        this.deprecationMessage = requireValidHeader(deprecationMessage);
+        this.deprecationLogger = Objects.requireNonNull(deprecationLogger);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Usage is logged via the {@link DeprecationLogger} so that the actual response can be notified of deprecation as well.
+     */
+    @Override
+    public void handleRequest(RestRequest request, RestChannel channel, ProtobufNodeClient client) throws Exception {
+        deprecationLogger.deprecate("deprecated_route", deprecationMessage);
+
+        handler.handleRequest(request, channel, client);
+    }
+
+    @Override
+    public boolean supportsContentStream() {
+        return handler.supportsContentStream();
+    }
+
+    /**
+     * This does a very basic pass at validating that a header's value contains only expected characters according to RFC-5987, and those
+     * that it references.
+     * <p>
+     * https://tools.ietf.org/html/rfc5987
+     * <p>
+     * This is only expected to be used for assertions. The idea is that only readable US-ASCII characters are expected; the rest must be
+     * encoded with percent encoding, which makes checking for a valid character range very simple.
+     *
+     * @param value The header value to check
+     * @return {@code true} if the {@code value} is not obviously wrong.
+     */
+    public static boolean validHeaderValue(String value) {
+        if (Strings.hasText(value) == false) {
+            return false;
+        }
+
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+
+            // 32 = ' ' (31 = unit separator); 126 = '~' (127 = DEL)
+            if (c < 32 || c > 126) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Throw an exception if the {@code value} is not a {@link #validHeaderValue(String) valid header}.
+     *
+     * @param value The header value to check
+     * @return Always {@code value}.
+     * @throws IllegalArgumentException if {@code value} is not a {@link #validHeaderValue(String) valid header}.
+     */
+    public static String requireValidHeader(String value) {
+        if (validHeaderValue(value) == false) {
+            throw new IllegalArgumentException("header value must contain only US ASCII text");
+        }
+
+        return value;
+    }
+}

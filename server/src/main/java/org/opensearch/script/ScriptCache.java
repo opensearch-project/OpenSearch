@@ -155,6 +155,14 @@ public class ScriptCache {
         return scriptMetrics.stats(context);
     }
 
+    public ProtobufScriptStats protobufStats() {
+        return scriptMetrics.protobufStats();
+    }
+
+    public ProtobufScriptContextStats protobufStats(String context) {
+        return scriptMetrics.protobufStats(context);
+    }
+
     /**
      * Check whether there have been too many compilations within the last minute, throwing a circuit breaking exception if so.
      * This is a variant of the token bucket algorithm: https://en.wikipedia.org/wiki/Token_bucket

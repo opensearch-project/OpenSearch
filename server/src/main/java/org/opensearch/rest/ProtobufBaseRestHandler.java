@@ -77,8 +77,10 @@ public abstract class ProtobufBaseRestHandler implements ProtobufRestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, ProtobufNodeClient client) throws Exception {
+        logger.info("ProtobufBaseRestHandler.handleRequest {}", request);
         // prepare the request for execution; has the side effect of touching the request parameters
         final RestChannelConsumer action = prepareRequest(request, client);
+        logger.info("ProtobufBaseRestHandler.handleRequest action: {}", action.getClass().getName());
 
         // validate unconsumed params, but we must exclude params used to format the response
         // use a sorted set so the unconsumed parameters appear in a reliable sorted order

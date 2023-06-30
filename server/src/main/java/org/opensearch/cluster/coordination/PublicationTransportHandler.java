@@ -159,6 +159,14 @@ public class PublicationTransportHandler {
         );
     }
 
+    public ProtobufPublishClusterStateStats protobufStats() {
+        return new ProtobufPublishClusterStateStats(
+            fullClusterStateReceivedCount.get(),
+            incompatibleClusterStateDiffReceivedCount.get(),
+            compatibleClusterStateDiffReceivedCount.get()
+        );
+    }
+
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         try (StreamInput in = CompressedStreamUtils.decompressBytes(request, namedWriteableRegistry)) {
             ClusterState incomingState;

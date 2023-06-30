@@ -17,8 +17,8 @@ import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
-import org.opensearch.cluster.ProtobufClusterName;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SetOnce;
@@ -29,7 +29,7 @@ import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.ProtobufTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.util.io.IOUtils;
@@ -118,14 +118,14 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
 
     static final int CHANNELS_PER_CONNECTION = 6;
 
-    private static final Predicate<ProtobufDiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
+    private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
         && (node.isClusterManagerNode() == false || node.isDataNode() || node.isIngestNode());
 
     private final List<String> configuredSeedNodes;
-    private final List<Supplier<ProtobufDiscoveryNode>> seedNodes;
+    private final List<Supplier<DiscoveryNode>> seedNodes;
     private final int maxNumRemoteConnections;
-    private final Predicate<ProtobufDiscoveryNode> nodePredicate;
-    private final SetOnce<ProtobufClusterName> remoteClusterName = new SetOnce<>();
+    private final Predicate<DiscoveryNode> nodePredicate;
+    private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
     private final String proxyAddress;
 
     ProtobufSniffConnectionStrategy(
@@ -153,7 +153,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
         String proxyAddress,
         Settings settings,
         int maxNumRemoteConnections,
-        Predicate<ProtobufDiscoveryNode> nodePredicate,
+        Predicate<DiscoveryNode> nodePredicate,
         List<String> configuredSeedNodes
     ) {
         this(
@@ -166,7 +166,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
             nodePredicate,
             configuredSeedNodes,
             configuredSeedNodes.stream()
-                .map(seedAddress -> (Supplier<ProtobufDiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
+                .map(seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
                 .collect(Collectors.toList())
         );
     }
@@ -178,9 +178,9 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
         String proxyAddress,
         Settings settings,
         int maxNumRemoteConnections,
-        Predicate<ProtobufDiscoveryNode> nodePredicate,
+        Predicate<DiscoveryNode> nodePredicate,
         List<String> configuredSeedNodes,
-        List<Supplier<ProtobufDiscoveryNode>> seedNodes
+        List<Supplier<DiscoveryNode>> seedNodes
     ) {
         super(clusterAlias, transportService, connectionManager, settings);
         this.proxyAddress = proxyAddress;
@@ -228,7 +228,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
         return new SniffModeInfo(configuredSeedNodes, maxNumRemoteConnections, connectionManager.size());
     }
 
-    private void collectRemoteNodes(Iterator<Supplier<ProtobufDiscoveryNode>> seedNodes, ActionListener<Void> listener) {
+    private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {
         if (Thread.currentThread().isInterrupted()) {
             listener.onFailure(new InterruptedException("remote connect thread got interrupted"));
             return;
@@ -254,7 +254,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                 listener.onFailure(e);
             };
 
-            final ProtobufDiscoveryNode seedNode = seedNodes.next().get();
+            final DiscoveryNode seedNode = seedNodes.next().get();
             logger.trace("[{}] opening transient connection to seed node: [{}]", clusterAlias, seedNode);
             final StepListener<Transport.ProtobufConnection> openConnectionStep = new StepListener<>();
             try {
@@ -276,7 +276,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
 
             final StepListener<Void> fullConnectionStep = new StepListener<>();
             handshakeStep.whenComplete(handshakeResponse -> {
-                final ProtobufDiscoveryNode handshakeNode = handshakeResponse.getDiscoveryNode();
+                final DiscoveryNode handshakeNode = handshakeResponse.getDiscoveryNode();
 
                 if (nodePredicate.test(handshakeNode) && shouldOpenMoreConnections()) {
                     logger.trace(
@@ -285,7 +285,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                         handshakeNode,
                         proxyAddress
                     );
-                    final ProtobufDiscoveryNode handshakeNodeWithProxy = maybeAddProxyAddress(proxyAddress, handshakeNode);
+                    final DiscoveryNode handshakeNodeWithProxy = maybeAddProxyAddress(proxyAddress, handshakeNode);
                     connectionManager.connectToNode(
                         handshakeNodeWithProxy,
                         null,
@@ -297,7 +297,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                 }
             }, e -> {
                 final Transport.ProtobufConnection connection = openConnectionStep.result();
-                final ProtobufDiscoveryNode node = connection.getNode();
+                final DiscoveryNode node = connection.getNode();
                 logger.debug(() -> new ParameterizedMessage("[{}] failed to handshake with seed node: [{}]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
@@ -338,7 +338,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                 }
             }, e -> {
                 final Transport.ProtobufConnection connection = openConnectionStep.result();
-                final ProtobufDiscoveryNode node = connection.getNode();
+                final DiscoveryNode node = connection.getNode();
                 logger.debug(
                     () -> new ParameterizedMessage("[{}] failed to open managed connection to seed node: [{}]", clusterAlias, node),
                     e
@@ -356,12 +356,12 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
 
         private final Transport.ProtobufConnection connection;
         private final ActionListener<Void> listener;
-        private final Iterator<Supplier<ProtobufDiscoveryNode>> seedNodes;
+        private final Iterator<Supplier<DiscoveryNode>> seedNodes;
 
         SniffClusterStateResponseHandler(
             Transport.ProtobufConnection connection,
             ActionListener<Void> listener,
-            Iterator<Supplier<ProtobufDiscoveryNode>> seedNodes
+            Iterator<Supplier<DiscoveryNode>> seedNodes
         ) {
             this.connection = connection;
             this.listener = listener;
@@ -378,12 +378,12 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
             handleNodes(response.getState().nodes().getNodes().valuesIt());
         }
 
-        private void handleNodes(Iterator<ProtobufDiscoveryNode> nodesIter) {
+        private void handleNodes(Iterator<DiscoveryNode> nodesIter) {
             while (nodesIter.hasNext()) {
-                final ProtobufDiscoveryNode node = nodesIter.next();
+                final DiscoveryNode node = nodesIter.next();
                 if (nodePredicate.test(node) && shouldOpenMoreConnections()) {
                     logger.trace("[{}] opening managed connection to node: [{}] proxy address: [{}]", clusterAlias, node, proxyAddress);
-                    final ProtobufDiscoveryNode nodeWithProxy = maybeAddProxyAddress(proxyAddress, node);
+                    final DiscoveryNode nodeWithProxy = maybeAddProxyAddress(proxyAddress, node);
                     connectionManager.connectToNode(
                         nodeWithProxy,
                         null,
@@ -451,10 +451,10 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
         }
     }
 
-    private Predicate<ProtobufClusterName> getRemoteClusterNamePredicate() {
-        return new Predicate<ProtobufClusterName>() {
+    private Predicate<ClusterName> getRemoteClusterNamePredicate() {
+        return new Predicate<ClusterName>() {
             @Override
-            public boolean test(ProtobufClusterName c) {
+            public boolean test(ClusterName c) {
                 return remoteClusterName.get() == null || c.equals(remoteClusterName.get());
             }
 
@@ -467,18 +467,18 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
         };
     }
 
-    private static ProtobufDiscoveryNode resolveSeedNode(String clusterAlias, String address, String proxyAddress) {
+    private static DiscoveryNode resolveSeedNode(String clusterAlias, String address, String proxyAddress) {
         if (proxyAddress == null || proxyAddress.isEmpty()) {
-            ProtobufTransportAddress transportAddress = new ProtobufTransportAddress(parseConfiguredAddress(address));
-            return new ProtobufDiscoveryNode(
+            TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(address));
+            return new DiscoveryNode(
                 clusterAlias + "#" + transportAddress.toString(),
                 transportAddress,
                 Version.CURRENT.minimumCompatibilityVersion()
             );
         } else {
-            ProtobufTransportAddress transportAddress = new ProtobufTransportAddress(parseConfiguredAddress(proxyAddress));
+            TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
             String hostName = ProtobufRemoteConnectionStrategy.parseHost(proxyAddress);
-            return new ProtobufDiscoveryNode(
+            return new DiscoveryNode(
                 "",
                 clusterAlias + "#" + address,
                 UUIDs.randomBase64UUID(),
@@ -493,7 +493,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
     }
 
     // Default visibility for tests
-    static Predicate<ProtobufDiscoveryNode> getNodePredicate(Settings settings) {
+    static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
         if (RemoteClusterService.REMOTE_NODE_ATTRIBUTE.exists(settings)) {
             // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for cross cluster search
             String attribute = RemoteClusterService.REMOTE_NODE_ATTRIBUTE.get(settings);
@@ -502,19 +502,19 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
         return DEFAULT_NODE_PREDICATE;
     }
 
-    private static ProtobufDiscoveryNode maybeAddProxyAddress(String proxyAddress, ProtobufDiscoveryNode node) {
+    private static DiscoveryNode maybeAddProxyAddress(String proxyAddress, DiscoveryNode node) {
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             return node;
         } else {
             // resolve proxy address lazy here
             InetSocketAddress proxyInetAddress = parseConfiguredAddress(proxyAddress);
-            return new ProtobufDiscoveryNode(
+            return new DiscoveryNode(
                 node.getName(),
                 node.getId(),
                 node.getEphemeralId(),
                 node.getHostName(),
                 node.getHostAddress(),
-                new ProtobufTransportAddress(proxyInetAddress),
+                new TransportAddress(proxyInetAddress),
                 node.getAttributes(),
                 node.getRoles(),
                 node.getVersion()

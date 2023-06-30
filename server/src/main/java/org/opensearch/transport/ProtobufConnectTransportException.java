@@ -10,7 +10,7 @@ package org.opensearch.transport;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 
@@ -23,29 +23,29 @@ import java.io.IOException;
 */
 public class ProtobufConnectTransportException extends ProtobufActionTransportException {
 
-    private final ProtobufDiscoveryNode node;
+    private final DiscoveryNode node;
 
-    public ProtobufConnectTransportException(ProtobufDiscoveryNode node, String msg) {
+    public ProtobufConnectTransportException(DiscoveryNode node, String msg) {
         this(node, msg, null, null);
     }
 
-    public ProtobufConnectTransportException(ProtobufDiscoveryNode node, String msg, String action) {
+    public ProtobufConnectTransportException(DiscoveryNode node, String msg, String action) {
         this(node, msg, action, null);
     }
 
-    public ProtobufConnectTransportException(ProtobufDiscoveryNode node, String msg, Throwable cause) {
+    public ProtobufConnectTransportException(DiscoveryNode node, String msg, Throwable cause) {
         this(node, msg, null, cause);
     }
 
-    public ProtobufConnectTransportException(ProtobufDiscoveryNode node, String msg, String action, Throwable cause) {
-        super(node == null ? null : node.getName(), node == null ? null : node.getAddress(), action, msg, cause);
+    public ProtobufConnectTransportException(DiscoveryNode node, String msg, String action, Throwable cause) {
+        super(node == null ? null : node.getName(), node == null ? null : node.getProtobufAddress(), action, msg, cause);
         this.node = node;
     }
 
     public ProtobufConnectTransportException(CodedInputStream in) throws IOException {
         super(in);
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        node = protobufStreamInput.readOptionalWriteable(ProtobufDiscoveryNode::new);
+        node = protobufStreamInput.readOptionalWriteable(DiscoveryNode::new);
     }
 
     @Override
@@ -55,7 +55,7 @@ public class ProtobufConnectTransportException extends ProtobufActionTransportEx
         protobufStreamOutput.writeOptionalWriteable(node);
     }
 
-    public ProtobufDiscoveryNode node() {
+    public DiscoveryNode node() {
         return node;
     }
 }

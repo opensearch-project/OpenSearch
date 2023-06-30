@@ -8,7 +8,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.ProtobufWriteable.Reader;
 
 /**
@@ -35,8 +35,8 @@ public interface ProtobufTransportInterceptor {
     /**
      * This is called up-front providing the actual low level {@link AsyncSender} that performs the low level send request.
     * The returned sender is used to send all requests that come in via
-    * {@link ProtobufTransportService#sendRequest(ProtobufDiscoveryNode, String, ProtobufTransportRequest, ProtobufTransportResponseHandler)} or
-    * {@link ProtobufTransportService#sendRequest(ProtobufDiscoveryNode, String, ProtobufTransportRequest, TransportRequestOptions, ProtobufTransportResponseHandler)}.
+    * {@link ProtobufTransportService#sendRequest(DiscoveryNode, String, ProtobufTransportRequest, ProtobufTransportResponseHandler)} or
+    * {@link ProtobufTransportService#sendRequest(DiscoveryNode, String, ProtobufTransportRequest, TransportRequestOptions, ProtobufTransportResponseHandler)}.
     * This allows plugins to perform actions on each send request including modifying the request context etc.
     */
     default AsyncSender interceptSender(AsyncSender sender) {

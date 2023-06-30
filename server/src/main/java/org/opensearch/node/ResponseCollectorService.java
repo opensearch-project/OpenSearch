@@ -81,8 +81,20 @@ public final class ResponseCollectorService implements ClusterStateListener {
         return nodeStats;
     }
 
+    public Map<String, ProtobufComputedNodeStats> getAllNodeStatisticsProtobuf() {
+        final int clientNum = nodeIdToStats.size();
+        // Transform the mutable object internally used for accounting into the computed version
+        Map<String, ProtobufComputedNodeStats> nodeStats = new HashMap<>(nodeIdToStats.size());
+        nodeIdToStats.forEach((k, v) -> { nodeStats.put(k, new ProtobufComputedNodeStats(clientNum, v)); });
+        return nodeStats;
+    }
+
     public AdaptiveSelectionStats getAdaptiveStats(Map<String, Long> clientSearchConnections) {
         return new AdaptiveSelectionStats(clientSearchConnections, getAllNodeStatistics());
+    }
+
+    public ProtobufAdaptiveSelectionStats getProtobufAdaptiveStats(Map<String, Long> clientSearchConnections) {
+        return new ProtobufAdaptiveSelectionStats(clientSearchConnections, getAllNodeStatisticsProtobuf());
     }
 
     /**

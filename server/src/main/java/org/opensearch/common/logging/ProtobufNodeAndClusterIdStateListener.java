@@ -36,7 +36,10 @@ public class ProtobufNodeAndClusterIdStateListener implements ProtobufClusterSta
         ProtobufClusterState clusterState = clusterService.protobufState();
         ProtobufClusterStateObserver observer = new ProtobufClusterStateObserver(clusterState, clusterService, null, logger, threadContext);
 
-        observer.waitForNextChange(new ProtobufNodeAndClusterIdStateListener(), ProtobufNodeAndClusterIdStateListener::isNodeAndClusterIdPresent);
+        observer.waitForNextChange(
+            new ProtobufNodeAndClusterIdStateListener(),
+            ProtobufNodeAndClusterIdStateListener::isNodeAndClusterIdPresent
+        );
     }
 
     private static boolean isNodeAndClusterIdPresent(ProtobufClusterState clusterState) {

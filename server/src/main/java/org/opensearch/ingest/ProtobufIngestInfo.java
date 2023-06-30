@@ -10,6 +10,8 @@ package org.opensearch.ingest;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ProtobufReportingService;
 
 import java.io.IOException;
@@ -55,5 +57,17 @@ public class ProtobufIngestInfo implements ProtobufReportingService.ProtobufInfo
 
     public boolean containsProcessor(String type) {
         return processors.contains(new ProtobufProcessorInfo(type));
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("ingest");
+        builder.startArray("processors");
+        for (ProtobufProcessorInfo info : processors) {
+            info.toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
     }
 }

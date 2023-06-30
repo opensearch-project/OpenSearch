@@ -8,7 +8,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 /**
  * A listener interface that allows to react on transport events. All methods may be
@@ -34,10 +34,10 @@ public interface ProtobufTransportConnectionListener {
     /**
      * Called once a node connection is opened and registered.
     */
-    default void onNodeConnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {}
+    default void onNodeConnected(DiscoveryNode node, Transport.ProtobufConnection connection) {}
 
     /**
      * Called once a node connection is closed and unregistered.
     */
-    default void onNodeDisconnected(ProtobufDiscoveryNode node, Transport.ProtobufConnection connection) {}
+    default void onNodeDisconnected(DiscoveryNode node, Transport.ProtobufConnection connection) {}
 }

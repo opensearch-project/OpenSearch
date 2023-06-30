@@ -50,6 +50,11 @@ public interface Discovery extends LifecycleComponent, ClusterStatePublisher {
     DiscoveryStats stats();
 
     /**
+     * @return stats about the discovery
+     */
+    ProtobufDiscoveryStats protobufStats();
+
+    /**
      * Triggers the first join cycle
      */
     void startInitialJoin();

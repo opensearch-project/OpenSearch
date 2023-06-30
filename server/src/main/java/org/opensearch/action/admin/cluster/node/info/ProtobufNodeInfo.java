@@ -18,7 +18,7 @@ import com.google.protobuf.CodedOutputStream;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.ProtobufBaseNodeResponse;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
@@ -27,7 +27,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.http.ProtobufHttpInfo;
 import org.opensearch.ingest.ProtobufIngestInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
-import org.opensearch.monitor.jvm.ProtobufJvmInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.monitor.os.ProtobufOsInfo;
 import org.opensearch.monitor.process.ProtobufProcessInfo;
@@ -79,7 +79,7 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
         }
         addInfoIfNonNull(ProtobufOsInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufOsInfo::new));
         addInfoIfNonNull(ProtobufProcessInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufProcessInfo::new));
-        addInfoIfNonNull(ProtobufJvmInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufJvmInfo::new));
+        addInfoIfNonNull(JvmInfo.class, protobufStreamInput.readOptionalWriteable(JvmInfo::new));
         addInfoIfNonNull(ProtobufThreadPoolInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufThreadPoolInfo::new));
         addInfoIfNonNull(ProtobufTransportInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufTransportInfo::new));
         addInfoIfNonNull(ProtobufHttpInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufHttpInfo::new));
@@ -94,11 +94,11 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
     public ProtobufNodeInfo(
         Version version,
         Build build,
-        ProtobufDiscoveryNode node,
+        DiscoveryNode node,
         @Nullable Settings settings,
         @Nullable ProtobufOsInfo os,
         @Nullable ProtobufProcessInfo process,
-        @Nullable ProtobufJvmInfo jvm,
+        @Nullable JvmInfo jvm,
         @Nullable ProtobufThreadPoolInfo threadPool,
         @Nullable ProtobufTransportInfo transport,
         @Nullable ProtobufHttpInfo http,
@@ -114,7 +114,7 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
         this.settings = settings;
         addInfoIfNonNull(ProtobufOsInfo.class, os);
         addInfoIfNonNull(ProtobufProcessInfo.class, process);
-        addInfoIfNonNull(ProtobufJvmInfo.class, jvm);
+        addInfoIfNonNull(JvmInfo.class, jvm);
         addInfoIfNonNull(ProtobufThreadPoolInfo.class, threadPool);
         addInfoIfNonNull(ProtobufTransportInfo.class, transport);
         addInfoIfNonNull(ProtobufHttpInfo.class, http);
@@ -204,7 +204,7 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
         }
         protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufOsInfo.class));
         protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufProcessInfo.class));
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufJvmInfo.class));
+        protobufStreamOutput.writeOptionalWriteable(getInfo(JvmInfo.class));
         protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufThreadPoolInfo.class));
         protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufTransportInfo.class));
         protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufHttpInfo.class));
@@ -216,7 +216,7 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
         }
     }
 
-    public static ProtobufNodeInfo.Builder builder(Version version, Build build, ProtobufDiscoveryNode node) {
+    public static ProtobufNodeInfo.Builder builder(Version version, Build build, DiscoveryNode node) {
         return new Builder(version, build, node);
     }
 
@@ -226,9 +226,9 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
     public static class Builder {
         private final Version version;
         private final Build build;
-        private final ProtobufDiscoveryNode node;
+        private final DiscoveryNode node;
 
-        private Builder(Version version, Build build, ProtobufDiscoveryNode node) {
+        private Builder(Version version, Build build, DiscoveryNode node) {
             this.version = version;
             this.build = build;
             this.node = node;
@@ -237,7 +237,7 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
         private Settings settings;
         private ProtobufOsInfo os;
         private ProtobufProcessInfo process;
-        private ProtobufJvmInfo jvm;
+        private JvmInfo jvm;
         private ProtobufThreadPoolInfo threadPool;
         private ProtobufTransportInfo transport;
         private ProtobufHttpInfo http;
@@ -262,7 +262,7 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
             return this;
         }
 
-        public Builder setJvm(ProtobufJvmInfo jvm) {
+        public Builder setJvm(JvmInfo jvm) {
             this.jvm = jvm;
             return this;
         }

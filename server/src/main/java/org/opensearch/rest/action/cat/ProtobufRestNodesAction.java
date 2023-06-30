@@ -17,13 +17,14 @@ import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsResponse
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.client.node.ProtobufNodeClient;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.http.ProtobufHttpInfo;
@@ -39,7 +40,7 @@ import org.opensearch.index.search.stats.ProtobufSearchStats;
 import org.opensearch.index.shard.ProtobufIndexingStats;
 import org.opensearch.indices.ProtobufNodeIndicesStats;
 import org.opensearch.monitor.fs.ProtobufFsInfo;
-import org.opensearch.monitor.jvm.ProtobufJvmInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.jvm.ProtobufJvmStats;
 import org.opensearch.monitor.os.ProtobufOsStats;
 import org.opensearch.monitor.process.ProtobufProcessInfo;
@@ -334,16 +335,15 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
         ProtobufNodesInfoResponse nodesInfo,
         ProtobufNodesStatsResponse nodesStats
     ) {
-
         ProtobufDiscoveryNodes nodes = state.getState().nodes();
         String clusterManagerId = nodes.getClusterManagerNodeId();
         Table table = getTableWithHeader(req);
 
-        for (ProtobufDiscoveryNode node : nodes) {
+        for (DiscoveryNode node : nodes) {
             ProtobufNodeInfo info = nodesInfo.getNodesMap().get(node.getId());
             ProtobufNodeStats stats = nodesStats.getNodesMap().get(node.getId());
 
-            ProtobufJvmInfo jvmInfo = info == null ? null : info.getInfo(ProtobufJvmInfo.class);
+            JvmInfo jvmInfo = info == null ? null : info.getInfo(JvmInfo.class);
             ProtobufJvmStats jvmStats = stats == null ? null : stats.getJvm();
             ProtobufFsInfo fsInfo = stats == null ? null : stats.getFs();
             ProtobufOsStats osStats = stats == null ? null : stats.getOs();

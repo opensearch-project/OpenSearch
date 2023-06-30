@@ -10,7 +10,7 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.action.admin.indices.stats.ProtobufCommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 */
 public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<ProtobufNodesStatsRequest> {
 
-    private ProtobufCommonStatsFlags indices = new ProtobufCommonStatsFlags();
+    private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
 
     public ProtobufNodesStatsRequest() {
@@ -39,7 +39,7 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
     public ProtobufNodesStatsRequest(CodedInputStream in) throws IOException {
         super(in);
 
-        indices = new ProtobufCommonStatsFlags(in);
+        indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         requestedMetrics.addAll(protobufStreamInput.readList(CodedInputStream::readString));
@@ -76,7 +76,7 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
     * may not have submetrics.
     * @return flags indicating which indices stats to return
     */
-    public ProtobufCommonStatsFlags indices() {
+    public CommonStatsFlags indices() {
         return indices;
     }
 
@@ -86,7 +86,7 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
     * @param indices flags indicating which indices stats to return
     * @return This object, for request chaining.
     */
-    public ProtobufNodesStatsRequest indices(ProtobufCommonStatsFlags indices) {
+    public ProtobufNodesStatsRequest indices(CommonStatsFlags indices) {
         this.indices = indices;
         return this;
     }

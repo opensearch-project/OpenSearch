@@ -63,4 +63,17 @@ public class ScriptMetrics {
     public ScriptContextStats stats(String context) {
         return new ScriptContextStats(context, compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
     }
+
+    public ProtobufScriptStats protobufStats() {
+        return new ProtobufScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
+    }
+
+    public ProtobufScriptContextStats protobufStats(String context) {
+        return new ProtobufScriptContextStats(
+            context,
+            compilationsMetric.count(),
+            cacheEvictionsMetric.count(),
+            compilationLimitTriggered.count()
+        );
+    }
 }

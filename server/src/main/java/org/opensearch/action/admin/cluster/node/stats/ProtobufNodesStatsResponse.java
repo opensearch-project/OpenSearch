@@ -12,7 +12,7 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ProtobufFailedNodeException;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesResponse;
-import org.opensearch.cluster.ProtobufClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
@@ -34,11 +34,7 @@ public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<Protob
         super(in);
     }
 
-    public ProtobufNodesStatsResponse(
-        ProtobufClusterName clusterName,
-        List<ProtobufNodeStats> nodes,
-        List<ProtobufFailedNodeException> failures
-    ) {
+    public ProtobufNodesStatsResponse(ClusterName clusterName, List<ProtobufNodeStats> nodes, List<ProtobufFailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 

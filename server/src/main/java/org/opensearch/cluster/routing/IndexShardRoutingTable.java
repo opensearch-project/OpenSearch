@@ -47,6 +47,8 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.node.ResponseCollectorService;
 
+import com.google.protobuf.CodedInputStream;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1042,6 +1044,20 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             Builder builder = new Builder(shardId);
 
             int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                ShardRouting shard = new ShardRouting(shardId, in);
+                builder.addShard(shard);
+            }
+
+            return builder.build();
+        }
+
+        public static IndexShardRoutingTable readFromThin(CodedInputStream in, Index index) throws IOException {
+            int iShardId = in.readInt32();
+            ShardId shardId = new ShardId(index, iShardId);
+            Builder builder = new Builder(shardId);
+
+            int size = in.readInt32();
             for (int i = 0; i < size; i++) {
                 ShardRouting shard = new ShardRouting(shardId, in);
                 builder.addShard(shard);

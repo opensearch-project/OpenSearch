@@ -433,6 +433,40 @@ public class OsProbe {
         return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
     }
 
+    private ProtobufOsStats.Cgroup.CpuStat getProtobufCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
+        final List<String> lines = readSysFsCgroupCpuAcctCpuStat(controlGroup);
+        long numberOfPeriods = -1;
+        long numberOfTimesThrottled = -1;
+        long timeThrottledNanos = -1;
+
+        for (final String line : lines) {
+            final String[] fields = line.split("\\s+");
+            switch (fields[0]) {
+                case "nr_periods":
+                    numberOfPeriods = Long.parseLong(fields[1]);
+                    break;
+                case "nr_throttled":
+                    numberOfTimesThrottled = Long.parseLong(fields[1]);
+                    break;
+                case "throttled_time":
+                    timeThrottledNanos = Long.parseLong(fields[1]);
+                    break;
+            }
+        }
+        if (isCpuStatWarningsLogged.getAndSet(true) == false) {
+            if (numberOfPeriods == -1) {
+                logger.warn("Expected to see nr_periods filed but found nothing");
+            }
+            if (numberOfTimesThrottled == -1) {
+                logger.warn("Expected to see nr_throttled filed but found nothing");
+            }
+            if (timeThrottledNanos == -1) {
+                logger.warn("Expected to see throttled_time filed but found nothing");
+            }
+        }
+        return new ProtobufOsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
+    }
+
     /**
      * Returns the lines from {@code cpu.stat} for the control group to which the OpenSearch process belongs for the {@code cpu}
      * subsystem. These lines represent the CPU time statistics and have the form
@@ -592,6 +626,61 @@ public class OsProbe {
         }
     }
 
+    /**
+     * Basic cgroup stats.
+     *
+     * @return basic cgroup stats, or {@code null} if an I/O exception occurred reading the cgroup stats
+     */
+    private ProtobufOsStats.Cgroup getProtobufCgroup() {
+        try {
+            if (!areCgroupStatsAvailable()) {
+                return null;
+            } else {
+                final Map<String, String> controllerMap = getControlGroups();
+                assert !controllerMap.isEmpty();
+
+                final String cpuAcctControlGroup = controllerMap.get("cpuacct");
+                if (cpuAcctControlGroup == null) {
+                    logger.debug("no [cpuacct] data found in cgroup stats");
+                    return null;
+                }
+                final long cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup);
+
+                final String cpuControlGroup = controllerMap.get("cpu");
+                if (cpuControlGroup == null) {
+                    logger.debug("no [cpu] data found in cgroup stats");
+                    return null;
+                }
+                final long cgroupCpuAcctCpuCfsPeriodMicros = getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup);
+                final long cgroupCpuAcctCpuCfsQuotaMicros = getCgroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup);
+                final ProtobufOsStats.Cgroup.CpuStat cpuStat = getProtobufCgroupCpuAcctCpuStat(cpuControlGroup);
+
+                final String memoryControlGroup = controllerMap.get("memory");
+                if (memoryControlGroup == null) {
+                    logger.debug("no [memory] data found in cgroup stats");
+                    return null;
+                }
+                final String cgroupMemoryLimitInBytes = getCgroupMemoryLimitInBytes(memoryControlGroup);
+                final String cgroupMemoryUsageInBytes = getCgroupMemoryUsageInBytes(memoryControlGroup);
+
+                return new ProtobufOsStats.Cgroup(
+                    cpuAcctControlGroup,
+                    cgroupCpuAcctUsageNanos,
+                    cpuControlGroup,
+                    cgroupCpuAcctCpuCfsPeriodMicros,
+                    cgroupCpuAcctCpuCfsQuotaMicros,
+                    cpuStat,
+                    memoryControlGroup,
+                    cgroupMemoryLimitInBytes,
+                    cgroupMemoryUsageInBytes
+                );
+            }
+        } catch (final IOException e) {
+            logger.debug("error reading control group stats", e);
+            return null;
+        }
+    }
+
     private static class OsProbeHolder {
         private static final OsProbe INSTANCE = new OsProbe();
     }
@@ -615,6 +704,18 @@ public class OsProbe {
 
     OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
         return new OsInfo(
+            refreshInterval,
+            Runtime.getRuntime().availableProcessors(),
+            allocatedProcessors,
+            Constants.OS_NAME,
+            getPrettyName(),
+            Constants.OS_ARCH,
+            Constants.OS_VERSION
+        );
+    }
+
+    ProtobufOsInfo protobufOsInfo(long refreshInterval, int allocatedProcessors) throws IOException {
+        return new ProtobufOsInfo(
             refreshInterval,
             Runtime.getRuntime().availableProcessors(),
             allocatedProcessors,
@@ -694,6 +795,14 @@ public class OsProbe {
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup = Constants.LINUX ? getCgroup() : null;
         return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
+    }
+
+    public ProtobufOsStats protobufOsStats() {
+        final ProtobufOsStats.Cpu cpu = new ProtobufOsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
+        final ProtobufOsStats.Mem mem = new ProtobufOsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
+        final ProtobufOsStats.Swap swap = new ProtobufOsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
+        final ProtobufOsStats.Cgroup cgroup = Constants.LINUX ? getProtobufCgroup() : null;
+        return new ProtobufOsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
     }
 
     /**

@@ -10,7 +10,7 @@ package org.opensearch.node;
 
 import com.google.protobuf.CodedInputStream;
 import org.opensearch.ProtobufOpenSearchException;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.io.IOException;
 
@@ -21,7 +21,7 @@ import java.io.IOException;
 */
 public class ProtobufNodeClosedException extends ProtobufOpenSearchException {
 
-    public ProtobufNodeClosedException(ProtobufDiscoveryNode node) {
+    public ProtobufNodeClosedException(DiscoveryNode node) {
         super("node closed " + node);
     }
 

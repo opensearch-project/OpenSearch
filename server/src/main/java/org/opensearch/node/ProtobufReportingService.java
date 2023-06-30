@@ -9,6 +9,7 @@
 package org.opensearch.node;
 
 import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.xcontent.ToXContent;
 
 /**
  * Node reporting service
@@ -23,7 +24,7 @@ public interface ProtobufReportingService<I extends ProtobufReportingService.Pro
     *
     * @opensearch.internal
     */
-    interface ProtobufInfo extends ProtobufWriteable {
+    interface ProtobufInfo extends ProtobufWriteable, ToXContent {
 
     }
 }

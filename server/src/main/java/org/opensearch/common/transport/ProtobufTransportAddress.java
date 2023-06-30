@@ -16,6 +16,9 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.core.xcontent.ToXContent.Params;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -27,7 +30,7 @@ import java.net.UnknownHostException;
 *
 * @opensearch.internal
 */
-public final class ProtobufTransportAddress implements ProtobufWriteable {
+public final class ProtobufTransportAddress implements ProtobufWriteable, ToXContentFragment {
 
     /**
      * A <a href="https://en.wikipedia.org/wiki/0.0.0.0">non-routeable v4 meta transport address</a> that can be used for
@@ -104,5 +107,28 @@ public final class ProtobufTransportAddress implements ProtobufWriteable {
     */
     public InetSocketAddress address() {
         return this.address;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ProtobufTransportAddress address1 = (ProtobufTransportAddress) o;
+        return address.equals(address1.address);
+    }
+
+    @Override
+    public int hashCode() {
+        return address != null ? address.hashCode() : 0;
+    }
+
+    @Override
+    public String toString() {
+        return NetworkAddress.format(address);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
     }
 }

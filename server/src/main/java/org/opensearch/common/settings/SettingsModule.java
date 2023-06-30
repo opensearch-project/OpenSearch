@@ -233,7 +233,6 @@ public class SettingsModule implements Module {
      * the setting during startup.
      */
     private void registerSetting(Setting<?> setting) {
-        System.out.println("Registering setting: " + setting.getKey());
         if (setting.isFiltered()) {
             if (settingsFilterPattern.contains(setting.getKey()) == false) {
                 registerSettingsFilter(setting.getKey());

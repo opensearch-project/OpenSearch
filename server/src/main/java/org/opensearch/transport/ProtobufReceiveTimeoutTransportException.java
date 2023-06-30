@@ -9,7 +9,7 @@
 package org.opensearch.transport;
 
 import com.google.protobuf.CodedInputStream;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.io.IOException;
 
@@ -20,8 +20,8 @@ import java.io.IOException;
 */
 public class ProtobufReceiveTimeoutTransportException extends ProtobufActionTransportException {
 
-    public ProtobufReceiveTimeoutTransportException(ProtobufDiscoveryNode node, String action, String msg) {
-        super(node.getName(), node.getAddress(), action, msg, null);
+    public ProtobufReceiveTimeoutTransportException(DiscoveryNode node, String action, String msg) {
+        super(node.getName(), node.getProtobufAddress(), action, msg, null);
     }
 
     public ProtobufReceiveTimeoutTransportException(CodedInputStream in) throws IOException {

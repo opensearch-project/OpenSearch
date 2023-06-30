@@ -154,6 +154,15 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     @Override
+    public void setInitialProtobufState(ProtobufClusterState initialState) {
+        if (lifecycle.started()) {
+            throw new IllegalStateException("can't set initial state when started");
+        }
+        assert protobufState.get() == null : "state is already set";
+        protobufState.set(initialState);
+    }
+
+    @Override
     protected synchronized void doStart() {
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
         Objects.requireNonNull(state.get(), "please set initial state before starting");

@@ -18,7 +18,7 @@ import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.unit.TimeValue;
@@ -47,7 +47,7 @@ public abstract class ProtobufBaseNodesRequest<Request extends ProtobufBaseNodes
      * once {@link #nodesIds} are resolved this will contain the concrete nodes that are part of this request. If set, {@link #nodesIds}
     * will be ignored and this will be used.
     * */
-    private ProtobufDiscoveryNode[] concreteNodes;
+    private DiscoveryNode[] concreteNodes;
     private final TimeValue DEFAULT_TIMEOUT_SECS = TimeValue.timeValueSeconds(30);
 
     private TimeValue timeout;
@@ -56,7 +56,7 @@ public abstract class ProtobufBaseNodesRequest<Request extends ProtobufBaseNodes
         super(in);
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         nodesIds = protobufStreamInput.readStringArray();
-        concreteNodes = protobufStreamInput.readOptionalArray(ProtobufDiscoveryNode::new, ProtobufDiscoveryNode[]::new);
+        concreteNodes = protobufStreamInput.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
         timeout = protobufStreamInput.readOptionalTimeValue();
     }
 
@@ -64,7 +64,7 @@ public abstract class ProtobufBaseNodesRequest<Request extends ProtobufBaseNodes
         this.nodesIds = nodesIds;
     }
 
-    protected ProtobufBaseNodesRequest(ProtobufDiscoveryNode... concreteNodes) {
+    protected ProtobufBaseNodesRequest(DiscoveryNode... concreteNodes) {
         this.nodesIds = null;
         this.concreteNodes = concreteNodes;
     }
@@ -95,11 +95,11 @@ public abstract class ProtobufBaseNodesRequest<Request extends ProtobufBaseNodes
         return (Request) this;
     }
 
-    public ProtobufDiscoveryNode[] concreteNodes() {
+    public DiscoveryNode[] concreteNodes() {
         return concreteNodes;
     }
 
-    public void setConcreteNodes(ProtobufDiscoveryNode[] concreteNodes) {
+    public void setConcreteNodes(DiscoveryNode[] concreteNodes) {
         this.concreteNodes = concreteNodes;
     }
 

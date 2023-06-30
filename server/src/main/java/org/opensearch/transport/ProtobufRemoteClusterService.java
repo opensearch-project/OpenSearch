@@ -16,7 +16,7 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.ProtobufClient;
-import org.opensearch.cluster.node.ProtobufDiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
@@ -130,7 +130,7 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
 
     ProtobufRemoteClusterService(Settings settings, ProtobufTransportService transportService) {
         super(settings);
-        this.enabled = ProtobufDiscoveryNode.isRemoteClusterClient(settings);
+        this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.transportService = transportService;
     }
 
@@ -141,7 +141,7 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
         return remoteClusters.isEmpty() == false;
     }
 
-    boolean isRemoteNodeConnected(final String remoteCluster, final ProtobufDiscoveryNode node) {
+    boolean isRemoteNodeConnected(final String remoteCluster, final DiscoveryNode node) {
         return remoteClusters.get(remoteCluster).isNodeConnected(node);
     }
 
@@ -185,7 +185,7 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
     *
     * @throws IllegalArgumentException if the remote cluster is unknown
     */
-    public Transport.ProtobufConnection getConnection(ProtobufDiscoveryNode node, String cluster) {
+    public Transport.ProtobufConnection getConnection(DiscoveryNode node, String cluster) {
         return getRemoteClusterConnection(cluster).getConnection(node);
     }
 
@@ -346,10 +346,10 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
     }
 
     /**
-     * Collects all nodes of the given clusters and returns / passes a (clusterAlias, nodeId) to {@link ProtobufDiscoveryNode}
+     * Collects all nodes of the given clusters and returns / passes a (clusterAlias, nodeId) to {@link DiscoveryNode}
     * function on success.
     */
-    public void collectNodes(Set<String> clusters, ActionListener<BiFunction<String, String, ProtobufDiscoveryNode>> listener) {
+    public void collectNodes(Set<String> clusters, ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
         if (enabled == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -363,14 +363,14 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
             }
         }
 
-        final Map<String, Function<String, ProtobufDiscoveryNode>> clusterMap = new HashMap<>();
+        final Map<String, Function<String, DiscoveryNode>> clusterMap = new HashMap<>();
         CountDown countDown = new CountDown(clusters.size());
-        Function<String, ProtobufDiscoveryNode> nullFunction = s -> null;
+        Function<String, DiscoveryNode> nullFunction = s -> null;
         for (final String cluster : clusters) {
             ProtobufRemoteClusterConnection connection = remoteClusters.get(cluster);
-            connection.collectNodes(new ActionListener<Function<String, ProtobufDiscoveryNode>>() {
+            connection.collectNodes(new ActionListener<Function<String, DiscoveryNode>>() {
                 @Override
-                public void onResponse(Function<String, ProtobufDiscoveryNode> nodeLookup) {
+                public void onResponse(Function<String, DiscoveryNode> nodeLookup) {
                     synchronized (clusterMap) {
                         clusterMap.put(cluster, nodeLookup);
                     }

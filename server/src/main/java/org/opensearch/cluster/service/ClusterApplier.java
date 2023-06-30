@@ -33,6 +33,7 @@
 package org.opensearch.cluster.service;
 
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ProtobufClusterState;
 
 import java.util.function.Supplier;
 
@@ -47,6 +48,12 @@ public interface ClusterApplier {
      * @param initialState the initial state to set
      */
     void setInitialState(ClusterState initialState);
+
+    /**
+     * Sets the initial state for this applier. Should only be called once.
+     * @param initialState the initial state to set
+     */
+    void setInitialProtobufState(ProtobufClusterState initialState);
 
     /**
      * Method to invoke when a new cluster state is available to be applied

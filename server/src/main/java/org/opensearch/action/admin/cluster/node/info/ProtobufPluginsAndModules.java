@@ -13,6 +13,7 @@ import com.google.protobuf.CodedOutputStream;
 
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.plugins.ProtobufPluginInfo;
 
@@ -73,5 +74,22 @@ public class ProtobufPluginsAndModules implements ProtobufReportingService.Proto
 
     public void addModule(ProtobufPluginInfo info) {
         modules.add(info);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startArray("plugins");
+        for (ProtobufPluginInfo pluginInfo : getPluginInfos()) {
+            pluginInfo.toXContent(builder, params);
+        }
+        builder.endArray();
+        // TODO: not ideal, make a better api for this (e.g. with jar metadata, and so on)
+        builder.startArray("modules");
+        for (ProtobufPluginInfo moduleInfo : getModuleInfos()) {
+            moduleInfo.toXContent(builder, params);
+        }
+        builder.endArray();
+
+        return builder;
     }
 }
