@@ -37,7 +37,7 @@ public class NamedRoute extends RestHandler.Route {
         private RestRequest.Method method;
         private String path;
         private String uniqueName;
-        private Set<String> legacyActionNames = new HashSet<>();
+        private final Set<String> legacyActionNames = new HashSet<>();
         private Function<RestRequest, RestResponse> handler;
 
         /**
@@ -80,7 +80,7 @@ public class NamedRoute extends RestHandler.Route {
          * @return the builder instance
          */
         public Builder legacyActionNames(Set<String> legacyActionNames) {
-            this.legacyActionNames.addAll(legacyActionNames);
+            this.legacyActionNames.addAll(validateLegacyActionNames(legacyActionNames));
             return this;
         }
 
@@ -107,6 +107,21 @@ public class NamedRoute extends RestHandler.Route {
         public NamedRoute build() {
             return new NamedRoute(this);
         }
+
+        private Set<String> validateLegacyActionNames(Set<String> legacyActionNames) {
+            if (legacyActionNames == null) {
+                return new HashSet<>();
+            }
+            for (String actionName : legacyActionNames) {
+                if (!TransportService.isValidActionName(actionName)) {
+                    throw new OpenSearchException(
+                        "Invalid action name [" + actionName + "]. It must start with one of: " + TransportService.VALID_ACTION_PREFIXES
+                    );
+                }
+            }
+            return legacyActionNames;
+        }
+
     }
 
     private NamedRoute(Builder builder) {
@@ -120,7 +135,7 @@ public class NamedRoute extends RestHandler.Route {
             );
         }
         this.uniqueName = builder.uniqueName;
-        this.actionNames = validateLegacyActionNames(builder.legacyActionNames);
+        this.actionNames = builder.legacyActionNames;
         this.handler = builder.handler;
     }
 
@@ -129,20 +144,6 @@ public class NamedRoute extends RestHandler.Route {
             && !routeName.isBlank()
             && routeName.length() <= MAX_LENGTH_OF_ACTION_NAME
             && routeName.matches(VALID_ACTION_NAME_PATTERN);
-    }
-
-    private Set<String> validateLegacyActionNames(Set<String> legacyActionNames) {
-        if (legacyActionNames == null) {
-            return new HashSet<>();
-        }
-        for (String actionName : legacyActionNames) {
-            if (!TransportService.isValidActionName(actionName)) {
-                throw new OpenSearchException(
-                    "invalid action name [" + actionName + "] must start with one of: " + TransportService.VALID_ACTION_PREFIXES
-                );
-            }
-        }
-        return legacyActionNames;
     }
 
     /**
