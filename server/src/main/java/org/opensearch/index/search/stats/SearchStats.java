@@ -33,7 +33,6 @@
 package org.opensearch.index.search.stats;
 
 import org.opensearch.Version;
-import org.opensearch.action.CoordinatorStats;
 import org.opensearch.action.search.SearchCoordinatorStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.Strings;
@@ -81,6 +80,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         public long expandSearchCurrent;
         public long expandSearchTotal;
     }
+
     public static class Stats implements Writeable, ToXContentFragment {
 
         private long queryCount;
@@ -182,23 +182,23 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
                 this.coordinatorStatsLongHolder = new CoordinatorStatsLongHolder();
                 coordinatorStatsLongHolder.dfsPreQueryMetric = in.readVLong();
-                coordinatorStatsLongHolder.dfsPreQueryCurrent= in.readVLong();
+                coordinatorStatsLongHolder.dfsPreQueryCurrent = in.readVLong();
                 coordinatorStatsLongHolder.dfsPreQueryTotal = in.readVLong();
 
                 coordinatorStatsLongHolder.canMatchMetric = in.readVLong();
-                coordinatorStatsLongHolder.canMatchCurrent= in.readVLong();
+                coordinatorStatsLongHolder.canMatchCurrent = in.readVLong();
                 coordinatorStatsLongHolder.canMatchTotal = in.readVLong();
 
                 coordinatorStatsLongHolder.queryMetric = in.readVLong();
-                coordinatorStatsLongHolder.queryCurrent= in.readVLong();
+                coordinatorStatsLongHolder.queryCurrent = in.readVLong();
                 coordinatorStatsLongHolder.queryTotal = in.readVLong();
 
                 coordinatorStatsLongHolder.fetchMetric = in.readVLong();
-                coordinatorStatsLongHolder.fetchCurrent= in.readVLong();
+                coordinatorStatsLongHolder.fetchCurrent = in.readVLong();
                 coordinatorStatsLongHolder.fetchTotal = in.readVLong();
 
                 coordinatorStatsLongHolder.expandSearchMetric = in.readVLong();
-                coordinatorStatsLongHolder.expandSearchCurrent= in.readVLong();
+                coordinatorStatsLongHolder.expandSearchCurrent = in.readVLong();
                 coordinatorStatsLongHolder.expandSearchTotal = in.readVLong();
             }
         }

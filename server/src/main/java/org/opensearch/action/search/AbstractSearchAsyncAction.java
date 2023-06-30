@@ -448,7 +448,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             searchRequestOperationsListener.onCanMatchPhaseEnd(searchPhaseContext, tookTimeInMillis);
         } else if (searchPhaseContext.getCurrentPhase() instanceof DfsQueryPhase) {
             searchRequestOperationsListener.onQueryPhaseEnd(searchPhaseContext, tookTimeInMillis);
-        }else if (searchPhaseContext.getCurrentPhase() instanceof SearchQueryThenFetchAsyncAction) {
+        } else if (searchPhaseContext.getCurrentPhase() instanceof SearchQueryThenFetchAsyncAction) {
             searchRequestOperationsListener.onQueryPhaseEnd(searchPhaseContext, tookTimeInMillis);
         } else if (searchPhaseContext.getCurrentPhase() instanceof FetchSearchPhase) {
             searchRequestOperationsListener.onFetchPhaseEnd(searchPhaseContext, tookTimeInMillis);

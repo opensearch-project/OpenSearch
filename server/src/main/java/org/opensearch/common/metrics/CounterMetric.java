@@ -63,5 +63,4 @@ public class CounterMetric implements Metric {
         return counter.sum();
     }
 
-
 }
