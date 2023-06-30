@@ -35,7 +35,13 @@ public class MockSpan extends AbstractSpan {
      * @param spanProcessor span processor
      */
     public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor) {
-        this(spanName, parentSpan, IdGenerator.generateTraceId(), IdGenerator.generateSpanId(), spanProcessor);
+        this(
+            spanName,
+            parentSpan,
+            parentSpan != null ? parentSpan.getTraceId() : IdGenerator.generateTraceId(),
+            IdGenerator.generateSpanId(),
+            spanProcessor
+        );
     }
 
     /**
@@ -49,10 +55,10 @@ public class MockSpan extends AbstractSpan {
     public MockSpan(String spanName, Span parentSpan, String traceId, String spanId, SpanProcessor spanProcessor) {
         super(spanName, parentSpan);
         this.spanProcessor = spanProcessor;
-        metadata = new HashMap<>();
+        this.metadata = new HashMap<>();
         this.traceId = traceId;
         this.spanId = spanId;
-        startTime = System.nanoTime();
+        this.startTime = System.nanoTime();
     }
 
     @Override

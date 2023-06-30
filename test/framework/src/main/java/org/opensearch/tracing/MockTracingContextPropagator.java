@@ -45,7 +45,7 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
         if (currentSpan instanceof MockSpan) {
             String traceId = currentSpan.getTraceId();
             String spanId = currentSpan.getSpanId();
-            String traceParent = String.format(Locale.ROOT, "%s%s%s", traceId, TRACE_PARENT, spanId);
+            String traceParent = String.format(Locale.ROOT, "%s%s%s", traceId, SEPARATOR, spanId);
             setter.accept(TRACE_PARENT, traceParent);
         }
     }
