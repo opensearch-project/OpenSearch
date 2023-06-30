@@ -437,7 +437,16 @@ public class IndexingPressureIT extends OpenSearchIntegTestCase {
     }
 
     private String getCoordinatingOnlyNode() {
-        return client().admin().cluster().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().iterator().next().value
+        return client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .nodes()
+            .getCoordinatingOnlyNodes()
+            .values()
+            .iterator()
+            .next()
             .getName();
     }
 

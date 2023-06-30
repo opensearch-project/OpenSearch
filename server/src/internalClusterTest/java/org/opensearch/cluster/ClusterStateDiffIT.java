@@ -172,9 +172,9 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
                 assertThat(clusterStateFromDiffs.nodes().getLocalNodeId(), equalTo(previousClusterStateFromDiffs.nodes().getLocalNodeId()));
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
-                for (ObjectCursor<String> node : clusterStateFromDiffs.nodes().getNodes().keys()) {
-                    DiscoveryNode node1 = clusterState.nodes().get(node.value);
-                    DiscoveryNode node2 = clusterStateFromDiffs.nodes().get(node.value);
+                for (final String node : clusterStateFromDiffs.nodes().getNodes().keySet()) {
+                    DiscoveryNode node1 = clusterState.nodes().get(node);
+                    DiscoveryNode node2 = clusterStateFromDiffs.nodes().get(node);
                     assertThat(node1.getVersion(), equalTo(node2.getVersion()));
                     assertThat(node1.getAddress(), equalTo(node2.getAddress()));
                     assertThat(node1.getAttributes(), equalTo(node2.getAttributes()));
@@ -256,7 +256,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         List<String> nodeIds = randomSubsetOf(
             randomInt(clusterState.nodes().getNodes().size() - 1),
-            clusterState.nodes().getNodes().keys().toArray(String.class)
+            clusterState.nodes().getNodes().keySet().toArray(new String[0])
         );
         for (String nodeId : nodeIds) {
             if (nodeId.startsWith("node-")) {
@@ -291,7 +291,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
                     builder.add(
                         randomChangeToIndexRoutingTable(
                             clusterState.routingTable().indicesRouting().get(index),
-                            clusterState.nodes().getNodes().keys().toArray(String.class)
+                            clusterState.nodes().getNodes().keySet().toArray(new String[0])
                         )
                     );
                 }
@@ -299,7 +299,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
         }
         int additionalIndexCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalIndexCount; i++) {
-            builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().getNodes().keys().toArray(String.class)));
+            builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().getNodes().keySet().toArray(new String[0])));
         }
         return ClusterState.builder(clusterState).routingTable(builder.build());
     }

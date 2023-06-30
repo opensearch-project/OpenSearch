@@ -26,7 +26,6 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats;
@@ -800,10 +799,10 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     }
 
     private void assertNoSearchInAZ(String az) {
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
         String dataNodeId = null;
 
-        for (Iterator<DiscoveryNode> it = dataNodes.valuesIt(); it.hasNext();) {
+        for (Iterator<DiscoveryNode> it = dataNodes.values().iterator(); it.hasNext();) {
             DiscoveryNode node = it.next();
             if (node.getAttributes().get("zone").equals(az)) {
                 dataNodeId = node.getId();
@@ -824,10 +823,10 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     }
 
     private void assertSearchInAZ(String az) {
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
         String dataNodeId = null;
 
-        for (Iterator<DiscoveryNode> it = dataNodes.valuesIt(); it.hasNext();) {
+        for (Iterator<DiscoveryNode> it = dataNodes.values().iterator(); it.hasNext();) {
             DiscoveryNode node = it.next();
             if (node.getAttributes().get("zone").equals(az)) {
                 dataNodeId = node.getId();

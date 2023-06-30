@@ -49,7 +49,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
@@ -677,25 +676,6 @@ public abstract class StreamInput extends InputStream {
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
-    }
-
-    /**
-     * Read {@link ImmutableOpenMap} using given key and value readers.
-     *
-     * @param keyReader   key reader
-     * @param valueReader value reader
-     */
-    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
-        throws IOException {
-        final int size = readVInt();
-        if (size == 0) {
-            return ImmutableOpenMap.of();
-        }
-        final ImmutableOpenMap.Builder<K, V> builder = ImmutableOpenMap.builder(size);
-        for (int i = 0; i < size; i++) {
-            builder.put(keyReader.read(this), valueReader.read(this));
-        }
-        return builder.build();
     }
 
     /**

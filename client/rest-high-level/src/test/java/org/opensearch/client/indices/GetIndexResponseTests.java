@@ -37,7 +37,6 @@ import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.client.GetAliasesResponseTests;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentParser;
@@ -64,9 +63,9 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
         String[] indices = generateRandomStringArray(5, 5, false, false);
         final Map<String, MappingMetadata> mappings = new HashMap<>();
         final Map<String, List<AliasMetadata>> aliases = new HashMap<>();
-        ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
+        final Map<String, Settings> settings = new HashMap<>();
+        final Map<String, Settings> defaultSettings = new HashMap<>();
+        final Map<String, String> dataStreams = new HashMap<>();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index : indices) {
@@ -96,9 +95,9 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
             indices,
             mappings,
             aliases,
-            settings.build(),
-            defaultSettings.build(),
-            dataStreams.build()
+            settings,
+            defaultSettings,
+            dataStreams
         );
     }
 
@@ -114,8 +113,8 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
     ) {
         assertArrayEquals(serverTestInstance.getIndices(), clientInstance.getIndices());
         assertEquals(serverTestInstance.getMappings(), clientInstance.getMappings());
-        assertMapEquals(serverTestInstance.getSettings(), clientInstance.getSettings());
-        assertMapEquals(serverTestInstance.defaultSettings(), clientInstance.getDefaultSettings());
+        assertEquals(serverTestInstance.getSettings(), clientInstance.getSettings());
+        assertEquals(serverTestInstance.defaultSettings(), clientInstance.getDefaultSettings());
         assertEquals(serverTestInstance.getAliases(), clientInstance.getAliases());
     }
 

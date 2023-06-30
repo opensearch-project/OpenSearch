@@ -75,6 +75,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Refactor] more ImmutableOpenMap to jdk Map in cluster package ([#7301](https://github.com/opensearch-project/OpenSearch/pull/7301))
 - [Refactor] ImmutableOpenMap to j.u.Map in IndexMetadata ([#7306](https://github.com/opensearch-project/OpenSearch/pull/7306))
 - Check UTF16 string size before converting to String to avoid OOME ([#7963](https://github.com/opensearch-project/OpenSearch/pull/7963))
+- [Refactor] remaining ImmutableOpenMap usage to j.u.Map and remove class ([#7309](https://github.com/opensearch-project/OpenSearch/pull/7309))
 
 ### Deprecated
 

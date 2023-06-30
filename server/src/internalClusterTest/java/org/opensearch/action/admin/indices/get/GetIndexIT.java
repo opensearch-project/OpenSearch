@@ -37,7 +37,6 @@ import org.opensearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -254,7 +253,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertSettings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, Settings> settings = response.settings();
+        final Map<String, Settings> settings = response.settings();
         assertThat(settings, notNullValue());
         assertThat(settings.size(), equalTo(1));
         Settings indexSettings = settings.get(indexName);
@@ -263,7 +262,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertNonEmptySettings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, Settings> settings = response.settings();
+        final Map<String, Settings> settings = response.settings();
         assertThat(settings, notNullValue());
         assertThat(settings.size(), equalTo(1));
         Settings indexSettings = settings.get(indexName);
