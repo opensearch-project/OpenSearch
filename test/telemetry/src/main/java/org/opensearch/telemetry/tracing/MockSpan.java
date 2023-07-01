@@ -6,13 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry.tracing;
 
 import java.util.HashMap;
 import java.util.Map;
 import org.opensearch.common.Randomness;
-import org.opensearch.telemetry.tracing.AbstractSpan;
-import org.opensearch.telemetry.tracing.Span;
 
 /**
  * MockSpan for testing and strict check validations. Not to be used for production cases.

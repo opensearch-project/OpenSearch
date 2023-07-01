@@ -6,19 +6,24 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry;
 
 import java.util.Optional;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
-import org.opensearch.telemetry.Telemetry;
-import org.opensearch.telemetry.TelemetrySettings;
 
 /**
  * Mock {@link TelemetryPlugin} implementation for testing.
  */
 public class MockTelemetryPlugin extends Plugin implements TelemetryPlugin {
     private static final String MOCK_TRACER_NAME = "mock";
+
+    /**
+     * Base constructor.
+     */
+    public MockTelemetryPlugin() {
+
+    }
 
     @Override
     public Optional<Telemetry> getTelemetry(TelemetrySettings settings) {

@@ -48,6 +48,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
@@ -67,7 +68,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.tracing.MockTelemetryPlugin;
+import org.opensearch.telemetry.MockTelemetryPlugin;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -244,6 +245,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
+            .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true)
             .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();

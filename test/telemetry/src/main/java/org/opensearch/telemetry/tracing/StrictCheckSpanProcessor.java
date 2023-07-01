@@ -6,19 +6,25 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry.tracing;
 
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.opensearch.telemetry.tracing.Span;
 
 /**
  * Strict check span processor to validate the spans.
  */
 public class StrictCheckSpanProcessor implements SpanProcessor {
     private final Map<String, StackTraceElement[]> spanMap = new ConcurrentHashMap<>();
+
+    /**
+     * Base constructor.
+     */
+    public StrictCheckSpanProcessor() {
+
+    }
 
     @Override
     public void onStart(Span span) {
@@ -53,6 +59,9 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
         }
     }
 
+    /**
+     * Clears the state.
+     */
     public void clear() {
         spanMap.clear();
     }

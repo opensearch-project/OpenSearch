@@ -6,11 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
-
-import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.telemetry.tracing.TracingContextPropagator;
-import org.opensearch.telemetry.tracing.TracingTelemetry;
+package org.opensearch.telemetry.tracing;
 
 /**
  * Mock {@link TracingTelemetry} implementation for testing.
@@ -18,6 +14,13 @@ import org.opensearch.telemetry.tracing.TracingTelemetry;
 public class MockTracingTelemetry implements TracingTelemetry {
 
     private final SpanProcessor spanProcessor = new StrictCheckSpanProcessor();
+
+    /**
+     * Base constructor.
+     */
+    public MockTracingTelemetry() {
+
+    }
 
     @Override
     public Span createSpan(String spanName, Span parentSpan) {

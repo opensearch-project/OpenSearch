@@ -6,13 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry.tracing;
 
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.telemetry.tracing.TracingContextPropagator;
 
 /**
  * Mock {@link TracingContextPropagator} to persist the span for internode communication.
@@ -23,6 +21,10 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
     private static final String SEPARATOR = "~";
     private final SpanProcessor spanProcessor;
 
+    /**
+     * Constructor
+     * @param spanProcessor span processor.
+     */
     public MockTracingContextPropagator(SpanProcessor spanProcessor) {
         this.spanProcessor = spanProcessor;
     }

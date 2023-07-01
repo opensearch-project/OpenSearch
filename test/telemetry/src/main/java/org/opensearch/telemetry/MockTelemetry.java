@@ -6,11 +6,10 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracing;
+package org.opensearch.telemetry;
 
-import org.opensearch.telemetry.Telemetry;
-import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
+import org.opensearch.telemetry.tracing.MockTracingTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 
 /**
@@ -20,6 +19,10 @@ public class MockTelemetry implements Telemetry {
 
     private final TelemetrySettings settings;
 
+    /**
+     * Constructor with settings.
+     * @param settings telemetry settings.
+     */
     public MockTelemetry(TelemetrySettings settings) {
         this.settings = settings;
     }
