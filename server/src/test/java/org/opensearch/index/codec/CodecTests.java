@@ -43,7 +43,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
-import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -96,7 +95,7 @@ public class CodecTests extends OpenSearchTestCase {
     }
 
     public void testZstdWithCompressionLevel() throws Exception {
-        int randomCompressionLevel = generateRandomNumber(6, 1);
+        int randomCompressionLevel = randomIntBetween(1, 6);
         Codec codec = createCodecService(randomCompressionLevel).codec("zstd");
         assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD, codec);
         Lucene95CustomStoredFieldsFormat storedFieldsFormat = (Lucene95CustomStoredFieldsFormat) codec.storedFieldsFormat();
@@ -104,7 +103,7 @@ public class CodecTests extends OpenSearchTestCase {
     }
 
     public void testZstdNoDictWithCompressionLevel() throws Exception {
-        int randomCompressionLevel = generateRandomNumber(6, 1);
+        int randomCompressionLevel = randomIntBetween(1, 6);
         Codec codec = createCodecService(randomCompressionLevel).codec("zstd_no_dict");
         assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD_NO_DICT, codec);
         Lucene95CustomStoredFieldsFormat storedFieldsFormat = (Lucene95CustomStoredFieldsFormat) codec.storedFieldsFormat();
@@ -155,11 +154,10 @@ public class CodecTests extends OpenSearchTestCase {
     }
 
     private CodecService createCodecService(boolean isMapperServiceNull) throws IOException {
-
-        if (isMapperServiceNull) {
-            return new CodecService(null, LogManager.getLogger("test"));
-        }
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        if (isMapperServiceNull) {
+            return new CodecService(null, IndexSettingsModule.newIndexSettings("_na", nodeSettings), LogManager.getLogger("test"));
+        }
         return buildCodecService(nodeSettings);
     }
 
@@ -173,12 +171,12 @@ public class CodecTests extends OpenSearchTestCase {
 
     private CodecService buildCodecService(Settings nodeSettings) throws IOException {
 
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
-        SimilarityService similarityService = new SimilarityService(settings, null, Collections.emptyMap());
-        IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
+        SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(indexSettings, nodeSettings).indexAnalyzers;
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER);
         MapperService service = new MapperService(
-            settings,
+            indexSettings,
             indexAnalyzers,
             xContentRegistry(),
             similarityService,
@@ -187,7 +185,7 @@ public class CodecTests extends OpenSearchTestCase {
             () -> false,
             null
         );
-        return new CodecService(service, LogManager.getLogger("test"));
+        return new CodecService(service, indexSettings, LogManager.getLogger("test"));
     }
 
     private SegmentReader getSegmentReader(Codec codec) throws IOException {
@@ -203,10 +201,6 @@ public class CodecTests extends OpenSearchTestCase {
         ir.close();
         dir.close();
         return sr;
-    }
-
-    private int generateRandomNumber(int max, int min) {
-        return Randomness.get().nextInt(max - min + 1) + min;
     }
 
 }

@@ -38,11 +38,13 @@ import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec.Mode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.customcodecs.ZstdCodec;
 import org.opensearch.index.codec.customcodecs.ZstdNoDictCodec;
 import org.opensearch.index.mapper.MapperService;
 
 import java.util.Map;
+import java.util.Objects;
 
 import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING;
 
@@ -67,15 +69,15 @@ public class CodecService {
     public static final String ZSTD_CODEC = "zstd";
     public static final String ZSTD_NO_DICT_CODEC = "zstd_no_dict";
 
-    public CodecService(@Nullable MapperService mapperService, Logger logger) {
+    public CodecService(@Nullable MapperService mapperService, IndexSettings indexSettings, Logger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
+        int compressionLevel = Objects.requireNonNull(indexSettings).getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene95Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene95Codec(Mode.BEST_COMPRESSION));
-            codecs.put(ZSTD_CODEC, new ZstdCodec());
-            codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec());
+            codecs.put(ZSTD_CODEC, new ZstdCodec(compressionLevel));
+            codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(compressionLevel));
         } else {
-            int compressionLevel = mapperService.getIndexSettings().getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
             codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
             codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
             codecs.put(ZSTD_CODEC, new ZstdCodec(mapperService, logger, compressionLevel));
