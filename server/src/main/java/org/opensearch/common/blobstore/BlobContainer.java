@@ -196,6 +196,9 @@ public interface BlobContainer {
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 
+    /**
+     * The type representing sort order of blob names
+     */
     enum BlobNameSortOrder {
 
         LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name)),
