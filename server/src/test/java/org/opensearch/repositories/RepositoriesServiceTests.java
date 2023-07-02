@@ -210,15 +210,15 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
     }
 
-    private static class TestRepository implements Repository {
+    public static class TestRepository implements Repository {
 
-        private static final String TYPE = "internal";
+        public static final String TYPE = "internal";
         private boolean isClosed;
         private boolean isStarted;
 
         private final RepositoryMetadata metadata;
 
-        private TestRepository(RepositoryMetadata metadata) {
+        public TestRepository(RepositoryMetadata metadata) {
             this.metadata = metadata;
         }
 
@@ -409,11 +409,11 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
     }
 
-    private static class MeteredRepositoryTypeA extends MeteredBlobStoreRepository {
-        private static final String TYPE = "type-a";
+    public static class MeteredRepositoryTypeA extends MeteredBlobStoreRepository {
+        public static final String TYPE = "type-a";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", 10L));
 
-        private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
+        public MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
             super(
                 metadata,
                 false,
@@ -440,11 +440,11 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
     }
 
-    private static class MeteredRepositoryTypeB extends MeteredBlobStoreRepository {
-        private static final String TYPE = "type-b";
+    public static class MeteredRepositoryTypeB extends MeteredBlobStoreRepository {
+        public static final String TYPE = "type-b";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", 20L));
 
-        private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
+        public MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
             super(
                 metadata,
                 false,
