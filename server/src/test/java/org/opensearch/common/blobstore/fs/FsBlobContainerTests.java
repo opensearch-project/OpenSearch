@@ -35,6 +35,7 @@ import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.ActionListener;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
@@ -57,6 +58,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -123,7 +125,7 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
         assertThat(FsBlobContainer.isTempBlobName(tempBlobName), is(true));
     }
 
-    private void testListBlobsByPrefixInLexicographicOrder(int limit) throws IOException {
+    private void testListBlobsByPrefixInSortedOrder(int limit, BlobContainer.BlobNameSortOrder blobNameSortOrder) throws IOException {
 
         final Path path = PathUtils.get(createTempDir().toString());
 
@@ -134,7 +136,6 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
             Files.write(path.resolve(blobName), blobData);
             blobsInFileSystem.add(blobName);
         }
-        blobsInFileSystem.sort(String::compareTo);
 
         final FsBlobContainer container = new FsBlobContainer(
             new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
@@ -143,12 +144,17 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
         );
 
         if (limit >= 0) {
-            container.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<List<BlobMetadata>>() {
+            container.listBlobsByPrefixInSortedOrder(null, limit, blobNameSortOrder, new ActionListener<>() {
                 @Override
                 public void onResponse(List<BlobMetadata> blobMetadata) {
                     int actualLimit = Math.min(limit, 10);
                     assertEquals(actualLimit, blobMetadata.size());
 
+                    if (blobNameSortOrder == BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC) {
+                        blobsInFileSystem.sort(String::compareTo);
+                    } else {
+                        blobsInFileSystem.sort(Collections.reverseOrder(String::compareTo));
+                    }
                     List<String> keys = blobsInFileSystem.subList(0, actualLimit);
                     assertEquals(keys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
                 }
@@ -161,7 +167,7 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
         } else {
             assertThrows(
                 IllegalArgumentException.class,
-                () -> container.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<>() {
+                () -> container.listBlobsByPrefixInSortedOrder(null, limit, blobNameSortOrder, new ActionListener<>() {
                     @Override
                     public void onResponse(List<BlobMetadata> blobMetadata) {}
 
@@ -173,23 +179,43 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithNegativeLimit() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(-5);
+        testListBlobsByPrefixInSortedOrder(-5, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithZeroLimit() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(0);
+        testListBlobsByPrefixInSortedOrder(0, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitLessThanNumberOfRecords() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(8);
+        testListBlobsByPrefixInSortedOrder(8, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitNumberOfRecords() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(10);
+        testListBlobsByPrefixInSortedOrder(10, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(12);
+        testListBlobsByPrefixInSortedOrder(12, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInReverseLexicographicOrderWithNegativeLimit() throws IOException {
+        testListBlobsByPrefixInSortedOrder(-5, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInReverseLexicographicOrderWithZeroLimit() throws IOException {
+        testListBlobsByPrefixInSortedOrder(0, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitLessThanNumberOfRecords() throws IOException {
+        testListBlobsByPrefixInSortedOrder(8, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitNumberOfRecords() throws IOException {
+        testListBlobsByPrefixInSortedOrder(10, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
+        testListBlobsByPrefixInSortedOrder(12, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
     }
 
     static class MockFileSystemProvider extends FilterFileSystemProvider {

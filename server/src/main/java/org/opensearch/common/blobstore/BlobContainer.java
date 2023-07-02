@@ -196,19 +196,41 @@ public interface BlobContainer {
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 
+    enum BlobNameSortOrder {
+
+        LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name)),
+        REVERSE_LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name).reversed());
+
+        final Comparator<BlobMetadata> comparator;
+
+        public Comparator<BlobMetadata> comparator() {
+            return comparator;
+        }
+
+        BlobNameSortOrder(final Comparator<BlobMetadata> comparator) {
+            this.comparator = comparator;
+        }
+    }
+
     /**
      * Lists all blobs in the container that match the specified prefix in lexicographic order
      * @param blobNamePrefix The prefix to match against blob names in the container.
      * @param limit Limits the result size to min(limit, number of keys)
+     * @param blobNameSortOrder Comparator to sort keys with
      * @param listener the listener to be notified upon request completion
      */
-    default void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) {
+    default void listBlobsByPrefixInSortedOrder(
+        String blobNamePrefix,
+        int limit,
+        BlobNameSortOrder blobNameSortOrder,
+        ActionListener<List<BlobMetadata>> listener
+    ) {
         if (limit < 0) {
             throw new IllegalArgumentException("limit should not be a negative value");
         }
         try {
             List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
-            blobNames.sort(Comparator.comparing(BlobMetadata::name));
+            blobNames.sort(blobNameSortOrder.comparator());
             listener.onResponse(blobNames.subList(0, Math.min(blobNames.size(), limit)));
         } catch (Exception e) {
             listener.onFailure(e);

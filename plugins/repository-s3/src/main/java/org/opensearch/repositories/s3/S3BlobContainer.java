@@ -298,19 +298,31 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void listBlobsByPrefixInLexicographicOrder(String blobNamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) {
-        if (limit < 0) {
-            throw new IllegalArgumentException("limit should not be a negative value");
-        }
-        String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            List<BlobMetadata> blobs = executeListing(clientReference, listObjectsRequest(prefix, limit), limit).stream()
-                .flatMap(listing -> listing.contents().stream())
-                .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
-                .collect(Collectors.toList());
-            listener.onResponse(blobs.subList(0, Math.min(limit, blobs.size())));
-        } catch (final SdkException e) {
-            listener.onFailure(new IOException("Exception when listing blobs by prefix [" + prefix + "]", e));
+    public void listBlobsByPrefixInSortedOrder(
+        String blobNamePrefix,
+        int limit,
+        BlobNameSortOrder blobNameSortOrder,
+        ActionListener<List<BlobMetadata>> listener
+    ) {
+        // As AWS S3 returns list of keys in Lexicographic order, we don't have to fetch all the keys in order to sort them
+        // We fetch only keys as per the given limit to optimize the fetch. If provided sort order is not Lexicographic,
+        // we fall-back to default implementation of fetching all the keys and sorting them.
+        if (blobNameSortOrder != BlobNameSortOrder.LEXICOGRAPHIC) {
+            super.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder, listener);
+        } else {
+            if (limit < 0) {
+                throw new IllegalArgumentException("limit should not be a negative value");
+            }
+            String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
+            try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                List<BlobMetadata> blobs = executeListing(clientReference, listObjectsRequest(prefix, limit), limit).stream()
+                    .flatMap(listing -> listing.contents().stream())
+                    .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
+                    .collect(Collectors.toList());
+                listener.onResponse(blobs.subList(0, Math.min(limit, blobs.size())));
+            } catch (final SdkException e) {
+                listener.onFailure(new IOException("Exception when listing blobs by prefix [" + prefix + "]", e));
+            }
         }
     }
 

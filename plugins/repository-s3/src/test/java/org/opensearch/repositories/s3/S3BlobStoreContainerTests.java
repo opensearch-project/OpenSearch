@@ -34,6 +34,7 @@ package org.opensearch.repositories.s3;
 
 import org.mockito.ArgumentCaptor;
 import org.opensearch.action.ActionListener;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
@@ -75,6 +76,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -88,7 +91,6 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.fail;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.any;
@@ -196,13 +198,18 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         private final boolean throwExceptionOnNextInvocation;
 
         public MockListObjectsV2ResponseIterator(int totalPageCount, int s3ObjectsPerPage, long s3ObjectSize) {
-            this(totalPageCount, s3ObjectsPerPage, s3ObjectSize, false);
+            this(totalPageCount, s3ObjectsPerPage, s3ObjectSize, "");
+        }
+
+        public MockListObjectsV2ResponseIterator(int totalPageCount, int s3ObjectsPerPage, long s3ObjectSize, String blobPath) {
+            this(totalPageCount, s3ObjectsPerPage, s3ObjectSize, blobPath, false);
         }
 
         public MockListObjectsV2ResponseIterator(
             int totalPageCount,
             int s3ObjectsPerPage,
             long s3ObjectSize,
+            String blobPath,
             boolean throwExceptionOnNextInvocation
         ) {
             this.totalPageCount = totalPageCount;
@@ -211,7 +218,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             this.throwExceptionOnNextInvocation = throwExceptionOnNextInvocation;
             keysListed = new ArrayList<>();
             for (int i = 0; i < totalPageCount * s3ObjectsPerPage; i++) {
-                keysListed.add(UUID.randomUUID().toString());
+                keysListed.add(blobPath + UUID.randomUUID().toString());
             }
             // S3 lists keys in lexicographic order
             keysListed.sort(String::compareTo);
@@ -811,7 +818,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(keys, listOfBlobs.keySet());
     }
 
-    private void testListBlobsByPrefixInLexicographicOrder(int limit, int expectedNumberofPagesFetched) throws IOException {
+    private void testListBlobsByPrefixInLexicographicOrder(
+        int limit,
+        int expectedNumberofPagesFetched,
+        BlobContainer.BlobNameSortOrder blobNameSortOrder
+    ) throws IOException {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
 
@@ -826,11 +837,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
         when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
 
-        MockListObjectsV2ResponseIterator iterator = new MockListObjectsV2ResponseIterator(2, 5, 100);
+        final MockListObjectsV2ResponseIterator iterator = new MockListObjectsV2ResponseIterator(2, 5, 100, blobPath.buildAsString());
         when(listObjectsV2Iterable.iterator()).thenReturn(iterator);
 
         if (limit >= 0) {
-            blobContainer.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<>() {
+            blobContainer.listBlobsByPrefixInSortedOrder(null, limit, blobNameSortOrder, new ActionListener<>() {
                 @Override
                 public void onResponse(List<BlobMetadata> blobMetadata) {
                     int actualLimit = Math.max(0, Math.min(limit, 10));
@@ -838,9 +849,14 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
                     List<String> keys = iterator.keysListed.stream()
                         .map(s -> s.substring(blobPath.buildAsString().length()))
-                        .collect(Collectors.toList())
-                        .subList(0, actualLimit);
-                    assertEquals(keys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
+                        .collect(Collectors.toList());
+                    Comparator<String> keysComparator = String::compareTo;
+                    if (blobNameSortOrder != BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC) {
+                        keysComparator = Collections.reverseOrder(String::compareTo);
+                    }
+                    keys.sort(keysComparator);
+                    List<String> sortedKeys = keys.subList(0, actualLimit);
+                    assertEquals(sortedKeys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
                     assertEquals(expectedNumberofPagesFetched, iterator.numberOfPagesFetched());
                 }
 
@@ -852,7 +868,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         } else {
             assertThrows(
                 IllegalArgumentException.class,
-                () -> blobContainer.listBlobsByPrefixInLexicographicOrder(null, limit, new ActionListener<>() {
+                () -> blobContainer.listBlobsByPrefixInSortedOrder(null, limit, blobNameSortOrder, new ActionListener<>() {
                     @Override
                     public void onResponse(List<BlobMetadata> blobMetadata) {}
 
@@ -864,22 +880,45 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithNegativeLimit() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(-5, 0);
+        testListBlobsByPrefixInLexicographicOrder(-5, 0, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithZeroLimit() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(0, 1);
+        testListBlobsByPrefixInLexicographicOrder(0, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitLessThanPageSize() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(2, 1);
+        testListBlobsByPrefixInLexicographicOrder(2, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanPageSize() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(8, 2);
+        testListBlobsByPrefixInLexicographicOrder(8, 2, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(12, 2);
+        testListBlobsByPrefixInLexicographicOrder(12, 2, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
+
+    public void testListBlobsByPrefixInReverseLexicographicOrderWithNegativeLimit() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(-5, 0, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInReverseLexicographicOrderWithZeroLimit() throws IOException {
+        // Here, in case of reverse lexicographic sort, we fetch all the keys before sorting.
+        testListBlobsByPrefixInLexicographicOrder(0, 2, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitLessThanPageSize() throws IOException {
+        // Here, in case of reverse lexicographic sort, we fetch all the keys before sorting.
+        testListBlobsByPrefixInLexicographicOrder(2, 2, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitGreaterThanPageSize() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(8, 2, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(12, 2, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
+    }
+
 }
