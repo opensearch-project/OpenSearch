@@ -9,7 +9,6 @@
 package org.opensearch.extensions;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
 
@@ -32,7 +31,7 @@ import org.opensearch.transport.TransportService;
 public class NoopExtensionsManager extends ExtensionsManager {
 
     public NoopExtensionsManager() throws IOException {
-        super(Path.of(""), Set.of());
+        super(Set.of());
     }
 
     @Override
@@ -57,11 +56,6 @@ public class NoopExtensionsManager extends ExtensionsManager {
     public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws Exception {
         // no-op empty response
         return new ExtensionActionResponse(new byte[0]);
-    }
-
-    @Override
-    protected void discover() throws IOException {
-        // no-op
     }
 
     @Override

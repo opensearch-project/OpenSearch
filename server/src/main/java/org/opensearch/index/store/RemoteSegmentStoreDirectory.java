@@ -127,6 +127,24 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     /**
+     * Initializes the cache to a specific commit which keeps track of all the segment files uploaded to the
+     * remote segment store.
+     * this is currently used to restore snapshots, where we want to copy segment files from a given commit.
+     * TODO: check if we can return read only RemoteSegmentStoreDirectory object from here.
+     * @throws IOException if there were any failures in reading the metadata file
+     */
+    public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration) throws IOException {
+        String metadataFile = getMetadataFileForCommit(primaryTerm, commitGeneration);
+        RemoteSegmentMetadata remoteSegmentMetadata = readMetadataFile(metadataFile);
+        if (remoteSegmentMetadata != null) {
+            this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
+        } else {
+            this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>();
+        }
+        return remoteSegmentMetadata;
+    }
+
+    /**
      * Read the latest metadata file to get the list of segments uploaded to the remote segment store.
      * We upload a metadata file per refresh, but it is not unique per refresh. Refresh metadata file is unique for a given commit.
      * The format of refresh metadata filename is: refresh_metadata__PrimaryTerm__Generation__UUID
@@ -485,6 +503,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     new RemoteSegmentMetadata(
                         RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
                         segmentInfoSnapshotByteArray,
+                        primaryTerm,
                         segmentInfosSnapshot.getGeneration()
                     )
                 );

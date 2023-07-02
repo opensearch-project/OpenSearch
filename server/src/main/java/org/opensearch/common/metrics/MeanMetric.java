@@ -49,6 +49,11 @@ public class MeanMetric implements Metric {
         sum.add(n);
     }
 
+    public void add(MeanMetric other) {
+        counter.add(other.counter.sum());
+        sum.add(other.sum.sum());
+    }
+
     public void dec(long n) {
         counter.decrement();
         sum.add(-n);
