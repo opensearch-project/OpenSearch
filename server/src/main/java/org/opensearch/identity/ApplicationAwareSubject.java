@@ -22,7 +22,7 @@ import org.opensearch.identity.tokens.AuthToken;
  * This class defines an ApplicationAwareSubject.
  *
  * An ApplicatioAwarenSubject is a type of Subject which wraps another basic Subject object.
- * With an ApplicationSubject, we represent a system that interacts with the Identity access control system.
+ * With an ApplicationAwareSubject, we represent a system that interacts with the Identity access control system.
  *
  * @opensearch.experimental
  */
