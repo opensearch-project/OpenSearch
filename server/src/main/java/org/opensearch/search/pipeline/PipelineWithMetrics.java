@@ -140,7 +140,7 @@ class PipelineWithMetrics extends Pipeline {
                 }
                 Map<String, Object> config = (Map<String, Object>) entry.getValue();
                 String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
-                Boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, IGNORE_FAILURE_KEY, false);
+                boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, IGNORE_FAILURE_KEY, false);
                 String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
                 processors.add(processorFactories.get(type).create(processorFactories, tag, description, ignoreFailure, config));
             }

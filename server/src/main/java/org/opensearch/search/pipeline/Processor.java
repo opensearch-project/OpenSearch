@@ -52,7 +52,7 @@ public interface Processor {
     /**
      * Gets the setting of ignoreFailure of a processor.
      */
-    Boolean getIgnoreFailure();
+    boolean getIgnoreFailure();
 
     /**
      * A factory that knows how to construct a processor based on a map of maps.
@@ -74,7 +74,7 @@ public interface Processor {
             Map<String, Factory<T>> processorFactories,
             String tag,
             String description,
-            Boolean ignoreFailure,
+            boolean ignoreFailure,
             Map<String, Object> config
         ) throws Exception;
     }

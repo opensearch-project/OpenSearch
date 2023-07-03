@@ -215,9 +215,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         private final String tag;
         private final String description;
 
-        private final Boolean ignoreFailure;
+        private final boolean ignoreFailure;
 
-        protected FakeProcessor(String type, String tag, String description, Boolean ignoreFailure) {
+        protected FakeProcessor(String type, String tag, String description, boolean ignoreFailure) {
             this.type = type;
             this.tag = tag;
             this.description = description;
@@ -240,7 +240,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Boolean getIgnoreFailure() {
+        public boolean getIgnoreFailure() {
             return ignoreFailure;
         }
     }
@@ -248,7 +248,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
     private static class FakeRequestProcessor extends FakeProcessor implements SearchRequestProcessor {
         private final Consumer<SearchRequest> executor;
 
-        public FakeRequestProcessor(String type, String tag, String description, Boolean ignoreFailure, Consumer<SearchRequest> executor) {
+        public FakeRequestProcessor(String type, String tag, String description, boolean ignoreFailure, Consumer<SearchRequest> executor) {
             super(type, tag, description, ignoreFailure);
             this.executor = executor;
         }
@@ -275,7 +275,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             String type,
             String tag,
             String description,
-            Boolean ignoreFailure,
+            boolean ignoreFailure,
             Consumer<SearchResponse> executor
         ) {
             super(type, tag, description, ignoreFailure);
@@ -296,7 +296,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             String type,
             String tag,
             String description,
-            Boolean ignoreFailure,
+            boolean ignoreFailure,
             Consumer<SearchPhaseResult> querySearchResultConsumer
         ) {
             super(type, tag, description, ignoreFailure);

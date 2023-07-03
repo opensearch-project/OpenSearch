@@ -19,6 +19,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 
@@ -51,7 +52,7 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
     public RenameFieldResponseProcessor(
         String tag,
         String description,
-        Boolean ignoreFailure,
+        boolean ignoreFailure,
         String oldField,
         String newField,
         boolean ignoreMissing
@@ -148,7 +149,7 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
             Map<String, Processor.Factory<SearchResponseProcessor>> processorFactories,
             String tag,
             String description,
-            Boolean ignoreFailure,
+            boolean ignoreFailure,
             Map<String, Object> config
         ) throws Exception {
             String oldField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");

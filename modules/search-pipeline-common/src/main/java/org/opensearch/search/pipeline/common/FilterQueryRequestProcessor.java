@@ -21,6 +21,7 @@ import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 
 import java.io.InputStream;
@@ -58,7 +59,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
      * @param ignoreFailure  option to ignore failure
      * @param filterQuery the query that will be added as a filter to incoming queries
      */
-    public FilterQueryRequestProcessor(String tag, String description, Boolean ignoreFailure, QueryBuilder filterQuery) {
+    public FilterQueryRequestProcessor(String tag, String description, boolean ignoreFailure, QueryBuilder filterQuery) {
         super(tag, description, ignoreFailure);
         this.filterQuery = filterQuery;
     }
@@ -102,7 +103,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
             Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
             String tag,
             String description,
-            Boolean ignoreFailure,
+            boolean ignoreFailure,
             Map<String, Object> config
         ) throws Exception {
             try (

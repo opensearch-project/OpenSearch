@@ -48,7 +48,6 @@ class Pipeline {
     private final List<SearchPhaseResultsProcessor> searchPhaseResultsProcessors;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final LongSupplier relativeTimeSupplier;
-    private int processorFailureCount = 0;
 
     Pipeline(
         String id,
@@ -139,10 +138,8 @@ class Pipeline {
                     } catch (Exception e) {
                         onRequestProcessorFailed(processor);
                         if (processor.getIgnoreFailure()) {
-                            processorFailureCount = processorFailureCount + 1;
                             logger.info("failed to process request process: " + processor.getType());
-                            logger.error("An error occurred in the processor", e);
-                            logger.info("the number of failing pipeline increments to " + processorFailureCount);
+                            logger.warn("An error occurred in the processor", e);
                         } else {
                             throw e;
                         }
@@ -175,10 +172,8 @@ class Pipeline {
                     } catch (Exception e) {
                         onResponseProcessorFailed(processor);
                         if (processor.getIgnoreFailure()) {
-                            processorFailureCount = processorFailureCount + 1;
                             logger.info("failed to process response process: " + processor.getType());
-                            logger.error("An error occurred in the processor", e);
-                            logger.info("the number of failing pipeline increments to " + processorFailureCount);
+                            logger.warn("An error occurred in the processor", e);
                         } else {
                             throw e;
                         }

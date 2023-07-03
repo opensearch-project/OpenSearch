@@ -25,6 +25,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.SearchScript;
 import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.common.helpers.SearchRequestMap;
 
@@ -61,7 +62,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
     ScriptRequestProcessor(
         String tag,
         String description,
-        Boolean ignoreFailure,
+        boolean ignoreFailure,
         Script script,
         @Nullable SearchScript precompiledSearchScript,
         ScriptService scriptService
@@ -156,7 +157,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
             Map<String, Processor.Factory<SearchRequestProcessor>> registry,
             String processorTag,
             String description,
-            Boolean ignoreFailure,
+            boolean ignoreFailure,
             Map<String, Object> config
         ) throws Exception {
             try (
