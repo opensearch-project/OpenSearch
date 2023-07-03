@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster;
 
+import java.io.IOException;
 import java.security.Principal;
 import java.util.HashSet;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.extensions.NoopExtensionsManager;
 import org.opensearch.identity.ApplicationSubject;
 import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.Scope;
@@ -37,8 +39,19 @@ public class ApplicationManager {
         instance = this;
     }
 
+    public ApplicationManager() {
+        try {
+            this.extensionManager = new NoopExtensionsManager();
+            instance = new NoopApplicationManager();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static ApplicationManager getInstance() {
-        System.out.println("Calling getInstance in ApplicationManager");
+        if (instance == null) {
+            new ApplicationManager();
+        }
         return instance;
     }
 

@@ -16,6 +16,7 @@ package org.opensearch.identity.scopes;
 public interface Scope {
 
     String UNKNOWN_SCOPE_MESSAGE = "Failed to find scope: ";
+
     ScopeEnums.ScopeNamespace getNamespace();
 
     ScopeEnums.ScopeArea getArea();

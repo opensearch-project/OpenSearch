@@ -45,6 +45,7 @@ import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.ApplicationSubject;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
@@ -141,6 +142,8 @@ public class NodeClient extends AbstractClient {
     private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
         ActionType<Response> action
     ) {
+        ApplicationSubject subject = IdentityService.getInstance().getSubject();
+        System.out.println("Successfully grabbed subject: " + subject);
         if (!ApplicationManager.getInstance().isAllowed(IdentityService.getInstance().getSubject(), action.getAllowedScopes())) {
             final String scopeList = action.getAllowedScopes().stream().map(Object::toString).collect(Collectors.joining(","));
             logger.debug("Request did not have any of the required scopes, " + scopeList);
