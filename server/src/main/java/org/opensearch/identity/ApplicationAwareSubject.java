@@ -19,9 +19,9 @@ import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.tokens.AuthToken;
 
 /**
- * This class defines an ApplicationSubject.
+ * This class defines an ApplicationAwareSubject.
  *
- * An ApplicationSubject is a type of ApplicationAwareSubject which wraps a basic Subject object.
+ * An ApplicatioAwarenSubject is a type of Subject which wraps another basic Subject object.
  * With an ApplicationSubject, we represent a system that interacts with the Identity access control system.
  *
  * @opensearch.experimental
@@ -32,7 +32,7 @@ public class ApplicationAwareSubject implements Subject {
     private final Subject wrapped;
 
     /**
-     * We wrap a basic Subject object to create an ApplicationSubject -- this should come from the IdentityService
+     * We wrap a basic Subject object to create an ApplicationAwareSubject -- this should come from the IdentityService
      * @param wrapped The Subject to be wrapped
      */
     public ApplicationAwareSubject(final Subject wrapped) {
