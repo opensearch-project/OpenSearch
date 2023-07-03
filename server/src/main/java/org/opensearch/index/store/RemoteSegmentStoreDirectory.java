@@ -394,7 +394,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         // ideally there should be only one lock per acquirer, but just to handle any stale locks,
         // we try to release all the locks for the acquirer.
-        List<String> locksToRelease = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles.toArray(new String[0]));
+        List<String> locksToRelease = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles.toArray(String[]::new));
         if (locksToRelease.size() > 1) {
             logger.warn(locksToRelease.size() + " locks found for acquirer " + ((FileLockInfo) lockInfo).getAcquirerId());
         }
@@ -414,7 +414,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     public Boolean isLockAcquired(LockInfo lockInfo) throws IOException {
         assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
         Collection<String> lockFiles = remoteLockDirectory.listFilesByPrefix(((FileLockInfo) lockInfo).getFileToLock());
-        List<String> locksByAcquirer = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles.toArray(new String[0]));
+        List<String> locksByAcquirer = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles.toArray(String[]::new));
         return !locksByAcquirer.isEmpty();
     }
 
