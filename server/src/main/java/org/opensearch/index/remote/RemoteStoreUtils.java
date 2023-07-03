@@ -12,6 +12,8 @@ import java.util.Arrays;
 
 /**
  * Utils for remote store
+ *
+ * @opensearch.internal
  */
 public class RemoteStoreUtils {
     public static final int LONG_MAX_LENGTH = String.valueOf(Long.MAX_VALUE).length();
