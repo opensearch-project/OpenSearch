@@ -405,6 +405,7 @@ public class Node implements Closeable {
     ) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
+        applicationManager = new ApplicationManager();
         try {
             Settings tmpSettings = Settings.builder()
                 .put(initialEnvironment.settings())
@@ -489,8 +490,9 @@ public class Node implements Closeable {
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
-            this.applicationManager = new ApplicationManager(extensionsManager);
-            this.identityService = new IdentityService(settings, identityPlugins);
+
+            this.applicationManager.register(extensionsManager);
+            this.identityService = new IdentityService(applicationManager, settings, identityPlugins);
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
                 .stream()

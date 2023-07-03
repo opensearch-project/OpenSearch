@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.tokens.TokenManager;
@@ -25,11 +26,13 @@ public class IdentityService {
 
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
+    private final ApplicationManager applicationManager;
 
     private static IdentityService instance = null;
 
-    public IdentityService(final Settings settings, final List<IdentityPlugin> identityPlugins) {
+    public IdentityService(ApplicationManager applicationManager, final Settings settings, final List<IdentityPlugin> identityPlugins) {
         this.settings = settings;
+        this.applicationManager = applicationManager;
 
         if (identityPlugins.size() == 0) {
             log.debug("Identity plugins size is 0");
@@ -49,8 +52,8 @@ public class IdentityService {
     /**
      * Gets the current subject
      */
-    public ApplicationSubject getSubject() {
-        return new ApplicationSubject(identityPlugin.getSubject());
+    public ApplicationAwareSubject getSubject() {
+        return new ApplicationAwareSubject(identityPlugin.getSubject());
     }
 
     /**
@@ -62,7 +65,7 @@ public class IdentityService {
 
     public static IdentityService getInstance() {
         if (instance == null) {
-            new IdentityService(Settings.EMPTY, List.of());
+            new IdentityService(new ApplicationManager(), Settings.EMPTY, List.of());
         }
         return instance;
     }

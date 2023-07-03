@@ -32,12 +32,14 @@
 
 package org.opensearch.client.node;
 
-import org.opensearch.action.ActionType;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.Client;
 import org.opensearch.client.support.AbstractClient;
@@ -45,15 +47,11 @@ import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.identity.ApplicationSubject;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
-
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Client that executes actions on the local node.
@@ -142,8 +140,6 @@ public class NodeClient extends AbstractClient {
     private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
         ActionType<Response> action
     ) {
-        ApplicationSubject subject = IdentityService.getInstance().getSubject();
-        System.out.println("Successfully grabbed subject: " + subject);
         if (!ApplicationManager.getInstance().isAllowed(IdentityService.getInstance().getSubject(), action.getAllowedScopes())) {
             final String scopeList = action.getAllowedScopes().stream().map(Object::toString).collect(Collectors.joining(","));
             logger.debug("Request did not have any of the required scopes, " + scopeList);

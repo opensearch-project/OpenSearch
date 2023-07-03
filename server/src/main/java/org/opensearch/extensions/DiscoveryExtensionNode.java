@@ -9,11 +9,13 @@
 package org.opensearch.extensions;
 
 import java.io.IOException;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -126,5 +128,10 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return null;
+    }
+
+    @Override
+    public Optional<Principal> getApplication() {
+        return Optional.of(this.getPrincipal());
     }
 }

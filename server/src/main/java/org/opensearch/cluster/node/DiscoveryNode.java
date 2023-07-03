@@ -42,15 +42,20 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.identity.NamedPrincipal;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
+import java.security.Principal;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -66,7 +71,7 @@ import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
  *
  * @opensearch.internal
  */
-public class DiscoveryNode implements Writeable, ToXContentFragment {
+public class DiscoveryNode implements Writeable, ToXContentFragment, Subject {
 
     static final String COORDINATING_ONLY = "coordinating_only";
 
@@ -134,6 +139,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final Map<String, String> attributes;
     private final Version version;
     private final SortedSet<DiscoveryNodeRole> roles;
+    private NamedPrincipal principal;
 
     /**
      * Creates a new {@link DiscoveryNode}
@@ -150,6 +156,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public DiscoveryNode(final String id, TransportAddress address, Version version) {
         this(id, address, Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES, version);
+        this.principal = new NamedPrincipal(this.nodeId);
     }
 
     /**
@@ -175,6 +182,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Version version
     ) {
         this("", id, address, attributes, roles, version);
+        this.principal = new NamedPrincipal(id);
     }
 
     /**
@@ -212,6 +220,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             roles,
             version
         );
+        this.principal = new NamedPrincipal(this.nodeId);
     }
 
     /**
@@ -268,6 +277,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
             return success;
         };
+        this.principal = new NamedPrincipal(this.nodeId);
         assert predicate.test(attributes) : attributes;
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
     }
@@ -594,4 +604,19 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return roleMap.keySet();
     }
 
+    @Override
+    public Principal getPrincipal() {
+        System.out.println("Getting principal of DiscoveryNode: " + this.principal);
+        return this.principal;
+    }
+
+    @Override
+    public void authenticate(AuthToken token) {
+
+    }
+
+    @Override
+    public Optional<Principal> getApplication() {
+        return Optional.empty();
+    }
 }

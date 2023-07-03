@@ -33,6 +33,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -105,7 +106,7 @@ public class RestHttpResponseHeadersTests extends OpenSearchTestCase {
 
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
-        final IdentityService identityService = new IdentityService(settings, List.of());
+        final IdentityService identityService = new IdentityService(new ApplicationManager(), settings, List.of());
         RestController restController = new RestController(
             Collections.emptySet(),
             null,

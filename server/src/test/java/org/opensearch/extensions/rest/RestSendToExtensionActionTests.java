@@ -26,6 +26,7 @@ import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -117,7 +118,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(Settings.EMPTY, new ArrayList<>()),
+            new IdentityService(new ApplicationManager(), Settings.EMPTY, new ArrayList<>()),
             new ExtensionsManager(Set.of())
         );
         dynamicActionRegistry = actionModule.getDynamicActionRegistry();

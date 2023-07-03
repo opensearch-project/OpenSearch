@@ -9,10 +9,8 @@
 package org.opensearch.identity.shiro;
 
 import java.security.Principal;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 
@@ -24,7 +22,6 @@ import org.opensearch.identity.tokens.AuthToken;
 public class ShiroSubject implements Subject {
     private final ShiroTokenManager authTokenHandler;
     private final org.apache.shiro.subject.Subject wrappedSubject;
-    private List<Scope> scopes;
 
     /**
      * Creates a new shiro subject for use with the IdentityPlugin

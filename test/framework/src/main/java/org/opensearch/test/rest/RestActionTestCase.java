@@ -36,6 +36,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.IdentityService;
@@ -67,7 +68,7 @@ public abstract class RestActionTestCase extends OpenSearchTestCase {
     @Before
     public void setUpController() {
         verifyingClient = new VerifyingClient(this.getTestName());
-        final IdentityService identityService = new IdentityService(Settings.EMPTY, List.of());
+        final IdentityService identityService = new IdentityService(new ApplicationManager(), Settings.EMPTY, List.of());
         controller = new RestController(
             Collections.emptySet(),
             null,

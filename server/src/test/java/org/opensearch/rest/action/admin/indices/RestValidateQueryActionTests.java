@@ -40,6 +40,7 @@ import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
@@ -75,7 +76,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static IdentityService identityService = new IdentityService(Settings.EMPTY, List.of());
+    private static IdentityService identityService = new IdentityService(new ApplicationManager(), Settings.EMPTY, List.of());
     private static RestController controller = new RestController(
         emptySet(),
         null,

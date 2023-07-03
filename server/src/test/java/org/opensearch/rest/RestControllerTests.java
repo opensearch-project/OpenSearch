@@ -33,6 +33,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -111,7 +112,7 @@ public class RestControllerTests extends OpenSearchTestCase {
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        identityService = new IdentityService(Settings.EMPTY, List.of());
+        identityService = new IdentityService(new ApplicationManager(), Settings.EMPTY, List.of());
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());

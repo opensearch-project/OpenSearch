@@ -8,16 +8,14 @@
 
 package org.opensearch.cluster;
 
-import java.io.IOException;
 import java.security.Principal;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicReference;
 import org.opensearch.extensions.ExtensionsManager;
-import org.opensearch.extensions.NoopExtensionsManager;
-import org.opensearch.identity.ApplicationSubject;
+import org.opensearch.identity.ApplicationAwareSubject;
 import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.Scope;
 
@@ -30,21 +28,19 @@ import org.opensearch.identity.scopes.Scope;
  */
 public class ApplicationManager {
 
-    ExtensionsManager extensionManager;
+    AtomicReference<ExtensionsManager> extensionManager;
     public static ApplicationManager instance; // Required for access in static contexts
 
-    public ApplicationManager(ExtensionsManager extensionsManager) {
-        System.out.println("Instantiating ApplicationManager in class constructor with ExtensionManager: " + extensionsManager);
-        this.extensionManager = extensionsManager;
+    public ApplicationManager() {
         instance = this;
+        extensionManager = new AtomicReference<>();
     }
 
-    public ApplicationManager() {
-        try {
-            this.extensionManager = new NoopExtensionsManager();
-            instance = new NoopApplicationManager();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+    public void register(ExtensionsManager manager) {
+        if (this.extensionManager == null) {
+            this.extensionManager = new AtomicReference<>(manager);
+        } else {
+            this.extensionManager.set(manager);
         }
     }
 
@@ -57,13 +53,13 @@ public class ApplicationManager {
 
     /**
      * Checks scopes of an application subject and determine if it is allowed to perform an operation based on the given scopes
-     * @param wrapped The ApplicationSubject whose scopes should be evaluated
+     * @param subject The ApplicationSubject whose scopes should be evaluated
      * @param scopes The scopes to check against the subject
      * @return true if allowed, false if none of the scopes are allowed.
      */
-    public boolean isAllowed(ApplicationSubject wrapped, final List<Scope> scopes) {
+    public boolean isAllowed(ApplicationAwareSubject subject, final List<Scope> scopes) {
 
-        final Optional<Principal> optionalPrincipal = wrapped.getApplication();
+        final Optional<Principal> optionalPrincipal = subject.getApplication();
 
         if (optionalPrincipal.isEmpty()) {
             // If there is no application, actions are allowed by default
@@ -71,12 +67,12 @@ public class ApplicationManager {
             return true;
         }
 
-        if (!wrapped.applicationExists()) {
+        if (!subject.applicationExists()) {
 
             return false;
         }
 
-        final Set<Scope> scopesOfApplication = wrapped.getScopes();
+        final Set<Scope> scopesOfApplication = subject.getScopes();
 
         boolean isApplicationSuperUser = scopesOfApplication.contains(ApplicationScope.SUPER_USER_ACCESS);
 
@@ -88,7 +84,7 @@ public class ApplicationManager {
         Set<Scope> intersection = new HashSet<>(scopesOfApplication);
 
         // Retain only the elements present in the list
-        intersection.retainAll(scopes.stream().map(Scope::asPermissionString).collect(Collectors.toSet()));
+        intersection.retainAll(scopes);
 
         boolean isMatchingScopePresent = !intersection.isEmpty();
 
@@ -96,9 +92,10 @@ public class ApplicationManager {
     }
 
     public Set<Scope> getScopes(Principal principal) {
-
-        if (extensionManager.getExtensionPrincipals().contains(principal)) {
-            return extensionManager.getExtensionIdMap().get(principal.getName()).getScopes();
+        if (this.extensionManager != null) {
+            if (this.extensionManager.get().getExtensionIdMap().containsKey(principal.getName())) {
+                return extensionManager.get().getExtensionIdMap().get(principal.getName()).getScopes();
+            }
         }
         return Set.of();
     }
@@ -109,7 +106,7 @@ public class ApplicationManager {
      * @return Whether the application exists (TRUE) or not (FALSE)
      */
     public boolean associatedApplicationExists(Principal principal) {
-        return (extensionManager.getExtensionPrincipals().contains(principal));
+        return (this.extensionManager.get().getExtensionIdMap().containsKey(principal.getName()));
     }
 
     /**
@@ -117,6 +114,6 @@ public class ApplicationManager {
      * @return The ExtensionManager being queried by the ApplicationManager
      */
     public ExtensionsManager getExtensionManager() {
-        return extensionManager;
+        return extensionManager.get();
     }
 }

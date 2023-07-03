@@ -4,23 +4,81 @@
  * The OpenSearch Contributors require contributions made to
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 package org.opensearch.identity;
 
+import java.security.Principal;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.tokens.AuthToken;
 
 /**
- * This interface extends the ScopeAwareSubject but expects implementing classes to be able to verify whether an associated
- * application exists.
+ * This class defines an ApplicationSubject.
  *
- * It is separate from ScopeAwareSubject since traditional Users would not have an Application associated with their Subjects, but could still
- * make use of Scopes.
+ * An ApplicationSubject is a type of ApplicationAwareSubject which wraps a basic Subject object.
+ * With an ApplicationSubject, we represent a system that interacts with the Identity access control system.
+ *
+ * @opensearch.experimental
  */
-public interface ApplicationAwareSubject extends Subject {
+@SuppressWarnings("overrides")
+public class ApplicationAwareSubject implements Subject {
 
-    Set<Scope> getScopes();
+    private final Subject wrapped;
 
-    boolean applicationExists();
+    /**
+     * We wrap a basic Subject object to create an ApplicationSubject -- this should come from the IdentityService
+     * @param wrapped The Subject to be wrapped
+     */
+    public ApplicationAwareSubject(final Subject wrapped) {
+        this.wrapped = wrapped;
+    }
+
+    /**
+     * Call to the ApplicationManager to confirm there is an associated application matching the wrapped subject's principal.
+     * @return There is an associated application known to the ApplicationManager (TRUE) or there is not (FALSE)
+     */
+    public boolean applicationExists() {
+        return (ApplicationManager.getInstance().associatedApplicationExists(wrapped.getPrincipal()));
+    }
+
+    /**
+     * Use the ApplicationManager to get the scopes associated with the principal of the wrapped Subject.
+     * Because the wrapped subject is just a basic Subject, it may not know its own scopes. This circumvents this issue.
+     * @return A set of Strings representing the scopes associated with the wrapped subject's principal
+     */
+    public Set<Scope> getScopes() {
+        return ApplicationManager.getInstance().getScopes(wrapped.getPrincipal());
+    }
+
+    // Passthroughs for wrapped subject
+    public Principal getPrincipal() {
+        return wrapped.getPrincipal();
+    }
+
+    public void authenticate(final AuthToken token) {
+        wrapped.authenticate(token);
+    }
+
+    public Optional<Principal> getApplication() {
+        return wrapped.getApplication();
+    }
+    // end Passthroughs for wrapped subject
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof ApplicationAwareSubject)) {
+            return false;
+        }
+        ApplicationAwareSubject other = (ApplicationAwareSubject) obj;
+        return Objects.equals(this.getScopes(), other.getScopes());
+    }
 }

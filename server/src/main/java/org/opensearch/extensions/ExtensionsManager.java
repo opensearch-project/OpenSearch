@@ -10,10 +10,8 @@ package org.opensearch.extensions;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.security.Principal;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -481,15 +479,11 @@ public class ExtensionsManager {
         return extensionIdMap;
     }
 
-    public List<Principal> getExtensionPrincipals() {
-        return extensionIdMap.keySet().stream().map(key -> (Principal) () -> key).collect(Collectors.toList());
-    }
-
     RestActionsRequestHandler getRestActionsRequestHandler() {
         return restActionsRequestHandler;
     }
 
-    void setExtensionIdMap(Map<String, DiscoveryExtensionNode> extensionIdMap) {
+    public void setExtensionIdMap(Map<String, DiscoveryExtensionNode> extensionIdMap) {
         this.extensionIdMap = extensionIdMap;
     }
 

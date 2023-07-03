@@ -29,6 +29,7 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -175,7 +176,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new NodeClient(Settings.EMPTY, threadPool),
             new NoneCircuitBreakerService(),
             new UsageService(),
-            new IdentityService(Settings.EMPTY, List.of())
+            new IdentityService(new ApplicationManager(), Settings.EMPTY, List.of())
         );
         when(actionModule.getDynamicActionRegistry()).thenReturn(mock(DynamicActionRegistry.class));
         when(actionModule.getRestController()).thenReturn(restController);

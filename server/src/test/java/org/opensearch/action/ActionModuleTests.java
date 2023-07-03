@@ -38,6 +38,7 @@ import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
@@ -141,7 +142,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(Settings.EMPTY, new ArrayList<>()),
+            new IdentityService(new ApplicationManager(), Settings.EMPTY, new ArrayList<>()),
             new ExtensionsManager(Set.of())
         );
         actionModule.initRestHandlers(null);
