@@ -13,6 +13,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.extensions.ExtensionDependency;
@@ -85,7 +86,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         ExtensionScopedSettings extAdditionalSettings = new ExtensionScopedSettings(extensionsManager.getAdditionalSettings());
 
         try {
-            // checking to see whether any required fields are missing from extension.yml file or not
+            // checking to see whether any required fields are missing from extension initialization request or not
             String[] requiredFields = {
                 "name",
                 "uniqueId",
@@ -108,6 +109,11 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
                     (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
                 );
                 for (HashMap<String, ?> dependency : extensionDependencies) {
+                    if (Strings.isNullOrEmpty((String) dependency.get("uniqueId"))) {
+                        throw new IOException("Required field [uniqueId] is missing in the request for the dependent extension");
+                    } else if (dependency.get("version") == null) {
+                        throw new IOException("Required field [version] is missing in the request for the dependent extension");
+                    }
                     extensionDependencyList.add(
                         new ExtensionDependency(
                             dependency.get("uniqueId").toString(),
@@ -137,6 +143,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
             dependencies = extensionDependencyList;
         } catch (IOException e) {
             logger.warn("loading extension has been failed because of exception : " + e.getMessage());
+            return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
         }
 
         Extension extension = new Extension(
