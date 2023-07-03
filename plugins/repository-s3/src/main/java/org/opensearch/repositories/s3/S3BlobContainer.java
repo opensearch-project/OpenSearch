@@ -320,7 +320,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
                     .collect(Collectors.toList());
                 listener.onResponse(blobs.subList(0, Math.min(limit, blobs.size())));
-            } catch (final SdkException e) {
+            } catch (final Exception e) {
                 listener.onFailure(new IOException("Exception when listing blobs by prefix [" + prefix + "]", e));
             }
         }
