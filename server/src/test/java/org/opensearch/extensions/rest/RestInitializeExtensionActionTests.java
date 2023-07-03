@@ -97,8 +97,12 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         ExtensionsManager extensionsManager = mock(ExtensionsManager.class);
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"ad-extension\",\"hostAddress\":\"127.0.0.1\","
-            + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\"3.0.0\","
-            + "\"minimumCompatibleVersion\":\"3.0.0\"}";
+            + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\""
+            + Version.CURRENT.toString()
+            + "\","
+            + "\"minimumCompatibleVersion\":\""
+            + Version.CURRENT.minimumCompatibilityVersion().toString()
+            + "\"}";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
@@ -115,8 +119,12 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
 
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"\",\"hostAddress\":\"127.0.0.1\","
-            + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\"3.0.0\","
-            + "\"minimumCompatibleVersion\":\"3.0.0\"}";
+            + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\""
+            + Version.CURRENT.toString()
+            + "\","
+            + "\"minimumCompatibleVersion\":\""
+            + Version.CURRENT.minimumCompatibilityVersion().toString()
+            + "\"}";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
@@ -152,7 +160,9 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\""
             + Version.CURRENT.toString()
             + "\","
-            + "\"minimumCompatibleVersion\":\"3.0.0\",\"boolSetting\":true,\"stringSetting\":\"customSetting\",\"intSetting\":5,\"listSetting\":[\"one\",\"two\",\"three\"]}";
+            + "\"minimumCompatibleVersion\":\""
+            + Version.CURRENT.minimumCompatibilityVersion().toString()
+            + "\",\"boolSetting\":true,\"stringSetting\":\"customSetting\",\"intSetting\":5,\"listSetting\":[\"one\",\"two\",\"three\"]}";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
@@ -197,7 +207,9 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\""
             + Version.CURRENT.toString()
             + "\","
-            + "\"minimumCompatibleVersion\":\"3.0.0\"}";
+            + "\"minimumCompatibleVersion\":\""
+            + Version.CURRENT.minimumCompatibilityVersion().toString()
+            + "\"}";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
