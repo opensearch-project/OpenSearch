@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -297,6 +298,35 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void listBlobsByPrefixInSortedOrder(
+        String blobNamePrefix,
+        int limit,
+        BlobNameSortOrder blobNameSortOrder,
+        ActionListener<List<BlobMetadata>> listener
+    ) {
+        // As AWS S3 returns list of keys in Lexicographic order, we don't have to fetch all the keys in order to sort them
+        // We fetch only keys as per the given limit to optimize the fetch. If provided sort order is not Lexicographic,
+        // we fall-back to default implementation of fetching all the keys and sorting them.
+        if (blobNameSortOrder != BlobNameSortOrder.LEXICOGRAPHIC) {
+            super.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder, listener);
+        } else {
+            if (limit < 0) {
+                throw new IllegalArgumentException("limit should not be a negative value");
+            }
+            String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
+            try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                List<BlobMetadata> blobs = executeListing(clientReference, listObjectsRequest(prefix, limit), limit).stream()
+                    .flatMap(listing -> listing.contents().stream())
+                    .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
+                    .collect(Collectors.toList());
+                listener.onResponse(blobs.subList(0, Math.min(limit, blobs.size())));
+            } catch (final Exception e) {
+                listener.onFailure(new IOException("Exception when listing blobs by prefix [" + prefix + "]", e));
+            }
+        }
+    }
+
+    @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
         String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
@@ -339,10 +369,25 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private static List<ListObjectsV2Response> executeListing(AmazonS3Reference clientReference, ListObjectsV2Request listObjectsRequest) {
+        return executeListing(clientReference, listObjectsRequest, -1);
+    }
+
+    private static List<ListObjectsV2Response> executeListing(
+        AmazonS3Reference clientReference,
+        ListObjectsV2Request listObjectsRequest,
+        int limit
+    ) {
         return SocketAccess.doPrivileged(() -> {
             final List<ListObjectsV2Response> results = new ArrayList<>();
+            int totalObjects = 0;
             ListObjectsV2Iterable listObjectsIterable = clientReference.get().listObjectsV2Paginator(listObjectsRequest);
-            listObjectsIterable.forEach(results::add);
+            for (ListObjectsV2Response listObjectsV2Response : listObjectsIterable) {
+                results.add(listObjectsV2Response);
+                totalObjects += listObjectsV2Response.contents().size();
+                if (limit != -1 && totalObjects > limit) {
+                    break;
+                }
+            }
             return results;
         });
     }
@@ -354,6 +399,10 @@ class S3BlobContainer extends AbstractBlobContainer {
             .delimiter("/")
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().listObjectsMetricPublisher))
             .build();
+    }
+
+    private ListObjectsV2Request listObjectsRequest(String keyPath, int limit) {
+        return listObjectsRequest(keyPath).toBuilder().maxKeys(Math.min(limit, 1000)).build();
     }
 
     private String buildKey(String blobName) {
