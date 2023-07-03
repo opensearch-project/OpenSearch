@@ -8,19 +8,27 @@
 
 package org.opensearch.index.codec.customcodecs;
 
-import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
+import org.opensearch.index.mapper.MapperService;
 
-import java.util.Locale;
-
-abstract class Lucene95CustomCodec extends FilterCodec {
+/**
+ *
+ * Extends {@link FilterCodec} to reuse the functionality of Lucene Codec.
+ * Supports two modes zstd and zstd_no_dict.
+ *
+ * @opensearch.internal
+ */
+public abstract class Lucene95CustomCodec extends FilterCodec {
     public static final int DEFAULT_COMPRESSION_LEVEL = 6;
 
     /** Each mode represents a compression algorithm. */
     public enum Mode {
         ZSTD,
-        ZSTDNODICT
+        ZSTD_NO_DICT
     }
 
     private final StoredFieldsFormat storedFieldsFormat;
@@ -40,10 +48,15 @@ abstract class Lucene95CustomCodec extends FilterCodec {
      * the other compression codecs: default, lucene_default, and best_compression.
      *
      * @param mode The compression codec (ZSTD or ZSTDNODICT).
-     * @parama compressionLevel The compression level.
+     * @param compressionLevel The compression level.
      */
     public Lucene95CustomCodec(Mode mode, int compressionLevel) {
-        super(mode.name().toLowerCase(Locale.ROOT), new Lucene95Codec());
+        super("Lucene95CustomCodec", new Lucene95Codec());
+        this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);
+    }
+
+    public Lucene95CustomCodec(Mode mode, int compressionLevel, MapperService mapperService, Logger logger) {
+        super("Lucene95CustomCodec", new PerFieldMappingPostingFormatCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, logger));
         this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);
     }
 
