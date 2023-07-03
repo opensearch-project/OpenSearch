@@ -32,11 +32,13 @@ public class ApplicationManager {
     public static ApplicationManager instance; // Required for access in static contexts
 
     public ApplicationManager(ExtensionsManager extensionsManager) {
+        System.out.println("Instantiating ApplicationManager in class constructor with ExtensionManager: " + extensionsManager);
         this.extensionManager = extensionsManager;
         instance = this;
     }
 
     public static ApplicationManager getInstance() {
+        System.out.println("Calling getInstance in ApplicationManager");
         return instance;
     }
 

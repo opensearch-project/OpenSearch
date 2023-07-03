@@ -14,6 +14,8 @@ package org.opensearch.identity.scopes;
  * @opensearch.experimental
  */
 public interface Scope {
+
+    String UNKNOWN_SCOPE_MESSAGE = "Failed to find scope: ";
     ScopeEnums.ScopeNamespace getNamespace();
 
     ScopeEnums.ScopeArea getArea();
@@ -41,23 +43,23 @@ public interface Scope {
                         return actionScope;
                     }
                 }
-                throw new UnknownScopeException(scopeAsString);
+                throw new RuntimeException(UNKNOWN_SCOPE_MESSAGE + scopeAsString);
             case APPLICATION:
                 for (ApplicationScope applicationScope : ApplicationScope.values()) {
                     if (applicationScope.getArea().equals(scopeArea) && applicationScope.action.equals(action)) {
                         return applicationScope;
                     }
                 }
-                throw new UnknownScopeException(scopeAsString);
+                throw new RuntimeException(UNKNOWN_SCOPE_MESSAGE + scopeAsString);
             case EXTENSION_POINT:
                 for (ExtensionPointScope extensionPointScope : ExtensionPointScope.values()) {
                     if (extensionPointScope.getArea().equals(scopeArea) && extensionPointScope.action.equals(action)) {
                         return extensionPointScope;
                     }
                 }
-                throw new UnknownScopeException(scopeAsString);
+                throw new RuntimeException(UNKNOWN_SCOPE_MESSAGE + scopeAsString);
             default:
-                throw new UnknownScopeException(scopeAsString);
+                throw new RuntimeException(UNKNOWN_SCOPE_MESSAGE + scopeAsString);
         }
     }
 }
