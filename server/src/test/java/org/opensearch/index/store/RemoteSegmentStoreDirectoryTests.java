@@ -674,7 +674,24 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     }
 
     public void testUploadMetadataNonEmpty() throws IOException {
-        populateMetadata();
+        indexDocs(142364, 5);
+        flushShard(indexShard, true);
+        SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
+        long generation = segInfos.getGeneration();
+        String latestMetadataFileName = "metadata__12__" + generation + "__abc";
+        List<String> metadataFiles = List.of(latestMetadataFileName);
+        when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX)).thenReturn(
+            metadataFiles
+        );
+        Map<String, Map<String, String>> metadataFilenameContentMapping = Map.of(
+            latestMetadataFileName,
+            getDummyMetadata("_0", (int) generation)
+        );
+
+        when(remoteMetadataDirectory.openInput(latestMetadataFileName, IOContext.DEFAULT)).thenReturn(
+            createMetadataFileBytes(metadataFilenameContentMapping.get(latestMetadataFileName), generation, 12)
+        );
+
         remoteSegmentStoreDirectory.init();
 
         Directory storeDirectory = mock(Directory.class);
@@ -687,8 +704,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             indexOutput
         );
 
-        Collection<String> segmentFiles = List.of("_0.si", "_0.cfe", "_0.cfs", "segments_1");
-        remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, segmentInfos, storeDirectory, 12L, 34L);
+        remoteSegmentStoreDirectory.uploadMetadata(segInfos.files(true), segInfos, storeDirectory, 12L, 34L);
 
         verify(remoteMetadataDirectory).copyFrom(
             eq(storeDirectory),
@@ -713,6 +729,14 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         for (String filename : expected.keySet()) {
             assertEquals(expected.get(filename).toString(), actual.get(filename).toString());
         }
+    }
+
+    public void testUploadMetadataNoSegmentCommitInfos() throws IOException {
+        SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
+        int numSegCommitInfos = segInfos.size();
+        assert numSegCommitInfos == 0
+            : "For a fresh index, the number of SegmentCommitInfo instances associated with the SegmentInfos instance should be 0, but were found to be "
+                + numSegCommitInfos;
     }
 
     public void testNoMetadataHeaderCorruptIndexException() throws IOException {
@@ -970,6 +994,12 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
           After taking appropriate action, fix this test by setting the correct version here
          */
         assertEquals(RemoteSegmentMetadata.CURRENT_VERSION, 1);
+    }
+
+    private void indexDocs(int startDocId, int numberOfDocs) throws IOException {
+        for (int i = startDocId; i < startDocId + numberOfDocs; i++) {
+            indexDoc(indexShard, "_doc", Integer.toString(i));
+        }
     }
 
     public void testMetadataFileNameOrder() {

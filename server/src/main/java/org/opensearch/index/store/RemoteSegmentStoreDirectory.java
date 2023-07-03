@@ -221,6 +221,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         private final String uploadedFilename;
         private final String checksum;
         private final long length;
+
+        /**
+         * The Lucene version that wrote the original segment files.
+         * As part of the Lucene version compatibility check, this version information stored in the metadata
+         * will be used to skip downloading the segment files unnecessarily
+         * if they were written by an incompatible Lucene version.
+         */
         private Version writtenBy;
 
         UploadedSegmentMetadata(String originalFilename, String uploadedFilename, String checksum, long length) {
@@ -232,12 +239,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         @Override
         public String toString() {
-            String metadataStr = String.join(SEPARATOR, originalFilename, uploadedFilename, checksum, String.valueOf(length));
-            if (writtenBy != null) {
-                metadataStr += SEPARATOR + writtenBy;
-            }
-
-            return metadataStr;
+            return String.join(SEPARATOR, originalFilename, uploadedFilename, checksum, String.valueOf(length), String.valueOf(writtenBy));
         }
 
         public String getChecksum() {
@@ -251,6 +253,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         public static UploadedSegmentMetadata fromString(String uploadedFilename) {
             String[] values = uploadedFilename.split(SEPARATOR);
             UploadedSegmentMetadata metadata = new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
+            if (values.length < 5) {
+                logger.error("Lucene version is missing for UploadedSegmentMetadata: " + uploadedFilename);
+            }
+
             metadata.setWrittenBy(values[4]);
 
             return metadata;
@@ -613,17 +619,20 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                         }
                     }
 
-                    Map<String, String> uploadedSegments = new HashMap<>();
-                    for (String file : segmentFiles) {
-                        if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                            UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
-                            if (segmentToLuceneVersion.containsKey(metadata.originalFilename)) {
-                                metadata.setWrittenBy(segmentToLuceneVersion.get(metadata.originalFilename));
-                            } else if (metadata.originalFilename.equals(segmentInfosSnapshot.getSegmentsFileName())) {
-                                metadata.setWrittenBy(segmentInfosSnapshot.getCommitLuceneVersion());
-                            } else {
-                                throw new CorruptIndexException("Lucene version is missing for segment file", metadata.originalFilename);
-                            }
+                Map<String, String> uploadedSegments = new HashMap<>();
+                for (String file : segmentFiles) {
+                    if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                        UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
+                        if (segmentToLuceneVersion.containsKey(metadata.originalFilename)) {
+                            metadata.setWrittenBy(segmentToLuceneVersion.get(metadata.originalFilename));
+                        } else if (metadata.originalFilename.equals(segmentInfosSnapshot.getSegmentsFileName())) {
+                            metadata.setWrittenBy(segmentInfosSnapshot.getCommitLuceneVersion());
+                        } else {
+                            throw new CorruptIndexException(
+                                "Lucene version is missing for segment file " + metadata.originalFilename,
+                                metadata.originalFilename
+                            );
+                        }
 
                             uploadedSegments.put(file, metadata.toString());
                         } else {
