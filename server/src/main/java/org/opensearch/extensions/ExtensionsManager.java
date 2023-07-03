@@ -504,4 +504,8 @@ public class ExtensionsManager {
     Settings getEnvironmentSettings() {
         return environmentSettings;
     }
+
+    public Set<Setting<?>> getAdditionalSettings() {
+        return this.additionalSettings;
+    }
 }
