@@ -8,6 +8,9 @@
 
 package org.opensearch.telemetry.tracing;
 
+/**
+ * Set of span's statuses
+ */
 public enum StatusCode {
     /**
      * The default status.

@@ -16,6 +16,11 @@ import org.opensearch.telemetry.tracing.StatusCode;
  */
 public final class NoopSpanScope implements SpanScope {
 
+    /**
+     * No-args constructor
+     */
+    public NoopSpanScope() {}
+
     @Override
     public void addSpanAttribute(String key, String value) {
 
