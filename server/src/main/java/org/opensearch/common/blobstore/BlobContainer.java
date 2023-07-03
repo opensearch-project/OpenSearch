@@ -32,10 +32,14 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.action.ActionListener;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -191,4 +195,47 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+
+    /**
+     * The type representing sort order of blob names
+     */
+    enum BlobNameSortOrder {
+
+        LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name));
+
+        final Comparator<BlobMetadata> comparator;
+
+        public Comparator<BlobMetadata> comparator() {
+            return comparator;
+        }
+
+        BlobNameSortOrder(final Comparator<BlobMetadata> comparator) {
+            this.comparator = comparator;
+        }
+    }
+
+    /**
+     * Lists all blobs in the container that match the specified prefix in lexicographic order
+     * @param blobNamePrefix The prefix to match against blob names in the container.
+     * @param limit Limits the result size to min(limit, number of keys)
+     * @param blobNameSortOrder Comparator to sort keys with
+     * @param listener the listener to be notified upon request completion
+     */
+    default void listBlobsByPrefixInSortedOrder(
+        String blobNamePrefix,
+        int limit,
+        BlobNameSortOrder blobNameSortOrder,
+        ActionListener<List<BlobMetadata>> listener
+    ) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
+        try {
+            List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
+            blobNames.sort(blobNameSortOrder.comparator());
+            listener.onResponse(blobNames.subList(0, Math.min(blobNames.size(), limit)));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 }

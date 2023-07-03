@@ -113,8 +113,6 @@ public class IndexingIT extends OpenSearchRestTestCase {
     /**
      * This test verifies that segment replication does not break when primary shards are on lower OS version. It does this
      * by verifying replica shards contains same number of documents as primary's.
-     *
-     * @throws Exception
      */
     public void testIndexingWithPrimaryOnBwcNodes() throws Exception {
         if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
@@ -164,8 +162,6 @@ public class IndexingIT extends OpenSearchRestTestCase {
      * This test creates a cluster with primary on higher version but due to {@link org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider};
      * replica shard allocation on lower OpenSearch version is prevented. Thus, this test though cover the use case where
      * primary shard containing nodes are running on higher OS version while replicas are unassigned.
-     *
-     * @throws Exception
      */
     public void testIndexingWithReplicaOnBwcNodes() throws Exception {
         if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
