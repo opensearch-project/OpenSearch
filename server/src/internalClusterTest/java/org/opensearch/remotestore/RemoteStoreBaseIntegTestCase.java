@@ -9,7 +9,6 @@
 package org.opensearch.remotestore;
 
 import org.junit.After;
-import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -92,8 +91,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         );
     }
 
-    @Before
-    public void setup() {
+    protected void setupRepo() {
         internalCluster().startClusterManagerOnlyNode();
         absolutePath = randomRepoPath().toAbsolutePath();
         assertAcked(

@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
@@ -48,6 +49,11 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
+    }
+
+    @Before
+    public void setup() {
+        setupRepo();
     }
 
     @Override
