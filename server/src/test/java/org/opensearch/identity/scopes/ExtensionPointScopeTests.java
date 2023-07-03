@@ -92,7 +92,7 @@ public class ExtensionPointScopeTests extends OpenSearchTestCase {
         // Todo: This will need to be swapped once Plugins acting as Extensions is implemented.
         doReturn(namedPrincipal1).when(wrappedPlugin).getPrincipal();
         doReturn(extensionMap.get("uniqueid1").getScopes()).when(applicationManager).getScopes(namedPrincipal1);
-        assertEquals(applicationManager.getScopes(wrappedPlugin.getPrincipal()), Set.of(ExtensionPointScope.ACTION.asPermissionString()));
+        assertEquals(applicationManager.getScopes(wrappedPlugin.getPrincipal()), Set.of(ExtensionPointScope.ACTION));
 
         // Extract the functionality of the wrapped plugin method getTaskHeaders and check is allowed
         // Cannot call methods in class directly since require extensionManager, applicationManager; will require further development before

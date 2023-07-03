@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
@@ -315,7 +316,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         extensionsManager.loadExtension(firstExtension);
         IOException exception = expectThrows(IOException.class, () -> extensionsManager.loadExtension(secondExtension));
         assertEquals(
-            "Duplicate uniqueId [uniqueid1]. Did not load extension: Extension [name=secondExtension, uniqueId=uniqueid1, hostAddress=127.0.0.0, port=9300, version=0.0.7, opensearchVersion=3.0.0, minimumCompatibleVersion=3.0.0]",
+            "Duplicate uniqueId [uniqueid1]. Did not load extension: Extension [name=secondExtension, uniqueId=uniqueid1, hostAddress=127.0.0.0, port=9300, version=0.0.7, opensearchVersion=3.0.0, minimumCompatibleVersion=3.0.0, dependencies=null, scopes=null]",
             exception.getMessage()
         );
 
@@ -364,44 +365,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         );
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
 
-        IOException exception = expectThrows(IOException.class, () -> extensionsManager.loadExtension(firstExtension));
+        ExtensionsManager finalExtensionsManager = extensionsManager;
+        IOException exception = expectThrows(IOException.class, () -> finalExtensionsManager.loadExtension(firstExtension));
         assertEquals("Required field [minimum opensearch version] is missing in the request", exception.getMessage());
-
-        assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
-
-            extensionsManager = new ExtensionsManager(emptyExtensionDir, Set.of());
-
-            mockLogAppender.assertAllExpectationsMatched();
-        }
-
-        List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
-
-        expectedExtensions.add(
-            new DiscoveryExtensionNode(
-                "firstExtension",
-                "uniqueid1",
-                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
-                new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
-                Collections.emptyList(),
-                List.of()
-            )
-        );
-        assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
-        for (DiscoveryExtensionNode extension : expectedExtensions) {
-            DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
-            assertEquals(extension.getName(), initializedExtension.getName());
-            assertEquals(extension.getId(), initializedExtension.getId());
-            assertEquals(extension.getAddress(), initializedExtension.getAddress());
-            assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
-            assertEquals(extension.getVersion(), initializedExtension.getVersion());
-            assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
-            assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
-        }
-        assertTrue(expectedExtensions.containsAll(emptyList()));
-        assertTrue(expectedExtensions.containsAll(emptyList()));
-
     }
 
     public void testDiscoveryExtension() throws Exception {
@@ -880,6 +846,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "3.0.0",
             "3.99.0",
             List.of(),
+            null,
             null
         );
         expectThrows(OpenSearchException.class, () -> extensionsManager.loadExtension(firstExtension));
