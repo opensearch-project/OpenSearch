@@ -126,7 +126,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
             output.loadFromMap(additionalSettingsMap);
             extAdditionalSettings.applySettings(output.build());
 
-            // Create extension read from yml config
+            // Create extension read from initialization request
             name = extensionMap.get("name").toString();
             uniqueId = extensionMap.get("uniqueId").toString();
             hostAddress = extensionMap.get("hostAddress").toString();

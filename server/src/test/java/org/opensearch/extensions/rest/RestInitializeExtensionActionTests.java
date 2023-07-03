@@ -149,7 +149,9 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         Mockito.doNothing().when(spy).initialize();
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(spy);
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"ad-extension\",\"hostAddress\":\"127.0.0.1\","
-            + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\"3.0.0\","
+            + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\""
+            + Version.CURRENT.toString()
+            + "\","
             + "\"minimumCompatibleVersion\":\"3.0.0\",\"boolSetting\":true,\"stringSetting\":\"customSetting\",\"intSetting\":5,\"listSetting\":[\"one\",\"two\",\"three\"]}";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .withMethod(RestRequest.Method.POST)
@@ -192,7 +194,9 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         Mockito.doNothing().when(spy).initialize();
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(spy);
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"ad-extension\",\"hostAddress\":\"127.0.0.1\","
-            + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\"3.0.0\","
+            + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\""
+            + Version.CURRENT.toString()
+            + "\","
             + "\"minimumCompatibleVersion\":\"3.0.0\"}";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .withMethod(RestRequest.Method.POST)
