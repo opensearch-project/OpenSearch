@@ -135,6 +135,8 @@ import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
+import org.opensearch.telemetry.tracing.Scope;
+import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -303,6 +305,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final AtomicInteger openPitContexts = new AtomicInteger();
     private final String sessionId = UUIDs.randomBase64UUID();
     private final Executor indexSearcherExecutor;
+    private final TracerFactory tracerFactory;
 
     public SearchService(
         ClusterService clusterService,
@@ -314,7 +317,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        Executor indexSearcherExecutor
+        Executor indexSearcherExecutor,
+        TracerFactory tracerFactory
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -362,6 +366,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
+        this.tracerFactory = tracerFactory;
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -591,7 +596,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             SearchContext context = createContext(readerContext, request, task, true)
         ) {
             final long afterQueryTime;
-            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+            try (
+                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context);
+                Scope scope = tracerFactory.getTracer().startSpan("QueryPhase_" + context.shardTarget().getShardId())
+            ) {
+                addtracingAttributes(context);
                 loadOrExecuteQueryPhase(request, context);
                 if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     freeReaderContext(readerContext.id());
@@ -621,8 +630,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    private void addtracingAttributes(SearchContext context) {
+        tracerFactory.getTracer().addSpanAttribute("shard_id", context.shardTarget().getShardId().getId());
+        tracerFactory.getTracer().addSpanAttribute("node_id", context.shardTarget().getNodeId());
+    }
+
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
-        try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)) {
+        try (
+            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime);
+            Scope scope = tracerFactory.getTracer().startSpan("FetchPhase_" + context.shardTarget().getShardId())
+        ) {
+            addtracingAttributes(context);
             shortcutDocIdsToLoad(context);
             fetchPhase.execute(context);
             if (reader.singleSession()) {
@@ -651,8 +669,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
-                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
+                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext);
+                Scope scope = tracerFactory.getTracer().startSpan("QueryPhase_" + searchContext.shardTarget().getShardId())
             ) {
+                addtracingAttributes(searchContext);
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
                 processScroll(request, readerContext, searchContext);
                 queryPhase.execute(searchContext);
@@ -675,8 +695,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             readerContext.setAggregatedDfs(request.dfs());
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, true);
-                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
+                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext);
+                Scope scope = tracerFactory.getTracer().startSpan("QueryPhase_" + searchContext.shardTarget().getShardId())
             ) {
+                addtracingAttributes(searchContext);
                 searchContext.searcher().setAggregatedDfs(request.dfs());
                 queryPhase.execute(searchContext);
                 if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
@@ -730,8 +752,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
-                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
+                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext);
+                Scope scope = tracerFactory.getTracer().startSpan("FetchPhase_" + searchContext.shardTarget().getShardId())
             ) {
+                addtracingAttributes(searchContext);
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
                 processScroll(request, readerContext, searchContext);
@@ -761,8 +785,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
                 searchContext.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
                 try (
-                    SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
+                    SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime());
+                    Scope scope = tracerFactory.getTracer().startSpan("FetchPhase_" + searchContext.shardTarget().getShardId())
                 ) {
+                    addtracingAttributes(searchContext);
                     fetchPhase.execute(searchContext);
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());

@@ -210,6 +210,7 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.threadpool.ThreadPool;
@@ -2034,7 +2035,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
-                    null
+                    null,
+                    new NoopTracerFactory()
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),
@@ -2065,7 +2067,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             List.of(),
                             client,
                             false
-                        )
+                        ),
+                        new NoopTracerFactory()
                     )
                 );
                 actions.put(

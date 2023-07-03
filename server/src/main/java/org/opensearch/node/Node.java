@@ -573,6 +573,17 @@ public class Node implements Closeable {
                     new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
                 );
             }
+
+            if (FeatureFlags.isEnabled(TELEMETRY)) {
+                final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
+                List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
+                TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
+                tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool.getThreadContext());
+            } else {
+                tracerFactory = new NoopTracerFactory();
+            }
+            resourcesToClose.add(tracerFactory::close);
+
             final IngestService ingestService = new IngestService(
                 clusterService,
                 threadPool,
@@ -1025,18 +1036,9 @@ public class Node implements Closeable {
                 searchModule.getFetchPhase(),
                 responseCollectorService,
                 circuitBreakerService,
-                searchModule.getIndexSearcherExecutor(threadPool)
+                searchModule.getIndexSearcherExecutor(threadPool),
+                tracerFactory
             );
-
-            if (FeatureFlags.isEnabled(TELEMETRY)) {
-                final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
-                List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
-                TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
-                tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool.getThreadContext());
-            } else {
-                tracerFactory = new NoopTracerFactory();
-            }
-            resourcesToClose.add(tracerFactory::close);
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
@@ -1638,7 +1640,8 @@ public class Node implements Closeable {
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        Executor indexSearcherExecutor
+        Executor indexSearcherExecutor,
+        TracerFactory tracerFactory
     ) {
         return new SearchService(
             clusterService,
@@ -1650,7 +1653,8 @@ public class Node implements Closeable {
             fetchPhase,
             responseCollectorService,
             circuitBreakerService,
-            indexSearcherExecutor
+            indexSearcherExecutor,
+            tracerFactory
         );
     }
 
