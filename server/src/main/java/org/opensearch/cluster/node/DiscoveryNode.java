@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.node;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
@@ -612,7 +613,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment, Subject {
 
     @Override
     public void authenticate(AuthToken token) {
-
+        throw new UnsupportedOperationException("DiscoveryNodes cannot be authenticated at this time.");
     }
 
     @Override
