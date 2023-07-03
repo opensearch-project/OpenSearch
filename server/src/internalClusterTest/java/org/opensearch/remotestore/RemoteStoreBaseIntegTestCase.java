@@ -15,6 +15,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -72,6 +73,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     protected Settings remoteStoreIndexSettings(int numberOfReplicas) {
         return remoteStoreIndexSettings(numberOfReplicas, 1);
+    }
+
+    protected Settings remoteStoreIndexSettings(int numberOfReplicas, long totalFieldLimit) {
+        return Settings.builder()
+            .put(remoteStoreIndexSettings(numberOfReplicas))
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldLimit)
+            .build();
     }
 
     protected Settings remoteTranslogIndexSettings(int numberOfReplicas, int numberOfShards) {
