@@ -17,6 +17,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.shard.RemoteStoreRefreshListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
@@ -276,5 +277,43 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testRemoteTranslogCleanup() throws Exception {
         verifyRemoteStoreCleanup(true);
+    }
+
+    public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
+        internalCluster().startDataOnlyNodes(3);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
+        int numberOfIterations = randomIntBetween(5, 15);
+        indexData(numberOfIterations, true);
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+        Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
+        // Delete is async.
+        assertBusy(() -> {
+            int actualFileCount = getFileCount(indexPath);
+            if (numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP) {
+                assertEquals(numberOfIterations, actualFileCount);
+            } else {
+                // As delete is async its possible that the file gets created before the deletion or after
+                // deletion.
+                assertTrue(actualFileCount >= 10 || actualFileCount <= 11);
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testStaleCommitDeletionWithoutInvokeFlush() throws Exception {
+        internalCluster().startDataOnlyNodes(3);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
+        int numberOfIterations = randomIntBetween(5, 15);
+        indexData(numberOfIterations, false);
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+        Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
+        assertEquals(1, getFileCount(indexPath));
     }
 }
