@@ -1748,4 +1748,21 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         primarySort.order(SortOrder.DESC);
         assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
     }
+
+    /**
+     * Test canMatchSearchAfter with missing value, even if min/max is out of range
+     * Min = 0L, Max = 9L, search_after = -1L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterWithMissing() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.DESC);
+        // Should be false without missing values
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
+        primarySort.missing("_last");
+        // Should be true with missing values
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+    }
 }

@@ -30,7 +30,11 @@ jobs:
           CURRENT_VERSION_ARRAY[2]=$((CURRENT_VERSION_ARRAY[2]+1))
           NEXT_VERSION=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}")
           NEXT_VERSION_UNDERSCORE=$(IFS=_ ; echo "V_${CURRENT_VERSION_ARRAY[*]:0:3}")
-          NEXT_VERSION_ID=$(IFS=0 ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}99")
+          if [[ ${#CURRENT_VERSION_ARRAY[2]} -gt 1 ]]; then
+            NEXT_VERSION_ID="${CURRENT_VERSION_ARRAY[0]:0:3}0${CURRENT_VERSION_ARRAY[1]:0:3}${CURRENT_VERSION_ARRAY[2]:0:3}99"
+          else
+            NEXT_VERSION_ID=$(IFS=0 ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}99")
+          fi
           echo "TAG=$TAG" >> $GITHUB_ENV
           echo "BASE=$BASE" >> $GITHUB_ENV
           echo "BASE_X=$BASE_X" >> $GITHUB_ENV
