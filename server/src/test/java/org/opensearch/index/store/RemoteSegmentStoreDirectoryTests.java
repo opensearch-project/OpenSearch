@@ -734,9 +734,12 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     public void testUploadMetadataNoSegmentCommitInfos() throws IOException {
         SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
         int numSegCommitInfos = segInfos.size();
-        assert numSegCommitInfos == 0
-            : "For a fresh index, the number of SegmentCommitInfo instances associated with the SegmentInfos instance should be 0, but were found to be "
-                + numSegCommitInfos;
+        assertEquals(
+            "For a fresh index, the number of SegmentCommitInfo instances associated with the SegmentInfos instance should be 0, but were found to be "
+                + numSegCommitInfos,
+            0,
+            numSegCommitInfos
+        );
     }
 
     public void testNoMetadataHeaderCorruptIndexException() throws IOException {
