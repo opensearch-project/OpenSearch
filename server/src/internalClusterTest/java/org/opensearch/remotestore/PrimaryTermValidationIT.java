@@ -82,7 +82,8 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
         String clusterManagerNode = internalCluster().getClusterManagerName();
         logger.info("Node names : clusterManager={} primary={} replica={}", clusterManagerNode, primaryNode, replicaNode);
 
-        // Index some docs and validate that both primary and replica node has it. Refresh is triggered to
+        // Index some docs and validate that both primary and replica node has it. Refresh is triggered to trigger segment replication
+        // to ensure replica is also upto date.
         int numOfDocs = randomIntBetween(5, 10);
         for (int i = 0; i < numOfDocs; i++) {
             indexSameDoc(clusterManagerNode, INDEX_NAME);
