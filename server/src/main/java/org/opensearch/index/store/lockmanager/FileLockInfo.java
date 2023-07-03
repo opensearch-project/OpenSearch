@@ -72,6 +72,10 @@ public class FileLockInfo implements LockInfo {
         }
     }
 
+    /**
+     * Class with utility methods related to LockInfo
+     * @opensearch.internal
+     */
     public static class LockFileUtils {
         public static String generateLockName(String fileToLock, String acquirerId) {
             return String.join(RemoteStoreLockManagerUtils.SEPARATOR, fileToLock, acquirerId)
