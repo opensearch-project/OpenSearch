@@ -11,7 +11,9 @@ package org.opensearch.index.store;
 import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
@@ -20,6 +22,8 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
@@ -365,6 +369,89 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     /**
+     * Copies a file from the source directory to a remote based on multi-stream upload support.
+     * If vendor plugin supports uploading multiple parts in parallel, <code>BlobContainer#writeBlobByStreams</code>
+     * will be used, else, the legacy {@link RemoteSegmentStoreDirectory#copyFrom(Directory, String, String, IOContext)}
+     * will be called.
+     *
+     * @param from            The directory for the file to be uploaded
+     * @param src             File to be uploaded
+     * @param context         IOContext to be used to open IndexInput of file during remote upload
+     * @param listener        Listener to handle upload callback events
+     */
+    public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener) {
+        if (remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer) {
+            try {
+                String remoteFilename = getNewRemoteSegmentFilename(src);
+                uploadBlob(from, src, remoteFilename, context, listener);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        } else {
+            try {
+                copyFrom(from, src, src, context);
+                listener.onResponse(null);
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", src), e);
+                listener.onFailure(e);
+            }
+        }
+    }
+
+    private void uploadBlob(Directory from, String src, String remoteFileName, IOContext ioContext, ActionListener<Void> listener)
+        throws Exception {
+        long expectedChecksum = calculateChecksumOfChecksum(from, src);
+        long contentLength;
+        try (IndexInput indexInput = from.openInput(src, ioContext)) {
+            contentLength = indexInput.length();
+        }
+        RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+            src,
+            remoteFileName,
+            contentLength,
+            true,
+            WritePriority.NORMAL,
+            (size, position) -> new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position),
+            expectedChecksum,
+            remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer
+        );
+        ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
+            try {
+                postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
+                listener.onResponse(null);
+            } catch (Exception e) {
+                logger.error(() -> new ParameterizedMessage("Exception in segment postUpload for file [{}]", src), e);
+                listener.onFailure(e);
+            }
+        }, ex -> {
+            logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", src), ex);
+            IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(ex);
+            if (corruptIndexException != null) {
+                listener.onFailure(corruptIndexException);
+                return;
+            }
+            Throwable throwable = ExceptionsHelper.unwrap(ex, CorruptFileException.class);
+            if (throwable != null) {
+                CorruptFileException corruptFileException = (CorruptFileException) throwable;
+                listener.onFailure(new CorruptIndexException(corruptFileException.getMessage(), corruptFileException.getFileName()));
+                return;
+            }
+            listener.onFailure(ex);
+        });
+
+        completionListener = ActionListener.runBefore(completionListener, () -> {
+            try {
+                remoteTransferContainer.close();
+            } catch (Exception e) {
+                logger.warn("Error occurred while closing streams", e);
+            }
+        });
+
+        WriteContext writeContext = remoteTransferContainer.createWriteContext(completionListener);
+        ((VerifyingMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer()).writeBlobByStreams(writeContext);
+    }
+
+    /**
      * This acquires a lock on a given commit by creating a lock file in lock directory using {@code FileLockInfo}
      * @param primaryTerm Primary Term of index at the time of commit.
      * @param generation Commit Generation
@@ -440,6 +527,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String remoteFilename;
         remoteFilename = getNewRemoteSegmentFilename(dest);
         remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
+        postUpload(from, src, remoteFilename, checksum);
+    }
+
+    private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
         segmentsUploadedToRemoteStore.put(src, segmentMetadata);
     }

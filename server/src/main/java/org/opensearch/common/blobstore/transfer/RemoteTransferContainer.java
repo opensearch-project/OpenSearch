@@ -12,6 +12,7 @@ import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
@@ -84,7 +85,7 @@ public class RemoteTransferContainer implements Closeable {
     /**
      * @return The {@link  WriteContext} for the current upload
      */
-    public WriteContext createWriteContext() {
+    public WriteContext createWriteContext(ActionListener<Void> respListener) {
         return new WriteContext(
             remoteFileName,
             this::supplyStreamContext,
@@ -93,7 +94,8 @@ public class RemoteTransferContainer implements Closeable {
             writePriority,
             this::finalizeUpload,
             isRemoteDataIntegrityCheckPossible(),
-            isRemoteDataIntegrityCheckPossible() ? expectedChecksum : null
+            isRemoteDataIntegrityCheckPossible() ? expectedChecksum : null,
+            respListener
         );
     }
 

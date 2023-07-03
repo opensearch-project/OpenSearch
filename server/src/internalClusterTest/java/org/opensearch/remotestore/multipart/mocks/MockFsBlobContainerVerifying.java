@@ -23,7 +23,6 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -40,8 +39,7 @@ public class MockFsBlobContainerVerifying extends FsBlobContainer implements Ver
     }
 
     @Override
-    public CompletableFuture<Void> writeBlobByStreams(WriteContext writeContext) throws IOException {
-        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
+    public void writeBlobByStreams(WriteContext writeContext) throws IOException {
 
         int nParts = 10;
         long partSize = writeContext.getFileSize() / nParts;
@@ -66,7 +64,7 @@ public class MockFsBlobContainerVerifying extends FsBlobContainer implements Ver
                     }
                     inputStream.close();
                 } catch (IOException e) {
-                    completableFuture.completeExceptionally(e);
+                    writeContext.getCompletionListener().onFailure(e);
                 } finally {
                     latch.countDown();
                 }
@@ -97,23 +95,23 @@ public class MockFsBlobContainerVerifying extends FsBlobContainer implements Ver
         try {
             // bulks need to succeed for segment files to be generated
             if (isSegmentFile(writeContext.getFileName()) && triggerDataIntegrityFailure) {
-                completableFuture.completeExceptionally(
-                    new RuntimeException(
-                        new CorruptIndexException(
-                            "Data integrity check failure for file: " + writeContext.getFileName(),
-                            writeContext.getFileName()
+                writeContext.getCompletionListener()
+                    .onFailure(
+                        new RuntimeException(
+                            new CorruptIndexException(
+                                "Data integrity check failure for file: " + writeContext.getFileName(),
+                                writeContext.getFileName()
+                            )
                         )
-                    )
-                );
+                    );
             } else {
                 writeContext.getUploadFinalizer().accept(true);
-                completableFuture.complete(null);
+                writeContext.getCompletionListener().onResponse(null);
             }
         } catch (Exception e) {
-            completableFuture.completeExceptionally(e);
+            writeContext.getCompletionListener().onFailure(e);
         }
 
-        return completableFuture;
     }
 
     private boolean isSegmentFile(String filename) {

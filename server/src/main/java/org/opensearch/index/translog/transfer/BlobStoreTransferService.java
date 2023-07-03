@@ -29,12 +29,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 
 import static org.opensearch.common.blobstore.BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC;
 
@@ -92,37 +90,24 @@ public class BlobStoreTransferService implements TransferService {
         ActionListener<TransferFileSnapshot> listener,
         WritePriority writePriority
     ) {
-        List<CompletableFuture<Void>> resultFutures = new ArrayList<>();
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
             if (!(blobStore.blobContainer(blobPath) instanceof VerifyingMultiStreamBlobContainer)) {
                 uploadBlobByThreadPool(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
             } else {
-                CompletableFuture<Void> resultFuture = createUploadFuture(fileSnapshot, listener, blobPath, writePriority);
-                if (resultFuture != null) {
-                    resultFutures.add(resultFuture);
-                }
+                uploadBlob(fileSnapshot, listener, blobPath, writePriority);
             }
         });
 
-        if (resultFutures.isEmpty() == false) {
-            CompletableFuture<Void> resultFuture = CompletableFuture.allOf(resultFutures.toArray(new CompletableFuture[0]));
-            try {
-                resultFuture.get();
-            } catch (Exception e) {
-                logger.warn("Failed to upload blobs", e);
-            }
-        }
     }
 
-    private CompletableFuture<Void> createUploadFuture(
+    private void uploadBlob(
         TransferFileSnapshot fileSnapshot,
         ActionListener<TransferFileSnapshot> listener,
         BlobPath blobPath,
         WritePriority writePriority
     ) {
 
-        CompletableFuture<Void> resultFuture = null;
         try {
             ChannelFactory channelFactory = FileChannel::open;
             long contentLength;
@@ -139,22 +124,22 @@ public class BlobStoreTransferService implements TransferService {
                 Objects.requireNonNull(fileSnapshot.getChecksum()),
                 blobStore.blobContainer(blobPath) instanceof VerifyingMultiStreamBlobContainer
             );
-            WriteContext writeContext = remoteTransferContainer.createWriteContext();
-            CompletableFuture<Void> uploadFuture = ((VerifyingMultiStreamBlobContainer) blobStore.blobContainer(blobPath))
-                .writeBlobByStreams(writeContext);
-            resultFuture = uploadFuture.whenComplete((resp, throwable) -> {
+            ActionListener<Void> completionListener = ActionListener.wrap(resp -> listener.onResponse(fileSnapshot), ex -> {
+                logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);
+                listener.onFailure(new FileTransferException(fileSnapshot, ex));
+            });
+
+            completionListener = ActionListener.runBefore(completionListener, () -> {
                 try {
                     remoteTransferContainer.close();
                 } catch (Exception e) {
                     logger.warn("Error occurred while closing streams", e);
                 }
-                if (throwable != null) {
-                    logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), throwable);
-                    listener.onFailure(new FileTransferException(fileSnapshot, throwable));
-                } else {
-                    listener.onResponse(fileSnapshot);
-                }
             });
+
+            WriteContext writeContext = remoteTransferContainer.createWriteContext(completionListener);
+            ((VerifyingMultiStreamBlobContainer) blobStore.blobContainer(blobPath)).writeBlobByStreams(writeContext);
+
         } catch (Exception e) {
             logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), e);
             listener.onFailure(new FileTransferException(fileSnapshot, e));
@@ -166,7 +151,6 @@ public class BlobStoreTransferService implements TransferService {
             }
         }
 
-        return resultFuture;
     }
 
     @Override

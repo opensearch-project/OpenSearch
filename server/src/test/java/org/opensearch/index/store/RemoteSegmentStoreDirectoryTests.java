@@ -23,6 +23,8 @@ import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
@@ -50,6 +52,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.HashMap;
@@ -74,7 +78,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     private RemoteStoreMetadataLockManager mdLockManager;
 
     private RemoteSegmentStoreDirectory remoteSegmentStoreDirectory;
-    private TestUploadListener testUploadListener;
+    private TestUploadListener testUploadTracker;
     private IndexShard indexShard;
     private SegmentInfos segmentInfos;
     private ThreadPool threadPool;
@@ -527,15 +531,25 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
-        CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
-        uploadResponseCompletableFuture.complete(null);
-        when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
+        Mockito.doAnswer(invocation -> {
+            WriteContext writeContext = invocation.getArgument(0);
+            writeContext.getCompletionListener().onResponse(null);
+            return null;
+        }).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
 
-        remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT, testUploadListener);
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<Void> completionListener = new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                latch.countDown();
+            }
 
+            @Override
+            public void onFailure(Exception e) {}
+        };
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener);
+        assertTrue(latch.await(5000, TimeUnit.SECONDS));
         assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
-        assertEquals(TestUploadListener.UploadStatus.UPLOAD_SUCCESS, testUploadListener.getUploadStatus(filename));
-
         storeDirectory.close();
     }
 
@@ -555,48 +569,24 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
-        CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
-        uploadResponseCompletableFuture.complete(null);
-        when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenThrow(new IOException());
+        Mockito.doAnswer(invocation -> {
+            WriteContext writeContext = invocation.getArgument(0);
+            writeContext.getCompletionListener().onFailure(new Exception("Test exception"));
+            return null;
+        }).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<Void> completionListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {}
 
-        assertThrows(
-            IOException.class,
-            () -> remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT, testUploadListener)
-        );
-
+            @Override
+            public void onFailure(Exception e) {
+                latch.countDown();
+            }
+        };
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener);
+        assertTrue(latch.await(5000, TimeUnit.SECONDS));
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
-        assertEquals(TestUploadListener.UploadStatus.UPLOAD_FAILURE, testUploadListener.getUploadStatus(filename));
-
-        storeDirectory.close();
-    }
-
-    public void testCopyFilesFromMultipartUploadFutureCompletedExceptionally() throws Exception {
-        String filename = "_100.si";
-        populateMetadata();
-        remoteSegmentStoreDirectory.init();
-
-        Directory storeDirectory = LuceneTestCase.newDirectory();
-        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
-        indexOutput.writeString("Hello World!");
-        CodecUtil.writeFooter(indexOutput);
-        indexOutput.close();
-        storeDirectory.sync(List.of(filename));
-
-        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
-
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
-        when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
-        CompletableFuture<Void> uploadResponseCompletableFuture = new CompletableFuture<>();
-        uploadResponseCompletableFuture.completeExceptionally(new IOException());
-        when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
-
-        assertThrows(
-            ExecutionException.class,
-            () -> remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT, testUploadListener)
-        );
-
-        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
-        assertEquals(TestUploadListener.UploadStatus.UPLOAD_FAILURE, testUploadListener.getUploadStatus(filename));
 
         storeDirectory.close();
     }

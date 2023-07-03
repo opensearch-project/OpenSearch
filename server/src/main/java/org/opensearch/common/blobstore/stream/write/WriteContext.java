@@ -8,6 +8,7 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
@@ -29,6 +30,7 @@ public class WriteContext {
     private final CheckedConsumer<Boolean, IOException> uploadFinalizer;
     private final boolean doRemoteDataIntegrityCheck;
     private final Long expectedChecksum;
+    private final ActionListener<Void> completionListener;
 
     /**
      * Construct a new WriteContext object
@@ -40,6 +42,7 @@ public class WriteContext {
      * @param writePriority              The <code>WritePriority</code> of this upload
      * @param doRemoteDataIntegrityCheck A boolean to inform vendor plugins whether remote data integrity checks need to be done
      * @param expectedChecksum           This parameter expected only when the vendor plugin is expected to do server side data integrity verification
+     * @param completionListener         Callback events should be published on this listener.
      */
     public WriteContext(
         String fileName,
@@ -49,7 +52,8 @@ public class WriteContext {
         WritePriority writePriority,
         CheckedConsumer<Boolean, IOException> uploadFinalizer,
         boolean doRemoteDataIntegrityCheck,
-        @Nullable Long expectedChecksum
+        @Nullable Long expectedChecksum,
+        ActionListener<Void> completionListener
     ) {
         this.fileName = fileName;
         this.streamContextSupplier = streamContextSupplier;
@@ -59,6 +63,7 @@ public class WriteContext {
         this.uploadFinalizer = uploadFinalizer;
         this.doRemoteDataIntegrityCheck = doRemoteDataIntegrityCheck;
         this.expectedChecksum = expectedChecksum;
+        this.completionListener = completionListener;
     }
 
     /**
@@ -116,5 +121,12 @@ public class WriteContext {
      */
     public Long getExpectedChecksum() {
         return expectedChecksum;
+    }
+
+    /**
+     * @return Callback events should be published on this listener.
+     */
+    public ActionListener<Void> getCompletionListener() {
+        return completionListener;
     }
 }

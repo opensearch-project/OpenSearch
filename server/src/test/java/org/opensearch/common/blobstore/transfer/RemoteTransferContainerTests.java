@@ -167,7 +167,7 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
                 doRemoteDataIntegrityCheck
             )
         ) {
-            WriteContext writeContext = remoteTransferContainer.createWriteContext();
+            WriteContext writeContext = remoteTransferContainer.createWriteContext(null);
             assertEquals(remoteFileName, writeContext.getFileName());
             assertTrue(writeContext.isFailIfAlreadyExists());
             assertEquals(TEST_FILE_SIZE_BYTES, writeContext.getFileSize());
