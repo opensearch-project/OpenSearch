@@ -21,23 +21,23 @@ public class FileLockInfoTests extends OpenSearchTestCase {
         assertEquals(fileLockInfo.generateLockName(), FileLockInfo.LockFileUtils.generateLockName(testMetadata, testAcquirerId));
     }
 
-    public void testGenerateLockNameFailureCase1() {
-        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(testMetadata).build();
+    public void testGenerateLockNameFailureCaseNoFile() {
+        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock("").withAcquirerId(testAcquirerId).build();
         assertThrows(IllegalArgumentException.class, fileLockInfo::generateLockName);
     }
 
-    public void testGenerateLockNameFailureCase2() {
-        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withAcquirerId(testAcquirerId).build();
+    public void testGenerateLockNameFailureCaseNoAcquirer() {
+        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(testMetadata).withAcquirerId("").build();
         assertThrows(IllegalArgumentException.class, fileLockInfo::generateLockName);
     }
 
     public void testGetLockPrefix() {
-        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(testMetadata).build();
+        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(testMetadata).withAcquirerId(testAcquirerId).build();
         assertEquals(fileLockInfo.getLockPrefix(), testMetadata + RemoteStoreLockManagerUtils.SEPARATOR);
     }
 
-    public void testGetLockPrefixFailureCase() {
-        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withAcquirerId(testAcquirerId).build();
+    public void testGetLockPrefixFailureCaseNoFile() {
+        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock("").withAcquirerId(testAcquirerId).build();
         assertThrows(IllegalArgumentException.class, fileLockInfo::getLockPrefix);
     }
 
@@ -45,7 +45,8 @@ public class FileLockInfoTests extends OpenSearchTestCase {
         String[] locks = new String[] {
             FileLockInfo.LockFileUtils.generateLockName(testMetadata, testAcquirerId),
             FileLockInfo.LockFileUtils.generateLockName(testMetadata, "acquirerId2") };
-        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withAcquirerId(testAcquirerId).build();
+
+        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(testMetadata).withAcquirerId(testAcquirerId).build();
 
         assertEquals(
             fileLockInfo.getLocksForAcquirer(locks),

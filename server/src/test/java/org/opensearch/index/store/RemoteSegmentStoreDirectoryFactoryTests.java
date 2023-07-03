@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -49,8 +50,10 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
     public void setup() {
         repositoriesServiceSupplier = mock(Supplier.class);
         repositoriesService = mock(RepositoriesService.class);
-        threadPool = mock(ThreadPool.class);
         when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
+        threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = mock(ExecutorService.class);
+        when(threadPool.executor(ThreadPool.Names.REMOTE_PURGE)).thenReturn(executorService);
         remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(repositoriesServiceSupplier, threadPool);
     }
 
@@ -82,7 +85,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
             assertEquals("base_path/uuid_1/0/segments/lock_files/", blobPaths.get(2).buildAsString());
 
             verify(blobContainer).listBlobsByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX);
-            verify(repositoriesService, times(2)).repository("remote_store_repository");
+            verify(repositoriesService, times(1)).repository("remote_store_repository");
         }
     }
 

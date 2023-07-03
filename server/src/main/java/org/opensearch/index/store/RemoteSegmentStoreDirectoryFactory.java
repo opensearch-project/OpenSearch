@@ -61,7 +61,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             RemoteBufferedOutputDirectory remoteLockDirectory = createRemoteBufferedOutputDirectory(
                 repository,
                 shardLevelBlobPath,
-                "locks"
+                "lock_files"
             );
             return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteLockDirectory, threadPool);
         } catch (RepositoryMissingException e) {
