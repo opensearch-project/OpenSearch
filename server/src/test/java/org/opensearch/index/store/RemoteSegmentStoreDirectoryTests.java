@@ -414,9 +414,15 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         IndexOutput indexOutput = mock(IndexOutput.class);
         when(remoteLockDirectory.createOutput(any(), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
 
-        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration)).withAcquirerId(acquirerId).build();
+        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder()
+            .withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))
+            .withAcquirerId(acquirerId)
+            .build();
         remoteSegmentStoreDirectory.acquireLock(lockInfo);
-        verify(remoteLockDirectory).createOutput(FileLockInfo.LockFileUtils.generateLockName(metadataFiles.get(0), acquirerId), IOContext.DEFAULT);
+        verify(remoteLockDirectory).createOutput(
+            FileLockInfo.LockFileUtils.generateLockName(metadataFiles.get(0), acquirerId),
+            IOContext.DEFAULT
+        );
         verify(indexOutput).close();
     }
 
@@ -427,11 +433,11 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         long testPrimaryTerm = 2;
         long testGeneration = 3;
 
-        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration)).withAcquirerId(testAcquirerId).build();
-        assertThrows(
-            NoSuchFileException.class,
-            () -> remoteSegmentStoreDirectory.acquireLock(lockInfo)
-        );
+        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder()
+            .withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))
+            .withAcquirerId(testAcquirerId)
+            .build();
+        assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.acquireLock(lockInfo));
     }
 
     public void testReleaseLock() throws IOException {
@@ -442,7 +448,10 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         long testGeneration = 5;
 
         when(remoteMetadataDirectory.listFilesByPrefix("metadata__1__5")).thenReturn(List.of("metadata__1__5__abc"));
-        FileLockInfo lockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration)).withAcquirerId(testAcquirerId).build();
+        FileLockInfo lockInfo = FileLockInfo.getLockInfoBuilder()
+            .withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))
+            .withAcquirerId(testAcquirerId)
+            .build();
 
         List<String> lockFiles = List.of("metadata__1__5__abc___test-acquirer");
         when(remoteLockDirectory.listFilesByPrefix(lockInfo.getLockPrefix())).thenReturn(lockFiles);

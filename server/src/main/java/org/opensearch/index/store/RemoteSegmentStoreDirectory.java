@@ -626,9 +626,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 if (!lockManagerEnabled) {
                     return true;
                 }
-                return !isLockAcquired(getLockIdentifier(
-                    MetadataFilenameUtils.getPrimaryTerm(metadataFile.split(MetadataFilenameUtils.SEPARATOR)),
-                    MetadataFilenameUtils.getGeneration(metadataFile.split(MetadataFilenameUtils.SEPARATOR)))
+                return !isLockAcquired(
+                    getLockIdentifier(
+                        MetadataFilenameUtils.getPrimaryTerm(metadataFile.split(MetadataFilenameUtils.SEPARATOR)),
+                        MetadataFilenameUtils.getGeneration(metadataFile.split(MetadataFilenameUtils.SEPARATOR))
+                    )
                 );
             } catch (IOException e) {
                 logger.error(
