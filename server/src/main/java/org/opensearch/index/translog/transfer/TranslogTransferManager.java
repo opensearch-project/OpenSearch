@@ -44,8 +44,6 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
-import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR;
-import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.getFileName;
 
 /**
  * The class responsible for orchestrating the transfer of a {@link TransferSnapshot} via a {@link TransferService}
@@ -209,7 +207,7 @@ public class TranslogTransferManager {
         );
 
         try {
-            transferService.listBlobsInSortedOrder(remoteMetadataTransferPath, 1, latchedActionListener);
+            transferService.listAllInSortedOrder(remoteMetadataTransferPath, 1, latchedActionListener);
             latch.await();
         } catch (InterruptedException | IOException e) {
             throw new IOException("Exception while reading/downloading metadafile", e);
@@ -237,7 +235,7 @@ public class TranslogTransferManager {
         translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
 
         return new TransferFileSnapshot(
-            getFileName(translogTransferMetadata.getPrimaryTerm(), translogTransferMetadata.getGeneration()),
+            translogTransferMetadata.getFileName(),
             getMetadataBytes(translogTransferMetadata),
             translogTransferMetadata.getPrimaryTerm()
         );
@@ -256,7 +254,7 @@ public class TranslogTransferManager {
             try (
                 OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
                     "translog transfer metadata " + metadata.getPrimaryTerm(),
-                    getFileName(metadata.getPrimaryTerm(), metadata.getGeneration()),
+                    metadata.getFileName(),
                     output,
                     TranslogTransferMetadata.BUFFER_SIZE
                 )
@@ -279,20 +277,14 @@ public class TranslogTransferManager {
      */
     public void deleteGenerationAsync(long primaryTerm, Set<Long> generations, Runnable onCompletion) {
         List<String> translogFiles = new ArrayList<>();
-        List<String> metadataFiles = new ArrayList<>();
         generations.forEach(generation -> {
             // Add .ckp and .tlog file to translog file list which is located in basePath/<primaryTerm>
             String ckpFileName = Translog.getCommitCheckpointFileName(generation);
             String translogFileName = Translog.getFilename(generation);
             translogFiles.addAll(List.of(ckpFileName, translogFileName));
-            // Add metadata file tio metadata file list which is located in basePath/metadata
-            String metadataFileName = TranslogTransferMetadata.getFileName(primaryTerm, generation);
-            metadataFiles.add(metadataFileName);
         });
         // Delete the translog and checkpoint files asynchronously
         deleteTranslogFilesAsync(primaryTerm, translogFiles, onCompletion);
-        // Delete the metadata files asynchronously
-        deleteMetadataFilesAsync(metadataFiles, onCompletion);
     }
 
     /**
@@ -367,24 +359,34 @@ public class TranslogTransferManager {
         });
     }
 
-    public void deleteStaleTranslogMetadataFilesAsync() {
-        transferService.listAllAsync(ThreadPool.Names.REMOTE_PURGE, remoteMetadataTransferPath, new ActionListener<>() {
-            @Override
-            public void onResponse(Set<String> metadataFiles) {
-                List<String> sortedMetadataFiles = metadataFiles.stream().sorted(METADATA_FILENAME_COMPARATOR).collect(Collectors.toList());
-                if (sortedMetadataFiles.size() <= 1) {
-                    logger.trace("Remote Metadata file count is {}, so skipping deletion", sortedMetadataFiles.size());
-                    return;
-                }
-                List<String> metadataFilesToDelete = sortedMetadataFiles.subList(0, sortedMetadataFiles.size() - 1);
-                deleteMetadataFilesAsync(metadataFilesToDelete);
-            }
+    public void deleteStaleTranslogMetadataFilesAsync(Runnable onCompletion) {
+        try {
+            transferService.listAllInSortedOrderAsync(
+                ThreadPool.Names.REMOTE_PURGE,
+                remoteMetadataTransferPath,
+                Integer.MAX_VALUE,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(List<BlobMetadata> blobMetadata) {
+                        List<String> sortedMetadataFiles = blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList());
+                        if (sortedMetadataFiles.size() <= 1) {
+                            logger.trace("Remote Metadata file count is {}, so skipping deletion", sortedMetadataFiles.size());
+                            return;
+                        }
+                        List<String> metadataFilesToDelete = sortedMetadataFiles.subList(1, sortedMetadataFiles.size());
+                        logger.trace("Deleting remote translog metadata files {}", metadataFilesToDelete);
+                        deleteMetadataFilesAsync(metadataFilesToDelete, onCompletion);
+                    }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Exception occurred while listing translog metadata files from remote store", e);
-            }
-        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("Exception occurred while listing translog metadata files from remote store", e);
+                    }
+                }
+            );
+        } catch (Exception e) {
+            logger.error("Exception occurred while listing translog metadata files from remote store", e);
+        }
     }
 
     public void deleteTranslogFiles() throws IOException {

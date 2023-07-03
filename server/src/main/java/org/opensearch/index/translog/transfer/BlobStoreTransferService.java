@@ -24,6 +24,8 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.common.blobstore.BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC;
+
 /**
  * Service that handles remote transfer of translog and checkpoint files
  *
@@ -116,17 +118,6 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void listAllAsync(String threadpoolName, Iterable<String> path, ActionListener<Set<String>> listener) {
-        threadPool.executor(threadpoolName).execute(() -> {
-            try {
-                listener.onResponse(listAll(path));
-            } catch (IOException e) {
-                listener.onFailure(e);
-            }
-        });
-    }
-
-    @Override
     public Set<String> listFolders(Iterable<String> path) throws IOException {
         return blobStore.blobContainer((BlobPath) path).children().keySet();
     }
@@ -142,8 +133,23 @@ public class BlobStoreTransferService implements TransferService {
         });
     }
 
-    public void listBlobsInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException {
-        blobStore.blobContainer((BlobPath) path).listBlobsByPrefixInLexicographicOrder("", limit, listener);
+    public void listAllInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException {
+        blobStore.blobContainer((BlobPath) path).listBlobsByPrefixInSortedOrder("", limit, LEXICOGRAPHIC, listener);
+    }
+
+    public void listAllInSortedOrderAsync(
+        String threadpoolName,
+        Iterable<String> path,
+        int limit,
+        ActionListener<List<BlobMetadata>> listener
+    ) {
+        threadPool.executor(threadpoolName).execute(() -> {
+            try {
+                listAllInSortedOrder(path, limit, listener);
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
 }

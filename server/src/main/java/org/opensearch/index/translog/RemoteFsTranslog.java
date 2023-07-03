@@ -385,6 +385,7 @@ public class RemoteFsTranslog extends Translog {
         }
         if (generationsToDelete.isEmpty() == false) {
             deleteRemoteGeneration(generationsToDelete);
+            translogTransferManager.deleteStaleTranslogMetadataFilesAsync(remoteGenerationDeletionPermits::release);
             deleteStaleRemotePrimaryTermsAndMetadataFiles();
         } else {
             remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
@@ -418,8 +419,6 @@ public class RemoteFsTranslog extends Translog {
             assert readers.isEmpty() == false : "Expected non-empty readers";
             long minimumReferencedPrimaryTerm = readers.stream().map(BaseTranslogReader::getPrimaryTerm).min(Long::compare).get();
             translogTransferManager.deletePrimaryTermsAsync(minimumReferencedPrimaryTerm);
-            // Second we delete all stale metadata files from remote store
-            translogTransferManager.deleteStaleTranslogMetadataFilesAsync();
         }
     }
 

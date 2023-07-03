@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -195,7 +194,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             List<BlobMetadata> bmList = new LinkedList<>();
             latchedActionListener.onResponse(bmList);
             return null;
-        }).when(transferService).listBlobsInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
+        }).when(transferService).listAllInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
 
         assertNull(translogTransferManager.readMetadata());
     }
@@ -207,16 +206,18 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath,
             null
         );
+        TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2);
+        String mdFilename = tm.getFileName();
         doAnswer(invocation -> {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(2);
             List<BlobMetadata> bmList = new LinkedList<>();
-            bmList.add(new PlainBlobMetadata("0__3__3__13__235", 1));
+            bmList.add(new PlainBlobMetadata(mdFilename, 1));
             latchedActionListener.onResponse(bmList);
             return null;
-        }).when(transferService).listBlobsInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
+        }).when(transferService).listAllInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
-        when(transferService.downloadBlob(any(BlobPath.class), eq("0__3__3__13__235"))).thenReturn(
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenReturn(
             new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata))
         );
 
@@ -231,15 +232,18 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             null
         );
 
+        TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2);
+        String mdFilename = tm.getFileName();
+
         doAnswer(invocation -> {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(2);
             List<BlobMetadata> bmList = new LinkedList<>();
-            bmList.add(new PlainBlobMetadata("0__3__3__13__235", 1));
+            bmList.add(new PlainBlobMetadata(mdFilename, 1));
             latchedActionListener.onResponse(bmList);
             return null;
-        }).when(transferService).listBlobsInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
+        }).when(transferService).listAllInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
 
-        when(transferService.downloadBlob(any(BlobPath.class), eq("0__3__3__13__235"))).thenThrow(new IOException("Something went wrong"));
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenThrow(new IOException("Something went wrong"));
 
         assertThrows(IOException.class, translogTransferManager::readMetadata);
     }
@@ -256,22 +260,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(2);
             latchedActionListener.onFailure(new IOException("Issue while listing"));
             return null;
-        }).when(transferService).listBlobsInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
+        }).when(transferService).listAllInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
 
-        when(transferService.downloadBlob(any(BlobPath.class), eq("1__3__3__12__235"))).thenThrow(new IOException("Something went wrong"));
+        when(transferService.downloadBlob(any(BlobPath.class), any(String.class))).thenThrow(new IOException("Something went wrong"));
 
         assertThrows(IOException.class, translogTransferManager::readMetadata);
-    }
-
-    public void testReadMetadataComparatorIllegal() {
-        List<String> metadataFiles = Arrays.asList("1__4__4__12__234", "1__4__3__12__235", "1__4__4__12__234");
-        assertThrows(IllegalArgumentException.class, () -> metadataFiles.sort(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR));
-    }
-
-    public void testReadMetadataComparator() {
-        List<String> metadataFiles = Arrays.asList("1__4__4__12__234", "0__3__3__13__235", "1__5__5__12__233");
-        metadataFiles.sort(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR);
-        assertEquals(Arrays.asList("0__3__3__13__235", "1__4__4__12__234", "1__5__5__12__233"), metadataFiles);
     }
 
     public void testDownloadTranslog() throws IOException {
