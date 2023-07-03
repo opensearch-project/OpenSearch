@@ -201,8 +201,7 @@ public interface BlobContainer {
      */
     enum BlobNameSortOrder {
 
-        LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name)),
-        REVERSE_LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name).reversed());
+        LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name));
 
         final Comparator<BlobMetadata> comparator;
 

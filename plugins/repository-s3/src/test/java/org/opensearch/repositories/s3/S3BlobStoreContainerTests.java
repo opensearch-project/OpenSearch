@@ -898,27 +898,4 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
     public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
         testListBlobsByPrefixInLexicographicOrder(12, 2, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
-
-    public void testListBlobsByPrefixInReverseLexicographicOrderWithNegativeLimit() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(-5, 0, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
-    }
-
-    public void testListBlobsByPrefixInReverseLexicographicOrderWithZeroLimit() throws IOException {
-        // Here, in case of reverse lexicographic sort, we fetch all the keys before sorting.
-        testListBlobsByPrefixInLexicographicOrder(0, 2, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
-    }
-
-    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitLessThanPageSize() throws IOException {
-        // Here, in case of reverse lexicographic sort, we fetch all the keys before sorting.
-        testListBlobsByPrefixInLexicographicOrder(2, 2, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
-    }
-
-    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitGreaterThanPageSize() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(8, 2, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
-    }
-
-    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(12, 2, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
-    }
-
 }

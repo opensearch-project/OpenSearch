@@ -198,26 +198,6 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
         testListBlobsByPrefixInSortedOrder(12, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
-    public void testListBlobsByPrefixInReverseLexicographicOrderWithNegativeLimit() throws IOException {
-        testListBlobsByPrefixInSortedOrder(-5, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
-    }
-
-    public void testListBlobsByPrefixInReverseLexicographicOrderWithZeroLimit() throws IOException {
-        testListBlobsByPrefixInSortedOrder(0, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
-    }
-
-    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitLessThanNumberOfRecords() throws IOException {
-        testListBlobsByPrefixInSortedOrder(8, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
-    }
-
-    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitNumberOfRecords() throws IOException {
-        testListBlobsByPrefixInSortedOrder(10, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
-    }
-
-    public void testListBlobsByPrefixInReverseLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
-        testListBlobsByPrefixInSortedOrder(12, BlobContainer.BlobNameSortOrder.REVERSE_LEXICOGRAPHIC);
-    }
-
     static class MockFileSystemProvider extends FilterFileSystemProvider {
 
         final Consumer<Long> onRead;
