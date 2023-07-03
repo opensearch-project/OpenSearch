@@ -63,6 +63,13 @@ public interface Span {
     void addAttribute(String key, Boolean value);
 
     /**
+     * Sets status of the span
+     *
+     * @param statusCode status of the span
+     */
+    void setStatus(StatusCode statusCode);
+
+    /**
      * Adds an event in the span
      *
      * @param event name of the event

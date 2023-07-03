@@ -49,6 +49,11 @@ class OTelSpan extends AbstractSpan {
     }
 
     @Override
+    public void setStatus(StatusCode statusCode) {
+        delegateSpan.setStatus(io.opentelemetry.api.trace.StatusCode.valueOf(statusCode.name()));
+    }
+
+    @Override
     public void addEvent(String event) {
         delegateSpan.addEvent(event);
     }
