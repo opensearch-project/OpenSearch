@@ -187,7 +187,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
             header.write(channel, !Boolean.TRUE.equals(remoteTranslogEnabled));
             TranslogCheckedContainer translogCheckedContainer = null;
-            if (remoteTranslogEnabled == Boolean.TRUE) {
+            if (Boolean.TRUE.equals(remoteTranslogEnabled)) {
                 ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
                 header.write(byteArrayOutputStream);
                 translogCheckedContainer = new TranslogCheckedContainer(byteArrayOutputStream.toByteArray());
