@@ -9,9 +9,11 @@
 package org.opensearch.extensions.rest;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -130,7 +132,15 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
 
     public void testRestInitializeExtensionActionResponseWithAdditionalSettings() throws Exception {
         Setting boolSetting = Setting.boolSetting("boolSetting", false, Setting.Property.ExtensionScope);
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting));
+        Setting stringSetting = Setting.simpleString("stringSetting", "default", Setting.Property.ExtensionScope);
+        Setting intSetting = Setting.intSetting("intSetting", 0, Setting.Property.ExtensionScope);
+        Setting listSetting = Setting.listSetting(
+            "listSetting",
+            List.of("first", "second", "third"),
+            Function.identity(),
+            Setting.Property.ExtensionScope
+        );
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting, stringSetting, intSetting, listSetting));
         ExtensionsManager spy = spy(extensionsManager);
 
         // optionally, you can stub out some methods:
@@ -140,7 +150,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(spy);
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"ad-extension\",\"hostAddress\":\"127.0.0.1\","
             + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\"3.0.0\","
-            + "\"minimumCompatibleVersion\":\"3.0.0\",\"boolSetting\":true}";
+            + "\"minimumCompatibleVersion\":\"3.0.0\",\"boolSetting\":true,\"stringSetting\":\"customSetting\",\"intSetting\":5,\"listSetting\":[\"one\",\"two\",\"three\"]}";
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
@@ -154,11 +164,26 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         Optional<ExtensionsSettings.Extension> extension = spy.lookupExtensionSettingsById("ad-extension");
         assertTrue(extension.isPresent());
         assertEquals(true, extension.get().getAdditionalSettings().get(boolSetting));
+        assertEquals("customSetting", extension.get().getAdditionalSettings().get(stringSetting));
+        assertEquals(5, extension.get().getAdditionalSettings().get(intSetting));
+
+        List<String> listSettingValue = (List<String>) extension.get().getAdditionalSettings().get(listSetting);
+        assertTrue(listSettingValue.contains("one"));
+        assertTrue(listSettingValue.contains("two"));
+        assertTrue(listSettingValue.contains("three"));
     }
 
     public void testRestInitializeExtensionActionResponseWithAdditionalSettingsUsingDefault() throws Exception {
         Setting boolSetting = Setting.boolSetting("boolSetting", false, Setting.Property.ExtensionScope);
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting));
+        Setting stringSetting = Setting.simpleString("stringSetting", "default", Setting.Property.ExtensionScope);
+        Setting intSetting = Setting.intSetting("intSetting", 0, Setting.Property.ExtensionScope);
+        Setting listSetting = Setting.listSetting(
+            "listSetting",
+            List.of("first", "second", "third"),
+            Function.identity(),
+            Setting.Property.ExtensionScope
+        );
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting, stringSetting, intSetting, listSetting));
         ExtensionsManager spy = spy(extensionsManager);
 
         // optionally, you can stub out some methods:
@@ -182,6 +207,13 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
         Optional<ExtensionsSettings.Extension> extension = spy.lookupExtensionSettingsById("ad-extension");
         assertTrue(extension.isPresent());
         assertEquals(false, extension.get().getAdditionalSettings().get(boolSetting));
+        assertEquals("default", extension.get().getAdditionalSettings().get(stringSetting));
+        assertEquals(0, extension.get().getAdditionalSettings().get(intSetting));
+
+        List<String> listSettingValue = (List<String>) extension.get().getAdditionalSettings().get(listSetting);
+        assertTrue(listSettingValue.contains("first"));
+        assertTrue(listSettingValue.contains("second"));
+        assertTrue(listSettingValue.contains("third"));
     }
 
 }
