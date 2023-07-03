@@ -103,7 +103,6 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
-import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
@@ -663,10 +662,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
         RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
         RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-        RemoteStoreLockManager remoteStoreLockManager = new RemoteStoreMetadataLockManager(
-            new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex()))
-        );
-        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool);
+        RemoteDirectory lockDirectory = new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex()));
+        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, lockDirectory, threadPool);
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {

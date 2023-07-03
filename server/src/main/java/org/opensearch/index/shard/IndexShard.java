@@ -163,6 +163,8 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.index.store.lockmanager.FileLockInfo;
+import org.opensearch.index.store.lockmanager.LockInfo;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
@@ -1497,7 +1499,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void acquireLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteDirectory();
-        remoteSegmentStoreDirectory.acquireLock(primaryTerm, generation, snapshotId);
+        String lockIdentifier = remoteSegmentStoreDirectory.getLockIdentifier(primaryTerm, generation);
+        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(lockIdentifier).withAcquirerId(snapshotId).build();
+        remoteSegmentStoreDirectory.acquireLock(lockInfo);
     }
 
     /**
@@ -1509,7 +1513,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void releaseLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteDirectory();
-        remoteSegmentStoreDirectory.releaseLock(primaryTerm, generation, snapshotId);
+        String lockIdentifier = remoteSegmentStoreDirectory.getLockIdentifier(primaryTerm, generation);
+        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(lockIdentifier).withAcquirerId(snapshotId).build();
+        remoteSegmentStoreDirectory.releaseLock(lockInfo);
     }
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {

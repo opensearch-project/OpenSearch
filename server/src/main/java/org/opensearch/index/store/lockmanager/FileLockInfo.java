@@ -43,14 +43,14 @@ public class FileLockInfo implements LockInfo {
         return LockFileUtils.generateLockName(fileToLock, acquirerId);
     }
 
-    String getLockPrefix() {
+    public String getLockPrefix() {
         if (fileToLock == null || fileToLock.isBlank()) {
             throw new IllegalArgumentException("File to Lock should be provided");
         }
         return fileToLock + RemoteStoreLockManagerUtils.SEPARATOR;
     }
 
-    List<String> getLocksForAcquirer(String[] lockFiles) {
+    public List<String> getLocksForAcquirer(String[] lockFiles) {
         if (acquirerId == null || acquirerId.isBlank()) {
             throw new IllegalArgumentException("Acquirer ID should be provided");
         }
@@ -72,8 +72,8 @@ public class FileLockInfo implements LockInfo {
         }
     }
 
-    static class LockFileUtils {
-        static String generateLockName(String fileToLock, String acquirerId) {
+    public static class LockFileUtils {
+        public static String generateLockName(String fileToLock, String acquirerId) {
             return String.join(RemoteStoreLockManagerUtils.SEPARATOR, fileToLock, acquirerId)
                 + RemoteStoreLockManagerUtils.LOCK_FILE_EXTENSION;
         }
@@ -120,7 +120,7 @@ public class FileLockInfo implements LockInfo {
 
         @Override
         public FileLockInfo build() {
-            if (lockFileInfo.fileToLock == null && lockFileInfo.acquirerId == null) {
+            if (lockFileInfo.fileToLock == null || lockFileInfo.acquirerId == null) {
                 throw new IllegalStateException("Either File to Lock or AcquirerId should be provided to instantiate FileLockInfo");
             }
             return lockFileInfo;

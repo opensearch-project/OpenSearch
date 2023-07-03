@@ -13,8 +13,6 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
-import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -59,14 +57,13 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
 
             RemoteDirectory dataDirectory = createRemoteDirectory(repository, commonBlobPath, "data");
             RemoteDirectory metadataDirectory = createRemoteDirectory(repository, commonBlobPath, "metadata");
-            RemoteStoreMetadataLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
-                repositoriesService.get(),
-                repositoryName,
-                indexUUID,
-                shardId
+            BlobPath shardLevelBlobPath = ((BlobStoreRepository) repository).basePath().add(indexUUID).add(shardId).add(SEGMENTS);
+            RemoteBufferedOutputDirectory remoteLockDirectory = createRemoteBufferedOutputDirectory(
+                repository,
+                shardLevelBlobPath,
+                "locks"
             );
-
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool);
+            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteLockDirectory, threadPool);
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }
@@ -76,5 +73,15 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         BlobPath extendedPath = commonBlobPath.add(extention);
         BlobContainer dataBlobContainer = ((BlobStoreRepository) repository).blobStore().blobContainer(extendedPath);
         return new RemoteDirectory(dataBlobContainer);
+    }
+
+    private static RemoteBufferedOutputDirectory createRemoteBufferedOutputDirectory(
+        Repository repository,
+        BlobPath commonBlobPath,
+        String extention
+    ) {
+        BlobPath extendedPath = commonBlobPath.add(extention);
+        BlobContainer dataBlobContainer = ((BlobStoreRepository) repository).blobStore().blobContainer(extendedPath);
+        return new RemoteBufferedOutputDirectory(dataBlobContainer);
     }
 }

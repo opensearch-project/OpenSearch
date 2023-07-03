@@ -23,7 +23,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
-import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
+import org.opensearch.index.store.lockmanager.LockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  * another instance of {@code RemoteDirectory}.
  * @opensearch.internal
  */
-public final class RemoteSegmentStoreDirectory extends FilterDirectory implements RemoteStoreCommitLevelLockManager {
+public final class RemoteSegmentStoreDirectory extends FilterDirectory implements RemoteStoreLockManager {
     /**
      * Each segment file is uploaded with unique suffix.
      * For example, _0.cfe in local filesystem will be uploaded to remote segment store as _0.cfe__gX7bNIIBrs0AUNsR2yEG
@@ -74,7 +74,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     private final RemoteDirectory remoteMetadataDirectory;
 
-    private final RemoteStoreLockManager mdLockManager;
+    private final RemoteDirectory remoteLockDirectory;
 
     private final ThreadPool threadPool;
 
@@ -108,13 +108,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     public RemoteSegmentStoreDirectory(
         RemoteDirectory remoteDataDirectory,
         RemoteDirectory remoteMetadataDirectory,
-        RemoteStoreLockManager mdLockManager,
+        RemoteDirectory remoteLockDirectory,
         ThreadPool threadPool
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
-        this.mdLockManager = mdLockManager;
+        this.remoteLockDirectory = remoteLockDirectory;
         this.threadPool = threadPool;
         init();
     }
@@ -370,45 +370,62 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * This acquires a lock on a given commit by creating a lock file in lock directory using {@code FileLockInfo}
-     * @param primaryTerm Primary Term of index at the time of commit.
-     * @param generation Commit Generation
-     * @param acquirerId Lock Acquirer ID which wants to acquire lock on the commit.
+     * @param lockInfo lock identifier and acquirer ID info
      * @throws IOException will be thrown in case i) listing file failed or ii) Writing the lock file failed.
      * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
-    public void acquireLock(long primaryTerm, long generation, String acquirerId) throws IOException {
-        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
-
-        mdLockManager.acquire(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build());
+    public void acquireLock(LockInfo lockInfo) throws IOException {
+        assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
+        IndexOutput indexOutput = remoteLockDirectory.createOutput(lockInfo.generateLockName(), IOContext.DEFAULT);
+        indexOutput.close();
     }
 
     /**
      * Releases a lock which was acquired on given segment commit.
-     * @param primaryTerm Primary Term of index at the time of commit.
-     * @param generation Commit Generation
-     * @param acquirerId Acquirer ID for which lock needs to be released.
+     * @param lockInfo lock identifier and acquirer ID info
      * @throws IOException will be thrown in case i) listing lock files failed or ii) deleting the lock file failed.
      * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
-    public void releaseLock(long primaryTerm, long generation, String acquirerId) throws IOException {
-        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
-        mdLockManager.release(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build());
+    public void releaseLock(LockInfo lockInfo) throws IOException {
+        assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
+        Collection<String> lockFiles = remoteLockDirectory.listFilesByPrefix(((FileLockInfo) lockInfo).getLockPrefix());
+
+        // ideally there should be only one lock per acquirer, but just to handle any stale locks,
+        // we try to release all the locks for the acquirer.
+        List<String> locksToRelease = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles.toArray(new String[0]));
+        if (locksToRelease.size() > 1) {
+            logger.warn(locksToRelease.size() + " locks found for acquirer " + ((FileLockInfo) lockInfo).getAcquirerId());
+        }
+        for (String lock : locksToRelease) {
+            remoteLockDirectory.deleteFile(lock);
+        }
     }
 
     /**
      * Checks if a specific commit have any corresponding lock file.
-     * @param primaryTerm Primary Term of index at the time of commit.
-     * @param generation Commit Generation
+     * @param lockInfo lock identifier and acquirer ID info
      * @return True if there is at least one lock for given primary term and generation.
      * @throws IOException will be thrown in case listing lock files failed.
      * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
-    public Boolean isLockAcquired(long primaryTerm, long generation) throws IOException {
-        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
-        return mdLockManager.isAcquired(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).build());
+    public Boolean isLockAcquired(LockInfo lockInfo) throws IOException {
+        assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
+        Collection<String> lockFiles = remoteLockDirectory.listFilesByPrefix(((FileLockInfo) lockInfo).getFileToLock());
+        List<String> locksByAcquirer = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles.toArray(new String[0]));
+        return !locksByAcquirer.isEmpty();
+    }
+
+    @Override
+    public Boolean isLockAcquired(String lockIdentifier) throws IOException {
+        Collection<String> lockFiles = remoteLockDirectory.listFilesByPrefix(lockIdentifier);
+        return lockFiles.isEmpty() == false;
+    }
+
+    public String getLockIdentifier(long primaryTerm, long generation) throws IOException {
+        return getMetadataFileForCommit(primaryTerm, generation);
     }
 
     // Visible for testing
@@ -609,9 +626,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 if (!lockManagerEnabled) {
                     return true;
                 }
-                return !isLockAcquired(
+                return !isLockAcquired(getLockIdentifier(
                     MetadataFilenameUtils.getPrimaryTerm(metadataFile.split(MetadataFilenameUtils.SEPARATOR)),
-                    MetadataFilenameUtils.getGeneration(metadataFile.split(MetadataFilenameUtils.SEPARATOR))
+                    MetadataFilenameUtils.getGeneration(metadataFile.split(MetadataFilenameUtils.SEPARATOR)))
                 );
             } catch (IOException e) {
                 logger.error(
@@ -708,7 +725,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         try {
             remoteDataDirectory.delete();
             remoteMetadataDirectory.delete();
-            mdLockManager.delete();
+            remoteLockDirectory.delete();
         } catch (Exception e) {
             logger.error("Exception occurred while deleting directory", e);
             return false;
