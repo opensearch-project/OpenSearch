@@ -25,6 +25,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
@@ -186,9 +187,23 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     }
 
     private IndexShard getIndexShard(ClusterState state, ShardRouting routing, String indexName) {
-        return getIndexShard(state.nodes().get(routing.currentNodeId()).getName(), indexName);
+        return getIndexShard(state.nodes().get(routing.currentNodeId()).getName(), routing.shardId(), indexName);
     }
 
+    /**
+     * Fetch IndexShard by shardId, multiple shards per node allowed.
+     */
+    protected IndexShard getIndexShard(String node, ShardId shardId, String indexName) {
+        final Index index = resolveIndex(indexName);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+        IndexService indexService = indicesService.indexServiceSafe(index);
+        final Optional<Integer> id = indexService.shardIds().stream().filter(sid -> sid == shardId.id()).findFirst();
+        return indexService.getShard(id.get());
+    }
+
+    /**
+     * Fetch IndexShard, assumes only a single shard per node.
+     */
     protected IndexShard getIndexShard(String node, String indexName) {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);

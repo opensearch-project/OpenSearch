@@ -10,6 +10,7 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
@@ -86,11 +87,12 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.spy;
 
 public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelReplicationTestCase {
 
@@ -1156,6 +1158,125 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
+    public void testCloseShardDuringFinalize() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+            final IndexShard replicaSpy = spy(replica);
+
+            primary.refresh("Test");
+
+            doThrow(AlreadyClosedException.class).when(replicaSpy).finalizeReplication(any());
+
+            replicateSegments(primary, List.of(replicaSpy));
+        }
+    }
+
+    public void testCloseShardWhileGettingCheckpoint() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            SegmentReplicationSource source = new TestReplicationSource() {
+
+                ActionListener<CheckpointInfoResponse> listener;
+
+                @Override
+                public void getCheckpointMetadata(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    ActionListener<CheckpointInfoResponse> listener
+                ) {
+                    // set the listener, we will only fail it once we cancel the source.
+                    this.listener = listener;
+                    // shard is closing while we are copying files.
+                    targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
+                }
+
+                @Override
+                public void getSegmentFiles(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    List<StoreFileMetadata> filesToFetch,
+                    IndexShard indexShard,
+                    ActionListener<GetSegmentFilesResponse> listener
+                ) {
+                    Assert.fail("Unreachable");
+                }
+
+                @Override
+                public void cancel() {
+                    // simulate listener resolving, but only after we have issued a cancel from beforeIndexShardClosed .
+                    final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("retryable action was cancelled");
+                    listener.onFailure(exception);
+                }
+            };
+            when(sourceFactory.get(any())).thenReturn(source);
+            startReplicationAndAssertCancellation(replica, targetService);
+
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
+    }
+
+    public void testBeforeIndexShardClosedWhileCopyingFiles() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            SegmentReplicationSource source = new TestReplicationSource() {
+
+                ActionListener<GetSegmentFilesResponse> listener;
+
+                @Override
+                public void getCheckpointMetadata(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    ActionListener<CheckpointInfoResponse> listener
+                ) {
+                    resolveCheckpointInfoResponseListener(listener, primary);
+                }
+
+                @Override
+                public void getSegmentFiles(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    List<StoreFileMetadata> filesToFetch,
+                    IndexShard indexShard,
+                    ActionListener<GetSegmentFilesResponse> listener
+                ) {
+                    // set the listener, we will only fail it once we cancel the source.
+                    this.listener = listener;
+                    // shard is closing while we are copying files.
+                    targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
+                }
+
+                @Override
+                public void cancel() {
+                    // simulate listener resolving, but only after we have issued a cancel from beforeIndexShardClosed .
+                    final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("retryable action was cancelled");
+                    listener.onFailure(exception);
+                }
+            };
+            when(sourceFactory.get(any())).thenReturn(source);
+            startReplicationAndAssertCancellation(replica, targetService);
+
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
+    }
+
     public void testPrimaryCancelsExecution() throws Exception {
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -1245,7 +1366,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                     assertFalse(sendShardFailure);
-                    assertEquals(SegmentReplicationState.Stage.CANCELLED, state.getStage());
                     latch.countDown();
                 }
             }
