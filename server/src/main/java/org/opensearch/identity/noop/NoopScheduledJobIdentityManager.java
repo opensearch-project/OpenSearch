@@ -23,17 +23,17 @@ import java.util.Optional;
  */
 public class NoopScheduledJobIdentityManager implements ScheduledJobIdentityManager {
     @Override
-    public void saveUserDetails(String jobId, String indexName, Optional<ScheduledJobOperator> operator) {
+    public void associateJobWithOperator(String jobId, String indexName, Optional<ScheduledJobOperator> operator) {
         return;
     }
 
     @Override
-    public void deleteUserDetails(String jobId, String indexName) {
+    public void deleteJobOperatorEntry(String jobId, String indexName) {
         return;
     }
 
     @Override
-    public AuthToken issueAccessTokenOnBehalfOfUser(String jobId, String indexName, Optional<String> extensionUniqueId) {
+    public AuthToken issueAccessTokenOnBehalfOfOperator(String jobId, String indexName, Optional<String> extensionUniqueId) {
         return new NoopAuthToken();
     }
 }

@@ -26,14 +26,14 @@ public interface ScheduledJobIdentityManager {
      * @param indexName The index where scheduled job details is stored
      * @param operator (Optional) The operator of the scheduled job, if not present it will default to currently authenticated user
      */
-    void saveUserDetails(String jobId, String indexName, Optional<ScheduledJobOperator> operator);
+    void associateJobWithOperator(String jobId, String indexName, Optional<ScheduledJobOperator> operator);
 
     /**
      * Method implemented by an identity plugin to delete user information for a scheduled job
      * @param jobId The id of the scheduled job
      * @param indexName The index where scheduled job details is stored
      */
-    void deleteUserDetails(String jobId, String indexName);
+    void deleteJobOperatorEntry(String jobId, String indexName);
 
     /**
      * Method implemented by an identity plugin to issue an access token for a scheduler job runner
@@ -41,5 +41,5 @@ public interface ScheduledJobIdentityManager {
      * @param indexName The index where scheduled job details is stored
      * @param extensionUniqueId The unique id of an extension
      */
-    AuthToken issueAccessTokenOnBehalfOfUser(String jobId, String indexName, Optional<String> extensionUniqueId);
+    AuthToken issueAccessTokenOnBehalfOfOperator(String jobId, String indexName, Optional<String> extensionUniqueId);
 }
