@@ -405,8 +405,13 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         long testGeneration = 5;
 
         List<String> metadataFiles = List.of("metadata__1__5__abc");
-        when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration))).thenReturn(metadataFiles);
-        when(remoteMetadataDirectory.listFilesByPrefix(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))).thenReturn(metadataFiles);
+        when(
+            remoteMetadataDirectory.listFilesByPrefix(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration)
+            )
+        ).thenReturn(metadataFiles);
+        when(remoteMetadataDirectory.listFilesByPrefix(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration)))
+            .thenReturn(metadataFiles);
 
         IndexOutput indexOutput = mock(IndexOutput.class);
         when(remoteLockDirectory.createOutput(any(), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
@@ -431,8 +436,13 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         long testGeneration = 5;
 
         List<String> metadataFiles = List.of("metadata__1__5__abc");
-        when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration))).thenReturn(metadataFiles);
-        when(remoteMetadataDirectory.listFilesByPrefix(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))).thenReturn(List.of());
+        when(
+            remoteMetadataDirectory.listFilesByPrefix(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration)
+            )
+        ).thenReturn(metadataFiles);
+        when(remoteMetadataDirectory.listFilesByPrefix(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration)))
+            .thenReturn(List.of());
 
         LockInfo lockInfo = FileLockInfo.getLockInfoBuilder()
             .withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))
