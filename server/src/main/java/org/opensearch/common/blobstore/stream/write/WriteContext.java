@@ -8,7 +8,6 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;

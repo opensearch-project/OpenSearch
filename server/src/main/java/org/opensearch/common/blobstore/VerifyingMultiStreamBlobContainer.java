@@ -14,7 +14,7 @@ import org.opensearch.common.blobstore.stream.write.WriteContext;
 import java.io.IOException;
 
 /**
- * An extension of {@link BlobContainer} that adds {@link VerifyingMultiStreamBlobContainer#writeBlobByStreams} to allow
+ * An extension of {@link BlobContainer} that adds {@link VerifyingMultiStreamBlobContainer#asyncBlobUpload} to allow
  * multipart uploads and performs integrity checks on transferred files
  *
  * @opensearch.internal

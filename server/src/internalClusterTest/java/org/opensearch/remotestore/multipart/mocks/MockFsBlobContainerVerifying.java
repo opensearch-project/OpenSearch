@@ -96,15 +96,14 @@ public class MockFsBlobContainerVerifying extends FsBlobContainer implements Ver
         try {
             // bulks need to succeed for segment files to be generated
             if (isSegmentFile(writeContext.getFileName()) && triggerDataIntegrityFailure) {
-                completionListener
-                    .onFailure(
-                        new RuntimeException(
-                            new CorruptIndexException(
-                                "Data integrity check failure for file: " + writeContext.getFileName(),
-                                writeContext.getFileName()
-                            )
+                completionListener.onFailure(
+                    new RuntimeException(
+                        new CorruptIndexException(
+                            "Data integrity check failure for file: " + writeContext.getFileName(),
+                            writeContext.getFileName()
                         )
-                    );
+                    )
+                );
             } else {
                 writeContext.getUploadFinalizer().accept(true);
                 completionListener.onResponse(null);

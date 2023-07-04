@@ -12,7 +12,6 @@ import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;

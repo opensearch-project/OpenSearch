@@ -54,8 +54,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.HashMap;
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
@@ -100,7 +98,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             mdLockManager,
             threadPool
         );
-        testUploadListener = new TestUploadListener();
+        testUploadTracker = new TestUploadListener();
 
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build();
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
