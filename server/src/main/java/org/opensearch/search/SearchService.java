@@ -1551,7 +1551,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public static boolean canMatchSearchAfter(FieldDoc searchAfter, MinAndMax<?> minMax, FieldSortBuilder primarySortField) {
-        if (searchAfter != null && minMax != null && primarySortField != null) {
+        // Check for sort.missing == null, since in case of missing values sort queries, if segment/shard's min/max
+        // is out of search_after range, it still should be printed and hence we should not skip segment/shard.
+        if (searchAfter != null && minMax != null && primarySortField != null && primarySortField.missing() == null) {
             final Object searchAfterPrimary = searchAfter.fields[0];
             if (primarySortField.order() == SortOrder.DESC) {
                 if (minMax.compareMin(searchAfterPrimary) > 0) {
