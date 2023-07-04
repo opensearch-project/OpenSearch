@@ -341,11 +341,11 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertNull(indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
         assertNull(indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY, null));
         assertNull(indexSettings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
-        assertDocsPresentInIndex(client, restoredIndexName1Doc, numDocsInIndex1);
+        assertDocsPresentInIndex(client(), restoredIndexName1Doc, numDocsInIndex1);
         // indexing some new docs and validating
-        indexDocuments(client, restoredIndexName1Doc, numDocsInIndex1, numDocsInIndex1 + 2);
+        indexDocuments(client(), restoredIndexName1Doc, numDocsInIndex1, numDocsInIndex1 + 2);
         ensureGreen(restoredIndexName1Doc);
-        assertDocsPresentInIndex(client, restoredIndexName1Doc, numDocsInIndex1 + 2);
+        assertDocsPresentInIndex(client(), restoredIndexName1Doc, numDocsInIndex1 + 2);
     }
 
     public void testRestoreInSameRemoteStoreEnabledIndex() throws IOException {
@@ -447,9 +447,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
         // indexing some new docs and validating
-        indexDocuments(client, indexName1, numDocsInIndex1, numDocsInIndex1 + 2);
+        indexDocuments(client(), indexName1, numDocsInIndex1, numDocsInIndex1 + 2);
         ensureGreen(indexName1);
-        assertDocsPresentInIndex(client, indexName1, numDocsInIndex1 + 2);
+        assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1 + 2);
     }
 
     public void testRestoreShallowCopySnapshotWithDifferentRepo() throws IOException {
@@ -527,10 +527,10 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureYellowAndNoInitializingShards(restoredIndexName1);
         ensureGreen(restoredIndexName1);
         // indexing some new docs and validating
-        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
-        indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
+        assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
+        indexDocuments(client(), restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
         ensureGreen(restoredIndexName1);
-        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1 + 2);
+        assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1 + 2);
     }
 
     private Settings.Builder getIndexSettings(

@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
@@ -81,7 +82,12 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
             assertEquals("base_path/uuid_1/0/segments/metadata/", blobPaths.get(1).buildAsString());
             assertEquals("base_path/uuid_1/0/segments/lock_files/", blobPaths.get(2).buildAsString());
 
-            verify(blobContainer).listBlobsByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX);
+            verify(blobContainer).listBlobsByPrefixInSortedOrder(
+                eq(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX),
+                eq(1),
+                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
+                any()
+            );
             verify(repositoriesService, times(2)).repository("remote_store_repository");
         }
     }

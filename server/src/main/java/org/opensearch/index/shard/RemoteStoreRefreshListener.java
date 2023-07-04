@@ -349,11 +349,13 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         segmentInfosSnapshot.setUserData(userData, false);
 
+        long translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration().translogFileGeneration;
         remoteDirectory.uploadMetadata(
             localSegmentsPostRefresh,
             segmentInfosSnapshot,
             storeDirectory,
-            indexShard.getOperationPrimaryTerm()
+            indexShard.getOperationPrimaryTerm(),
+            translogGeneration
         );
     }
 

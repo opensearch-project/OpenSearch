@@ -62,6 +62,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus.Stage;
+import org.opensearch.index.store.lockmanager.LockInfo;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -400,7 +401,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     long primaryTerm = indexShard.getOperationPrimaryTerm();
                     final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
                     long commitGeneration = snapshotIndexCommit.getGeneration();
-                    indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+                    LockInfo lockInfo = indexShard.acquireLock(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
                     try {
                         repository.snapshotRemoteStoreIndexShard(
                             indexShard.store(),
@@ -423,7 +424,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                 + snapshot.getSnapshotId()
                                 + ", releasing acquired lock from remote store"
                         );
-                        indexShard.releaseLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+                        indexShard.releaseLock(lockInfo);
                         throw e;
                     }
                     long endTime = threadPool.relativeTimeInMillis();

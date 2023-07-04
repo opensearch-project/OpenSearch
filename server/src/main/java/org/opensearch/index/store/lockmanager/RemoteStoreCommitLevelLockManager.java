@@ -23,26 +23,24 @@ public interface RemoteStoreCommitLevelLockManager {
      * @param primaryTerm Primary Term of index at the time of commit.
      * @param generation Commit Generation
      * @param acquirerId Resource ID which wants to acquire lock on the commit.
+     * @return LockInfo object of the acquired lock
      * @throws IOException in case there is a problem in acquiring lock on a commit.
      */
-    void acquireLock(long primaryTerm, long generation, String acquirerId) throws IOException;
+    LockInfo acquireLock(long primaryTerm, long generation, String acquirerId) throws IOException;
 
     /**
      * This method will be used to release lock on segment files of a specific commit, which got acquired by given
      * resource.
-     * @param primaryTerm Primary Term of index at the time of commit.
-     * @param generation Commit Generation
-     * @param acquirerId Resource ID for which lock needs to be released.
+     * @param lockInfo LockInfo object of the acquired lock
      * @throws IOException in case there is a problem in releasing lock on a commit.
      */
-    void releaseLock(long primaryTerm, long generation, String acquirerId) throws IOException;
+    void releaseLock(LockInfo lockInfo) throws IOException;
 
     /**
      * This method will be used to check if a specific commit have any lock acquired on it or not.
-     * @param primaryTerm Primary Term of index at the time of commit.
-     * @param generation Commit Generation
+     * @param lockIdentifier Identifier of the lock
      * @return true if given commit is locked, else false.
      * @throws IOException in case there is a problem in checking if a commit is locked or not.
      */
-    Boolean isLockAcquired(long primaryTerm, long generation) throws IOException;
+    Boolean isLockAcquired(String lockIdentifier) throws IOException;
 }
