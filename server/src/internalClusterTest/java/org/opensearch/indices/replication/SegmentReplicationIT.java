@@ -732,6 +732,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             // start another replica.
             dataNodes.add(internalCluster().startDataOnlyNode());
             ensureGreen(INDEX_NAME);
+            waitForSearchableDocs(initialDocCount, dataNodes);
 
             // index another doc and refresh - without this the new replica won't catch up.
             String docId = String.valueOf(initialDocCount + 1);
