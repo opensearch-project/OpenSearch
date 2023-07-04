@@ -138,6 +138,10 @@ public class CodecTests extends OpenSearchTestCase {
         assertThrows(IllegalArgumentException.class, () -> createCodecService(true).codec(null));
     }
 
+    public void testExceptionIndexSettingsNull() {
+        assertThrows(AssertionError.class, () -> new CodecService(null, null, LogManager.getLogger("test")));
+    }
+
     // write some docs with it, inspect .si to see this was the used compression
     private void assertStoredFieldsCompressionEquals(Lucene95Codec.Mode expected, Codec actual) throws Exception {
         SegmentReader sr = getSegmentReader(actual);

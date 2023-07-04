@@ -44,7 +44,6 @@ import org.opensearch.index.codec.customcodecs.ZstdNoDictCodec;
 import org.opensearch.index.mapper.MapperService;
 
 import java.util.Map;
-import java.util.Objects;
 
 import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING;
 
@@ -71,7 +70,8 @@ public class CodecService {
 
     public CodecService(@Nullable MapperService mapperService, IndexSettings indexSettings, Logger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
-        int compressionLevel = Objects.requireNonNull(indexSettings).getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
+        assert null != indexSettings;
+        int compressionLevel = indexSettings.getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene95Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene95Codec(Mode.BEST_COMPRESSION));
