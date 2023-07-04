@@ -90,6 +90,9 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
         List<Route> restActionsAsRoutes = new ArrayList<>();
         for (String restAction : restActionsRequest.getRestActions()) {
+
+            // TODO Find a better way to parse these to avoid code-smells
+
             String name;
             Set<String> actionNames = new HashSet<>();
             String[] parts = restAction.split(" ");

@@ -15,6 +15,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * A named Route
  *
@@ -47,6 +49,7 @@ public class NamedRoute extends RestHandler.Route {
          * @return the builder instance
          */
         public Builder method(RestRequest.Method method) {
+            requireNonNull(method, "REST method must not be null.");
             this.method = method;
             return this;
         }
@@ -58,6 +61,7 @@ public class NamedRoute extends RestHandler.Route {
          * @return the builder instance
          */
         public Builder path(String path) {
+            requireNonNull(path, "REST path must not be null.");
             this.path = path;
             return this;
         }
@@ -69,6 +73,7 @@ public class NamedRoute extends RestHandler.Route {
          * @return the builder instance
          */
         public Builder uniqueName(String name) {
+            requireNonNull(name, "REST route name must not be null.");
             this.uniqueName = name;
             return this;
         }
@@ -91,9 +96,7 @@ public class NamedRoute extends RestHandler.Route {
          * @return the builder instance
          */
         public Builder handler(Function<RestRequest, RestResponse> handler) {
-            if (handler == null) {
-                throw new OpenSearchException("Route handler must not be null.");
-            }
+            requireNonNull(handler, "Route handler must not be null.");
             this.handler = handler;
             return this;
         }
@@ -135,7 +138,7 @@ public class NamedRoute extends RestHandler.Route {
             );
         }
         this.uniqueName = builder.uniqueName;
-        this.actionNames = builder.legacyActionNames;
+        this.actionNames = Set.copyOf(builder.legacyActionNames);
         this.handler = builder.handler;
     }
 

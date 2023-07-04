@@ -462,10 +462,8 @@ import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -1045,9 +1043,7 @@ public class ActionModule extends AbstractModule {
 
         // A dynamic registry to add or remove Route / RestSendToExtensionAction pairs
         // at times other than node bootstrap.
-        private final Map<NamedRoute, RestSendToExtensionAction> routeRegistry = new ConcurrentHashMap<
-            NamedRoute,
-            RestSendToExtensionAction>();
+        private final Map<NamedRoute, RestSendToExtensionAction> routeRegistry = new ConcurrentHashMap<>();
 
         private final Set<String> registeredActionNames = new ConcurrentSkipListSet<>();
 
@@ -1124,11 +1120,12 @@ public class ActionModule extends AbstractModule {
             requireNonNull(route, "route is required");
             requireNonNull(action, "action is required");
 
-            Optional<String> routeName = Optional.of(route.name());
-            if (isActionRegistered(routeName.get())) {
+            String routeName = route.name();
+            requireNonNull(routeName, "route name is required");
+            if (isActionRegistered(routeName)) {
                 throw new IllegalArgumentException("route [" + route + "] already registered");
             }
-            Set<String> actionNames = new HashSet<>(route.actionNames());
+            Set<String> actionNames = route.actionNames();
 
             actionNames.forEach(act -> {
                 if (isActionRegistered(act)) {
@@ -1140,7 +1137,7 @@ public class ActionModule extends AbstractModule {
                 throw new IllegalArgumentException("route [" + route + "] already registered");
             }
             routeRegistry.put(route, action);
-            routeName.ifPresent(registeredActionNames::add);
+            registeredActionNames.add(routeName);
             registeredActionNames.addAll(actionNames);
         }
 
@@ -1156,8 +1153,7 @@ public class ActionModule extends AbstractModule {
             }
 
             registeredActionNames.remove(route.name());
-            Set<String> actionNames = route.actionNames();
-            registeredActionNames.removeAll(actionNames);
+            registeredActionNames.removeAll(route.actionNames());
         }
 
         /**

@@ -19,15 +19,6 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class NamedRouteTests extends OpenSearchTestCase {
 
-    public void testNamedRouteWithNullName() {
-        try {
-            NamedRoute r = new NamedRoute.Builder().method(GET).path("foo/bar").uniqueName(null).build();
-            fail("Expected NamedRoute to throw exception on null name provided");
-        } catch (OpenSearchException e) {
-            assertTrue(e.getMessage().contains("Invalid route name specified"));
-        }
-    }
-
     public void testNamedRouteWithEmptyName() {
         try {
             NamedRoute r = new NamedRoute.Builder().method(GET).path("foo/bar").uniqueName("").build();
@@ -129,11 +120,32 @@ public class NamedRouteTests extends OpenSearchTestCase {
         }
     }
 
-    public void testNamedRouteWithNullHandler() {
+    public void testNamedRouteNullChecks() {
+        try {
+            NamedRoute r = new NamedRoute.Builder().method(null).path("foo/bar").uniqueName("foo:bar_baz").build();
+            fail("Expected NamedRoute to throw exception as method should not be null");
+        } catch (NullPointerException e) {
+            assertEquals("REST method must not be null.", e.getMessage());
+        }
+
+        try {
+            NamedRoute r = new NamedRoute.Builder().method(GET).path(null).uniqueName("foo:bar_baz").build();
+            fail("Expected NamedRoute to throw exception as path should not be null");
+        } catch (NullPointerException e) {
+            assertEquals("REST path must not be null.", e.getMessage());
+        }
+
+        try {
+            NamedRoute r = new NamedRoute.Builder().method(GET).path("foo/bar").uniqueName(null).build();
+            fail("Expected NamedRoute to throw exception as route name should not be null");
+        } catch (NullPointerException e) {
+            assertEquals("REST route name must not be null.", e.getMessage());
+        }
+
         try {
             NamedRoute r = new NamedRoute.Builder().method(GET).path("foo/bar").uniqueName("foo:bar_baz").handler(null).build();
             fail("Expected NamedRoute to throw exception as handler should not be null");
-        } catch (OpenSearchException e) {
+        } catch (NullPointerException e) {
             assertEquals("Route handler must not be null.", e.getMessage());
         }
     }
