@@ -405,11 +405,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         long testGeneration = 5;
 
         List<String> metadataFiles = List.of("metadata__1__5__abc");
-        when(
-            remoteMetadataDirectory.listFilesByPrefix(
-                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration)
-            )
-        ).thenReturn(metadataFiles);
+        when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration))).thenReturn(metadataFiles);
+        when(remoteMetadataDirectory.listFilesByPrefix(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))).thenReturn(metadataFiles);
 
         IndexOutput indexOutput = mock(IndexOutput.class);
         when(remoteLockDirectory.createOutput(any(), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
@@ -429,13 +426,17 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     public void testAcquireLockNoSuchFile() throws IOException {
         populateMetadata();
         remoteSegmentStoreDirectory.init();
-        String testAcquirerId = "test-acquirer";
-        long testPrimaryTerm = 2;
-        long testGeneration = 3;
+        String acquirerId = "test-acquirer";
+        long testPrimaryTerm = 1;
+        long testGeneration = 5;
+
+        List<String> metadataFiles = List.of("metadata__1__5__abc");
+        when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration))).thenReturn(metadataFiles);
+        when(remoteMetadataDirectory.listFilesByPrefix(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))).thenReturn(List.of());
 
         LockInfo lockInfo = FileLockInfo.getLockInfoBuilder()
             .withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))
-            .withAcquirerId(testAcquirerId)
+            .withAcquirerId(acquirerId)
             .build();
         assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.acquireLock(lockInfo));
     }

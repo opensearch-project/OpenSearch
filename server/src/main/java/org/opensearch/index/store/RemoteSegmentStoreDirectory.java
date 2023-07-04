@@ -377,6 +377,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     @Override
     public void acquireLock(LockInfo lockInfo) throws IOException {
         assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
+        String filename = ((FileLockInfo) lockInfo).getFileToLock();
+        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(filename);
+        if (metadataFiles.isEmpty()) {
+            throw new NoSuchFileException("Metadata file " + filename + " does not exist to acquire lock");
+        }
         IndexOutput indexOutput = remoteLockDirectory.createOutput(lockInfo.generateLockName(), IOContext.DEFAULT);
         indexOutput.close();
     }
@@ -385,13 +390,16 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Releases a lock which was acquired on given segment commit.
      * @param lockInfo lock identifier and acquirer ID info
      * @throws IOException will be thrown in case i) listing lock files failed or ii) deleting the lock file failed.
-     * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
     public void releaseLock(LockInfo lockInfo) throws IOException {
         assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
         Collection<String> lockFiles = remoteLockDirectory.listFilesByPrefix(((FileLockInfo) lockInfo).getLockPrefix());
 
+        if (lockFiles.isEmpty()) {
+            logger.warn("Lock file {} does not exist", ((FileLockInfo) lockInfo).getFileToLock());
+            return;
+        }
         // ideally there should be only one lock per acquirer, but just to handle any stale locks,
         // we try to release all the locks for the acquirer.
         List<String> locksToRelease = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles.toArray(String[]::new));
