@@ -183,7 +183,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testRestoreOperationsShallowCopyEnabled(boolean remoteTranslogEnabled) throws IOException, ExecutionException,
         InterruptedException {
-        internalCluster().startClusterManagerOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String primary = internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -275,15 +275,15 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         // deleting data for restoredIndexName1 and restoring from remote store.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
         ensureRed(restoredIndexName1);
-        assertAcked(client().admin().indices().prepareClose(restoredIndexName1));
-        client().admin()
+        // Re-initialize client to make sure we are not using client from stopped node.
+        client = client(clusterManagerNode);
+        assertAcked(client.admin().indices().prepareClose(restoredIndexName1));
+        client.admin()
             .cluster()
             .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(restoredIndexName1), PlainActionFuture.newFuture());
         ensureYellowAndNoInitializingShards(restoredIndexName1);
         ensureGreen(restoredIndexName1);
         assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
-        // Re-initialize client to make sure we are not using client from stopped node.
-        client = client();
         // indexing some new docs and validating
         indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
         ensureGreen(restoredIndexName1);
@@ -302,7 +302,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse3.status(), RestStatus.ACCEPTED);
         ensureGreen(restoredIndexName1Seg);
 
-        GetIndexResponse getIndexResponse = client().admin()
+        GetIndexResponse getIndexResponse = client.admin()
             .indices()
             .getIndex(new GetIndexRequest().indices(restoredIndexName1Seg).includeDefaults(true))
             .get();
@@ -333,7 +333,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse4.status(), RestStatus.ACCEPTED);
         ensureGreen(restoredIndexName1Doc);
 
-        getIndexResponse = client().admin()
+        getIndexResponse = client.admin()
             .indices()
             .getIndex(new GetIndexRequest().indices(restoredIndexName1Doc).includeDefaults(true))
             .get();
@@ -349,7 +349,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRestoreInSameRemoteStoreEnabledIndex() throws IOException {
-        internalCluster().startClusterManagerOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String primary = internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -439,13 +439,13 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         // deleting data for restoredIndexName1 and restoring from remote store.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
         ensureRed(indexName1);
-        assertAcked(client().admin().indices().prepareClose(indexName1));
-        client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(indexName1), PlainActionFuture.newFuture());
+        // Re-initialize client to make sure we are not using client from stopped node.
+        client = client(clusterManagerNode);
+        assertAcked(client.admin().indices().prepareClose(indexName1));
+        client.admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(indexName1), PlainActionFuture.newFuture());
         ensureYellowAndNoInitializingShards(indexName1);
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
-        // Re-initialize client to make sure we are not using client from stopped node.
-        client = client();
         // indexing some new docs and validating
         indexDocuments(client, indexName1, numDocsInIndex1, numDocsInIndex1 + 2);
         ensureGreen(indexName1);
@@ -453,7 +453,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRestoreShallowCopySnapshotWithDifferentRepo() throws IOException {
-        internalCluster().startClusterManagerOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String primary = internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -518,14 +518,14 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // deleting data for restoredIndexName1 and restoring from remote store.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
-        assertAcked(client().admin().indices().prepareClose(restoredIndexName1));
-        client().admin()
+        // Re-initialize client to make sure we are not using client from stopped node.
+        client = client(clusterManagerNode);
+        assertAcked(client.admin().indices().prepareClose(restoredIndexName1));
+        client.admin()
             .cluster()
             .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(restoredIndexName1), PlainActionFuture.newFuture());
         ensureYellowAndNoInitializingShards(restoredIndexName1);
         ensureGreen(restoredIndexName1);
-        // Re-initialize client to make sure we are not using client from stopped node.
-        client = client();
         // indexing some new docs and validating
         assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
         indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
