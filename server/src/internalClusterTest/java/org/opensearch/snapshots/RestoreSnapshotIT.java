@@ -183,8 +183,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testRestoreOperationsShallowCopyEnabled(boolean remoteTranslogEnabled) throws IOException, ExecutionException,
         InterruptedException {
-        internalCluster().startClusterManagerOnlyNode();
-        final String primaryNode = internalCluster().startNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        String primary = internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-restore-snapshot-repo";
@@ -216,7 +216,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        final String secondNode = internalCluster().startNode();
+        internalCluster().startDataOnlyNode();
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
@@ -273,10 +273,12 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client, restoredIndexName2, numDocsInIndex2);
 
         // deleting data for restoredIndexName1 and restoring from remote store.
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(restoredIndexName1)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
         ensureRed(restoredIndexName1);
-        assertAcked(client().admin().indices().prepareClose(restoredIndexName1));
-        client().admin()
+        // Re-initialize client to make sure we are not using client from stopped node.
+        client = client(clusterManagerNode);
+        assertAcked(client.admin().indices().prepareClose(restoredIndexName1));
+        client.admin()
             .cluster()
             .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(restoredIndexName1), PlainActionFuture.newFuture());
         ensureYellowAndNoInitializingShards(restoredIndexName1);
@@ -300,7 +302,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse3.status(), RestStatus.ACCEPTED);
         ensureGreen(restoredIndexName1Seg);
 
-        GetIndexResponse getIndexResponse = client().admin()
+        GetIndexResponse getIndexResponse = client.admin()
             .indices()
             .getIndex(new GetIndexRequest().indices(restoredIndexName1Seg).includeDefaults(true))
             .get();
@@ -331,7 +333,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse4.status(), RestStatus.ACCEPTED);
         ensureGreen(restoredIndexName1Doc);
 
-        getIndexResponse = client().admin()
+        getIndexResponse = client.admin()
             .indices()
             .getIndex(new GetIndexRequest().indices(restoredIndexName1Doc).includeDefaults(true))
             .get();
@@ -347,8 +349,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRestoreInSameRemoteStoreEnabledIndex() throws IOException {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        String primary = internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-restore-snapshot-repo";
@@ -378,7 +380,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        final String secondNode = internalCluster().startNode();
+        internalCluster().startDataOnlyNode();
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
@@ -435,10 +437,12 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client, restoredIndexName2, numDocsInIndex2);
 
         // deleting data for restoredIndexName1 and restoring from remote store.
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(indexName1)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
         ensureRed(indexName1);
-        assertAcked(client().admin().indices().prepareClose(indexName1));
-        client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(indexName1), PlainActionFuture.newFuture());
+        // Re-initialize client to make sure we are not using client from stopped node.
+        client = client(clusterManagerNode);
+        assertAcked(client.admin().indices().prepareClose(indexName1));
+        client.admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(indexName1), PlainActionFuture.newFuture());
         ensureYellowAndNoInitializingShards(indexName1);
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
@@ -449,8 +453,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRestoreShallowCopySnapshotWithDifferentRepo() throws IOException {
-        internalCluster().startClusterManagerOnlyNode();
-        final String primaryNode = internalCluster().startNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        String primary = internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-restore-snapshot-repo";
@@ -479,7 +483,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        final String secondNode = internalCluster().startNode();
+        internalCluster().startDataOnlyNode();
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -513,9 +517,11 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
 
         // deleting data for restoredIndexName1 and restoring from remote store.
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(restoredIndexName1)));
-        assertAcked(client().admin().indices().prepareClose(restoredIndexName1));
-        client().admin()
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
+        // Re-initialize client to make sure we are not using client from stopped node.
+        client = client(clusterManagerNode);
+        assertAcked(client.admin().indices().prepareClose(restoredIndexName1));
+        client.admin()
             .cluster()
             .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(restoredIndexName1), PlainActionFuture.newFuture());
         ensureYellowAndNoInitializingShards(restoredIndexName1);
