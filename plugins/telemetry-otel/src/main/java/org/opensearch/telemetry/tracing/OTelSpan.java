@@ -9,6 +9,7 @@
 package org.opensearch.telemetry.tracing;
 
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
 
 /**
  * Default implementation of {@link Span} using Otel span. It keeps a reference of OpenTelemetry Span and handles span
@@ -49,8 +50,8 @@ class OTelSpan extends AbstractSpan {
     }
 
     @Override
-    public void setStatus(StatusCode statusCode) {
-        delegateSpan.setStatus(io.opentelemetry.api.trace.StatusCode.valueOf(statusCode.name()));
+    public void setError(Exception exception) {
+        delegateSpan.setStatus(StatusCode.ERROR, exception.getMessage());
     }
 
     @Override

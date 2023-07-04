@@ -60,11 +60,11 @@ public interface SpanScope extends AutoCloseable {
     void addSpanEvent(String event);
 
     /**
-     * Sets span status {@link Span}.
+     * Records error in the span
      *
-     * @param statusCode status code
+     * @param exception exception to be recorded
      */
-    void setStatus(StatusCode statusCode);
+    void setError(Exception exception);
 
     /**
      * closes the scope

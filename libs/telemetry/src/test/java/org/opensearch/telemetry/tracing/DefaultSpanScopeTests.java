@@ -67,12 +67,13 @@ public class DefaultSpanScopeTests extends OpenSearchTestCase {
         verify(mockSpan).addEvent("eventName");
     }
 
-    public void testSetStatus() {
+    public void testSetError() {
         Span mockSpan = mock(Span.class);
         DefaultSpanScope defaultSpanScope = new DefaultSpanScope(mockSpan, null);
-        defaultSpanScope.setStatus(StatusCode.OK);
+        Exception ex = new Exception("error");
+        defaultSpanScope.setError(ex);
 
-        verify(mockSpan).setStatus(StatusCode.OK);
+        verify(mockSpan).setError(ex);
     }
 
 }

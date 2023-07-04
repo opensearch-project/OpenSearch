@@ -9,7 +9,6 @@
 package org.opensearch.telemetry.tracing.noop;
 
 import org.opensearch.telemetry.tracing.SpanScope;
-import org.opensearch.telemetry.tracing.StatusCode;
 
 /**
  * No-op implementation of SpanScope
@@ -47,7 +46,7 @@ public final class NoopSpanScope implements SpanScope {
     }
 
     @Override
-    public void setStatus(StatusCode statusCode) {
+    public void setError(Exception exception) {
 
     }
 

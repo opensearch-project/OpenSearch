@@ -56,8 +56,8 @@ public class DefaultSpanScope implements SpanScope {
     }
 
     @Override
-    public void setStatus(StatusCode statusCode) {
-        span.setStatus(statusCode);
+    public void setError(Exception exception) {
+        span.setError(exception);
     }
 
     /**

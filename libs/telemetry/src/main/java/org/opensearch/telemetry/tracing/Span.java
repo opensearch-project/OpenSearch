@@ -63,11 +63,11 @@ public interface Span {
     void addAttribute(String key, Boolean value);
 
     /**
-     * Sets status of the span
+     * Records error in the span
      *
-     * @param statusCode status of the span
+     * @param exception exception to be recorded
      */
-    void setStatus(StatusCode statusCode);
+    void setError(Exception exception);
 
     /**
      * Adds an event in the span
