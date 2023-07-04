@@ -15,7 +15,11 @@ apply plugin: 'opensearch.publish'
 dependencies {
   api project(":libs:opensearch-common")
   api project(":libs:opensearch-telemetry")
-  api project(":server")
+}
+
+tasks.named('forbiddenApisMain').configure {
+  //package does not depend on core, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 test.enabled = false

@@ -10,7 +10,9 @@ package org.opensearch.telemetry.tracing;
 
 import java.util.HashMap;
 import java.util.Map;
-import org.opensearch.common.Randomness;
+import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 
 /**
  * MockSpan for testing and strict check validations. Not to be used for production cases.
@@ -25,6 +27,8 @@ public class MockSpan extends AbstractSpan {
     private Long endTime;
 
     private final Object lock = new Object();
+
+    private static final Supplier<Random> randomSupplier = ThreadLocalRandom::current;
 
     /**
      * Base Constructor.
@@ -138,13 +142,13 @@ public class MockSpan extends AbstractSpan {
 
     private static class IdGenerator {
         private static String generateSpanId() {
-            long id = Randomness.get().nextLong();
+            long id = randomSupplier.get().nextLong();
             return Long.toHexString(id);
         }
 
         private static String generateTraceId() {
-            long idHi = Randomness.get().nextLong();
-            long idLo = Randomness.get().nextLong();
+            long idHi = randomSupplier.get().nextLong();
+            long idLo = randomSupplier.get().nextLong();
             long result = idLo | (idHi << 32);
             return Long.toHexString(result);
         }
