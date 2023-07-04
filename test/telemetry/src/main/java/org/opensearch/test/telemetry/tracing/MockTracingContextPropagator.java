@@ -6,11 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing;
+package org.opensearch.test.telemetry.tracing;
 
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.TracingContextPropagator;
 
 /**
  * Mock {@link TracingContextPropagator} to persist the span for internode communication.

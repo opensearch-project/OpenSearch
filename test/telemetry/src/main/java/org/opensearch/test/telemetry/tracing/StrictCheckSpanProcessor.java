@@ -6,12 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing;
+package org.opensearch.test.telemetry.tracing;
 
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.opensearch.telemetry.tracing.Span;
 
 /**
  * Strict check span processor to validate the spans.

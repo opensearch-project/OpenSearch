@@ -6,10 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry;
+package org.opensearch.test.telemetry;
 
+import org.opensearch.telemetry.Telemetry;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
-import org.opensearch.telemetry.tracing.MockTracingTelemetry;
+import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 
 /**

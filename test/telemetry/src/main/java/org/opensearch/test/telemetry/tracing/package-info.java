@@ -7,4 +7,4 @@
  */
 
 /** Base opensearch package. */
-package org.opensearch.telemetry;
+package org.opensearch.test.telemetry.tracing;

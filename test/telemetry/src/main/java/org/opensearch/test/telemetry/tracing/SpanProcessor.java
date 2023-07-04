@@ -6,7 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing;
+package org.opensearch.test.telemetry.tracing;
+
+import org.opensearch.telemetry.tracing.Span;
 
 /**
  * Processes the span and can perform any action on the span start and end.

@@ -6,7 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing;
+package org.opensearch.test.telemetry.tracing;
+
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.TracingContextPropagator;
+import org.opensearch.telemetry.tracing.TracingTelemetry;
 
 /**
  * Mock {@link TracingTelemetry} implementation for testing.

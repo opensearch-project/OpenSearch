@@ -68,7 +68,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.telemetry.MockTelemetryPlugin;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
