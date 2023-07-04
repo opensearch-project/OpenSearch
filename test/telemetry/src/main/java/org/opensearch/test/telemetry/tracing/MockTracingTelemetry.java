@@ -11,6 +11,10 @@ package org.opensearch.test.telemetry.tracing;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
+import org.opensearch.test.telemetry.tracing.validators.*;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Mock {@link TracingTelemetry} implementation for testing.
@@ -40,7 +44,19 @@ public class MockTracingTelemetry implements TracingTelemetry {
 
     @Override
     public void close() {
-        ((StrictCheckSpanProcessor) spanProcessor).ensureAllSpansAreClosed();
-        ((StrictCheckSpanProcessor) spanProcessor).clear();
-    }
+        //Sleeping for 2s to get all the spans emitted.
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        List<MockSpanData> spanData = ((StrictCheckSpanProcessor)spanProcessor).getFinishedSpanItems();
+        if (spanData.size() != 0){
+            TelemetryValidators validators = new TelemetryValidators(Arrays.asList(
+                AllSpansAreEndedProperly.class,
+                AllSpansAreInOrder.class,
+                AllSpansHaveUniqueId.class));
+            validators.validate(spanData, 1);
+        }
+   }
 }

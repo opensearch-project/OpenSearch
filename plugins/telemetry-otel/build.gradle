@@ -11,6 +11,9 @@ import org.opensearch.gradle.Architecture
 import org.opensearch.gradle.OS
 import org.opensearch.gradle.info.BuildParams
 
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
+
 opensearchplugin {
   description 'Opentelemetry based telemetry implementation.'
   classname 'org.opensearch.telemetry.OTelTelemetryPlugin'

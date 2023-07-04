@@ -148,12 +148,13 @@ import org.opensearch.script.MockScriptService;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.client.RandomizingClient;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.store.MockFSIndexStore;
-import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
@@ -1904,6 +1905,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+            .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
             .put(featureFlagSettings());
         return builder.build();
     }
@@ -1919,6 +1921,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return Collections.emptyList();
     }
 
+    protected Class<? extends Plugin> telemetryPlugin() {
+        return MockTelemetryPlugin.class;
+    }
+
     private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
@@ -1928,6 +1934,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             InetAddress inetAddress = InetAddress.getByName(url.getHost());
             transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
+        nodePlugins().add(telemetryPlugin());
         return new ExternalTestCluster(
             createTempDir(),
             externalClusterClientSettings(),
@@ -2032,6 +2039,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 return OpenSearchIntegTestCase.this.nodePlugins();
             }
+
+            @Override
+            public Class<? extends Plugin> telemetryPlugin() {
+                return OpenSearchIntegTestCase.this.telemetryPlugin();
+            }
         };
     }
 
@@ -2104,7 +2116,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (addMockGeoShapeFieldMapper()) {
             mocks.add(TestGeoShapeFieldMapperPlugin.class);
         }
-        mocks.add(MockTelemetryPlugin.class);
 
         return Collections.unmodifiableList(mocks);
     }

@@ -33,6 +33,7 @@ package org.opensearch.test;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.telemetry.MockTelemetryPlugin;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -63,4 +64,8 @@ public abstract class NodeConfigurationSource {
     public Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.emptyList();
     }
+
+    public Class<? extends Plugin> telemetryPlugin() {
+        return MockTelemetryPlugin.class;
+    };
 }
