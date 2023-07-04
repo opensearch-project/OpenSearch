@@ -85,7 +85,7 @@ public class RemoteTransferContainer implements Closeable {
     /**
      * @return The {@link  WriteContext} for the current upload
      */
-    public WriteContext createWriteContext(ActionListener<Void> respListener) {
+    public WriteContext createWriteContext() {
         return new WriteContext(
             remoteFileName,
             this::supplyStreamContext,
@@ -94,8 +94,7 @@ public class RemoteTransferContainer implements Closeable {
             writePriority,
             this::finalizeUpload,
             isRemoteDataIntegrityCheckPossible(),
-            isRemoteDataIntegrityCheckPossible() ? expectedChecksum : null,
-            respListener
+            isRemoteDataIntegrityCheckPossible() ? expectedChecksum : null
         );
     }
 

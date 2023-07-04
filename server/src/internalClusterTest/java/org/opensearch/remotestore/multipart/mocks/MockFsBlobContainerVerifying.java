@@ -9,6 +9,7 @@
 package org.opensearch.remotestore.multipart.mocks;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.StreamContext;
@@ -39,7 +40,7 @@ public class MockFsBlobContainerVerifying extends FsBlobContainer implements Ver
     }
 
     @Override
-    public void writeBlobByStreams(WriteContext writeContext) throws IOException {
+    public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
 
         int nParts = 10;
         long partSize = writeContext.getFileSize() / nParts;
@@ -64,7 +65,7 @@ public class MockFsBlobContainerVerifying extends FsBlobContainer implements Ver
                     }
                     inputStream.close();
                 } catch (IOException e) {
-                    writeContext.getCompletionListener().onFailure(e);
+                    completionListener.onFailure(e);
                 } finally {
                     latch.countDown();
                 }
@@ -95,7 +96,7 @@ public class MockFsBlobContainerVerifying extends FsBlobContainer implements Ver
         try {
             // bulks need to succeed for segment files to be generated
             if (isSegmentFile(writeContext.getFileName()) && triggerDataIntegrityFailure) {
-                writeContext.getCompletionListener()
+                completionListener
                     .onFailure(
                         new RuntimeException(
                             new CorruptIndexException(
@@ -106,10 +107,10 @@ public class MockFsBlobContainerVerifying extends FsBlobContainer implements Ver
                     );
             } else {
                 writeContext.getUploadFinalizer().accept(true);
-                writeContext.getCompletionListener().onResponse(null);
+                completionListener.onResponse(null);
             }
         } catch (Exception e) {
-            writeContext.getCompletionListener().onFailure(e);
+            completionListener.onFailure(e);
         }
 
     }

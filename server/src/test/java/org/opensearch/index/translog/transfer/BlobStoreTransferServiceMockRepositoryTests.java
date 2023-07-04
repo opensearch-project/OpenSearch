@@ -61,10 +61,10 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
 
         VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
         Mockito.doAnswer(invocation -> {
-            WriteContext writeContext = invocation.getArgument(0);
-            writeContext.getCompletionListener().onResponse(null);
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onResponse(null);
             return null;
-        }).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
@@ -90,7 +90,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
         }, latch), WritePriority.HIGH);
 
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
-        verify(blobContainer).writeBlobByStreams(any(WriteContext.class));
+        verify(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
         assertTrue(onResponseCalled.get());
         assertEquals(transferFileSnapshot.getPrimaryTerm(), fileSnapshotRef.get().getPrimaryTerm());
         assertEquals(transferFileSnapshot.getName(), fileSnapshotRef.get().getName());
@@ -107,7 +107,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
         );
 
         VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
-        doThrow(new IOException()).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
+        doThrow(new IOException()).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
@@ -131,7 +131,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
         }, latch), WritePriority.HIGH);
 
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
-        verify(blobContainer).writeBlobByStreams(any(WriteContext.class));
+        verify(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
         assertFalse(onResponseCalled.get());
         assertTrue(exceptionRef.get() instanceof FileTransferException);
     }
@@ -147,10 +147,10 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
 
         VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
         Mockito.doAnswer(invocation -> {
-            WriteContext writeContext = invocation.getArgument(0);
-            writeContext.getCompletionListener().onFailure(new Exception("Test exception"));
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onFailure(new Exception("Test exception"));
             return null;
-        }).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
 
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
@@ -176,7 +176,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
         }, listener, WritePriority.HIGH);
 
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
-        verify(blobContainer).writeBlobByStreams(any(WriteContext.class));
+        verify(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
         assertFalse(onResponseCalled.get());
         assertTrue(exceptionRef.get() instanceof FileTransferException);
     }

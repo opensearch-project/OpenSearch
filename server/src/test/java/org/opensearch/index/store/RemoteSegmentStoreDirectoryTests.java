@@ -532,10 +532,10 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         Mockito.doAnswer(invocation -> {
-            WriteContext writeContext = invocation.getArgument(0);
-            writeContext.getCompletionListener().onResponse(null);
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onResponse(null);
             return null;
-        }).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
 
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<Void> completionListener = new ActionListener<Void>() {
@@ -570,10 +570,10 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         Mockito.doAnswer(invocation -> {
-            WriteContext writeContext = invocation.getArgument(0);
-            writeContext.getCompletionListener().onFailure(new Exception("Test exception"));
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onFailure(new Exception("Test exception"));
             return null;
-        }).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<Void> completionListener = new ActionListener<>() {
             @Override

@@ -137,8 +137,8 @@ public class BlobStoreTransferService implements TransferService {
                 }
             });
 
-            WriteContext writeContext = remoteTransferContainer.createWriteContext(completionListener);
-            ((VerifyingMultiStreamBlobContainer) blobStore.blobContainer(blobPath)).writeBlobByStreams(writeContext);
+            WriteContext writeContext = remoteTransferContainer.createWriteContext();
+            ((VerifyingMultiStreamBlobContainer) blobStore.blobContainer(blobPath)).asyncBlobUpload(writeContext, completionListener);
 
         } catch (Exception e) {
             logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), e);

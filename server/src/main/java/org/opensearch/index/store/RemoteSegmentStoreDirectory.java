@@ -447,8 +447,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             }
         });
 
-        WriteContext writeContext = remoteTransferContainer.createWriteContext(completionListener);
-        ((VerifyingMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer()).writeBlobByStreams(writeContext);
+        WriteContext writeContext = remoteTransferContainer.createWriteContext();
+        ((VerifyingMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer()).asyncBlobUpload(writeContext, completionListener);
     }
 
     /**
