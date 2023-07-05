@@ -44,7 +44,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -4771,14 +4770,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 RemoteSegmentStoreDirectory.UploadedSegmentMetadata segmentMetadata = uploadedSegments.get(file);
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                 if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                    long startTimeInMs = System.currentTimeMillis();
+                    long startTimeInNs = System.nanoTime();
                     long segmentSizeInBytes = segmentMetadata.getLength();
                     beforeSegmentDownload(downloadStatsTracker, segmentSizeInBytes);
                     try {
                         storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
                         storeDirectory.sync(Collections.singleton(file));
                         downloadedSegments.add(file);
-                        afterSegmentDownloadCompleted(downloadStatsTracker, segmentSizeInBytes, startTimeInMs);
+                        afterSegmentDownloadCompleted(downloadStatsTracker, segmentSizeInBytes, startTimeInNs);
                     } catch (IOException e) {
                         afterSegmentDownloadFailed(downloadStatsTracker, segmentSizeInBytes);
                         throw e;
@@ -4826,15 +4825,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long downloadedFileSize,
         long startTimeInNs
     ) {
-        long currentTime = System.currentTimeMillis();
-        downloadStatsTracker.updateLastDownloadTimestampMs(currentTime);
+        long currentTimeInNs = System.nanoTime();
+        downloadStatsTracker.updateLastDownloadTimestampMs(System.currentTimeMillis());
         downloadStatsTracker.incrementTotalDownloadsSucceeded();
         downloadStatsTracker.addDownloadBytes(downloadedFileSize);
         downloadStatsTracker.addDownloadBytesSucceeded(downloadedFileSize);
-        long timeTakenInMS = currentTime - startTimeInNs;
+        long timeTakenInMS = Math.max(1, TimeValue.nsecToMSec(currentTimeInNs - startTimeInNs));
         downloadStatsTracker.addDownloadTime(timeTakenInMS);
         downloadStatsTracker.addDownloadBytesPerSec((downloadedFileSize * 1_000L) / timeTakenInMS);
-
     }
 
     private void afterSegmentDownloadFailed(RemoteRefreshSegmentTracker downloadStatsTracker, long failedFileSize) {

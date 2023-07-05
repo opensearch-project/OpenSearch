@@ -52,6 +52,9 @@ public class RemoteRefreshSegmentTracker {
      */
     private volatile long localRefreshClockTimeMs;
 
+    /**
+     * Time in milliseconds for the last successful segment download
+     */
     private volatile long lastDownloadTimestampMs;
 
     /**
@@ -101,8 +104,19 @@ public class RemoteRefreshSegmentTracker {
      */
     private volatile long uploadBytesSucceeded;
 
+    /**
+     * Cumulative sum of size in bytes of segment files for which download has started.
+     */
     private volatile long downloadBytesStarted;
+
+    /**
+     * Cumulative sum of size in bytes of segment files for which download has failed.
+     */
     private volatile long downloadBytesFailed;
+
+    /**
+     * Cumulative sum of size in bytes of segment files for which download has succeeded.
+     */
     private volatile long downloadBytesSucceeded;
 
     /**
@@ -120,8 +134,19 @@ public class RemoteRefreshSegmentTracker {
      */
     private volatile long totalUploadsSucceeded;
 
+    /**
+     * Cumulative sum of count of segment file downloads that have started.
+     */
     private volatile long totalDownloadsStarted;
+
+    /**
+     * Cumulative sum of count of segment file downloads that have succeeded.
+     */
     private volatile long totalDownloadsSucceeded;
+
+    /**
+     * Cumulative sum of count of segment file downloads that have failed.
+     */
     private volatile long totalDownloadsFailed;
 
     /**
@@ -165,6 +190,10 @@ public class RemoteRefreshSegmentTracker {
      */
     private final Object uploadBytesMutex = new Object();
 
+    /**
+     * Provides moving average over the last N total size in bytes of segment files downloaded from the remote store.
+     * N is window size. Wrapped with {@code AtomicReference} for dynamic changes in window size.
+     */
     private final AtomicReference<MovingAverage> downloadBytesMovingAverageReference;
 
     private final Object downloadBytesMutex = new Object();
@@ -177,18 +206,26 @@ public class RemoteRefreshSegmentTracker {
 
     private final Object uploadBytesPerSecMutex = new Object();
 
+    /**
+     * Provides moving average over the last N upload speed (in bytes/s) of segment files downloaded from the remote store.
+     * N is window size. Wrapped with {@code AtomicReference} for dynamic changes in window size.
+     */
     private final AtomicReference<MovingAverage> downloadBytesPerSecMovingAverageReference;
 
     private final Object downloadBytesPerSecMutex = new Object();
 
     /**
-     * Provides moving average over the last N overall upload time (in nanos) as part of remote refresh.N is window size.
+     * Provides moving average over the last N overall upload time (in millis) as part of remote refresh.N is window size.
      * Wrapped with {@code AtomicReference} for dynamic changes in window size.
      */
     private final AtomicReference<MovingAverage> uploadTimeMsMovingAverageReference;
 
     private final Object uploadTimeMsMutex = new Object();
 
+    /**
+     * Provides moving average over the last N overall download time (in millis) of segments downloaded from the remote store.
+     * Wrapped with {@code AtomicReference} for dynamic changes in window size.
+     */
     private final AtomicReference<MovingAverage> downloadTimeMovingAverageReference;
 
     private final Object downloadTimeMutex = new Object();
@@ -851,5 +888,4 @@ public class RemoteRefreshSegmentTracker {
             out.writeLong(bytesLag);
         }
     }
-
 }

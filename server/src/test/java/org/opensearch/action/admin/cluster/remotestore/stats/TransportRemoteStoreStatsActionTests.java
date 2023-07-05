@@ -108,7 +108,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         clusterService.close();
     }
 
-    public void testOnlyPrimaryShards() throws Exception {
+    public void testAllShardCopies() throws Exception {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         RoutingTable routingTable = RoutingTable.builder().addAsNew(remoteStoreIndexMetadata).build();
         Metadata metadata = Metadata.builder().put(remoteStoreIndexMetadata, false).build();
@@ -125,7 +125,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             new String[] { INDEX.getName() }
         );
 
-        assertEquals(shardsIterator.size(), 2);
+        assertEquals(shardsIterator.size(), 4);
     }
 
     public void testOnlyLocalShards() throws Exception {
@@ -153,10 +153,10 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         remoteStoreStatsRequest.local(true);
         ShardsIterator shardsIterator = statsAction.shards(clusterService.state(), remoteStoreStatsRequest, concreteIndices);
 
-        assertEquals(shardsIterator.size(), 1);
+        assertEquals(shardsIterator.size(), 2);
     }
 
-    public void testOnlyRemoteStoreEnabledShards() throws Exception {
+    public void testOnlyRemoteStoreEnabledShardCopies() throws Exception {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         Index NEW_INDEX = new Index("newIndex", "newUUID");
         IndexMetadata indexMetadataWithoutRemoteStore = IndexMetadata.builder(NEW_INDEX.getName())
@@ -189,6 +189,6 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             new String[] { INDEX.getName() }
         );
 
-        assertEquals(shardsIterator.size(), 2);
+        assertEquals(shardsIterator.size(), 4);
     }
 }
