@@ -14,9 +14,9 @@ setup:
               issue:
                 properties:
                   number:
-                    type : "integer"
+                    type: "integer"
                   labels:
-                    type : "flat_object"
+                    type: "flat_object"
   - do:
       index:
         index: test_partial_flat_object
@@ -35,7 +35,7 @@ setup:
                 "level": "bug"
               },
               "createdDate": "2023-01-01",
-              "comment" : [["Doe","Shipped"],["John","Approved"]],
+              "comment": [ [ "Doe","Shipped" ],[ "John","Approved" ] ],
               "views": 288,
               "priority": 5.00
             }
@@ -50,6 +50,7 @@ setup:
           "issue": {
             "number": 456,
             "labels": {
+              "author": "Liu",
               "version": "2.1",
               "backport": [
                 "2.0",
@@ -60,12 +61,34 @@ setup:
                 "level": "enhancement"
               },
               "createdDate": "2023-02-01",
-              "comment" : [["Mike","LGTM"],["John","Approved"]],
+              "comment": [ [ "Mike","LGTM" ],[ "John","Approved" ] ],
               "views": 3333,
               "priority": 1.50
             }
           }
         }
+
+  - do:
+      index:
+        index: test_partial_flat_object
+        id: 3
+        body: {
+          "issue": {
+            "number": 999,
+            "labels": [ {
+              "version": "1.1",
+              "backport": [
+                "1.0",
+                "0.9"
+              ],
+              "category": {
+                "type": "Module",
+                "level": "feature"
+              }
+            } ]
+          }
+        }
+
   - do:
       indices.refresh:
         index: test_partial_flat_object
@@ -89,7 +112,7 @@ teardown:
       indices.get_mapping:
         index: test_partial_flat_object
   - is_true: test_partial_flat_object.mappings
-  - match: { test_partial_flat_object.mappings.properties.issue.properties.number.type:  integer     }
+  - match: { test_partial_flat_object.mappings.properties.issue.properties.number.type: integer }
   - match: { test_partial_flat_object.mappings.properties.issue.properties.labels.type: flat_object }
   # https://github.com/opensearch-project/OpenSearch/tree/main/rest-api-spec/src/main/resources/rest-api-spec/test#length
   - length: { test_partial_flat_object.mappings.properties.issue.properties: 2 }
@@ -108,11 +131,11 @@ teardown:
       search:
         body: {
           query: {
-            match_all: {}
+            match_all: { }
           }
         }
 
-  - length:   { hits.hits: 2  }
+  - length: { hits.hits: 3 }
 
   # Match Query with exact dot path.
   - do:
@@ -154,7 +177,8 @@ teardown:
         }
 
   - length: { hits.hits: 2 }
-  - match: { hits.hits.0._source.issue.labels.backport: [ "2.0", "1.9"] }
+  - match: { hits.hits.0._source.issue.labels.backport: [ "2.0", "1.9" ] }
+  - match: { hits.hits.1._source.issue.labels.backport: [ "2.0", "1.3" ] }
 
   # Term Query1 with exact dot path for date
   - do:
@@ -195,6 +219,7 @@ teardown:
 
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._source.issue.labels.category.type: "API" }
+  - match: { hits.hits.1._source.issue.labels.category.type: "API" }
 
   # Term Query2 without exact dot path.
   - do:
@@ -208,6 +233,7 @@ teardown:
 
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._source.issue.labels.category.type: "API" }
+  - match: { hits.hits.1._source.issue.labels.category.type: "API" }
 
   # Term Query3 with dot path for array
   - do:
@@ -220,7 +246,7 @@ teardown:
         }
 
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._source.issue.labels.backport: [ "2.0", "1.9"]}
+  - match: { hits.hits.0._source.issue.labels.backport: [ "2.0", "1.9" ] }
 
   # Term Query3 without dot path for array
   - do:
@@ -233,7 +259,7 @@ teardown:
         }
 
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._source.issue.labels.backport: [ "2.0", "1.9"]}
+  - match: { hits.hits.0._source.issue.labels.backport: [ "2.0", "1.9" ] }
 
   # Term Query4 with  dot path for nested-array
   - do:
@@ -246,7 +272,7 @@ teardown:
         }
 
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._source.issue.labels.comment: [["Mike","LGTM"],["John","Approved"]]}
+  - match: { hits.hits.0._source.issue.labels.comment: [ [ "Mike","LGTM" ],[ "John","Approved" ] ] }
 
   # Term Query4 without dot path for nested-array
   - do:
@@ -254,12 +280,35 @@ teardown:
         body: {
           _source: true,
           query: {
-            term: { issue.labels: "LGTM"  }
+            term: { issue.labels: "LGTM" }
+          }
+        }
+
+  # Term Query5 with  dot path for array
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            term: { issue.labels.category.type: "Module" }
           }
         }
 
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._source.issue.labels.comment: [["Mike","LGTM"],["John","Approved"]] }
+  - match: { hits.hits.0._source.issue.labels.0.category.type: "Module" }
+
+  # Term Query5 without dot path for array
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            term: { issue.labels: "Module" }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.issue.labels.0.category.type: "Module" }
 
   # Terms Query without dot path.
   - do:
@@ -272,7 +321,8 @@ teardown:
         }
 
   - length: { hits.hits: 2 }
-  - match: { hits.hits.0._source.issue.labels.comment: [["Doe","Shipped"],["John","Approved"]] }
+  - match: { hits.hits.0._source.issue.labels.comment: [ [ "Doe","Shipped" ],[ "John","Approved" ] ] }
+  - match: { hits.hits.1._source.issue.labels.comment: [ [ "Mike","LGTM" ],[ "John","Approved" ] ] }
 
   # Terms Query with dot path.
   - do:
@@ -280,12 +330,13 @@ teardown:
         body: {
           _source: true,
           query: {
-            terms: { issue.labels.comment: ["John","Mike"] }
+            terms: { issue.labels.comment: [ "John","Mike" ] }
           }
         }
 
   - length: { hits.hits: 2 }
-  - match: { hits.hits.0._source.issue.labels.comment: [["Doe","Shipped"],["John","Approved"]] }
+  - match: { hits.hits.0._source.issue.labels.comment: [ [ "Doe","Shipped" ],[ "John","Approved" ] ] }
+  - match: { hits.hits.1._source.issue.labels.comment: [ [ "Mike","LGTM" ],[ "John","Approved" ] ] }
 
   # Prefix Query with dot path.
   - do:
@@ -302,7 +353,7 @@ teardown:
         }
 
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._source.issue.labels.comment:  [["Mike","LGTM"],["John","Approved"]] }
+  - match: { hits.hits.0._source.issue.labels.comment: [ [ "Mike","LGTM" ],[ "John","Approved" ] ] }
 
   # Prefix Query without dot path.
   - do:
@@ -319,7 +370,7 @@ teardown:
         }
 
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._source.issue.labels.comment:  [["Mike","LGTM"],["John","Approved"]] }
+  - match: { hits.hits.0._source.issue.labels.comment: [ [ "Mike","LGTM" ],[ "John","Approved" ] ] }
 
   # Range Query with dot path.
   - do:
@@ -338,6 +389,7 @@ teardown:
 
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._source.issue.labels.version: "2.2" }
+  - match: { hits.hits.1._source.issue.labels.version: "2.1" }
 
   # Range Query without dot path.
   - do:
@@ -356,6 +408,7 @@ teardown:
 
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._source.issue.labels.version: "2.2" }
+  - match: { hits.hits.1._source.issue.labels.version: "2.1" }
 
   # Range Query with integer input with dot path.
   - do:
@@ -391,7 +444,7 @@ teardown:
         }
 
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._source.issue.labels.views: 3333  }
+  - match: { hits.hits.0._source.issue.labels.views: 3333 }
 
 
   # Range Query with double input with dot path.
@@ -456,7 +509,7 @@ teardown:
           }
         }
 
-  - length: { hits.hits: 2 }
+  - length: { hits.hits: 3 }
 
   # Exists Query without dot path for the flat_object_field_name
   - do:
@@ -470,7 +523,21 @@ teardown:
           }
         }
 
-  - length: { hits.hits: 2 }
+  - length: { hits.hits: 3 }
+
+  # Exists Query2 with dot path for one hit
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "exists": {
+              "field": issue.labels.author
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
 
   # Query_string Query without dot path.
   - do:
@@ -479,15 +546,15 @@ teardown:
           _source: true,
           query: {
             "query_string": {
-              "fields": [ "issue.labels"],
+              "fields": [ "issue.labels" ],
               "query": "Doe OR Mike"
             }
           }
         }
 
   - length: { hits.hits: 2 }
-  - match: { hits.hits.0._source.issue.labels.comment: [["Doe","Shipped"],["John","Approved"]]}
-  - match: { hits.hits.1._source.issue.labels.comment: [["Mike","LGTM"],["John","Approved"]]}
+  - match: { hits.hits.0._source.issue.labels.comment: [ [ "Doe","Shipped" ],[ "John","Approved" ] ] }
+  - match: { hits.hits.1._source.issue.labels.comment: [ [ "Mike","LGTM" ],[ "John","Approved" ] ] }
 
   # Query_string Query with dot path.
   - do:
@@ -503,8 +570,8 @@ teardown:
         }
 
   - length: { hits.hits: 2 }
-  - match: { hits.hits.0._source.issue.labels.comment: [["Doe","Shipped"],["John","Approved"]]}
-  - match: { hits.hits.1._source.issue.labels.comment: [["Mike","LGTM"],["John","Approved"]]}
+  - match: { hits.hits.0._source.issue.labels.comment: [ [ "Doe","Shipped" ],[ "John","Approved" ] ] }
+  - match: { hits.hits.1._source.issue.labels.comment: [ [ "Mike","LGTM" ],[ "John","Approved" ] ] }
 
   # Simple_query_string Query without full dot path.
   - do:
@@ -520,7 +587,7 @@ teardown:
         }
 
   - length: { hits.hits: 1 }
-  - match: {  hits.hits.0._source.issue.labels.comment: [["Doe","Shipped"],["John","Approved"]] }
+  - match: { hits.hits.0._source.issue.labels.comment: [ [ "Doe","Shipped" ],[ "John","Approved" ] ] }
 
   # Simple_query_string Query with dot path.
   - do:
@@ -536,4 +603,4 @@ teardown:
         }
 
   - length: { hits.hits: 1 }
-  - match: {  hits.hits.0._source.issue.labels.comment: [["Doe","Shipped"],["John","Approved"]] }
+  - match: { hits.hits.0._source.issue.labels.comment: [ [ "Doe","Shipped" ],[ "John","Approved" ] ] }
