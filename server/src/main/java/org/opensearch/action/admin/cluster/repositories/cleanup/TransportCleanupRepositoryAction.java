@@ -38,7 +38,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -51,7 +50,6 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
@@ -266,31 +264,18 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         startedCleanup = true;
                         logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
-                        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
-                            final GroupedActionListener<RepositoryCleanupResult> groupedListener = new GroupedActionListener<>(
-                                ActionListener.wrap(repositoryCleanupResults -> {
-                                    long blobs = 0;
-                                    long bytes = 0;
-                                    for (RepositoryCleanupResult result : repositoryCleanupResults) {
-                                        blobs += result.blobs();
-                                        bytes += result.bytes();
-                                    }
-                                    RepositoryCleanupResult result = new RepositoryCleanupResult(new DeleteResult(blobs, bytes));
-                                    after(null, result);
-                                }, e -> { after(e, null); }),
-                                2
+                        threadPool.executor(ThreadPool.Names.SNAPSHOT)
+                            .execute(
+                                ActionRunnable.wrap(
+                                    listener,
+                                    l -> blobStoreRepository.cleanup(
+                                        repositoryStateId,
+                                        snapshotsService.minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null),
+                                        remoteStoreLockManagerFactory,
+                                        ActionListener.wrap(result -> after(null, result), e -> after(e, null))
+                                    )
+                                )
                             );
-                            blobStoreRepository.cleanupRemoteStoreLockFiles(
-                                repositoryStateId,
-                                remoteStoreLockManagerFactory,
-                                ActionListener.wrap(result -> groupedListener.onResponse(result), e -> groupedListener.onFailure(e))
-                            );
-                            blobStoreRepository.cleanup(
-                                repositoryStateId,
-                                snapshotsService.minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null),
-                                ActionListener.wrap(result -> groupedListener.onResponse(result), e -> groupedListener.onFailure(e))
-                            );
-                        }));
                     }
 
                     private void after(@Nullable Exception failure, @Nullable RepositoryCleanupResult result) {

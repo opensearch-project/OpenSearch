@@ -48,6 +48,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -167,6 +168,25 @@ public interface Repository extends LifecycleComponent {
         Version repositoryMetaVersion,
         ActionListener<RepositoryData> listener
     );
+
+    /**
+     * Deletes snapshots and releases respective lock files from remote store repository.
+     *
+     * @param snapshotIds                   snapshot ids
+     * @param repositoryStateId             the unique id identifying the state of the repository when the snapshot deletion began
+     * @param repositoryMetaVersion         version of the updated repository metadata to write
+     * @param remoteStoreLockManagerFactory RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files
+     * @param listener                      completion listener
+     */
+    default void deleteSnapshotsAndReleaseLockFiles(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        ActionListener<RepositoryData> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Returns snapshot throttle time in nanoseconds
