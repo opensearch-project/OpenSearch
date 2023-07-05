@@ -73,7 +73,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         String minimumCompatibleVersion = null;
         List<ExtensionDependency> dependencies = new ArrayList<>();
         List<Scope> scopes = new ArrayList<>();
-      
+
         Set<String> additionalSettingsKeys = extensionsManager.getAdditionalSettings()
             .stream()
             .map(s -> s.getKey())
@@ -133,7 +133,6 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
                     scopes.add(scope);
                 }
             }
-
 
             Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
                 .stream()
