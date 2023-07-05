@@ -191,7 +191,10 @@ public class RemoteRefreshSegmentPressureSettings {
             DOWNLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
             remoteUploadPressureService::updateDownloadBytesPerSecMovingAverageWindowSize
         );
-        clusterSettings.addSettingsUpdateConsumer(DOWNLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE, this::setDownloadBytesPerSecMovingAverageWindowSize);
+        clusterSettings.addSettingsUpdateConsumer(
+            DOWNLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
+            this::setDownloadBytesPerSecMovingAverageWindowSize
+        );
 
         this.downloadTimeMovingAverageWindowSize = DOWNLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(

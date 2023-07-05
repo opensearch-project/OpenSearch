@@ -88,11 +88,7 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 assertEquals(deserializedStats.rejectionCount, stats.getStats().rejectionCount);
                 assertEquals(deserializedStats.consecutiveFailuresCount, stats.getStats().consecutiveFailuresCount);
                 assertEquals(deserializedStats.uploadBytesMovingAverage, stats.getStats().uploadBytesMovingAverage, 0);
-                assertEquals(
-                    deserializedStats.uploadBytesPerSecMovingAverage,
-                    stats.getStats().uploadBytesPerSecMovingAverage,
-                    0
-                );
+                assertEquals(deserializedStats.uploadBytesPerSecMovingAverage, stats.getStats().uploadBytesPerSecMovingAverage, 0);
                 assertEquals(deserializedStats.uploadTimeMovingAverage, stats.getStats().uploadTimeMovingAverage, 0);
                 assertEquals(deserializedStats.bytesLag, stats.getStats().bytesLag);
                 assertEquals(deserializedStats.totalDownloadsStarted, stats.getStats().totalDownloadsStarted);

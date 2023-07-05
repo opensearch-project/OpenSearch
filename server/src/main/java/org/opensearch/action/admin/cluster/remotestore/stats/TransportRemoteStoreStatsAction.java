@@ -22,7 +22,6 @@ import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;

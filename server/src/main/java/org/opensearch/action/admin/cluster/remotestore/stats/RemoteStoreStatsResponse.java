@@ -20,7 +20,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -39,6 +38,7 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
     private Map<String, Map<Integer, List<RemoteStoreStats>>> indexWiseStats;
 
     private final Logger logger;
+
     public RemoteStoreStatsResponse(StreamInput in) throws IOException {
         super(in);
         remoteStoreStats = in.readArray(RemoteStoreStats::new, RemoteStoreStats[]::new);
@@ -92,14 +92,14 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
     public Map<Integer, List<RemoteStoreStats>> groupByShards(Set<RemoteStoreStats> perIndexStats) {
         Map<Integer, List<RemoteStoreStats>> shardStats = new HashMap<>();
         Set<Integer> shardIds = new HashSet<>();
-        for(RemoteStoreStats eachShardStats: perIndexStats) {
+        for (RemoteStoreStats eachShardStats : perIndexStats) {
             int shardId = eachShardStats.getShardRouting().getId();
             shardIds.add(shardId);
         }
 
-        for (Integer shardId: shardIds) {
+        for (Integer shardId : shardIds) {
             List<RemoteStoreStats> stats = new ArrayList<>();
-            for (RemoteStoreStats perShardStats: perIndexStats) {
+            for (RemoteStoreStats perShardStats : perIndexStats) {
                 if (perShardStats.getShardRouting().getId() == shardId) {
                     stats.add(perShardStats);
                 }
@@ -119,12 +119,12 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         groupByIndexAndShards();
         builder.startObject("indices");
-        for (String indexName: indexWiseStats.keySet()) {
+        for (String indexName : indexWiseStats.keySet()) {
             builder.startObject(indexName);
             builder.startObject("shards");
-            for (int shardId: indexWiseStats.get(indexName).keySet()) {
+            for (int shardId : indexWiseStats.get(indexName).keySet()) {
                 builder.startArray(Integer.toString(shardId));
-                for (RemoteStoreStats shardStat: indexWiseStats.get(indexName).get(shardId)) {
+                for (RemoteStoreStats shardStat : indexWiseStats.get(indexName).get(shardId)) {
                     shardStat.toXContent(builder, params);
                 }
                 builder.endArray();

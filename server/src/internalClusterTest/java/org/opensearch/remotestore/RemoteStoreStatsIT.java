@@ -87,7 +87,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 .filter(stat -> indexShardId.equals(stat.getStats().shardId.toString()))
                 .collect(Collectors.toList());
             assertEquals(2, matches.size());
-            for (RemoteStoreStats stat: matches) {
+            for (RemoteStoreStats stat : matches) {
                 ShardRouting routing = stat.getShardRouting();
                 RemoteRefreshSegmentTracker.Stats stats = stat.getStats();
                 if (routing.primary()) {
@@ -129,13 +129,11 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         );
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
-        remoteStoreStatsRequestBuilder = client(node).admin()
-            .cluster()
-            .prepareRemoteStoreStats(INDEX_NAME, null);
+        remoteStoreStatsRequestBuilder = client(node).admin().cluster().prepareRemoteStoreStats(INDEX_NAME, null);
         response = remoteStoreStatsRequestBuilder.get();
         assertEquals(6, response.getSuccessfulShards());
         assertTrue(response.getRemoteStoreStats() != null && response.getRemoteStoreStats().length == 6);
-        for (RemoteStoreStats stat: response.getRemoteStoreStats()) {
+        for (RemoteStoreStats stat : response.getRemoteStoreStats()) {
             ShardRouting routing = stat.getShardRouting();
             stats = stat.getStats();
             if (routing.primary()) {
@@ -185,7 +183,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             RemoteStoreStatsResponse response = remoteStoreStatsRequestBuilder.get();
             assertTrue(response.getSuccessfulShards() > 0);
             assertTrue(response.getRemoteStoreStats() != null && response.getRemoteStoreStats().length != 0);
-            for (RemoteStoreStats stat: response.getRemoteStoreStats()) {
+            for (RemoteStoreStats stat : response.getRemoteStoreStats()) {
                 ShardRouting routing = stat.getShardRouting();
                 RemoteRefreshSegmentTracker.Stats stats = stat.getStats();
                 if (routing.primary()) {

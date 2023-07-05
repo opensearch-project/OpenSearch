@@ -67,7 +67,7 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
         assertEquals(metadataShardsObject.get("failed"), 0);
         Map<String, Object> indicesObject = (Map<String, Object>) jsonResponseObject.get("indices");
         assertTrue(indicesObject.containsKey("index"));
-        Map<String, Object> shardsObject = (Map)((Map) indicesObject.get("index")).get("shards");
+        Map<String, Object> shardsObject = (Map) ((Map) indicesObject.get("index")).get("shards");
         ArrayList<Map<String, Object>> perShardNumberObject = (ArrayList<Map<String, Object>>) shardsObject.get("0");
         assertEquals(perShardNumberObject.size(), 1);
         compareStatsResponse(perShardNumberObject.get(0), pressureTrackerStats, primaryShardRouting);

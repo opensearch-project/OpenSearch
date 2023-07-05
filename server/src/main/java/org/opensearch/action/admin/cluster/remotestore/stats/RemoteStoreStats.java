@@ -91,7 +91,10 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
                 .field(UploadStatsFields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentShardStats.localRefreshClockTimeMs)
                 .field(UploadStatsFields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentShardStats.remoteRefreshClockTimeMs)
                 .field(UploadStatsFields.REFRESH_TIME_LAG_IN_MILLIS, remoteSegmentShardStats.refreshTimeLagMs)
-                .field(UploadStatsFields.REFRESH_LAG, remoteSegmentShardStats.localRefreshNumber - remoteSegmentShardStats.remoteRefreshNumber)
+                .field(
+                    UploadStatsFields.REFRESH_LAG,
+                    remoteSegmentShardStats.localRefreshNumber - remoteSegmentShardStats.remoteRefreshNumber
+                )
                 .field(UploadStatsFields.BYTES_LAG, remoteSegmentShardStats.bytesLag)
                 .field(UploadStatsFields.BACKPRESSURE_REJECTION_COUNT, remoteSegmentShardStats.rejectionCount)
                 .field(UploadStatsFields.CONSECUTIVE_FAILURE_COUNT, remoteSegmentShardStats.consecutiveFailuresCount);
@@ -146,6 +149,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         static final String PRIMARY = "primary";
         static final String NODE_ID = "node";
     }
+
     /**
      * Fields for remote store stats response
      */

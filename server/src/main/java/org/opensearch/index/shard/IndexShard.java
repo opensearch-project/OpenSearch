@@ -4635,7 +4635,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 null,
                 uploadedSegments,
                 remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId),
-                overrideLocal);
+                overrideLocal
+            );
 
             if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
                 try (
@@ -4820,7 +4821,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         downloadStatsTracker.addDownloadBytesStarted(incomingFileSize);
     }
 
-    private void afterSegmentDownloadCompleted(RemoteRefreshSegmentTracker downloadStatsTracker, long downloadedFileSize, long startTimeInNs) {
+    private void afterSegmentDownloadCompleted(
+        RemoteRefreshSegmentTracker downloadStatsTracker,
+        long downloadedFileSize,
+        long startTimeInNs
+    ) {
         long currentTime = System.currentTimeMillis();
         downloadStatsTracker.updateLastDownloadTimestampMs(currentTime);
         downloadStatsTracker.incrementTotalDownloadsSucceeded();

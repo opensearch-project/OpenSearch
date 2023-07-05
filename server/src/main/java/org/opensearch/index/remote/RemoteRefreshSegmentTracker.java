@@ -562,7 +562,9 @@ public class RemoteRefreshSegmentTracker {
      */
     void updateDownloadBytesPerSecMovingAverageWindowSize(int updatedSize) {
         synchronized (downloadBytesPerSecMutex) {
-            this.downloadBytesPerSecMovingAverageReference.set(this.downloadBytesPerSecMovingAverageReference.get().copyWithSize(updatedSize));
+            this.downloadBytesPerSecMovingAverageReference.set(
+                this.downloadBytesPerSecMovingAverageReference.get().copyWithSize(updatedSize)
+            );
         }
     }
 
