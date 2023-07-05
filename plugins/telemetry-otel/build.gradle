@@ -1,0 +1,78 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.info.BuildParams
+
+opensearchplugin {
+  description 'Opentelemetry based telemetry implementation.'
+  classname 'org.opensearch.telemetry.OTelTelemetryPlugin'
+  hasClientJar = true
+}
+
+dependencies {
+  api project(":libs:opensearch-telemetry")
+  api "io.opentelemetry:opentelemetry-api:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-context:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-sdk:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-sdk-common:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-sdk-trace:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-sdk-metrics:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-exporter-logging:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
+  api "io.opentelemetry:opentelemetry-sdk-logs:${versions.opentelemetry}-alpha"
+  api "io.opentelemetry:opentelemetry-api-logs:${versions.opentelemetry}-alpha"
+}
+
+
+thirdPartyAudit {
+  ignoreViolations(
+   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueConsumerIndexField',
+   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerIndexField',
+   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerLimitField',
+   'io.opentelemetry.internal.shaded.jctools.util.UnsafeAccess',
+   'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess'
+  )
+
+  ignoreMissingClasses(
+    'io.opentelemetry.api.events.EventEmitter',
+    'io.opentelemetry.api.events.EventEmitterBuilder',
+    'io.opentelemetry.api.events.EventEmitterProvider',
+    'io.opentelemetry.extension.incubator.metrics.ExtendedDoubleHistogramBuilder',
+    'io.opentelemetry.extension.incubator.metrics.ExtendedLongHistogramBuilder',
+    'io.opentelemetry.extension.incubator.metrics.HistogramAdviceConfigurer',
+    'io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties',
+    'io.opentelemetry.sdk.autoconfigure.spi.logs.ConfigurableLogRecordExporterProvider',
+    'io.opentelemetry.sdk.autoconfigure.spi.metrics.ConfigurableMetricExporterProvider',
+    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider'
+  )
+}
+
+tasks.named("bundlePlugin").configure {
+  from('config/telemetry-otel') {
+    into 'config'
+  }
+}
+
+tasks.register("writeTestJavaPolicy") {
+  doLast {
+    final File tmp = file("${buildDir}/tmp")
+    if (tmp.exists() == false && tmp.mkdirs() == false) {
+      throw new GradleException("failed to create temporary directory [${tmp}]")
+    }
+    final File javaPolicy = file("${tmp}/java.policy")
+    javaPolicy.write(
+      [
+        "grant {",
+        "  permission java.io.FilePermission \"config\", \"read\";",
+        "};"
+      ].join("\n"))
+  }
+}

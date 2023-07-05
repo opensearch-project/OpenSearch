@@ -233,23 +233,30 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             RoutingNodes nodes = currentState.getRoutingNodes();
             for (final Map.Entry<String, IndexRoutingTable> index : currentState.getRoutingTable().indicesRouting().entrySet()) {
                 final int totalPrimaryShards = index.getValue().primaryShardsActive();
-                final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
+                final int lowerBoundPrimaryShardsPerNode = (int) Math.floor(totalPrimaryShards * 1f / currentState.getRoutingNodes().size())
+                    - 1;
+                final int upperBoundPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size())
+                    + 1;
                 for (RoutingNode node : nodes) {
                     final int primaryCount = node.shardsWithState(index.getKey(), STARTED)
                         .stream()
                         .filter(ShardRouting::primary)
                         .collect(Collectors.toList())
                         .size();
-                    if (primaryCount > avgPrimaryShardsPerNode) {
-                        logger.info(
-                            "--> Primary shard balance assertion failure for index {} on node {} {} <= {}",
-                            index.getKey(),
-                            node.node().getName(),
-                            primaryCount,
-                            avgPrimaryShardsPerNode
-                        );
-                    }
-                    assertTrue(primaryCount <= avgPrimaryShardsPerNode);
+                    // Asserts value is within the variance threshold (-1/+1 of the average value).
+                    assertTrue(
+                        "--> Primary balance assertion failure for index "
+                            + index
+                            + "on node "
+                            + node.node().getName()
+                            + " "
+                            + lowerBoundPrimaryShardsPerNode
+                            + " <= "
+                            + primaryCount
+                            + " (assigned) <= "
+                            + upperBoundPrimaryShardsPerNode,
+                        lowerBoundPrimaryShardsPerNode <= primaryCount && primaryCount <= upperBoundPrimaryShardsPerNode
+                    );
                 }
             }
         }, 60, TimeUnit.SECONDS);

@@ -18,7 +18,7 @@ import org.opensearch.extensions.action.ExtensionAction;
 import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.extensions.RestSendToExtensionAction;
+import org.opensearch.extensions.rest.RestSendToExtensionAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;

@@ -25,6 +25,8 @@ import org.opensearch.common.io.stream.Writeable;
 public class ExtensionDependency implements Writeable {
     private String uniqueId;
     private Version version;
+    private static final String UNIQUE_ID = "uniqueId";
+    private static final String VERSION = "version";
 
     public ExtensionDependency(String uniqueId, Version version) {
         this.uniqueId = uniqueId;

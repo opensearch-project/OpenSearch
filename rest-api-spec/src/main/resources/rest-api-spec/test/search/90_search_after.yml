@@ -160,6 +160,28 @@
   - match: {hits.hits.0._source.timestamp: "2019-10-21 00:30:04.828" }
   - match: {hits.hits.0.sort: [1571617804828] }
 
+  # search_after with the sort with missing
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"timestamp": null}
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 5
+          "sort": [ { "timestamp": { "order": "asc", "missing": "_last" } } ]
+          search_after: [ "2021-10-21 08:30:04.828" ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.timestamp: null }
+
 ---
 "date_nanos":
   - skip:
@@ -276,3 +298,25 @@
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._source.population: 15223372036854775800 }
   - match: {hits.hits.0.sort: [15223372036854775800] }
+
+  # search_after with the sort with missing
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"population": null}
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 5
+          "sort": [ { "population": { "order": "asc", "missing": "_last" } } ]
+          search_after: [15223372036854775801] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.population: null }

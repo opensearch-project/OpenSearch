@@ -24,6 +24,7 @@ import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -41,14 +42,16 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
 
     private Supplier<RepositoriesService> repositoriesServiceSupplier;
     private RepositoriesService repositoriesService;
+    private ThreadPool threadPool;
     private RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory;
 
     @Before
     public void setup() {
         repositoriesServiceSupplier = mock(Supplier.class);
         repositoriesService = mock(RepositoriesService.class);
+        threadPool = mock(ThreadPool.class);
         when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
-        remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(repositoriesServiceSupplier);
+        remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(repositoriesServiceSupplier, threadPool);
     }
 
     public void testNewDirectory() throws IOException {

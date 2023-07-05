@@ -450,12 +450,25 @@ public class RestoreService implements ClusterStateApplier {
                                 final boolean isSearchableSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(
                                     snapshotIndexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
                                 );
+                                final boolean isRemoteStoreShallowCopy = Boolean.TRUE.equals(
+                                    snapshotInfo.isRemoteStoreIndexShallowCopyEnabled()
+                                ) && metadata.index(index).getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
+                                if (isRemoteStoreShallowCopy && !currentState.getNodes().getMinNodeVersion().onOrAfter(Version.V_2_9_0)) {
+                                    throw new SnapshotRestoreException(
+                                        snapshot,
+                                        "cannot restore shallow copy snapshot for index ["
+                                            + index
+                                            + "] as some of the nodes in cluster have version less than 2.9"
+                                    );
+                                }
                                 final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                                     restoreUUID,
                                     snapshot,
                                     snapshotInfo.version(),
                                     repositoryData.resolveIndexId(index),
-                                    isSearchableSnapshot
+                                    isSearchableSnapshot,
+                                    isRemoteStoreShallowCopy,
+                                    request.getSourceRemoteStoreRepository()
                                 );
                                 final Version minIndexCompatibilityVersion;
                                 if (isSearchableSnapshot && isSearchableSnapshotsExtendedCompatibilityEnabled()) {

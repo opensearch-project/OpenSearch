@@ -61,6 +61,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         Map<String, String> expectedOutput = getDummyData();
         indexOutput.writeMapOfStrings(expectedOutput);
         indexOutput.writeLong(1234);
+        indexOutput.writeLong(1234);
         indexOutput.writeLong(0);
         indexOutput.writeBytes(new byte[0], 0);
         indexOutput.close();
@@ -76,6 +77,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096);
         Map<String, String> expectedOutput = getDummyData();
         indexOutput.writeMapOfStrings(expectedOutput);
+        indexOutput.writeLong(1234);
         indexOutput.writeLong(1234);
         ByteBuffersIndexOutput segmentInfosOutput = new ByteBuffersIndexOutput(new ByteBuffersDataOutput(), "test", "resource");
         segmentInfos.write(segmentInfosOutput);
@@ -103,6 +105,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         RemoteSegmentMetadata remoteSegmentMetadata = new RemoteSegmentMetadata(
             RemoteSegmentMetadata.fromMapOfStrings(expectedOutput),
             segmentInfosBytes,
+            1234,
             1234
         );
         remoteSegmentMetadataHandler.writeContent(indexOutput, remoteSegmentMetadata);
@@ -113,6 +116,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         );
         assertEquals(expectedOutput, metadata.toMapOfStrings());
         assertEquals(1234, metadata.getGeneration());
+        assertEquals(1234, metadata.getPrimaryTerm());
         assertArrayEquals(segmentInfosBytes, metadata.getSegmentInfosBytes());
     }
 

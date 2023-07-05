@@ -294,8 +294,10 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.action.ExtensionProxyAction;
 import org.opensearch.extensions.action.ExtensionProxyTransportAction;
+import org.opensearch.extensions.rest.RestInitializeExtensionAction;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.SystemIndices;
@@ -453,7 +455,7 @@ import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestPutSearchPipelineAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
-import org.opensearch.rest.extensions.RestSendToExtensionAction;
+import org.opensearch.extensions.rest.RestSendToExtensionAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
@@ -508,6 +510,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
+    private final ExtensionsManager extensionsManager;
 
     public ActionModule(
         Settings settings,
@@ -521,7 +524,8 @@ public class ActionModule extends AbstractModule {
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
         SystemIndices systemIndices,
-        IdentityService identityService
+        IdentityService identityService,
+        ExtensionsManager extensionsManager
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -530,6 +534,7 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
+        this.extensionsManager = extensionsManager;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         dynamicActionRegistry = new DynamicActionRegistry();
@@ -945,6 +950,11 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestPutSearchPipelineAction());
             registerHandler.accept(new RestGetSearchPipelineAction());
             registerHandler.accept(new RestDeleteSearchPipelineAction());
+        }
+
+        // Extensions API
+        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+            registerHandler.accept(new RestInitializeExtensionAction(extensionsManager));
         }
 
         for (ActionPlugin plugin : actionPlugins) {

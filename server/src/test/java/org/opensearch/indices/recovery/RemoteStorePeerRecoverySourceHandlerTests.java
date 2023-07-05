@@ -10,6 +10,7 @@ package org.opensearch.indices.recovery;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -23,7 +24,7 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
         .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, "true")
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
-        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "100ms")
+        .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "100ms")
         .build();
 
     public void testReplicaShardRecoveryUptoLastFlushedCommit() throws Exception {

@@ -1,12 +1,12 @@
 name: Gradle Precommit
 on: [pull_request]
- 
+
 jobs:
   precommit:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest] 
+        os: [windows-latest, macos-latest]  # precommit on ubuntu-latest is run as a part of the gradle-check workflow
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 11
