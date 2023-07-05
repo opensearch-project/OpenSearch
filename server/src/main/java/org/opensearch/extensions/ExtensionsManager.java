@@ -105,7 +105,7 @@ public class ExtensionsManager {
     /**
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
      *
-     * @param additionalSettings  Additional settings to read in from extensions.yml
+     * @param additionalSettings  Additional settings to read in from extension initialization request
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
     public ExtensionsManager(Set<Setting<?>> additionalSettings) throws IOException {
@@ -517,5 +517,9 @@ public class ExtensionsManager {
 
     Settings getEnvironmentSettings() {
         return environmentSettings;
+    }
+
+    public Set<Setting<?>> getAdditionalSettings() {
+        return this.additionalSettings;
     }
 }
