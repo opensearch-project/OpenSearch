@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
@@ -32,6 +33,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
+
+    @Before
+    public void setup() {
+        setupRepo();
+    }
 
     public void testStatsResponseFromAllNodes() {
 
