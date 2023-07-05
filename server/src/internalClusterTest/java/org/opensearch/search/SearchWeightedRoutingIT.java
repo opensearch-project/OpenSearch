@@ -56,8 +56,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
@@ -180,12 +180,24 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             assertFalse(!hitNodes.contains(nodeId));
         }
         nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        int num = 0;
+        int coordNumber = 0;
 
         for (NodeStats stat : nodeStats.getNodes()) {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
+            if (searchStats.getCoordinatorStatsLongHolder().queryMetric > 0) {
+                assertThat(searchStats.getCoordinatorStatsLongHolder().queryTotal, greaterThan(0L));
+                assertThat(searchStats.getCoordinatorStatsLongHolder().fetchMetric, greaterThan(0L));
+                assertThat(searchStats.getCoordinatorStatsLongHolder().fetchTotal, greaterThan(0L));
+                assertThat(searchStats.getCoordinatorStatsLongHolder().expandSearchTotal, greaterThan(0L));
+                coordNumber += 1;
+            }
             Assert.assertTrue(searchStats.getQueryCount() > 0L);
             Assert.assertTrue(searchStats.getFetchCount() > 0L);
+            num++;
         }
+        assertThat(coordNumber, greaterThan(0));
+        assertThat(num, greaterThan(0));
     }
 
     private Map<String, List<String>> setupCluster(int nodeCountPerAZ, Settings commonSettings) {
