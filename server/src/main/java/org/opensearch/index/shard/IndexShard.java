@@ -147,6 +147,7 @@ import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
+import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -4628,7 +4629,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 storeDirectory = store.directory();
             }
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
-            copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal);
+            copySegmentFiles(
+                storeDirectory,
+                remoteDirectory,
+                null,
+                uploadedSegments,
+                remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId),
+                overrideLocal);
 
             if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
                 try (
@@ -4712,6 +4719,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 sourceRemoteDirectory,
                 remoteDirectory,
                 uploadedSegments,
+                remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId),
                 overrideLocal
             );
             if (segmentsNFile != null) {
@@ -4745,6 +4753,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
+        RemoteRefreshSegmentTracker downloadStatsTracker,
         boolean overrideLocal
     ) throws IOException {
         List<String> downloadedSegments = new ArrayList<>();
@@ -4758,11 +4767,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
             for (String file : uploadedSegments.keySet()) {
+                RemoteSegmentStoreDirectory.UploadedSegmentMetadata segmentMetadata = uploadedSegments.get(file);
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                 if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                    storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
-                    storeDirectory.sync(Collections.singleton(file));
-                    downloadedSegments.add(file);
+                    long startTimeInMs = System.currentTimeMillis();
+                    long segmentSizeInBytes = segmentMetadata.getLength();
+                    beforeSegmentDownload(downloadStatsTracker, segmentSizeInBytes);
+                    try {
+                        storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
+                        storeDirectory.sync(Collections.singleton(file));
+                        downloadedSegments.add(file);
+                        afterSegmentDownloadCompleted(downloadStatsTracker, segmentSizeInBytes, startTimeInMs);
+                    } catch (IOException e) {
+                        afterSegmentDownloadFailed(downloadStatsTracker, segmentSizeInBytes);
+                        throw e;
+                    }
                 } else {
                     skippedSegments.add(file);
                 }
@@ -4794,6 +4813,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", file);
         }
         return false;
+    }
+
+    private void beforeSegmentDownload(RemoteRefreshSegmentTracker downloadStatsTracker, long incomingFileSize) {
+        downloadStatsTracker.incrementTotalDownloadsStarted();
+        downloadStatsTracker.addDownloadBytesStarted(incomingFileSize);
+    }
+
+    private void afterSegmentDownloadCompleted(RemoteRefreshSegmentTracker downloadStatsTracker, long downloadedFileSize, long startTimeInNs) {
+        long currentTime = System.currentTimeMillis();
+        downloadStatsTracker.updateLastDownloadTimestampMs(currentTime);
+        downloadStatsTracker.incrementTotalDownloadsSucceeded();
+        downloadStatsTracker.addDownloadBytes(downloadedFileSize);
+        downloadStatsTracker.addDownloadBytesSucceeded(downloadedFileSize);
+        long timeTakenInMS = currentTime - startTimeInNs;
+        downloadStatsTracker.addDownloadTime(timeTakenInMS);
+        downloadStatsTracker.addDownloadBytesPerSec((downloadedFileSize * 1_000L) / timeTakenInMS);
+
+    }
+
+    private void afterSegmentDownloadFailed(RemoteRefreshSegmentTracker downloadStatsTracker, long failedFileSize) {
+        downloadStatsTracker.incrementTotalDownloadsFailed();
+        downloadStatsTracker.addDownloadBytesFailed(failedFileSize);
     }
 
     /**

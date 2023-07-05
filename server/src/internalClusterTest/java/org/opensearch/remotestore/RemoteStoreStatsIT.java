@@ -14,7 +14,9 @@ import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRes
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -22,6 +24,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 3)
 public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
@@ -50,14 +55,41 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         for (String node : nodes) {
             RemoteStoreStatsResponse response = client(node).admin().cluster().prepareRemoteStoreStats(INDEX_NAME, shardId).get();
             assertTrue(response.getSuccessfulShards() > 0);
-            assertTrue(response.getShards() != null && response.getShards().length != 0);
+            assertTrue(response.getRemoteStoreStats() != null && response.getRemoteStoreStats().length != 0);
             final String indexShardId = String.format(Locale.ROOT, "[%s][%s]", INDEX_NAME, shardId);
-            List<RemoteStoreStats> matches = Arrays.stream(response.getShards())
+            List<RemoteStoreStats> matches = Arrays.stream(response.getRemoteStoreStats())
                 .filter(stat -> indexShardId.equals(stat.getStats().shardId.toString()))
                 .collect(Collectors.toList());
             assertEquals(1, matches.size());
             RemoteRefreshSegmentTracker.Stats stats = matches.get(0).getStats();
-            assertResponseStats(stats);
+            validateUploadStats(stats);
+        }
+
+        // Step 3 - Enable replicas on the existing indices and ensure that download
+        // stats are being populated as well
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        for (String node : nodes) {
+            RemoteStoreStatsResponse response = client(node).admin().cluster().prepareRemoteStoreStats(INDEX_NAME, shardId).get();
+            assertTrue(response.getSuccessfulShards() > 0);
+            assertTrue(response.getRemoteStoreStats() != null && response.getRemoteStoreStats().length != 0);
+            final String indexShardId = String.format(Locale.ROOT, "[%s][%s]", INDEX_NAME, shardId);
+            List<RemoteStoreStats> matches = Arrays.stream(response.getRemoteStoreStats())
+                .filter(stat -> indexShardId.equals(stat.getStats().shardId.toString()))
+                .collect(Collectors.toList());
+            assertEquals(2, matches.size());
+            for (RemoteStoreStats stat: matches) {
+                ShardRouting routing = stat.getShardRouting();
+                RemoteRefreshSegmentTracker.Stats stats = stat.getStats();
+                if (routing.primary()) {
+                    validateUploadStats(stats);
+                } else {
+                    validateDownloadStats(stats);
+                }
+            }
         }
     }
 
@@ -79,10 +111,34 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             .cluster()
             .prepareRemoteStoreStats(INDEX_NAME, null);
         RemoteStoreStatsResponse response = remoteStoreStatsRequestBuilder.get();
-        assertTrue(response.getSuccessfulShards() == 3);
-        assertTrue(response.getShards() != null && response.getShards().length == 3);
-        RemoteRefreshSegmentTracker.Stats stats = response.getShards()[0].getStats();
-        assertResponseStats(stats);
+        assertEquals(3, response.getSuccessfulShards());
+        assertTrue(response.getRemoteStoreStats() != null && response.getRemoteStoreStats().length == 3);
+        RemoteRefreshSegmentTracker.Stats stats = response.getRemoteStoreStats()[0].getStats();
+        validateUploadStats(stats);
+
+        // Step 3 - Enable replicas on the existing indices and ensure that download
+        // stats are being populated as well
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        remoteStoreStatsRequestBuilder = client(node).admin()
+            .cluster()
+            .prepareRemoteStoreStats(INDEX_NAME, null);
+        response = remoteStoreStatsRequestBuilder.get();
+        assertEquals(6, response.getSuccessfulShards());
+        assertTrue(response.getRemoteStoreStats() != null && response.getRemoteStoreStats().length == 6);
+        for (RemoteStoreStats stat: response.getRemoteStoreStats()) {
+            ShardRouting routing = stat.getShardRouting();
+            stats = stat.getStats();
+            if (routing.primary()) {
+                validateUploadStats(stats);
+            } else {
+                validateDownloadStats(stats);
+            }
+        }
+
     }
 
     public void testStatsResponseFromLocalNode() {
@@ -105,10 +161,33 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 .prepareRemoteStoreStats(INDEX_NAME, null);
             remoteStoreStatsRequestBuilder.setLocal(true);
             RemoteStoreStatsResponse response = remoteStoreStatsRequestBuilder.get();
-            assertTrue(response.getSuccessfulShards() == 1);
-            assertTrue(response.getShards() != null && response.getShards().length == 1);
-            RemoteRefreshSegmentTracker.Stats stats = response.getShards()[0].getStats();
-            assertResponseStats(stats);
+            assertEquals(1, response.getSuccessfulShards());
+            assertTrue(response.getRemoteStoreStats() != null && response.getRemoteStoreStats().length == 1);
+            RemoteRefreshSegmentTracker.Stats stats = response.getRemoteStoreStats()[0].getStats();
+            validateUploadStats(stats);
+        }
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        for (String node : nodes) {
+            RemoteStoreStatsRequestBuilder remoteStoreStatsRequestBuilder = client(node).admin()
+                .cluster()
+                .prepareRemoteStoreStats(INDEX_NAME, null);
+            remoteStoreStatsRequestBuilder.setLocal(true);
+            RemoteStoreStatsResponse response = remoteStoreStatsRequestBuilder.get();
+            assertTrue(response.getSuccessfulShards() > 0);
+            assertTrue(response.getRemoteStoreStats() != null && response.getRemoteStoreStats().length != 0);
+            for (RemoteStoreStats stat: response.getRemoteStoreStats()) {
+                ShardRouting routing = stat.getShardRouting();
+                RemoteRefreshSegmentTracker.Stats stats = stat.getStats();
+                if (routing.primary()) {
+                    validateUploadStats(stats);
+                } else {
+                    validateDownloadStats(stats);
+                }
+            }
         }
     }
 
@@ -127,7 +206,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    private void assertResponseStats(RemoteRefreshSegmentTracker.Stats stats) {
+    private void validateUploadStats(RemoteRefreshSegmentTracker.Stats stats) {
         assertEquals(0, stats.refreshTimeLagMs);
         assertEquals(stats.localRefreshNumber, stats.remoteRefreshNumber);
         assertTrue(stats.uploadBytesStarted > 0);
@@ -142,6 +221,20 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         assertTrue(stats.uploadBytesMovingAverage > 0);
         assertTrue(stats.uploadBytesPerSecMovingAverage > 0);
         assertTrue(stats.uploadTimeMovingAverage > 0);
+    }
+
+    private void validateDownloadStats(RemoteRefreshSegmentTracker.Stats stats) {
+        assertTrue(stats.lastDownloadTimestampMs > 0);
+        assertTrue(stats.totalDownloadsStarted > 0);
+        assertTrue(stats.totalDownloadsSucceeded > 0);
+        assertEquals(stats.totalDownloadsFailed, 0);
+        assertTrue(stats.downloadBytesStarted > 0);
+        assertTrue(stats.downloadBytesSucceeded > 0);
+        assertEquals(stats.downloadBytesFailed, 0);
+        assertTrue(stats.lastSuccessfulSegmentDownloadBytes > 0);
+        assertTrue(stats.downloadBytesMovingAverage > 0);
+        assertTrue(stats.downloadBytesPerSecMovingAverage > 0);
+        assertTrue(stats.downloadTimeMovingAverage > 0);
     }
 
     private IndexResponse indexSingleDoc() {

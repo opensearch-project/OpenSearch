@@ -652,6 +652,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
                 RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
                 RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteRefreshSegmentPressureSettings.DOWNLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteRefreshSegmentPressureSettings.DOWNLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteRefreshSegmentPressureSettings.DOWNLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE,
 
                 // Related to monitoring of task cancellation
                 TaskCancellationMonitoringSettings.IS_ENABLED_SETTING,

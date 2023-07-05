@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
 import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -24,6 +25,7 @@ import java.util.Map;
 
 import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.compareStatsResponse;
 import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createPressureTrackerStats;
+import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createShardRouting;
 import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
@@ -45,9 +47,10 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         RemoteRefreshSegmentTracker.Stats pressureTrackerStats = createPressureTrackerStats(shardId);
-        RemoteStoreStats stats = new RemoteStoreStats(pressureTrackerStats);
+        ShardRouting primaryShardRouting = createShardRouting(shardId, true);
+        RemoteStoreStats primaryShardStats = new RemoteStoreStats(pressureTrackerStats, primaryShardRouting);
         RemoteStoreStatsResponse statsResponse = new RemoteStoreStatsResponse(
-            new RemoteStoreStats[] { stats },
+            new RemoteStoreStats[] { primaryShardStats },
             1,
             1,
             0,
@@ -58,15 +61,15 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
         statsResponse.toXContent(builder, EMPTY_PARAMS);
         Map<String, Object> jsonResponseObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
             .v2();
-
-        ArrayList<Map<String, Object>> statsObjectArray = (ArrayList<Map<String, Object>>) jsonResponseObject.get("stats");
-        assertEquals(statsObjectArray.size(), 1);
-        Map<String, Object> statsObject = statsObjectArray.get(0);
-        Map<String, Object> shardsObject = (Map<String, Object>) jsonResponseObject.get("_shards");
-
-        assertEquals(shardsObject.get("total"), 1);
-        assertEquals(shardsObject.get("successful"), 1);
-        assertEquals(shardsObject.get("failed"), 0);
-        compareStatsResponse(statsObject, pressureTrackerStats);
+        Map<String, Object> metadataShardsObject = (Map<String, Object>) jsonResponseObject.get("_shards");
+        assertEquals(metadataShardsObject.get("total"), 1);
+        assertEquals(metadataShardsObject.get("successful"), 1);
+        assertEquals(metadataShardsObject.get("failed"), 0);
+        Map<String, Object> indicesObject = (Map<String, Object>) jsonResponseObject.get("indices");
+        assertTrue(indicesObject.containsKey("index"));
+        Map<String, Object> shardsObject = (Map)((Map) indicesObject.get("index")).get("shards");
+        ArrayList<Map<String, Object>> perShardNumberObject = (ArrayList<Map<String, Object>>) shardsObject.get("0");
+        assertEquals(perShardNumberObject.size(), 1);
+        compareStatsResponse(perShardNumberObject.get(0), pressureTrackerStats, primaryShardRouting);
     }
 }

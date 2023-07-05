@@ -22,6 +22,7 @@ import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
@@ -49,6 +50,8 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
     RemoteStoreStats> {
 
     private final IndicesService indicesService;
+
+    private final ClusterService clusterService;
     private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
 
     @Inject
@@ -69,6 +72,7 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
             RemoteStoreStatsRequest::new,
             ThreadPool.Names.MANAGEMENT
         );
+        this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.remoteRefreshSegmentPressureService = remoteRefreshSegmentPressureService;
     }
@@ -95,7 +99,6 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
                         || (shardRouting.currentNodeId() == null
                             || shardRouting.currentNodeId().equals(clusterState.getNodes().getLocalNodeId()))
                 )
-                .filter(ShardRouting::primary)
                 .filter(
                     shardRouting -> Boolean.parseBoolean(
                         clusterState.getMetadata().index(shardRouting.index()).getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED)
@@ -157,7 +160,6 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
             indexShard.shardId()
         );
         assert Objects.nonNull(remoteRefreshSegmentTracker);
-
-        return new RemoteStoreStats(remoteRefreshSegmentTracker.stats());
+        return new RemoteStoreStats(remoteRefreshSegmentTracker.stats(), indexShard.routingEntry());
     }
 }
