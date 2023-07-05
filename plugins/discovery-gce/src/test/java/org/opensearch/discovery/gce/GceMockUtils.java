@@ -42,7 +42,7 @@ import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.Streams;
 
 import java.io.IOException;

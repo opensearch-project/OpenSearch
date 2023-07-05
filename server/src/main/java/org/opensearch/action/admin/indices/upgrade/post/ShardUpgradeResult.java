@@ -66,7 +66,7 @@ class ShardUpgradeResult implements Writeable {
     ShardUpgradeResult(StreamInput in) throws IOException {
         shardId = new ShardId(in);
         primary = in.readBoolean();
-        upgradeVersion = Version.readVersion(in);
+        upgradeVersion = in.readVersion();
         try {
             oldestLuceneSegment = org.apache.lucene.util.Version.parse(in.readString());
         } catch (ParseException ex) {
@@ -94,7 +94,7 @@ class ShardUpgradeResult implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
         out.writeBoolean(primary);
-        Version.writeVersion(upgradeVersion, out);
+        out.writeVersion(upgradeVersion);
         out.writeString(oldestLuceneSegment.toString());
     }
 }

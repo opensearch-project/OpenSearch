@@ -371,7 +371,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
-        this.version = Version.readVersion(in);
+        this.version = in.readVersion();
     }
 
     @Override
@@ -414,9 +414,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         if (out.getVersion().before(Version.V_1_0_0) && version.onOrAfter(Version.V_1_0_0)) {
-            Version.writeVersion(LegacyESVersion.V_7_10_2, out);
+            out.writeVersion(LegacyESVersion.V_7_10_2);
         } else {
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
         }
     }
 

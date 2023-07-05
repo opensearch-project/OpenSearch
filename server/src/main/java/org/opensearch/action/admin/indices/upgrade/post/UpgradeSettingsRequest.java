@@ -55,7 +55,7 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
 
     public UpgradeSettingsRequest(StreamInput in) throws IOException {
         super(in);
-        versions = in.readMap(StreamInput::readString, i -> new Tuple<>(Version.readVersion(i), i.readString()));
+        versions = in.readMap(StreamInput::readString, i -> new Tuple<>(i.readVersion(), i.readString()));
     }
 
     public UpgradeSettingsRequest() {}
@@ -94,7 +94,7 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeMap(versions, StreamOutput::writeString, (o, v) -> {
-            Version.writeVersion(v.v1(), out);
+            out.writeVersion(v.v1());
             out.writeString(v.v2());
         });
     }

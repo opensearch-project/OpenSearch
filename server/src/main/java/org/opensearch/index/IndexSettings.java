@@ -1007,7 +1007,7 @@ public final class IndexSettings {
 
     /**
      * Returns the version the index was created on.
-     * @see Version#indexCreated(Settings)
+     * @see IndexMetadata#indexCreated(Settings)
      */
     public Version getIndexVersionCreated() {
         return version;
@@ -1121,9 +1121,9 @@ public final class IndexSettings {
      */
     public synchronized boolean updateIndexMetadata(IndexMetadata indexMetadata) {
         final Settings newSettings = indexMetadata.getSettings();
-        if (version.equals(Version.indexCreated(newSettings)) == false) {
+        if (version.equals(IndexMetadata.indexCreated(newSettings)) == false) {
             throw new IllegalArgumentException(
-                "version mismatch on settings update expected: " + version + " but was: " + Version.indexCreated(newSettings)
+                "version mismatch on settings update expected: " + version + " but was: " + IndexMetadata.indexCreated(newSettings)
             );
         }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);

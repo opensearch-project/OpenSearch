@@ -42,6 +42,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.joda.time.DateTimeZone;
+import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.CharArrays;
@@ -1105,6 +1106,24 @@ public abstract class StreamInput extends InputStream {
             }
         }
         return null;
+    }
+
+    /** Reads the OpenSearch Version from the input stream */
+    public Version readVersion() throws IOException {
+        return Version.fromId(readVInt());
+    }
+
+    /** Reads the {@link Version} from the input stream */
+    public Build readBuild() throws IOException {
+        // the following is new for opensearch: we write the distribution to support any "forks"
+        final String distribution = readString();
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        final Build.Type type = Build.Type.fromDisplayName(readString(), false);
+        String hash = readString();
+        String date = readString();
+        boolean snapshot = readBoolean();
+        final String version = readString();
+        return new Build(type, hash, date, snapshot, version, distribution);
     }
 
     /**

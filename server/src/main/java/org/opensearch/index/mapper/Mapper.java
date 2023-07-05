@@ -79,7 +79,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         public Version indexCreatedVersion() {
-            return Version.indexCreated(indexSettings);
+            return IndexMetadata.indexCreated(indexSettings);
         }
 
         public Version indexCreatedVersionOrDefault(@Nullable Version defaultValue) {

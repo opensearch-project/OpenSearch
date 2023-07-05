@@ -81,7 +81,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.io.FileSystemUtils.isAccessibleDirectory;
+import static org.opensearch.core.util.FileSystemUtils.isAccessibleDirectory;
 
 /**
  * Service responsible for loading plugins and modules (internal and external)

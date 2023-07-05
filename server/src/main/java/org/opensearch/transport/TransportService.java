@@ -722,7 +722,7 @@ public class TransportService extends AbstractLifecycleComponent
             super(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = new ClusterName(in);
-            Version tmpVersion = Version.readVersion(in);
+            Version tmpVersion = in.readVersion();
             if (in.getVersion().onOrBefore(LegacyESVersion.V_7_10_2)) {
                 tmpVersion = LegacyESVersion.V_7_10_2;
             }
@@ -734,9 +734,9 @@ public class TransportService extends AbstractLifecycleComponent
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
             if (out.getVersion().before(Version.V_1_0_0)) {
-                Version.writeVersion(LegacyESVersion.V_7_10_2, out);
+                out.writeVersion(LegacyESVersion.V_7_10_2);
             } else {
-                Version.writeVersion(version, out);
+                out.writeVersion(version);
             }
         }
 

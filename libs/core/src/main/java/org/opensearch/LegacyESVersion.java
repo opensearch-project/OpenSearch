@@ -32,7 +32,6 @@
 
 package org.opensearch;
 
-import org.opensearch.common.Strings;
 import org.opensearch.core.Assertions;
 
 import java.lang.reflect.Field;
@@ -176,7 +175,7 @@ public class LegacyESVersion extends Version {
      * Returns the version given its string representation, current version if the argument is null or empty
      */
     public static Version fromString(String version) {
-        if (!Strings.hasLength(version)) {
+        if (stringHasLength(version) == false) {
             return Version.CURRENT;
         }
         final Version cached = stringToVersion.get(version);
