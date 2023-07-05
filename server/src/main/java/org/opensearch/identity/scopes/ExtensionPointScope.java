@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.scopes;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.identity.scopes.ScopeEnums.ScopeArea;
 import org.opensearch.identity.scopes.ScopeEnums.ScopeNamespace;
 
@@ -45,14 +44,4 @@ public enum ExtensionPointScope implements Scope {
         return this.action;
     }
 
-    /**
-     * Exception raised when an ExtensionPointScope is missing
-     *
-     * @opensearch.experimental
-     */
-    public static class ExtensionPointScopeException extends OpenSearchException {
-        public ExtensionPointScopeException(final ExtensionPointScope missingScope) {
-            super("Missing scope for this extension point " + missingScope.asPermissionString());
-        }
-    }
 }

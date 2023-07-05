@@ -38,6 +38,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
@@ -71,6 +73,8 @@ public class ScopeProtectedActionPlugin implements ActionPlugin, Subject {
     private final ActionPlugin plugin;
     private final IdentityService identity;
 
+    String INVALID_EXTENSION_POINT_SCOPE_MESSAGE = "Unable to identify extension point scope: ";
+
     public ScopeProtectedActionPlugin(final ActionPlugin plugin, final IdentityService identity) {
         this.plugin = plugin;
         this.identity = identity;
@@ -78,7 +82,7 @@ public class ScopeProtectedActionPlugin implements ActionPlugin, Subject {
 
     private void throwIfNotAllowed() {
         if (!ApplicationManager.getInstance().isAllowed(identity.getSubject(), List.of(ExtensionPointScope.ACTION))) {
-            throw new ExtensionPointScope.ExtensionPointScopeException(ExtensionPointScope.ACTION);
+            throw new OpenSearchException(INVALID_EXTENSION_POINT_SCOPE_MESSAGE + ExtensionPointScope.ACTION.asPermissionString());
         }
     }
 
