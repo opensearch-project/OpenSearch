@@ -40,12 +40,14 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.SecureString;
+import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -394,6 +396,18 @@ public abstract class BaseStreamTests extends OpenSearchTestCase {
                 assertEquals(missing, serialized);
             }
         }
+    }
+
+    public void testJodaDateTimeSerialization() throws IOException {
+        final BytesStreamOutput output = new BytesStreamOutput();
+        long millis = randomIntBetween(0, Integer.MAX_VALUE);
+        JodaCompatibleZonedDateTime time = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), ZoneOffset.ofHours(-7));
+        output.writeGenericValue(time);
+
+        final BytesReference bytesReference = output.bytes();
+        final StreamInput input = getStreamInput(bytesReference);
+        Object inTime = input.readGenericValue();
+        assertEquals(time, inTime);
     }
 
     static final class WriteableString implements Writeable {
