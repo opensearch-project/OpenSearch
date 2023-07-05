@@ -196,7 +196,20 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return null;
+        return new InternalMultiTerms(
+            name,
+            order,
+            order,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
+            metadata(),
+            bucketCountThresholds.getShardSize(),
+            showTermDocCountError,
+            0,
+            0,
+            formats,
+            Collections.emptyList()
+        );
     }
 
     @Override

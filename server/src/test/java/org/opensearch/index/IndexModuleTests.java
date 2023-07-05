@@ -252,7 +252,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             writableRegistry(),
             () -> false,
             null,
-            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
             translogFactorySupplier
         );
     }

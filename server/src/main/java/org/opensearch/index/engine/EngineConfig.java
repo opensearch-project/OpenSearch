@@ -129,12 +129,14 @@ public final class EngineConfig {
         switch (s) {
             case "default":
             case "best_compression":
+            case "zstd":
+            case "zstd_no_dict":
             case "lucene_default":
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
                     throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s
+                        "unknown value for [index.codec] must be one of [default, best_compression, zstd, zstd_no_dict] but was: " + s
                     );
                 }
                 return s;

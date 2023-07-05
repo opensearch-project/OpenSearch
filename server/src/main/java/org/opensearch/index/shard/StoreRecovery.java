@@ -69,6 +69,7 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -356,7 +357,8 @@ final class StoreRecovery {
         final IndexShard indexShard,
         Repository repository,
         RepositoriesService repositoriesService,
-        ActionListener<Boolean> listener
+        ActionListener<Boolean> listener,
+        ThreadPool threadPool
     ) {
         try {
             if (canRecover(indexShard)) {
@@ -384,7 +386,10 @@ final class StoreRecovery {
                     remoteStoreRepository = shallowCopyShardMetadata.getRemoteStoreRepository();
                 }
 
-                RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService);
+                RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                    () -> repositoriesService,
+                    threadPool
+                );
                 RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
                     indexUUID,
