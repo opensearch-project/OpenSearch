@@ -26,6 +26,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 
@@ -80,8 +81,8 @@ public class DynamicActionRegistryTests extends OpenSearchTestCase {
     public void testDynamicActionRegistryWithNamedRoutes() {
         RestSendToExtensionAction action = mock(RestSendToExtensionAction.class);
         RestSendToExtensionAction action2 = mock(RestSendToExtensionAction.class);
-        NamedRoute r1 = new NamedRoute(RestRequest.Method.GET, "/foo", "foo");
-        NamedRoute r2 = new NamedRoute(RestRequest.Method.GET, "/bar", "bar");
+        NamedRoute r1 = new NamedRoute.Builder().method(RestRequest.Method.GET).path("/foo").uniqueName("foo").build();
+        NamedRoute r2 = new NamedRoute.Builder().method(RestRequest.Method.PUT).path("/bar").uniqueName("bar").build();
 
         DynamicActionRegistry registry = new DynamicActionRegistry();
         registry.registerDynamicRoute(r1, action);
@@ -89,22 +90,38 @@ public class DynamicActionRegistryTests extends OpenSearchTestCase {
 
         assertTrue(registry.isActionRegistered("foo"));
         assertTrue(registry.isActionRegistered("bar"));
-    }
-
-    public void testDynamicActionRegistryRegisterAndUnregisterWithNamedRoutes() {
-        RestSendToExtensionAction action = mock(RestSendToExtensionAction.class);
-        RestSendToExtensionAction action2 = mock(RestSendToExtensionAction.class);
-        NamedRoute r1 = new NamedRoute(RestRequest.Method.GET, "/foo", "foo");
-        NamedRoute r2 = new NamedRoute(RestRequest.Method.GET, "/bar", "bar");
-
-        DynamicActionRegistry registry = new DynamicActionRegistry();
-        registry.registerDynamicRoute(r1, action);
-        registry.registerDynamicRoute(r2, action2);
 
         registry.unregisterDynamicRoute(r2);
 
         assertTrue(registry.isActionRegistered("foo"));
         assertFalse(registry.isActionRegistered("bar"));
+    }
+
+    public void testDynamicActionRegistryWithNamedRoutesAndLegacyActionNames() {
+        RestSendToExtensionAction action = mock(RestSendToExtensionAction.class);
+        RestSendToExtensionAction action2 = mock(RestSendToExtensionAction.class);
+        NamedRoute r1 = new NamedRoute.Builder().method(RestRequest.Method.GET)
+            .path("/foo")
+            .uniqueName("foo")
+            .legacyActionNames(Set.of("cluster:admin/opensearch/abc/foo"))
+            .build();
+        NamedRoute r2 = new NamedRoute.Builder().method(RestRequest.Method.PUT)
+            .path("/bar")
+            .uniqueName("bar")
+            .legacyActionNames(Set.of("cluster:admin/opensearch/xyz/bar"))
+            .build();
+
+        DynamicActionRegistry registry = new DynamicActionRegistry();
+        registry.registerDynamicRoute(r1, action);
+        registry.registerDynamicRoute(r2, action2);
+
+        assertTrue(registry.isActionRegistered("cluster:admin/opensearch/abc/foo"));
+        assertTrue(registry.isActionRegistered("cluster:admin/opensearch/xyz/bar"));
+
+        registry.unregisterDynamicRoute(r2);
+
+        assertTrue(registry.isActionRegistered("cluster:admin/opensearch/abc/foo"));
+        assertFalse(registry.isActionRegistered("cluster:admin/opensearch/xyz/bar"));
     }
 
     private static final class TestAction extends ActionType<ActionResponse> {
