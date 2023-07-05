@@ -8,8 +8,6 @@
 
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
@@ -103,59 +101,59 @@ public class RemoteStoreStatsTestHelper {
             assertTrue(segmentUploads.isEmpty());
         } else {
             assertTrue(segmentDownloads.isEmpty());
-            assertEquals(segmentUploads.get(RemoteStoreStats.UploadFields.LOCAL_REFRESH_TIMESTAMP),
+            assertEquals(segmentUploads.get(RemoteStoreStats.UploadStatsFields.LOCAL_REFRESH_TIMESTAMP),
                 (int) pressureTrackerStats.localRefreshClockTimeMs
             );
-            assertEquals(segmentUploads.get(RemoteStoreStats.UploadFields.REMOTE_REFRESH_TIMESTAMP),
+            assertEquals(segmentUploads.get(RemoteStoreStats.UploadStatsFields.REMOTE_REFRESH_TIMESTAMP),
                 (int) pressureTrackerStats.remoteRefreshClockTimeMs
             );
-            assertEquals(segmentUploads.get(RemoteStoreStats.UploadFields.REFRESH_TIME_LAG_IN_MILLIS),
+            assertEquals(segmentUploads.get(RemoteStoreStats.UploadStatsFields.REFRESH_TIME_LAG_IN_MILLIS),
                 (int) pressureTrackerStats.refreshTimeLagMs
             );
-            assertEquals(segmentUploads.get(RemoteStoreStats.UploadFields.REFRESH_LAG),
+            assertEquals(segmentUploads.get(RemoteStoreStats.UploadStatsFields.REFRESH_LAG),
                 (int) (pressureTrackerStats.localRefreshNumber - pressureTrackerStats.remoteRefreshNumber)
             );
-            assertEquals(segmentUploads.get(RemoteStoreStats.UploadFields.BYTES_LAG), (int) pressureTrackerStats.bytesLag);
+            assertEquals(segmentUploads.get(RemoteStoreStats.UploadStatsFields.BYTES_LAG), (int) pressureTrackerStats.bytesLag);
 
-            assertEquals(segmentUploads.get(RemoteStoreStats.UploadFields.BACKPRESSURE_REJECTION_COUNT),
+            assertEquals(segmentUploads.get(RemoteStoreStats.UploadStatsFields.BACKPRESSURE_REJECTION_COUNT),
                 (int) pressureTrackerStats.rejectionCount
             );
-            assertEquals(segmentUploads.get(RemoteStoreStats.UploadFields.CONSECUTIVE_FAILURE_COUNT),
+            assertEquals(segmentUploads.get(RemoteStoreStats.UploadStatsFields.CONSECUTIVE_FAILURE_COUNT),
                 (int) pressureTrackerStats.consecutiveFailuresCount
             );
-            assertEquals(((Map) segmentUploads.get(RemoteStoreStats.UploadFields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.SubFields.STARTED),
+            assertEquals(((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.SubFields.STARTED),
                 (int) pressureTrackerStats.uploadBytesStarted
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadFields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.SubFields.SUCCEEDED),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.SubFields.SUCCEEDED),
                 (int) pressureTrackerStats.uploadBytesSucceeded
             );
-            assertEquals(((Map) segmentUploads.get(RemoteStoreStats.UploadFields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.SubFields.FAILED),
+            assertEquals(((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.SubFields.FAILED),
                 (int) pressureTrackerStats.uploadBytesFailed
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadFields.REMOTE_REFRESH_SIZE_IN_BYTES)).get(RemoteStoreStats.SubFields.MOVING_AVG),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.REMOTE_REFRESH_SIZE_IN_BYTES)).get(RemoteStoreStats.SubFields.MOVING_AVG),
                 pressureTrackerStats.uploadBytesMovingAverage
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadFields.REMOTE_REFRESH_SIZE_IN_BYTES)).get(RemoteStoreStats.SubFields.LAST_SUCCESSFUL),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.REMOTE_REFRESH_SIZE_IN_BYTES)).get(RemoteStoreStats.SubFields.LAST_SUCCESSFUL),
                 (int) pressureTrackerStats.lastSuccessfulRemoteRefreshBytes
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadFields.UPLOAD_LATENCY_IN_BYTES_PER_SEC)).get(RemoteStoreStats.SubFields.MOVING_AVG),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.UPLOAD_LATENCY_IN_BYTES_PER_SEC)).get(RemoteStoreStats.SubFields.MOVING_AVG),
                 pressureTrackerStats.uploadBytesPerSecMovingAverage
             );
-            assertEquals(((Map) segmentUploads.get(RemoteStoreStats.UploadFields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.SubFields.STARTED),
+            assertEquals(((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.SubFields.STARTED),
                 (int) pressureTrackerStats.totalUploadsStarted
             );
-            assertEquals(((Map) segmentUploads.get(RemoteStoreStats.UploadFields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.SubFields.SUCCEEDED),
+            assertEquals(((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.SubFields.SUCCEEDED),
                 (int) pressureTrackerStats.totalUploadsSucceeded
             );
-            assertEquals(((Map) segmentUploads.get(RemoteStoreStats.UploadFields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.SubFields.FAILED),
+            assertEquals(((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.SubFields.FAILED),
                 (int) pressureTrackerStats.totalUploadsFailed
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadFields.REMOTE_REFRESH_LATENCY_IN_MILLIS)).get(RemoteStoreStats.SubFields.MOVING_AVG),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.REMOTE_REFRESH_LATENCY_IN_MILLIS)).get(RemoteStoreStats.SubFields.MOVING_AVG),
                 pressureTrackerStats.uploadTimeMovingAverage
             );
         }
