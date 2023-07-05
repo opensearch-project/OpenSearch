@@ -76,7 +76,10 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         // Step 2 - We find all the nodes that are present in the cluster. We make the remote store stats api call from
         // each of the node in the cluster and check that the response is coming as expected.
         ClusterState state = getClusterState();
-        String node = StreamSupport.stream(state.nodes().getDataNodes().values().spliterator(), false).map(x -> x.getName()).findFirst().get();
+        String node = StreamSupport.stream(state.nodes().getDataNodes().values().spliterator(), false)
+            .map(x -> x.getName())
+            .findFirst()
+            .get();
         RemoteStoreStatsRequestBuilder remoteStoreStatsRequestBuilder = client(node).admin()
             .cluster()
             .prepareRemoteStoreStats(INDEX_NAME, null);
