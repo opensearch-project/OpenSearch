@@ -663,7 +663,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     Return true if it deleted it successfully
      */
     private boolean deleteIfEmpty() throws IOException {
-        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
+        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+            MetadataFilenameUtils.METADATA_PREFIX,
+            1
+        );
         if (metadataFiles.size() != 0) {
             logger.info("Remote directory still has files , not deleting the path");
             return false;

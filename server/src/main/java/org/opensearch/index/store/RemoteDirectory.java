@@ -14,6 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 
@@ -27,6 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -69,26 +71,34 @@ public class RemoteDirectory extends Directory {
     public List<String> listFilesByPrefixInLexicographicOrder(String filenamePrefix, int limit) throws IOException {
         List<String> sortedBlobList = new ArrayList<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
-        blobContainer.listBlobsByPrefixInSortedOrder(
-            filenamePrefix,
-            limit,
-            BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(List<BlobMetadata> blobMetadata) {
-                    sortedBlobList.addAll(blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    exception.set(e);
-                }
+        final CountDownLatch latch = new CountDownLatch(1);
+        LatchedActionListener<List<BlobMetadata>> actionListener = new LatchedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(List<BlobMetadata> blobMetadata) {
+                sortedBlobList.addAll(blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
             }
-        );
-        if (exception.get() == null) {
-            return sortedBlobList;
-        } else {
+
+            @Override
+            public void onFailure(Exception e) {
+                exception.set(e);
+            }
+        }, latch);
+
+        try {
+            blobContainer.listBlobsByPrefixInSortedOrder(
+                filenamePrefix,
+                limit,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC,
+                actionListener
+            );
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new IOException("Exception in listFilesByPrefixInLexicographicOrder with prefix: " + filenamePrefix, e);
+        }
+        if (exception.get() != null) {
             throw new IOException(exception.get());
+        } else {
+            return sortedBlobList;
         }
     }
 
