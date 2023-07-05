@@ -9,44 +9,14 @@
 package org.opensearch.identity;
 
 import java.security.Principal;
-import java.util.Objects;
-import org.opensearch.Application;
+import java.util.List;
 
-public class ServiceAccount implements Principal {
+/**
+ * This interface defines a ServiceAccount.
+ *
+ * A ServiceAccount is a principal which can retrieve its associated permissions.
+ */
+public interface ServiceAccount extends Principal {
 
-    private final Application application;
-    private final NamedPrincipal name;
-
-    /**
-     * Creates a principal for an application identity
-     * @param application The application to be associated with the service account
-     */
-    public ServiceAccount(final Application application) {
-
-        this.application = application;
-        name = new NamedPrincipal(application.toString());
-    }
-
-    @Override
-    public String getName() {
-        return name.getName();
-    }
-
-    @Override
-    public boolean equals(final Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        final ServiceAccount that = (ServiceAccount) obj;
-        return Objects.equals(name, that.getName());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name);
-    }
-
-    @Override
-    public String toString() {
-        return "ServiceAccount(" + "name=" + name + ")";
-    }
+    public List<String> getPermissions();
 }
