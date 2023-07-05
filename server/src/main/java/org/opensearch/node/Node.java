@@ -728,7 +728,8 @@ public class Node implements Closeable {
             clusterService.setRerouteService(rerouteService);
 
             final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
-                repositoriesServiceReference::get
+                repositoriesServiceReference::get,
+                threadPool
             );
 
             final IndicesService indicesService = new IndicesService(
@@ -1502,7 +1503,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(NodeEnvironment.class));
         toClose.add(stopWatch::stop);
         if (FeatureFlags.isEnabled(TELEMETRY)) {
-            toClose.add(() -> injector.getInstance(TracerFactory.class));
+            toClose.add(injector.getInstance(TracerFactory.class));
         }
 
         if (logger.isTraceEnabled()) {

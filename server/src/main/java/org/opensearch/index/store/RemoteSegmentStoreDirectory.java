@@ -27,6 +27,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -75,6 +76,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     private final RemoteStoreLockManager mdLockManager;
 
+    private final ThreadPool threadPool;
+
     /**
      * To prevent explosion of refresh metadata files, we replace refresh files for the given primary term and generation
      * This is achieved by uploading refresh metadata file with the same UUID suffix.
@@ -96,15 +99,23 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
 
+    /**
+     * AtomicBoolean that ensures only one staleCommitDeletion activity is scheduled at a time.
+     * Visible for testing
+     */
+    protected final AtomicBoolean canDeleteStaleCommits = new AtomicBoolean(true);
+
     public RemoteSegmentStoreDirectory(
         RemoteDirectory remoteDataDirectory,
         RemoteDirectory remoteMetadataDirectory,
-        RemoteStoreLockManager mdLockManager
+        RemoteStoreLockManager mdLockManager,
+        ThreadPool threadPool
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
+        this.threadPool = threadPool;
         init();
     }
 
@@ -574,7 +585,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      * @throws IOException in case of I/O error while reading from / writing to remote segment store
      */
-    public void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
+    private void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
         Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
         List<String> sortedMetadataFileList = metadataFiles.stream().sorted(METADATA_FILENAME_COMPARATOR).collect(Collectors.toList());
         if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
@@ -656,6 +667,33 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
+    /**
+     * Delete stale segment and metadata files asynchronously.
+     * This method calls {@link RemoteSegmentStoreDirectory#deleteStaleSegments(int)} in an async manner.
+     * @param lastNMetadataFilesToKeep number of metadata files to keep
+     */
+    public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep) {
+        if (canDeleteStaleCommits.compareAndSet(true, false)) {
+            try {
+                threadPool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
+                    try {
+                        deleteStaleSegments(lastNMetadataFilesToKeep);
+                    } catch (Exception e) {
+                        logger.info(
+                            "Exception while deleting stale commits from remote segment store, will retry delete post next commit",
+                            e
+                        );
+                    } finally {
+                        canDeleteStaleCommits.set(true);
+                    }
+                });
+            } catch (Exception e) {
+                logger.info("Exception occurred while scheduling deleteStaleCommits", e);
+                canDeleteStaleCommits.set(true);
+            }
+        }
+    }
+
     /*
     Tries to delete shard level directory if it is empty
     Return true if it deleted it successfully
@@ -680,7 +718,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     public void close() throws IOException {
-        deleteStaleSegments(0);
+        deleteStaleSegmentsAsync(0);
         deleteIfEmpty();
     }
 }
