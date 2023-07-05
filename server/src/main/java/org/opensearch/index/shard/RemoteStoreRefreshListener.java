@@ -20,6 +20,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -247,7 +248,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         // Create a map of file name to size and update the refresh segment tracker
                         updateLocalSizeMapAndTracker(localSegmentsPostRefresh);
                         CountDownLatch latch = new CountDownLatch(1);
-                        ActionListener<Void> segmentUploadsCompletedListener = new ActionListener<Void>() {
+                        ActionListener<Void> segmentUploadsCompletedListener = new LatchedActionListener<>(new ActionListener<>() {
                             @Override
                             public void onResponse(Void unused) {
                                 boolean shouldRetry = true;
@@ -282,15 +283,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             }
 
                             private void doComplete(boolean shouldRetry) {
-                                try {
-                                    // Update the segment tracker with the final upload status as seen at the end
-                                    updateFinalUploadStatusInSegmentTracker(shouldRetry == false, bytesBeforeUpload, startTimeInNS);
-                                    afterSegmentsSync(isRetry, shouldRetry);
-                                } finally {
-                                    latch.countDown();
-                                }
+                                // Update the segment tracker with the final upload status as seen at the end
+                                updateFinalUploadStatusInSegmentTracker(shouldRetry == false, bytesBeforeUpload, startTimeInNS);
+                                afterSegmentsSync(isRetry, shouldRetry);
                             }
-                        };
+                        }, latch);
 
                         // Start the segments files upload
                         uploadNewSegments(localSegmentsPostRefresh, segmentUploadsCompletedListener);
