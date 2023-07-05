@@ -10,10 +10,10 @@ package org.opensearch.extensions.rest;
 
 import org.opensearch.Version;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.extensions.ExtensionDependency;
