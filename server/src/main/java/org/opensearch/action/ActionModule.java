@@ -462,6 +462,7 @@ import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1125,13 +1126,16 @@ public class ActionModule extends AbstractModule {
             if (isActionRegistered(routeName)) {
                 throw new IllegalArgumentException("route [" + route + "] already registered");
             }
-            Set<String> actionNames = route.actionNames();
 
-            actionNames.forEach(act -> {
-                if (isActionRegistered(act)) {
-                    throw new IllegalArgumentException("action [" + act + "] already registered");
-                }
-            });
+            Set<String> actionNames = route.actionNames();
+            if (!Collections.disjoint(actionNames, registeredActionNames)) {
+                Set<String> alreadyRegistered = new HashSet<>(registeredActionNames);
+                alreadyRegistered.retainAll(actionNames);
+                String acts = String.join(", ", alreadyRegistered);
+                throw new IllegalArgumentException(
+                    "action" + (alreadyRegistered.size() > 1 ? "s [" : " [") + acts + "] already registered"
+                );
+            }
 
             if (routeRegistry.containsKey(route)) {
                 throw new IllegalArgumentException("route [" + route + "] already registered");

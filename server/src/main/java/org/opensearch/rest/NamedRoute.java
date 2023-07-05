@@ -117,7 +117,7 @@ public class NamedRoute extends RestHandler.Route {
          */
         private void checkIfFieldsAreSet() {
             if (method == null || path == null || uniqueName == null) {
-                throw new NullPointerException("REST method, path and uniqueName are required.");
+                throw new IllegalStateException("REST method, path and uniqueName are required.");
             }
         }
 
