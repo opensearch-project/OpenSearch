@@ -416,15 +416,9 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         IndexOutput indexOutput = mock(IndexOutput.class);
         when(remoteLockDirectory.createOutput(any(), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
 
-        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder()
-            .withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))
-            .withAcquirerId(acquirerId)
-            .build();
+        LockInfo lockInfo = new FileLockInfo(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration), acquirerId);
         remoteSegmentStoreDirectory.acquireLock(lockInfo);
-        verify(remoteLockDirectory).createOutput(
-            FileLockInfo.LockFileUtils.generateLockName(metadataFiles.get(0), acquirerId),
-            IOContext.DEFAULT
-        );
+        verify(remoteLockDirectory).createOutput(lockInfo.generateLockName(), IOContext.DEFAULT);
         verify(indexOutput).close();
     }
 
@@ -444,10 +438,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         when(remoteMetadataDirectory.listFilesByPrefix(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration)))
             .thenReturn(List.of());
 
-        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder()
-            .withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))
-            .withAcquirerId(acquirerId)
-            .build();
+        LockInfo lockInfo = new FileLockInfo(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration), acquirerId);
         assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.acquireLock(lockInfo));
     }
 
@@ -459,13 +450,13 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         long testGeneration = 5;
 
         when(remoteMetadataDirectory.listFilesByPrefix("metadata__1__5")).thenReturn(List.of("metadata__1__5__abc"));
-        FileLockInfo lockInfo = FileLockInfo.getLockInfoBuilder()
-            .withFileToLock(remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration))
-            .withAcquirerId(testAcquirerId)
-            .build();
+        FileLockInfo lockInfo = new FileLockInfo(
+            remoteSegmentStoreDirectory.getLockIdentifier(testPrimaryTerm, testGeneration),
+            testAcquirerId
+        );
 
         List<String> lockFiles = List.of("metadata__1__5__abc___test-acquirer");
-        when(remoteLockDirectory.listFilesByPrefix(lockInfo.getLockPrefix())).thenReturn(lockFiles);
+        when(remoteLockDirectory.listFilesByPrefix(lockInfo.getFileToLock())).thenReturn(lockFiles);
 
         remoteSegmentStoreDirectory.releaseLock(lockInfo);
         verify(remoteLockDirectory).deleteFile("metadata__1__5__abc___test-acquirer");

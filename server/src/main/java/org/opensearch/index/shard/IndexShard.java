@@ -1500,7 +1500,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void acquireLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteDirectory();
         String lockIdentifier = remoteSegmentStoreDirectory.getLockIdentifier(primaryTerm, generation);
-        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(lockIdentifier).withAcquirerId(snapshotId).build();
+        LockInfo lockInfo = new FileLockInfo(lockIdentifier, snapshotId);
         remoteSegmentStoreDirectory.acquireLock(lockInfo);
     }
 
@@ -1514,7 +1514,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void releaseLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteDirectory();
         String lockIdentifier = remoteSegmentStoreDirectory.getLockIdentifier(primaryTerm, generation);
-        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(lockIdentifier).withAcquirerId(snapshotId).build();
+        LockInfo lockInfo = new FileLockInfo(lockIdentifier, snapshotId);
         remoteSegmentStoreDirectory.releaseLock(lockInfo);
     }
 

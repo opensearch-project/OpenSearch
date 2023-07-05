@@ -394,7 +394,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     @Override
     public void releaseLock(LockInfo lockInfo) throws IOException {
         assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
-        Collection<String> lockFiles = remoteLockDirectory.listFilesByPrefix(((FileLockInfo) lockInfo).getLockPrefix());
+        Collection<String> lockFiles = remoteLockDirectory.listFilesByPrefix(((FileLockInfo) lockInfo).getFileToLock());
 
         if (lockFiles.isEmpty()) {
             logger.warn("Lock file {} does not exist", ((FileLockInfo) lockInfo).getFileToLock());
@@ -402,7 +402,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
         // ideally there should be only one lock per acquirer, but just to handle any stale locks,
         // we try to release all the locks for the acquirer.
-        List<String> locksToRelease = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles.toArray(String[]::new));
+        String acquirerId = ((FileLockInfo) lockInfo).getAcquirerId();
+        List<String> locksToRelease = lockFiles.stream()
+            .filter(lockFile -> FileLockInfo.getAcquirerIdFromLock(lockFile).equals(acquirerId))
+            .collect(Collectors.toList());
         if (locksToRelease.size() > 1) {
             logger.warn(locksToRelease.size() + " locks found for acquirer " + ((FileLockInfo) lockInfo).getAcquirerId());
         }
@@ -422,7 +425,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     public Boolean isLockAcquired(LockInfo lockInfo) throws IOException {
         assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
         Collection<String> lockFiles = remoteLockDirectory.listFilesByPrefix(((FileLockInfo) lockInfo).getFileToLock());
-        List<String> locksByAcquirer = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles.toArray(String[]::new));
+        String acquirerId = ((FileLockInfo) lockInfo).getAcquirerId();
+        List<String> locksByAcquirer = lockFiles.stream()
+            .filter(lockFile -> FileLockInfo.getAcquirerIdFromLock(lockFile).equals(acquirerId))
+            .collect(Collectors.toList());
         return !locksByAcquirer.isEmpty();
     }
 
