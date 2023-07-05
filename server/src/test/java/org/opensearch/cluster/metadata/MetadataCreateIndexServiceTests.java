@@ -1652,7 +1652,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // Verify if index setting overrides cluster replication setting
         assertEquals(ReplicationType.DOCUMENT.toString(), indexSettings.get(SETTING_REPLICATION_TYPE));
     }
-  
+
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
         IndexTemplateMetadata.Builder builder = templateMetadataBuilder("template1", "te*");
         configurator.accept(builder);
