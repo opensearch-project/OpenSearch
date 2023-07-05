@@ -131,8 +131,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.api-client:google-api-client` from 1.34.0 to 2.2.0 ([#8276](https://github.com/opensearch-project/OpenSearch/pull/8276))
 - Update Apache HttpCore/ HttpClient and Apache HttpCore5 / HttpClient5 dependencies ([#8434](https://github.com/opensearch-project/OpenSearch/pull/8434))
 - Bump `org.apache.maven:maven-model` from 3.9.2 to 3.9.3 (#8403)
-- Bump `io.projectreactor.netty:reactor-netty` from 1.1.7 to 1.1.8 (#8405)
-- Bump `io.projectreactor.netty:reactor-netty-core` from 1.1.7 to 1.1.8 (#8405)
+- Bump `io.projectreactor.netty:reactor-netty` and `io.projectreactor.netty:reactor-netty-core` from 1.1.7 to 1.1.8 (#8405)
 
 ### Changed
 - Replace jboss-annotations-api_1.2_spec with jakarta.annotation-api ([#7836](https://github.com/opensearch-project/OpenSearch/pull/7836))
