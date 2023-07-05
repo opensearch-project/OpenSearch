@@ -403,7 +403,9 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
             client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
             refresh(INDEX_NAME);
+            logger.info("start");
             verifyStoreContent();
+            logger.info("success");
         }
     }
 

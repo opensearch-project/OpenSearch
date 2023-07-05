@@ -8,6 +8,9 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.junit.Assert;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
@@ -58,6 +61,8 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             final IndexMetadata newIndexMetadata = IndexMetadata.builder(replica.indexSettings().getIndexMetadata())
                 .primaryTerm(replicaRouting.shardId().id(), replica.getOperationPrimaryTerm() + 1)
                 .build();
+            Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) replica.store().directory()).getDelegate()).getDelegate();
+            ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
             closeShards(replica);
             shards.removeReplica(replica);
 
@@ -108,6 +113,12 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             shards.flush();
             replicateSegments(primary, shards.getReplicas());
             shards.assertAllEqual(numDocs + moreDocs);
+
+            storeDirectory = ((FilterDirectory) ((FilterDirectory) primary.store().directory()).getDelegate()).getDelegate();
+            ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
+
+            storeDirectory = ((FilterDirectory) ((FilterDirectory) newReplicaShard.store().directory()).getDelegate()).getDelegate();
+            ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
         }
     }
 
@@ -139,6 +150,12 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             shards.flush();
             replicateSegments(primary, shards.getReplicas());
             shards.assertAllEqual(numDocs + moreDocs);
+
+            Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) primary.store().directory()).getDelegate()).getDelegate();
+            ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
+
+            storeDirectory = ((FilterDirectory) ((FilterDirectory) replica.store().directory()).getDelegate()).getDelegate();
+            ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
         }
     }
 }

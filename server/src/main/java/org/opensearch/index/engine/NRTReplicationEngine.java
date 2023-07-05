@@ -138,12 +138,17 @@ public class NRTReplicationEngine extends Engine {
             ensureOpen();
             final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
             final long incomingGeneration = infos.getGeneration();
-            readerManager.updateSegments(infos);
+            boolean remoteStoreEnabled = engineConfig.getIndexSettings().isRemoteStoreEnabled();
+            readerManager.updateSegments(infos, remoteStoreEnabled);
 
             // Commit and roll the translog when we receive a different generation than what was last received.
             // lower/higher gens are possible from a new primary that was just elected.
             if (incomingGeneration != lastReceivedGen) {
-                commitSegmentInfos();
+                if (remoteStoreEnabled == false) {
+                    commitSegmentInfos();
+                } else {
+                    this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                }
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
             }
@@ -383,15 +388,18 @@ public class NRTReplicationEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
-                final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
-                /*
-                 This is a workaround solution which decreases the chances of conflict on replica nodes when same file is copied
-                 from two different primaries during failover. Increasing counter helps in avoiding this conflict as counter is
-                 used to generate new segment file names. The ideal solution is to identify the counter from previous primary.
-                 */
-                latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
-                latestSegmentInfos.changed();
-                commitSegmentInfos(latestSegmentInfos);
+                // if remote store is enabled, all segments durably persisted
+                if (engineConfig.getIndexSettings().isRemoteStoreEnabled() == false) {
+                    final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
+                    /*
+                     This is a workaround solution which decreases the chances of conflict on replica nodes when same file is copied
+                     from two different primaries during failover. Increasing counter helps in avoiding this conflict as counter is
+                     used to generate new segment file names. The ideal solution is to identify the counter from previous primary.
+                     */
+                    latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
+                    latestSegmentInfos.changed();
+                    commitSegmentInfos(latestSegmentInfos);
+                }
                 IOUtils.close(readerManager, translogManager, store::decRef);
             } catch (Exception e) {
                 logger.warn("failed to close engine", e);

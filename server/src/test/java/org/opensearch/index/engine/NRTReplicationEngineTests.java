@@ -47,11 +47,21 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
     );
 
+    private static final IndexSettings REMOTE_STORE_INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
+        "index",
+        Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
+            .build()
+    );
+
     public void testCreateEngine() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
         ) {
             final SegmentInfos latestSegmentInfos = nrtEngine.getLatestSegmentInfos();
             final SegmentInfos lastCommittedSegmentInfos = nrtEngine.getLastCommittedSegmentInfos();
@@ -75,7 +85,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
         ) {
             List<Engine.Operation> operations = generateHistoryOnReplica(
                 between(1, 500),
@@ -116,7 +126,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
         ) {
             // assume we start at the same gen.
             assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
@@ -132,13 +142,36 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
+    public void testUpdateSegments_replicaReceivesSISWithHigherGen_remoteStoreEnabled() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        try (
+            final Store nrtEngineStore = createStore(REMOTE_STORE_INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, REMOTE_STORE_INDEX_SETTINGS)
+        ) {
+            // assume we start at the same gen.
+            assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
+            assertEquals(nrtEngine.getLatestSegmentInfos().getGeneration(), nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+            assertEquals(engine.getLatestSegmentInfos().getGeneration(), nrtEngine.getLatestSegmentInfos().getGeneration());
+
+            // flush the primary engine - we don't need any segments, just force a new commit point.
+            engine.flush(true, true);
+            assertEquals(3, engine.getLatestSegmentInfos().getGeneration());
+
+            // When remote store is enabled, we don't commit on replicas since all segments are durably persisted in the store
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
+            assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+            assertEquals(3, nrtEngine.getLatestSegmentInfos().getGeneration());
+        }
+    }
+
     public void testUpdateSegments_replicaReceivesSISWithLowerGen() throws IOException {
         // if the replica is already at segments_N that is received, it will commit segments_N+1.
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
         ) {
             nrtEngine.getLatestSegmentInfos().changed();
             nrtEngine.getLatestSegmentInfos().changed();
@@ -198,7 +231,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
         ) {
             assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
@@ -222,7 +255,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
         ) {
             assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
@@ -244,7 +277,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore);
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings);
         ) {
             List<Engine.Operation> operations = generateHistoryOnReplica(
                 between(1, 100),
@@ -280,7 +313,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
         ) {
             List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean())
                 .stream()
@@ -315,18 +348,11 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
-    private NRTReplicationEngine buildNrtReplicaEngine(AtomicLong globalCheckpoint, Store store) throws IOException {
+    private NRTReplicationEngine buildNrtReplicaEngine(AtomicLong globalCheckpoint, Store store, IndexSettings settings)
+        throws IOException {
         Lucene.cleanLuceneIndex(store.directory());
         final Path translogDir = createTempDir();
-        final EngineConfig replicaConfig = config(
-            defaultSettings,
-            store,
-            translogDir,
-            NoMergePolicy.INSTANCE,
-            null,
-            null,
-            globalCheckpoint::get
-        );
+        final EngineConfig replicaConfig = config(settings, store, translogDir, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
         if (Lucene.indexExists(store.directory()) == false) {
             store.createEmpty(replicaConfig.getIndexSettings().getIndexVersionCreated().luceneVersion);
             final String translogUuid = Translog.createEmptyTranslog(

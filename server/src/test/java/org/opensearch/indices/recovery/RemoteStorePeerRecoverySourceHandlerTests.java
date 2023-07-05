@@ -8,6 +8,9 @@
 
 package org.opensearch.indices.recovery;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -63,6 +66,15 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
             // Step 7 - Check retention lease does not exist for the replica shard
             assertEquals(1, primary.getRetentionLeases().leases().size());
             assertFalse(primary.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replica2.routingEntry())));
+
+            Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) primary.store().directory()).getDelegate()).getDelegate();
+            ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
+
+            storeDirectory = ((FilterDirectory) ((FilterDirectory) replica1.store().directory()).getDelegate()).getDelegate();
+            ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
+
+            storeDirectory = ((FilterDirectory) ((FilterDirectory) replica2.store().directory()).getDelegate()).getDelegate();
+            ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
         }
     }
 }

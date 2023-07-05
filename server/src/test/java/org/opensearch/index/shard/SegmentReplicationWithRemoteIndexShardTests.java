@@ -8,6 +8,9 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
@@ -38,6 +41,11 @@ public class SegmentReplicationWithRemoteIndexShardTests extends OpenSearchIndex
 
         replicaShard.syncSegmentsFromRemoteSegmentStore(true, true, false);
         assertDocs(replicaShard, "1", "2");
+
+        Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) primaryShard.store().directory()).getDelegate()).getDelegate();
+        ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
+        storeDirectory = ((FilterDirectory) ((FilterDirectory) replicaShard.store().directory()).getDelegate()).getDelegate();
+        ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
         closeShards(primaryShard, replicaShard);
     }
 }
