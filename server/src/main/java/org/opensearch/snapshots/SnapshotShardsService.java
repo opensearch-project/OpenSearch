@@ -401,7 +401,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     long primaryTerm = indexShard.getOperationPrimaryTerm();
                     final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
                     long commitGeneration = snapshotIndexCommit.getGeneration();
-                    LockInfo lockInfo = indexShard.acquireLock(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+                    indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
                     try {
                         repository.snapshotRemoteStoreIndexShard(
                             indexShard.store(),
@@ -424,7 +424,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                 + snapshot.getSnapshotId()
                                 + ", releasing acquired lock from remote store"
                         );
-                        indexShard.releaseLock(lockInfo);
+                        indexShard.releaseLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
                         throw e;
                     }
                     long endTime = threadPool.relativeTimeInMillis();

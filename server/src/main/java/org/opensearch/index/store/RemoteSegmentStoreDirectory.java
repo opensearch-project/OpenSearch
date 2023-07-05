@@ -343,40 +343,46 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param primaryTerm Primary Term of index at the time of commit.
      * @param generation Commit Generation
      * @param acquirerId Lock Acquirer ID which wants to acquire lock on the commit.
-     * @return LockInfo object of the acquired lock
      * @throws IOException will be thrown in case i) listing file failed or ii) Writing the lock file failed.
      * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
-    public LockInfo acquireLock(long primaryTerm, long generation, String acquirerId) throws IOException {
+    public void acquireLock(long primaryTerm, long generation, String acquirerId) throws IOException {
         String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
-        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build();
-        mdLockManager.acquire(lockInfo);
-        return lockInfo;
+        mdLockManager.acquire(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build());
     }
 
     /**
      * Releases a lock which was acquired on given segment commit.
-     * @param lockInfo LockInfo object of the acquired lock
+     * @param primaryTerm Primary Term of index at the time of commit.
+     * @param generation Commit Generation
+     * @param acquirerId Acquirer ID for which lock needs to be released.
      * @throws IOException will be thrown in case i) listing lock files failed or ii) deleting the lock file failed.
      * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
-    public void releaseLock(LockInfo lockInfo) throws IOException {
-        mdLockManager.release(lockInfo);
+    public void releaseLock(long primaryTerm, long generation, String acquirerId) throws IOException {
+        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
+        mdLockManager.release(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build());
     }
 
     /**
      * Checks if a specific commit have any corresponding lock file.
-     * @param metadataFilename identifier of the lock
+     * @param primaryTerm Primary Term of index at the time of commit.
+     * @param generation Commit Generation
      * @return True if there is at least one lock for given primary term and generation.
      * @throws IOException will be thrown in case listing lock files failed.
      * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
-    public Boolean isLockAcquired(String metadataFilename) throws IOException {
-        LockInfo lockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFilename).build();
-        return mdLockManager.isAcquired(lockInfo);
+    public Boolean isLockAcquired(long primaryTerm, long generation) throws IOException {
+        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
+        return isLockAcquired(metadataFile);
+    }
+
+    // Visible for testing
+    Boolean isLockAcquired(String metadataFile) throws IOException {
+        return mdLockManager.isAcquired(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).build());
     }
 
     // Visible for testing

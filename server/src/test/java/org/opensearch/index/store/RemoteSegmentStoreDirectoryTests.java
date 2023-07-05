@@ -23,7 +23,6 @@ import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
@@ -36,8 +35,6 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.store.lockmanager.FileLockInfo;
-import org.opensearch.index.store.lockmanager.LockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
@@ -419,22 +416,57 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     }
 
     public void testReleaseLock() throws IOException {
-        LockInfo lockInfo = mock(LockInfo.class);
-        remoteSegmentStoreDirectory.releaseLock(lockInfo);
-        verify(mdLockManager).release(lockInfo);
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+        String testAcquirerId = "test-acquirer";
+        long testPrimaryTerm = 1;
+        long testGeneration = 5;
+
+        List<String> metadataFiles = List.of("metadata__1__5__abc");
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
+                1
+            )
+        ).thenReturn(metadataFiles);
+
+        remoteSegmentStoreDirectory.releaseLock(testPrimaryTerm, testGeneration, testAcquirerId);
+        verify(mdLockManager).release(any());
     }
 
     public void testIsAcquired() throws IOException {
-        remoteSegmentStoreDirectory.isLockAcquired("metadata_1_2_3");
-        ArgumentCaptor<LockInfo> responseCaptor = ArgumentCaptor.forClass(LockInfo.class);
-        verify(mdLockManager).isAcquired(responseCaptor.capture());
-        LockInfo lockInfo = responseCaptor.getValue();
-        assertEquals("metadata_1_2_3", ((FileLockInfo) lockInfo).getFileToLock());
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+        long testPrimaryTerm = 1;
+        long testGeneration = 5;
+
+        List<String> metadataFiles = List.of("metadata__1__5__abc");
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
+                1
+            )
+        ).thenReturn(metadataFiles);
+
+        remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration);
+        verify(mdLockManager).isAcquired(any());
     }
 
     public void testIsAcquiredException() throws IOException {
-        when(mdLockManager.isAcquired(any())).thenThrow(new NoSuchFileException("No such file"));
-        assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.isLockAcquired("metadata_1_2_3"));
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+        long testPrimaryTerm = 1;
+        long testGeneration = 5;
+
+        List<String> metadataFiles = new ArrayList<>();
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
+                1
+            )
+        ).thenReturn(metadataFiles);
+
+        assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
     }
 
     public void testGetMetadataFileForCommit() throws IOException {

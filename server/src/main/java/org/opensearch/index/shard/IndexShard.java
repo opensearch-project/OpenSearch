@@ -163,7 +163,6 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreStats;
-import org.opensearch.index.store.lockmanager.LockInfo;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
@@ -1494,21 +1493,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param snapshotId Snapshot UUID.
      * @param primaryTerm current primary term.
      * @param generation Snapshot Commit Generation.
-     * @return LockInfo object of the acquired lock
      * @throws IOException if there is some failure in acquiring lock in remote store.
      */
-    public LockInfo acquireLock(String snapshotId, long primaryTerm, long generation) throws IOException {
+    public void acquireLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteDirectory();
-        return remoteSegmentStoreDirectory.acquireLock(primaryTerm, generation, snapshotId);
+        remoteSegmentStoreDirectory.acquireLock(primaryTerm, generation, snapshotId);
     }
 
     /**
-     * @param lockInfo LockInfo object of the acquired lock
+     *
+     * @param snapshotId Snapshot UUID.
+     * @param primaryTerm current primary term.
+     * @param generation Snapshot Commit Generation.
      * @throws IOException if there is some failure in releasing lock in remote store.
      */
-    public void releaseLock(LockInfo lockInfo) throws IOException {
+    public void releaseLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteDirectory();
-        remoteSegmentStoreDirectory.releaseLock(lockInfo);
+        remoteSegmentStoreDirectory.releaseLock(primaryTerm, generation, snapshotId);
     }
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {
