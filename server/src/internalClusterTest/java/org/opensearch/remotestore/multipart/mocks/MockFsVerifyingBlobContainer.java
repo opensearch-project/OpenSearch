@@ -28,13 +28,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class MockFsBlobContainerVerifying extends FsBlobContainer implements VerifyingMultiStreamBlobContainer {
+public class MockFsVerifyingBlobContainer extends FsBlobContainer implements VerifyingMultiStreamBlobContainer {
 
     private static final int TRANSFER_TIMEOUT_MILLIS = 30000;
 
     private final boolean triggerDataIntegrityFailure;
 
-    public MockFsBlobContainerVerifying(FsBlobStore blobStore, BlobPath blobPath, Path path, boolean triggerDataIntegrityFailure) {
+    public MockFsVerifyingBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path, boolean triggerDataIntegrityFailure) {
         super(blobStore, blobPath, path);
         this.triggerDataIntegrityFailure = triggerDataIntegrityFailure;
     }
