@@ -59,6 +59,11 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         return builder.build();
     }
 
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
+    }
+
     @Before
     public void setup() {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
