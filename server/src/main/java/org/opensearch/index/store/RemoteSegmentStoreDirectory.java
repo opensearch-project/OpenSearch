@@ -24,7 +24,6 @@ import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
-import org.opensearch.index.store.lockmanager.LockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
@@ -43,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -95,6 +95,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Visible for testing
      */
     protected final AtomicBoolean canDeleteStaleCommits = new AtomicBoolean(true);
+
+    private final AtomicLong metadataUploadCounter = new AtomicLong(0);
 
     public RemoteSegmentStoreDirectory(
         RemoteDirectory remoteDataDirectory,
@@ -244,13 +246,22 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
 
         // Visible for testing
-        static String getMetadataFilename(long primaryTerm, long generation, long translogGeneration) {
+        static String getMetadataFilename(
+            long primaryTerm,
+            long generation,
+            long translogGeneration,
+            long uploadCounter,
+            int metadataVersion
+        ) {
             return String.join(
                 SEPARATOR,
                 METADATA_PREFIX,
                 RemoteStoreUtils.invertLong(primaryTerm),
                 RemoteStoreUtils.invertLong(generation),
-                RemoteStoreUtils.invertLong(translogGeneration)
+                RemoteStoreUtils.invertLong(translogGeneration),
+                RemoteStoreUtils.invertLong(uploadCounter),
+                String.valueOf(System.currentTimeMillis()),
+                String.valueOf(metadataVersion)
             );
         }
 
@@ -459,7 +470,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
                 primaryTerm,
                 segmentInfosSnapshot.getGeneration(),
-                translogGeneration
+                translogGeneration,
+                metadataUploadCounter.incrementAndGet(),
+                RemoteSegmentMetadata.CURRENT_VERSION
             );
             try {
                 IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
