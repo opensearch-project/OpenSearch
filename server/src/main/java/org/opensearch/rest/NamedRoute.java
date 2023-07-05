@@ -108,7 +108,17 @@ public class NamedRoute extends RestHandler.Route {
          * @throws OpenSearchException if the route name is invalid
          */
         public NamedRoute build() {
+            checkIfFieldsAreSet();
             return new NamedRoute(this);
+        }
+
+        /**
+         * Checks if all builder fields are set before creating a new NamedRoute object
+         */
+        private void checkIfFieldsAreSet() {
+            if (method == null || path == null || uniqueName == null) {
+                throw new NullPointerException("REST method, path and uniqueName are required.");
+            }
         }
 
         private Set<String> validateLegacyActionNames(Set<String> legacyActionNames) {

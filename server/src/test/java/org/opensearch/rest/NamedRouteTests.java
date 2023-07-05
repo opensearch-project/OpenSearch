@@ -149,4 +149,15 @@ public class NamedRouteTests extends OpenSearchTestCase {
             assertEquals("Route handler must not be null.", e.getMessage());
         }
     }
+
+    public void testNamedRouteEmptyBuild() {
+        try {
+            NamedRoute r = new NamedRoute.Builder().build();
+            fail("Expected NamedRoute to throw exception as fields should not be null");
+        } catch (NullPointerException e) {
+            assertEquals("REST method, path and uniqueName are required.", e.getMessage());
+        }
+
+    }
+
 }
