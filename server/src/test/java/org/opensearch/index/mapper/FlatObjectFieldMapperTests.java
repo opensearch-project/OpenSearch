@@ -107,7 +107,7 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(json));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
         assertEquals(new BytesRef("field.foo"), fields[0].binaryValue());
 
         IndexableFieldType fieldType = fields[0].fieldType();
