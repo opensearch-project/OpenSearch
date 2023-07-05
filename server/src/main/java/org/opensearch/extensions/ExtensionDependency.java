@@ -16,10 +16,6 @@ import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.Strings;
-import org.opensearch.core.xcontent.XContentParser;
-
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * This class handles the dependent extensions information
@@ -58,39 +54,6 @@ public class ExtensionDependency implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uniqueId);
         Version.writeVersion(version, out);
-    }
-
-    public static ExtensionDependency parse(XContentParser parser) throws IOException {
-        String uniqueId = null;
-        Version version = null;
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            String fieldName = parser.currentName();
-            parser.nextToken();
-
-            switch (fieldName) {
-                case UNIQUE_ID:
-                    uniqueId = parser.text();
-                    break;
-                case VERSION:
-                    try {
-                        version = Version.fromString(parser.text());
-                    } catch (IllegalArgumentException e) {
-                        throw e;
-                    }
-                    break;
-                default:
-                    parser.skipChildren();
-                    break;
-            }
-        }
-        if (Strings.isNullOrEmpty(uniqueId)) {
-            throw new IOException("Required field [uniqueId] is missing in the request for the dependent extension");
-        } else if (version == null) {
-            throw new IOException("Required field [version] is missing in the request for the dependent extension");
-        }
-        return new ExtensionDependency(uniqueId, version);
-
     }
 
     /**
