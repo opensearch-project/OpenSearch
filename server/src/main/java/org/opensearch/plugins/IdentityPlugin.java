@@ -8,6 +8,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.identity.ServiceAccountManager;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 
@@ -31,4 +32,11 @@ public interface IdentityPlugin {
      * Should never return null
      */
     public TokenManager getTokenManager();
+
+    /**
+     * Get the ServiceAccountManager implemented by the Identity Plugin
+     *
+     * Should never return null
+     */
+    public ServiceAccountManager getServiceAccountManager();
 }

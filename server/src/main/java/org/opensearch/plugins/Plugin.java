@@ -32,6 +32,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.Application;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.client.Client;
@@ -89,7 +90,7 @@ import java.util.function.UnaryOperator;
  *
  * @opensearch.api
  */
-public abstract class Plugin implements Closeable {
+public abstract class Plugin implements Closeable, Application {
 
     /**
      * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link Metadata.Custom}; see

@@ -56,4 +56,11 @@ public class IdentityService {
     public TokenManager getTokenManager() {
         return identityPlugin.getTokenManager();
     }
+
+    /**
+     * Gets the Service Account manager
+     */
+    public ServiceAccountManager getServiceAccountManager() {
+        return identityPlugin.getServiceAccountManager();
+    }
 }
