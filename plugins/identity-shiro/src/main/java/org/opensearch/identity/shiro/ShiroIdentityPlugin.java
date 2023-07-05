@@ -8,18 +8,16 @@
 
 package org.opensearch.identity.shiro;
 
-import java.security.Principal;
-import org.opensearch.identity.ServiceAccountManager;
-import org.opensearch.identity.Subject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.identity.tokens.AuthToken;
-import org.opensearch.identity.tokens.TokenManager;
-import org.opensearch.plugins.IdentityPlugin;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.plugins.Plugin;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.mgt.SecurityManager;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.ServiceAccountManager;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.TokenManager;
+import org.opensearch.plugins.IdentityPlugin;
+import org.opensearch.plugins.Plugin;
 
 /**
  * Identity implementation with Shiro
@@ -70,16 +68,5 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     @Override
     public ServiceAccountManager getServiceAccountManager() {
         return this.serviceAccountManager;
-    }
-
-
-    // This may seem circular since it is a Plugin being used to track other Plugins, but this can be changed in the future
-    @Override
-    public Principal getPrincipal() {
-        return null;
-    }
-
-    @Override
-    public void authenticate(AuthToken token) {
     }
 }

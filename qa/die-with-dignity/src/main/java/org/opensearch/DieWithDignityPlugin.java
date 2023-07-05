@@ -32,6 +32,9 @@
 
 package org.opensearch;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Supplier;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
@@ -42,10 +45,6 @@ import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Supplier;
 
 public class DieWithDignityPlugin extends Plugin implements ActionPlugin {
 
@@ -65,5 +64,4 @@ public class DieWithDignityPlugin extends Plugin implements ActionPlugin {
     ) {
         return Collections.singletonList(new RestDieWithDignityAction());
     }
-
 }

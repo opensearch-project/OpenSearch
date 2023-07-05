@@ -32,19 +32,11 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.Version;
-import org.opensearch.bootstrap.JarHell;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.xcontent.ToXContentObject;
-import org.opensearch.core.xcontent.XContentBuilder;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Principal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -53,13 +45,24 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.opensearch.Application;
+import org.opensearch.Version;
+import org.opensearch.bootstrap.JarHell;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.identity.NamedPrincipal;
+import org.opensearch.identity.tokens.AuthToken;
 
 /**
  * An in-memory representation of the plugin descriptor.
  *
  * @opensearch.api
  */
-public class PluginInfo implements Writeable, ToXContentObject {
+public class PluginInfo implements Writeable, ToXContentObject, Application {
 
     public static final String OPENSEARCH_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String OPENSEARCH_PLUGIN_POLICY = "plugin-security.policy";
@@ -73,6 +76,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String customFolderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+    private Principal pluginPrincipal;
 
     /**
      * Construct plugin info.
@@ -107,6 +111,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = customFolderName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
+        this.pluginPrincipal =  new NamedPrincipal(this.name);
     }
 
     /**
@@ -160,6 +165,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
+        this.pluginPrincipal =  new NamedPrincipal(this.name);
     }
 
     @Override
@@ -452,5 +458,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append("Folder name: ")
             .append(customFolderName);
         return information.toString();
+    }
+
+    @Override
+    public Principal getPrincipal() {
+        return this.pluginPrincipal;
+    }
+
+    @Override
+    public void authenticate(AuthToken token) {
+
     }
 }

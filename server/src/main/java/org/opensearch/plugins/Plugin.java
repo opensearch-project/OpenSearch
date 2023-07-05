@@ -32,8 +32,16 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.Application;
-import org.opensearch.watcher.ResourceWatcherService;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
@@ -59,17 +67,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
-
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
+import org.opensearch.watcher.ResourceWatcherService;
 
 /**
  * An extension point allowing to plug in custom functionality. This class has a number of extension points that are available to all
@@ -90,7 +88,7 @@ import java.util.function.UnaryOperator;
  *
  * @opensearch.api
  */
-public abstract class Plugin implements Closeable, Application {
+public abstract class Plugin implements Closeable {
 
     /**
      * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link Metadata.Custom}; see
