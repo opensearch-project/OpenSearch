@@ -120,11 +120,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         protected final MultiValueMode sortMode;
         protected final Object missingValue;
         protected final Nested nested;
+        protected boolean enableSkipping;
 
         public XFieldComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
             this.sortMode = sortMode;
             this.missingValue = missingValue;
             this.nested = nested;
+            this.enableSkipping = true; // true by default
         }
 
         public MultiValueMode sortMode() {
@@ -133,6 +135,10 @@ public interface IndexFieldData<FD extends LeafFieldData> {
 
         public Nested nested() {
             return this.nested;
+        }
+
+        public void disableSkipping() {
+            this.enableSkipping = false;
         }
 
         /**

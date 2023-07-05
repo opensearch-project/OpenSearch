@@ -331,6 +331,19 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     /**
+     * Returns a value of nanoseconds that may be used for relative time calculations
+     * that require the highest precision possible. Performance critical code must use
+     * either {@link #relativeTimeInNanos()} or {@link #relativeTimeInMillis()} which
+     * give better performance at the cost of lower precision.
+     *
+     * This method should only be used for calculating time deltas. For an epoch based
+     * timestamp, see {@link #absoluteTimeInMillis()}.
+     */
+    public long preciseRelativeTimeInNanos() {
+        return System.nanoTime();
+    }
+
+    /**
      * Returns the value of milliseconds since UNIX epoch.
      *
      * This method should only be used for exact date/time formatting. For calculating
