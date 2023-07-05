@@ -83,7 +83,11 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     /**
-     * This operation is not supported by URLBlobContainer
+     * Tests whether a blob with the given blob name exists in the container.
+     *
+     * @param   blobName
+     *          The name of the blob whose existence is to be determined.
+     * @return  {@code true} if a blob exists in the {@link BlobContainer} with the given name, and {@code false} otherwise.
      */
     @Override
     public boolean blobExists(String blobName) throws IOException {

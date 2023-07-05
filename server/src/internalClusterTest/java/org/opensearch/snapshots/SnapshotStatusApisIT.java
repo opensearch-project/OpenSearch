@@ -52,7 +52,6 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -78,6 +77,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
+            .put(FeatureFlags.REMOTE_STORE, "true")
             .build();
     }
 
@@ -114,7 +114,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
     public void testStatusAPICallForShallowCopySnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used for the test");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
 
@@ -126,12 +125,24 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
-        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+        createIndex(indexName);
+        ensureGreen();
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
         final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
         createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
-        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index(remoteStoreEnabledIndexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
 
         final String snapshot = "snapshot";
         createFullSnapshot(snapshotRepoName, snapshot);
@@ -236,7 +247,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
     public void testStatusAPIStatsForBackToBackShallowSnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used for the test");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
 
@@ -248,18 +258,29 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
-        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+        createIndex(indexName);
+        ensureGreen();
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
         final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
         createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
-        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+        ensureGreen();
 
-        final String snapshot = "snapshot";
-        createFullSnapshot(snapshotRepoName, snapshot);
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index(remoteStoreEnabledIndexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        createFullSnapshot(snapshotRepoName, "test-snap-1");
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 1);
 
-        SnapshotStatus snapshotStatus = getSnapshotStatus(snapshotRepoName, snapshot);
+        SnapshotStatus snapshotStatus = getSnapshotStatus(snapshotRepoName, "test-snap-1");
         assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
 
         SnapshotIndexShardStatus shallowSnapshotShardState = stateFirstShard(snapshotStatus, remoteStoreEnabledIndexName);
@@ -269,7 +290,11 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final int incrementalFileCount = shallowSnapshotShardState.getStats().getIncrementalFileCount();
         final long incrementalSize = shallowSnapshotShardState.getStats().getIncrementalSize();
 
-        snapshotStatus = getSnapshotStatus(snapshotRepoName, snapshot);
+        createFullSnapshot(snapshotRepoName, "test-snap-2");
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 2);
+
+        snapshotStatus = getSnapshotStatus(snapshotRepoName, "test-snap-2");
+        assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
         shallowSnapshotShardState = stateFirstShard(snapshotStatus, remoteStoreEnabledIndexName);
         assertThat(shallowSnapshotShardState.getStats().getTotalFileCount(), equalTo(totalFileCount));
         assertThat(shallowSnapshotShardState.getStats().getTotalSize(), equalTo(totalSize));
@@ -413,6 +438,63 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
         assertEquals(SnapshotsInProgress.State.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
+    }
+
+    public void testStatusAPICallInProgressShallowSnapshot() throws Exception {
+        disableRepoConsistencyCheck("Remote store repository is being used for the test");
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotRepoName = "snapshot-repo-name";
+        createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowCopy().put("block_on_data", true));
+
+        final Path remoteStoreRepoPath = randomRepoPath();
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        createRepository(remoteStoreRepoName, "mock", remoteStoreRepoPath);
+
+        final String indexName = "index-1";
+        createIndex(indexName);
+        ensureGreen();
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        final String remoteStoreEnabledIndexName = "remote-index-1";
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index(remoteStoreEnabledIndexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        logger.info("--> snapshot");
+        ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot(snapshotRepoName, "test-snap");
+
+        logger.info("--> wait for data nodes to get blocked");
+        waitForBlockOnAnyDataNode(snapshotRepoName, TimeValue.timeValueMinutes(1));
+        awaitNumberOfSnapshotsInProgress(1);
+        assertEquals(
+            SnapshotsInProgress.State.STARTED,
+            client().admin()
+                .cluster()
+                .prepareSnapshotStatus(snapshotRepoName)
+                .setSnapshots("test-snap")
+                .get()
+                .getSnapshots()
+                .get(0)
+                .getState()
+        );
+
+        logger.info("--> unblock all data nodes");
+        unblockAllDataNodes(snapshotRepoName);
+
+        logger.info("--> wait for snapshot to finish");
+        createSnapshotResponseActionFuture.actionGet();
     }
 
     public void testGetSnapshotsRequest() throws Exception {
