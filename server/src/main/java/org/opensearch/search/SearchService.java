@@ -135,7 +135,7 @@ import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
-import org.opensearch.telemetry.tracing.Scope;
+import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.ThreadPool;
@@ -595,17 +595,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, true)
         ) {
-            final long afterQueryTime;
-            try (
-                SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context);
-                Scope scope = tracerFactory.getTracer().startSpan("QueryPhase_" + context.shardTarget().getShardId())
-            ) {
-                addtracingAttributes(context);
+            long afterQueryTime;
+            final SpanScope spanScope = tracerFactory.getTracer().startSpan("QueryPhase_" + context.shardTarget().getShardId());
+            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context); spanScope) {
+                addtracingAttributes(spanScope, context);
                 loadOrExecuteQueryPhase(request, context);
                 if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     freeReaderContext(readerContext.id());
                 }
                 afterQueryTime = executor.success();
+            } catch (Exception e) {
+                spanScope.setError(e);
+                afterQueryTime = 0l;
             }
             if (request.numberOfShards() == 1) {
                 return executeFetchPhase(readerContext, context, afterQueryTime);
@@ -630,23 +631,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private void addtracingAttributes(SearchContext context) {
-        tracerFactory.getTracer().addSpanAttribute("shard_id", context.shardTarget().getShardId().getId());
-        tracerFactory.getTracer().addSpanAttribute("node_id", context.shardTarget().getNodeId());
+    private void addtracingAttributes(SpanScope scope, SearchContext context) {
+        scope.addSpanAttribute("shard_id", context.shardTarget().getShardId().getId());
+        scope.addSpanAttribute("node_id", context.shardTarget().getNodeId());
     }
 
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
-        try (
-            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime);
-            Scope scope = tracerFactory.getTracer().startSpan("FetchPhase_" + context.shardTarget().getShardId())
-        ) {
-            addtracingAttributes(context);
+        final SpanScope spanScope = tracerFactory.getTracer().startSpan("FetchPhase_" + context.shardTarget().getShardId());
+        try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime); spanScope) {
+            addtracingAttributes(spanScope, context);
             shortcutDocIdsToLoad(context);
             fetchPhase.execute(context);
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
             executor.success();
+        } catch (Exception e) {
+            spanScope.setError(e);
         }
         return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
@@ -667,12 +668,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
+            final SpanScope spanScope = tracerFactory.getTracer().startSpan("QueryPhase_" + shardSearchRequest.shardId().getId());
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext);
-                Scope scope = tracerFactory.getTracer().startSpan("QueryPhase_" + searchContext.shardTarget().getShardId())
+                spanScope
             ) {
-                addtracingAttributes(searchContext);
+                addtracingAttributes(spanScope, searchContext);
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
                 processScroll(request, readerContext, searchContext);
                 queryPhase.execute(searchContext);
@@ -681,6 +683,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
+                spanScope.setError(e);
                 // we handle the failure in the failure listener below
                 throw e;
             }
@@ -693,12 +696,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             readerContext.setAggregatedDfs(request.dfs());
+            final SpanScope spanScope = tracerFactory.getTracer().startSpan("QueryPhase_" + shardSearchRequest.shardId().getId());
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, true);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext);
-                Scope scope = tracerFactory.getTracer().startSpan("QueryPhase_" + searchContext.shardTarget().getShardId())
+                spanScope
             ) {
-                addtracingAttributes(searchContext);
+                addtracingAttributes(spanScope, searchContext);
                 searchContext.searcher().setAggregatedDfs(request.dfs());
                 queryPhase.execute(searchContext);
                 if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
@@ -714,6 +718,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return searchContext.queryResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                spanScope.setError(e);
                 logger.trace("Query phase failed", e);
                 // we handle the failure in the failure listener below
                 throw e;
@@ -750,12 +755,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
+            final SpanScope spanScope = tracerFactory.getTracer().startSpan("FetchPhase_" + shardSearchRequest.shardId().getId());
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext);
-                Scope scope = tracerFactory.getTracer().startSpan("FetchPhase_" + searchContext.shardTarget().getShardId())
+                spanScope
             ) {
-                addtracingAttributes(searchContext);
+                addtracingAttributes(spanScope, searchContext);
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
                 processScroll(request, readerContext, searchContext);
@@ -765,6 +771,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                spanScope.setError(e);
                 logger.trace("Fetch phase failed", e);
                 // we handle the failure in the failure listener below
                 throw e;
@@ -784,16 +791,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
                 searchContext.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
+                final SpanScope spanScope = tracerFactory.getTracer().startSpan("FetchPhase_" + searchContext.shardTarget().getShardId());
                 try (
                     SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime());
-                    Scope scope = tracerFactory.getTracer().startSpan("FetchPhase_" + searchContext.shardTarget().getShardId())
+                    spanScope
                 ) {
-                    addtracingAttributes(searchContext);
+                    addtracingAttributes(spanScope, searchContext);
                     fetchPhase.execute(searchContext);
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());
                     }
                     executor.success();
+                } catch (Exception e) {
+                    spanScope.setError(e);
                 }
                 return searchContext.fetchResult();
             } catch (Exception e) {

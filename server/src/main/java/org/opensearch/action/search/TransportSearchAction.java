@@ -87,7 +87,7 @@ import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
-import org.opensearch.telemetry.tracing.Scope;
+import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.telemetry.tracing.listener.TracingActionListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -292,7 +292,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 listener
             );
         }
-        Scope scope = tracerFactory.getTracer().startSpan("SearchTask_" + task.getId());
+        SpanScope scope = tracerFactory.getTracer().startSpan("SearchTask_" + task.getId());
         TracingActionListener tracingActionListener = new TracingActionListener(tracerFactory, listener, scope);
         executeRequest(task, searchRequest, this::searchAsyncAction, tracingActionListener);
     }
