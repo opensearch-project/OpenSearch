@@ -75,9 +75,17 @@ jobs:
         with:
           files: ./codeCoverage.xml
 
-      - name: Create Comment Success
-        if: ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
-        uses: peter-evans/create-or-update-comment@v2
+      - name: Find Comment
+        uses: peter-evans/find-comment@v2
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: Gradle Check (Jenkins) Run Completed with
+
+      - name: Create comment success
+        if: steps.fc.outputs.comment-id == '' && ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
+        uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ env.pr_number }}
           body: |
@@ -85,6 +93,18 @@ jobs:
             * **RESULT:** ${{ env.result }} :white_check_mark:
             * **URL:** ${{ env.workflow_url }}
             * **CommitID:** ${{ env.pr_from_sha }}
+
+      - name: Update comment success
+        if: steps.fc.outputs.comment-id != '' && ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          body: |
+            ### Gradle Check (Jenkins) Run Completed with:
+            * **RESULT:** ${{ env.result }} :white_check_mark:
+            * **URL:** ${{ env.workflow_url }}
+            * **CommitID:** ${{ env.pr_from_sha }}
+          reactions: hooray
 
       - name: Extract Test Failure
         if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
@@ -101,9 +121,9 @@ jobs:
             echo "EOF" >> $GITHUB_ENV
           fi
 
-      - name: Create Comment Flaky
-        if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
-        uses: peter-evans/create-or-update-comment@v2
+      - name: Create comment flaky
+        if: steps.fc.outputs.comment-id == '' && ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
+        uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ env.pr_number }}
           body: |
@@ -113,11 +133,49 @@ jobs:
             * **CommitID:** ${{ env.pr_from_sha }}
             Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
+      - name: Update comment flaky
+        if: steps.fc.outputs.comment-id != '' && ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          body: |
+            ### Gradle Check (Jenkins) Run Completed with:
+            * **RESULT:** ${{ env.result }} :grey_exclamation: ${{ env.test_failures }}
+            * **URL:** ${{ env.workflow_url }}
+            * **CommitID:** ${{ env.pr_from_sha }}
+            Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
+
       - name: Create Comment Failure
-        if: ${{ github.event_name == 'pull_request_target' && failure() }}
+        if: steps.fc.outputs.comment-id == '' && ${{ github.event_name == 'pull_request_target' && failure() }}
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ env.pr_number }}
+          body: |
+            ### Gradle Check (Jenkins) Run Completed with:
+            * **RESULT:** ${{ env.result }} :x: ${{ env.test_failures }}
+            * **URL:** ${{ env.workflow_url }}
+            * **CommitID:** ${{ env.pr_from_sha }}
+            Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green.
+            Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
+
+      - name: Create comment failure
+        if: steps.fc.outputs.comment-id == '' && ${{ github.event_name == 'pull_request_target' && failure() }}
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+            ### Gradle Check (Jenkins) Run Completed with:
+            * **RESULT:** ${{ env.result }} :x: ${{ env.test_failures }}
+            * **URL:** ${{ env.workflow_url }}
+            * **CommitID:** ${{ env.pr_from_sha }}
+            Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green.
+            Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
+
+      - name: Update comment failure
+        if: steps.fc.outputs.comment-id != '' && ${{ github.event_name == 'pull_request_target' && failure() }}
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
           body: |
             ### Gradle Check (Jenkins) Run Completed with:
             * **RESULT:** ${{ env.result }} :x: ${{ env.test_failures }}
