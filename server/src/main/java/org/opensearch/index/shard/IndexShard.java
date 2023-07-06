@@ -2260,7 +2260,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
 
         // Do not load the global checkpoint if this is a remote snapshot index
-        if (indexSettings.isRemoteSnapshot() == false) {
+        if (indexSettings.isRemoteSnapshot() == false && indexSettings.isRemoteIndex() == false) {
             loadGlobalCheckpointToReplicationTracker();
         }
 

@@ -359,7 +359,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
                 // their own commit points and therefore do not modify the commit user data
                 // in their store. In these cases, reuse the primary's translog UUID.
                 final boolean reuseTranslogUUID = indexShard.indexSettings().isSegRepEnabled()
-                    || indexShard.indexSettings().isRemoteSnapshot();
+                    || indexShard.indexSettings().isRemoteSnapshot() || indexShard.indexSettings().isRemoteIndex();
                 if (reuseTranslogUUID) {
                     final String translogUUID = store.getMetadata().getCommitUserData().get(TRANSLOG_UUID_KEY);
                     Translog.createEmptyTranslog(

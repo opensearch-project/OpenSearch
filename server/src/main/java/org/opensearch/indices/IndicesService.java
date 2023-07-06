@@ -847,7 +847,7 @@ public class IndicesService extends AbstractLifecycleComponent
             .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
             .collect(Collectors.toList());
         if (engineFactories.isEmpty()) {
-            if (idxSettings.isRemoteSnapshot()) {
+            if (idxSettings.isRemoteSnapshot() || idxSettings.isRemoteIndex()) {
                 return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
             if (idxSettings.isSegRepEnabled()) {

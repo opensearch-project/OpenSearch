@@ -232,6 +232,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         public String getOriginalFilename() {
             return originalFilename;
         }
+
+        public String getUploadedFilename() {
+            return uploadedFilename;
+        }
     }
 
     /**
