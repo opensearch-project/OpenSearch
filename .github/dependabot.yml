@@ -975,6 +975,22 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
+  - directory: /plugins/crypto/
+    open-pull-requests-limit: 1
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
+  - directory: /plugins/crypto/spi
+    open-pull-requests-limit: 1
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/
     open-pull-requests-limit: 1
     package-ecosystem: gradle

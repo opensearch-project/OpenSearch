@@ -147,6 +147,8 @@ configure([
   project(":plugins:repository-s3"),
   project(":plugins:store-smb"),
   project(":plugins:transport-nio"),
+  project(":plugins:crypto"),
+  project(":plugins:crypto:spi"),
   project(":qa:die-with-dignity"),
   project(":qa:wildfly"),
   project(":test:external-modules:test-delayed-aggs"),
