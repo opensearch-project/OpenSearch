@@ -9,12 +9,12 @@
 package org.opensearch.remotestore;
 
 import org.junit.After;
-import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -74,6 +74,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return remoteStoreIndexSettings(numberOfReplicas, 1);
     }
 
+    protected Settings remoteStoreIndexSettings(int numberOfReplicas, long totalFieldLimit) {
+        return Settings.builder()
+            .put(remoteStoreIndexSettings(numberOfReplicas))
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldLimit)
+            .build();
+    }
+
     protected Settings remoteTranslogIndexSettings(int numberOfReplicas, int numberOfShards) {
         return Settings.builder()
             .put(remoteStoreIndexSettings(numberOfReplicas, numberOfShards))
@@ -92,8 +99,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         );
     }
 
-    @Before
-    public void setup() {
+    protected void setupRepo() {
         internalCluster().startClusterManagerOnlyNode();
         absolutePath = randomRepoPath().toAbsolutePath();
         assertAcked(
