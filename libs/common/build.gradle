@@ -13,7 +13,9 @@ import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.publish'
 
-archivesBaseName = 'opensearch-common'
+base {
+  archivesBaseName = 'opensearch-common'
+}
 
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools

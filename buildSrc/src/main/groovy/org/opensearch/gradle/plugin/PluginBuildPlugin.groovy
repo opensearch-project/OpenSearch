@@ -44,6 +44,8 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.BasePlugin
+import org.gradle.api.plugins.BasePluginExtension
+import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
@@ -85,7 +87,9 @@ class PluginBuildPlugin implements Plugin<Project> {
             PluginPropertiesExtension extension1 = project.getExtensions().getByType(PluginPropertiesExtension.class)
             configurePublishing(project, extension1)
             String name = extension1.name
-            project.archivesBaseName = name
+
+            BasePluginExtension base = project.getExtensions().findByType(BasePluginExtension.class)
+            base.archivesBaseName = name
             project.description = extension1.description
 
             if (extension1.name == null) {
@@ -98,12 +102,13 @@ class PluginBuildPlugin implements Plugin<Project> {
                 throw new InvalidUserDataException('classname is a required setting for opensearchplugin')
             }
 
+            JavaPluginExtension java = project.getExtensions().findByType(JavaPluginExtension.class)
             Map<String, String> properties = [
                     'name'                : extension1.name,
                     'description'         : extension1.description,
                     'version'             : extension1.version,
                     'opensearchVersion'   : Version.fromString(VersionProperties.getOpenSearch()).toString(),
-                    'javaVersion'         : project.targetCompatibility as String,
+                    'javaVersion'         : java.targetCompatibility as String,
                     'classname'           : extension1.classname,
                     'customFolderName'    : extension1.customFolderName,
                     'extendedPlugins'     : extension1.extendedPlugins.join(','),
@@ -156,8 +161,9 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
             // always configure publishing for client jars
             project.publishing.publications.nebula(MavenPublication).artifactId(extension.name + "-client")
+            final BasePluginExtension base = project.getExtensions().findByType(BasePluginExtension.class)
             project.tasks.withType(GenerateMavenPom.class).configureEach { GenerateMavenPom generatePOMTask ->
-                generatePOMTask.destination = "${project.buildDir}/distributions/${project.archivesBaseName}-client-${project.versions.opensearch}.pom"
+                generatePOMTask.destination = "${project.buildDir}/distributions/${base.archivesBaseName}-client-${project.versions.opensearch}.pom"
             }
         } else {
             if (project.plugins.hasPlugin(MavenPublishPlugin)) {
