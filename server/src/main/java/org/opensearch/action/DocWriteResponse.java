@@ -137,7 +137,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     public DocWriteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
         this.shardId = Objects.requireNonNull(shardId);
-        this.type = Objects.requireNonNull(type);
+        this.type =  type != null ? type : null;
         this.id = Objects.requireNonNull(id);
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
