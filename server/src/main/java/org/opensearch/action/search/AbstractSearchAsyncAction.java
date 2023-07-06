@@ -465,6 +465,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 ),
                 e
             );
+        } else {
+            // Log the message without an exception.
+            logger.debug(
+                new ParameterizedMessage(
+                    "{}: Failed to execute [{}] lastShard [{}]",
+                    shard != null ? shard : shardIt.shardId(),
+                    request,
+                    lastShard
+                )
+            );
         }
         if (lastShard) {
             onShardGroupFailure(shardIndex, shard, e);
