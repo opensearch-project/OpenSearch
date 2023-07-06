@@ -145,19 +145,6 @@ jobs:
             * **CommitID:** ${{ env.pr_from_sha }}
             Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
-      - name: Create Comment Failure
-        if: steps.fc.outputs.comment-id == '' && ${{ github.event_name == 'pull_request_target' && failure() }}
-        uses: peter-evans/create-or-update-comment@v2
-        with:
-          issue-number: ${{ env.pr_number }}
-          body: |
-            ### Gradle Check (Jenkins) Run Completed with:
-            * **RESULT:** ${{ env.result }} :x: ${{ env.test_failures }}
-            * **URL:** ${{ env.workflow_url }}
-            * **CommitID:** ${{ env.pr_from_sha }}
-            Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green.
-            Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
-
       - name: Create comment failure
         if: steps.fc.outputs.comment-id == '' && ${{ github.event_name == 'pull_request_target' && failure() }}
         uses: peter-evans/create-or-update-comment@v3
