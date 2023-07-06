@@ -109,7 +109,7 @@ tasks.register("apiJavadoc", Javadoc) {
   source = sourceSets.main.allJava
   classpath = sourceSets.main.runtimeClasspath
   include '**/org/opensearch/painless/api/'
-  destinationDir = new File(docsDir, 'apiJavadoc')
+  destinationDir = new File(file(java.docsDir), 'apiJavadoc')
 }
 
 tasks.register("apiJavadocJar", Jar) {
