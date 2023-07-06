@@ -13,6 +13,8 @@ import org.apache.lucene.search.TermQuery;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,12 +24,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
-
-    public void testFetchSourceValue() throws IOException {
+    private static MappedFieldType getFlatParentFieldType(String fieldName) {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        MappedFieldType flatParentFieldType = new FlatObjectFieldMapper.Builder(fieldName).build(context).fieldType();
+        return flatParentFieldType;
+    }
 
-        MappedFieldType mapper = new FlatObjectFieldMapper.Builder("field").build(context).fieldType();
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType mapper = getFlatParentFieldType("field");
 
         Map<String, Object> jsonPoint = new HashMap<>();
         jsonPoint.put("type", "flat_object");
@@ -47,30 +52,58 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
 
     }
 
+    public void testDirectSubfield() {
+        {
+            MappedFieldType flatParentFieldType = getFlatParentFieldType("field");
+
+            // when searching for "foo" in "field", the directSubfield is field._value field
+            String searchFieldName = ((FlatObjectFieldMapper.FlatObjectFieldType) flatParentFieldType).directSubfield();
+            assertEquals("field._value", searchFieldName);
+
+            MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType("bar", flatParentFieldType.name());
+            // when searching for "foo" in "field.bar", the directSubfield is field._valueAndPath field
+            String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).directSubfield();
+            assertEquals("field._valueAndPath", searchFieldNameDocPath);
+        }
+        {
+            NamedAnalyzer analyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, null);
+            MappedFieldType ft = new FlatObjectFieldMapper.FlatObjectFieldType("field", analyzer);
+            assertEquals("field._value", ((FlatObjectFieldMapper.FlatObjectFieldType) ft).directSubfield());
+        }
+    }
+
+    public void testRewriteValue() {
+        MappedFieldType flatParentFieldType = getFlatParentFieldType("field");
+
+        // when searching for "foo" in "field", the rewrite value is "foo"
+        String searchValues = ((FlatObjectFieldMapper.FlatObjectFieldType) flatParentFieldType).rewriteValue("foo");
+        assertEquals("foo", searchValues);
+
+        MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType("field.bar", flatParentFieldType.name());
+
+        // when searching for "foo" in "field.bar", the rewrite value is "field.bar=foo"
+        String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).directSubfield();
+        String searchValuesDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).rewriteValue("foo");
+        assertEquals("field.bar=foo", searchValuesDocPath);
+    }
+
     public void testTermQuery() {
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        MappedFieldType flatParentFieldType = new FlatObjectFieldMapper.Builder("field").build(context).fieldType();
+        MappedFieldType flatParentFieldType = getFlatParentFieldType("field");
 
-        // when searching for "foo", the term query is directed to search in field._value field
+        // when searching for "foo" in "field", the term query is directed to search "foo" in field._value field
         String searchFieldName = ((FlatObjectFieldMapper.FlatObjectFieldType) flatParentFieldType).directSubfield();
         String searchValues = ((FlatObjectFieldMapper.FlatObjectFieldType) flatParentFieldType).rewriteValue("foo");
-        assertEquals("field._value", searchFieldName);
         assertEquals("foo", searchValues);
         assertEquals(new TermQuery(new Term(searchFieldName, searchValues)), flatParentFieldType.termQuery(searchValues, null));
 
-        MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType("bar", flatParentFieldType.name());
+        MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType("field.bar", flatParentFieldType.name());
 
-        // when searching for "field.bar", the term query is directed to search in field._valueAndPath field
+        // when searching for "foo" in "field.bar", the term query is directed to search in field._valueAndPath field
         String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).directSubfield();
-        String searchValuesDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).rewriteValue("field.bar");
-        assertEquals("field._valueAndPath", searchFieldNameDocPath);
-        assertEquals("field.bar", searchValuesDocPath);
-        assertEquals(
-            new TermQuery(new Term(searchFieldNameDocPath, searchValuesDocPath)),
-            dynamicMappedFieldType.termQuery(searchValuesDocPath, null)
-        );
+        String searchValuesDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).rewriteValue("foo");
+        assertEquals("field.bar=foo", searchValuesDocPath);
+        assertEquals(new TermQuery(new Term(searchFieldNameDocPath, searchValuesDocPath)), dynamicMappedFieldType.termQuery("foo", null));
 
         MappedFieldType unsearchable = new FlatObjectFieldMapper.FlatObjectFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", null));
@@ -79,10 +112,15 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
 
     public void testExistsQuery() {
         {
-            Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-            Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-            MappedFieldType ft = new FlatObjectFieldMapper.Builder("field").build(context).fieldType();
-            assertEquals(new TermQuery(new Term(null, "field")), ft.existsQuery(null));
+            MappedFieldType ft = getFlatParentFieldType("field");
+            // when checking on the flat_object field name "field", check if exist in the field mapper names
+            assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(null));
+
+            // when checking if a subfield within the flat_object, for example, "field.bar", use term query in the flat_object field
+            MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType("field.bar", ft.name());
+            assertEquals(new TermQuery(new Term("field", "field.bar")), dynamicMappedFieldType.existsQuery(null));
+
+
         }
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = new FlatObjectFieldMapper.FlatObjectFieldType(

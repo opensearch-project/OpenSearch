@@ -385,7 +385,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
          * @return rewriteSearchValue
          */
         public String rewriteValue(String searchValueString) {
-            if (!hasDotPath(name())) {
+            if (!hasMappedFieldTyeNameInQueryFieldName(name())) {
                 return searchValueString;
             } else {
                 String rewriteSearchValue = new StringBuilder().append(name()).append(EQUAL_SYMBOL).append(searchValueString).toString();
@@ -394,7 +394,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         }
 
-        private boolean hasDotPath(String input) {
+        private boolean hasMappedFieldTyeNameInQueryFieldName(String input) {
             String prefix = this.mappedFieldTypeName;
             if (prefix == null) {
                 return false;
@@ -498,7 +498,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         public Query existsQuery(QueryShardContext context) {
             String searchKey;
             String searchField;
-            if (hasDotPath(name())) {
+            if (hasMappedFieldTyeNameInQueryFieldName(name())) {
                 searchKey = this.mappedFieldTypeName;
                 searchField = name();
             } else {
