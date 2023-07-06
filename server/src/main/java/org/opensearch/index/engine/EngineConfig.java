@@ -150,7 +150,7 @@ public final class EngineConfig {
      */
     public static final Setting<Integer> INDEX_CODEC_COMPRESSION_LEVEL_SETTING = Setting.intSetting(
         "index.codec.compression_level",
-        6,
+        3,
         1,
         6,
         Property.IndexScope
