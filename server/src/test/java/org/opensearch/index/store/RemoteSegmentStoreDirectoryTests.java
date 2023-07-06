@@ -861,6 +861,20 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         assertEquals(RemoteSegmentMetadata.CURRENT_VERSION, 1);
     }
 
+    public void testMetadataFileNameOrder() {
+        String file1 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(15, 21, 23, 1, 1);
+        String file2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(15, 38, 38, 1, 1);
+        String file3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(18, 12, 26, 1, 1);
+        String file4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(15, 38, 32, 10, 1);
+        String file5 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(15, 38, 32, 1, 1);
+        String file6 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(15, 38, 32, 5, 1);
+
+        List<String> actualList = new ArrayList<>(List.of(file1, file2, file3, file4, file5, file6));
+        actualList.sort(String::compareTo);
+
+        assertEquals(List.of(file3, file2, file4, file6, file5, file1), actualList);
+    }
+
     private static class WrapperIndexOutput extends IndexOutput {
         public IndexOutput indexOutput;
 

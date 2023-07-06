@@ -260,7 +260,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 RemoteStoreUtils.invertLong(generation),
                 RemoteStoreUtils.invertLong(translogGeneration),
                 RemoteStoreUtils.invertLong(uploadCounter),
-                String.valueOf(System.currentTimeMillis()),
+                RemoteStoreUtils.invertLong(System.currentTimeMillis()),
                 String.valueOf(metadataVersion)
             );
         }
