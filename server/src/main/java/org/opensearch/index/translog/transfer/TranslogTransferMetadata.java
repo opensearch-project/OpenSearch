@@ -86,8 +86,7 @@ public class TranslogTransferMetadata {
                 RemoteStoreUtils.invertLong(primaryTerm),
                 RemoteStoreUtils.invertLong(generation),
                 RemoteStoreUtils.invertLong(createdAt),
-                String.valueOf(primaryTerm),
-                String.valueOf(generation)
+                String.valueOf(CURRENT_VERSION)
             )
         );
     }

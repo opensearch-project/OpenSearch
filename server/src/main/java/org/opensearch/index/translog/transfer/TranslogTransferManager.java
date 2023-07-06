@@ -371,6 +371,7 @@ public class TranslogTransferManager {
                         List<String> sortedMetadataFiles = blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList());
                         if (sortedMetadataFiles.size() <= 1) {
                             logger.trace("Remote Metadata file count is {}, so skipping deletion", sortedMetadataFiles.size());
+                            onCompletion.run();
                             return;
                         }
                         List<String> metadataFilesToDelete = sortedMetadataFiles.subList(1, sortedMetadataFiles.size());
@@ -381,11 +382,13 @@ public class TranslogTransferManager {
                     @Override
                     public void onFailure(Exception e) {
                         logger.error("Exception occurred while listing translog metadata files from remote store", e);
+                        onCompletion.run();
                     }
                 }
             );
         } catch (Exception e) {
             logger.error("Exception occurred while listing translog metadata files from remote store", e);
+            onCompletion.run();
         }
     }
 

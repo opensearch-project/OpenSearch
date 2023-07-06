@@ -32,6 +32,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -246,6 +248,16 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenThrow(new IOException("Something went wrong"));
 
         assertThrows(IOException.class, translogTransferManager::readMetadata);
+    }
+
+    public void testMetadataFileNameOrder() throws IOException {
+        // asserting that new primary followed new generation are lexicographically smallest
+        String mdFilenameGen1 = new TranslogTransferMetadata(1, 1, 1, 2).getFileName();
+        String mdFilenameGen2 = new TranslogTransferMetadata(1, 2, 1, 2).getFileName();
+        String mdFilenamePrimary2 = new TranslogTransferMetadata(2, 1, 1, 2).getFileName();
+        List<String> metadataFiles = Arrays.asList(mdFilenameGen1, mdFilenameGen2, mdFilenamePrimary2);
+        Collections.sort(metadataFiles);
+        assertEquals(Arrays.asList(mdFilenamePrimary2, mdFilenameGen2, mdFilenameGen1), metadataFiles);
     }
 
     public void testReadMetadataListException() throws IOException {
