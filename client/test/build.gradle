@@ -29,10 +29,14 @@
  */
 apply plugin: 'opensearch.build'
 
-targetCompatibility = JavaVersion.VERSION_11
-sourceCompatibility = JavaVersion.VERSION_11
+java {
+  targetCompatibility = JavaVersion.VERSION_11
+  sourceCompatibility = JavaVersion.VERSION_11
+}
 
-group = "${group}.client.test"
+base {
+  group = "${group}.client.test"
+}
 
 dependencies {
   api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"

@@ -733,6 +733,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             // start another replica.
             dataNodes.add(internalCluster().startDataOnlyNode());
             ensureGreen(INDEX_NAME);
+            waitForSearchableDocs(initialDocCount, dataNodes);
 
             // index another doc and refresh - without this the new replica won't catch up.
             String docId = String.valueOf(initialDocCount + 1);
@@ -800,6 +801,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     public void testPressureServiceStats() throws Exception {
         final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
         final String replicaNode = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
 

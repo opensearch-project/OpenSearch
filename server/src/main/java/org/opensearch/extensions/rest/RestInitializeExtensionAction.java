@@ -22,6 +22,7 @@ import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
+import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.transport.ConnectTransportException;
@@ -54,7 +55,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_extensions/initialize"));
+        return List.of(new NamedRoute.Builder().method(POST).path("/_extensions/initialize").uniqueName("extensions:initialize").build());
     }
 
     public RestInitializeExtensionAction(ExtensionsManager extensionsManager) {
@@ -187,6 +188,5 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
                 channel.sendResponse(new BytesRestResponse(RestStatus.ACCEPTED, builder));
             }
         };
-
     }
 }
