@@ -45,55 +45,10 @@ public class DefaultTracerTests extends OpenSearchTestCase {
 
     public void testEndSpanByClosingScope() {
         DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
-        try (Scope scope = defaultTracer.startSpan("span_name")) {
+        try (SpanScope spanScope = defaultTracer.startSpan("span_name")) {
             verify(mockTracerContextStorage).put(TracerContextStorage.CURRENT_SPAN, mockSpan);
         }
         verify(mockTracerContextStorage).put(TracerContextStorage.CURRENT_SPAN, mockParentSpan);
-    }
-
-    public void testAddSpanAttributeString() {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
-        defaultTracer.startSpan("span_name");
-
-        defaultTracer.addSpanAttribute("key", "value");
-
-        verify(mockSpan).addAttribute("key", "value");
-    }
-
-    public void testAddSpanAttributeLong() {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
-        defaultTracer.startSpan("span_name");
-
-        defaultTracer.addSpanAttribute("key", 1L);
-
-        verify(mockSpan).addAttribute("key", 1L);
-    }
-
-    public void testAddSpanAttributeDouble() {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
-        defaultTracer.startSpan("span_name");
-
-        defaultTracer.addSpanAttribute("key", 1.0);
-
-        verify(mockSpan).addAttribute("key", 1.0);
-    }
-
-    public void testAddSpanAttributeBoolean() {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
-        defaultTracer.startSpan("span_name");
-
-        defaultTracer.addSpanAttribute("key", true);
-
-        verify(mockSpan).addAttribute("key", true);
-    }
-
-    public void testAddEvent() {
-        Tracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
-        defaultTracer.startSpan("span_name");
-
-        defaultTracer.addSpanEvent("eventName");
-
-        verify(mockSpan).addEvent("eventName");
     }
 
     public void testClose() throws IOException {
