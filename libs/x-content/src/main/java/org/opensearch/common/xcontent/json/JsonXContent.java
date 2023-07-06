@@ -38,6 +38,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.core.StreamWriteFeature;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -79,6 +80,7 @@ public class JsonXContent implements XContent {
         jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         jsonFactory.setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(DEFAULT_MAX_STRING_LEN).build());
         jsonFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
+        jsonFactory.configure(StreamWriteFeature.USE_FAST_DOUBLE_WRITER.mappedFeature(), Boolean.getBoolean("fast_double_writer.enabled"));
         jsonXContent = new JsonXContent();
     }
 

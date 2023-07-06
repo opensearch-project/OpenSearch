@@ -37,6 +37,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.core.StreamWriteFeature;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -79,6 +80,7 @@ public class SmileXContent implements XContent {
         smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         smileFactory.setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(DEFAULT_MAX_STRING_LEN).build());
         smileFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
+        smileFactory.configure(StreamWriteFeature.USE_FAST_DOUBLE_WRITER.mappedFeature(), Boolean.getBoolean("fast_double_writer.enabled"));
         smileXContent = new SmileXContent();
     }
 
