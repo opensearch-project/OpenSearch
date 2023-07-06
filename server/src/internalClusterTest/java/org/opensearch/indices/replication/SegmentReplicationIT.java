@@ -435,6 +435,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         refresh(INDEX_NAME);
         blockFileCopy.countDown();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+        ensureYellow(INDEX_NAME);
         assertBusy(() -> { assertDocCounts(docCount, replicaNode); });
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         // replica now promoted as primary should have same allocation id
@@ -799,6 +800,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     public void testPressureServiceStats() throws Exception {
         final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
         final String replicaNode = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
 
