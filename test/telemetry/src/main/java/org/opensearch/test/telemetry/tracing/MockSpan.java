@@ -142,6 +142,10 @@ public class MockSpan extends AbstractSpan {
         return endTime;
     }
 
+    public void setError(Exception exception) {
+        putMetadata("ERROR", exception.getMessage());
+    }
+
     private static class IdGenerator {
         private static String generateSpanId() {
             long id = randomSupplier.get().nextLong();

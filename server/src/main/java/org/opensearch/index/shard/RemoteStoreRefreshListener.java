@@ -224,7 +224,17 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         // Each metadata file in the remote segment store represents a commit and the following
                         // statement keeps sure that each metadata will always contain all the segments from last commit + refreshed
                         // segments.
-                        localSegmentsPostRefresh.addAll(SegmentInfos.readCommit(storeDirectory, latestSegmentInfos.get()).files(true));
+                        SegmentInfos segmentCommitInfos;
+                        try {
+                            segmentCommitInfos = SegmentInfos.readCommit(storeDirectory, latestSegmentInfos.get());
+                        } catch (Exception e) {
+                            // Seeing discrepancy in segment infos and files on disk. SegmentInfosSnapshot is returning
+                            // a segment_N file which does not exist on local disk.
+                            logger.error("Exception occurred while SegmentInfos.readCommit(..)", e);
+                            logger.error("segmentInfosFiles={} diskFiles={}", localSegmentsPostRefresh, storeDirectory.listAll());
+                            throw e;
+                        }
+                        localSegmentsPostRefresh.addAll(segmentCommitInfos.files(true));
                         segmentInfosFiles.stream()
                             .filter(file -> !file.equals(latestSegmentInfos.get()))
                             .forEach(localSegmentsPostRefresh::remove);
