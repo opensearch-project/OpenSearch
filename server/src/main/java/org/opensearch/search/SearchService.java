@@ -606,7 +606,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 afterQueryTime = executor.success();
             } catch (Exception e) {
                 spanScope.setError(e);
-                afterQueryTime = 0l;
+                throw e;
             }
             if (request.numberOfShards() == 1) {
                 return executeFetchPhase(readerContext, context, afterQueryTime);
@@ -648,6 +648,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             executor.success();
         } catch (Exception e) {
             spanScope.setError(e);
+            throw e;
         }
         return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
@@ -804,6 +805,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     executor.success();
                 } catch (Exception e) {
                     spanScope.setError(e);
+                    throw e;
                 }
                 return searchContext.fetchResult();
             } catch (Exception e) {
