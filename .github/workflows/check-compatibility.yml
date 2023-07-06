@@ -30,6 +30,6 @@ jobs:
       - name: Add comment on the PR
         uses: peter-evans/create-or-update-comment@v3
         with:
-          token: ${{ SECRETS.TOKEN }}
-          issue-number: ${{ steps.github_app_token.outputs.token }}
+          token: ${{ steps.github_app_token.outputs.token }}
+          issue-number: ${{ github.event.number }}
           body-path: "${{ github.workspace }}/results.txt"
