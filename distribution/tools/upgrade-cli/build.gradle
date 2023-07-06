@@ -22,6 +22,9 @@ dependencies {
   testImplementation project(":test:framework")
   testImplementation 'com.google.jimfs:jimfs:1.2'
   testRuntimeOnly 'com.google.guava:guava:32.1.1-jre'
+  configurations.all {
+    resolutionStrategy.force("org.mockito:mockito-core:${versions.mockito}")
+  }
 }
 
 tasks.named("dependencyLicenses").configure {
