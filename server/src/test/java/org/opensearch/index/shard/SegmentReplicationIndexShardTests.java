@@ -13,6 +13,8 @@ import org.apache.lucene.index.SegmentInfos;
 import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
@@ -30,6 +32,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
@@ -63,6 +66,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +82,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -167,6 +172,107 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         final IndexShard indexShard = newShard(false, settings, new InternalEngineFactory());
         assertFalse(indexShard.isSegmentReplicationAllowed());
         closeShards(indexShard);
+    }
+
+    /**
+     * This test mimics the segment replication failure due to CorruptIndexException exception which happens when
+     * reader close operation on replica shard deletes the segment files copied in current round of segment replication.
+     * It does this by blocking the finalizeReplication on replica shard and performing close operation on acquired
+     * searcher that triggers the reader close operation.
+     * @throws Exception
+     */
+    public void testSegmentReplication_With_ReaderClosedConcurrently() throws Exception {
+        String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
+        try (ReplicationGroup shards = createGroup(1, settings, mappings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+
+            // Step 1. Ingest numDocs documents & replicate to replica shard
+            final int numDocs = randomIntBetween(100, 200);
+            logger.info("--> Inserting documents {}", numDocs);
+            for (int i = 0; i < numDocs; i++) {
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+            }
+            assertEqualTranslogOperations(shards, primaryShard);
+            primaryShard.refresh("Test");
+            primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            replicateSegments(primaryShard, shards.getReplicas());
+
+            IndexShard spyShard = spy(replicaShard);
+            Engine.Searcher test = replicaShard.getEngine().acquireSearcher("testSegmentReplication_With_ReaderClosedConcurrently");
+            shards.assertAllEqual(numDocs);
+
+            // Step 2. Ingest numDocs documents again & replicate to replica shard
+            logger.info("--> Ingest {} docs again", numDocs);
+            for (int i = 0; i < numDocs; i++) {
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+            }
+            assertEqualTranslogOperations(shards, primaryShard);
+            primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            replicateSegments(primaryShard, shards.getReplicas());
+
+            // Step 3. Perform force merge down to 1 segment on primary
+            primaryShard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
+            logger.info("--> primary store after force merge {}", Arrays.toString(primaryShard.store().directory().listAll()));
+            // Perform close on searcher before IndexShard::finalizeReplication
+            doAnswer(n -> {
+                test.close();
+                n.callRealMethod();
+                return null;
+            }).when(spyShard).finalizeReplication(any());
+            replicateSegments(primaryShard, List.of(spyShard));
+            shards.assertAllEqual(numDocs);
+        }
+    }
+
+    /**
+     * Similar to test above, this test shows the issue where an engine close operation during active segment replication
+     * can result in Lucene CorruptIndexException.
+     * @throws Exception
+     */
+    public void testSegmentReplication_With_EngineClosedConcurrently() throws Exception {
+        String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
+        try (ReplicationGroup shards = createGroup(1, settings, mappings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+
+            // Step 1. Ingest numDocs documents
+            final int numDocs = randomIntBetween(100, 200);
+            logger.info("--> Inserting documents {}", numDocs);
+            for (int i = 0; i < numDocs; i++) {
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+            }
+            assertEqualTranslogOperations(shards, primaryShard);
+            primaryShard.refresh("Test");
+            primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            replicateSegments(primaryShard, shards.getReplicas());
+            shards.assertAllEqual(numDocs);
+
+            // Step 2. Ingest numDocs documents again to create a new commit
+            logger.info("--> Ingest {} docs again", numDocs);
+            for (int i = 0; i < numDocs; i++) {
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+            }
+            assertEqualTranslogOperations(shards, primaryShard);
+            primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            logger.info("--> primary store after final flush {}", Arrays.toString(primaryShard.store().directory().listAll()));
+
+            // Step 3. Before replicating segments, block finalizeReplication and perform engine commit directly that
+            // cleans up recently copied over files
+            IndexShard spyShard = spy(replicaShard);
+            doAnswer(n -> {
+                NRTReplicationEngine engine = (NRTReplicationEngine) replicaShard.getEngine();
+                // Using engine.close() prevents indexShard.finalizeReplication execution due to engine AlreadyClosedException,
+                // thus as workaround, use updateSegments which eventually calls commitSegmentInfos on latest segment infos.
+                engine.updateSegments(engine.getSegmentInfosSnapshot().get());
+                n.callRealMethod();
+                return null;
+            }).when(spyShard).finalizeReplication(any());
+            replicateSegments(primaryShard, List.of(spyShard));
+            shards.assertAllEqual(numDocs);
+        }
     }
 
     public void testSegmentReplication_Index_Update_Delete() throws Exception {
@@ -968,6 +1074,27 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             };
             when(sourceFactory.get(any())).thenReturn(source);
             startReplicationAndAssertCancellation(replica, targetService);
+
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
+    }
+
+    public void testReplicaClosesWhile_NotReplicating() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            final int numDocs = shards.indexDocs(randomInt(10));
+            primary.refresh("Test");
+            replicateSegments(primary, shards.getReplicas());
+
+            logger.info("--> PrimaryStore {}", Arrays.toString(primary.store().directory().listAll()));
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
 
             shards.removeReplica(replica);
             closeShards(replica);

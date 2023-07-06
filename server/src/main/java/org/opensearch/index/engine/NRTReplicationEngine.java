@@ -126,12 +126,7 @@ public class NRTReplicationEngine extends Engine {
             (files) -> {
                 store.decRefFileDeleter(files);
                 try {
-                    store.cleanupAndPreserveLatestCommitPoint(
-                        "On reader closed",
-                        getLatestSegmentInfos(),
-                        getLastCommittedSegmentInfos(),
-                        false
-                    );
+                    store.cleanupUnReferencedFiles("On reader closed", files);
                 } catch (IOException e) {
                     // Log but do not rethrow - we can try cleaning up again after next replication cycle.
                     // If that were to fail, the shard will as well.
@@ -147,9 +142,9 @@ public class NRTReplicationEngine extends Engine {
     }
 
     public synchronized void updateSegments(final SegmentInfos infos) throws IOException {
-        // Update the current infos reference on the Engine's reader.
-        ensureOpen();
         try (ReleasableLock lock = writeLock.acquire()) {
+            // Update the current infos reference on the Engine's reader.
+            ensureOpen();
             final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
             final long incomingGeneration = infos.getGeneration();
             readerManager.updateSegments(infos);

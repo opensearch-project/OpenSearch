@@ -160,6 +160,38 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
+    public void testSimultaneousEngineCloseAndCommit() throws IOException, InterruptedException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (
+            final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+        ) {
+            CountDownLatch latch = new CountDownLatch(1);
+            Thread commitThread = new Thread(() -> {
+                try {
+                    nrtEngine.updateSegments(store.readLastCommittedSegmentsInfo());
+                    latch.countDown();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            Thread closeThread = new Thread(() -> {
+                try {
+                    latch.await();
+                    nrtEngine.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            commitThread.start();
+            closeThread.start();
+            commitThread.join();
+            closeThread.join();
+        }
+    }
+
     public void testUpdateSegments_replicaCommitsFirstReceivedInfos() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 

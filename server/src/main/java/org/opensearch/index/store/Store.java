@@ -50,6 +50,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksum;
+import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -64,6 +65,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
@@ -837,6 +839,25 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    /**
+     * Segment Replication method
+     *
+     * Performs cleanup of un-referenced files intended to be used reader release action
+     *
+     * @param reason Reason for cleanup
+     * @param filesToConsider Files to consider for clean up
+     * @throws IOException Exception from cleanup operation
+     */
+    public void cleanupUnReferencedFiles(String reason, Collection<String> filesToConsider) throws IOException {
+        assert indexSettings.isSegRepEnabled();
+        metadataLock.writeLock().lock();
+        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+            cleanupFiles(reason, null, filesToConsider, false);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
     private void cleanupFiles(
         String reason,
         Collection<String> localSnapshot,
@@ -869,6 +890,53 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 // ignore, we don't really care, will get deleted later on
             }
         }
+    }
+
+    /**
+     * Used for segment replication method
+     *
+     * This method takes the segment info bytes to build SegmentInfos. It inc'refs files pointed by passed in SegmentInfos
+     * bytes to ensure they are not deleted.
+     *
+     * @param tmpToFileName Map of temporary replication file to actual file name
+     * @param infosBytes bytes[] of SegmentInfos supposed to be sent over by primary excluding segment_N file
+     * @param segmentsGen segment generation number
+     * @param consumer consumer for generated SegmentInfos
+     * @throws IOException Exception while reading store and building segment infos
+     */
+    public void buildInfosFromStore(
+        Map<String, String> tmpToFileName,
+        byte[] infosBytes,
+        long segmentsGen,
+        CheckedConsumer<SegmentInfos, IOException> consumer
+    ) throws IOException {
+        metadataLock.writeLock().lock();
+        try {
+            final List<String> values = new ArrayList<>(tmpToFileName.values());
+            incRefFileDeleter(values);
+            try {
+                renameTempFilesSafe(tmpToFileName);
+                consumer.accept(buildSegmentInfos(infosBytes, segmentsGen));
+            } finally {
+                decRefFileDeleter(values);
+            }
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    private SegmentInfos buildSegmentInfos(byte[] infosBytes, long segmentsGen) throws IOException {
+        try (final ChecksumIndexInput input = toIndexInput(infosBytes)) {
+            return SegmentInfos.readCommit(directory, input, segmentsGen);
+        }
+    }
+
+    /**
+     * This method formats byte[] containing the primary's SegmentInfos into lucene's {@link ChecksumIndexInput} that can be
+     * passed to SegmentInfos.readCommit
+     */
+    private ChecksumIndexInput toIndexInput(byte[] input) {
+        return new BufferedChecksumIndexInput(new ByteArrayIndexInput("Snapshot of SegmentInfos", input));
     }
 
     // pkg private for testing
