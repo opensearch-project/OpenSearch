@@ -28,6 +28,7 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -88,6 +89,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     public static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
 
     private final IndexShard indexShard;
+    private final CompositeDirectory compositeDirectory;
     private final Directory storeDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final RemoteRefreshSegmentTracker segmentTracker;
@@ -118,14 +120,15 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         RemoteRefreshSegmentTracker segmentTracker
     ) {
         this.indexShard = indexShard;
-        this.storeDirectory = indexShard.store().directory();
-        this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
-            .getDelegate()).getDelegate();
+        this.compositeDirectory = (CompositeDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.store().directory()).getDelegate())
+            .getDelegate();
         localSegmentChecksumMap = new HashMap<>();
         RemoteSegmentMetadata remoteSegmentMetadata = null;
+        this.storeDirectory = compositeDirectory.localDirectory();
+        this.remoteDirectory = compositeDirectory.remoteDirectory();
         if (indexShard.routingEntry().primary()) {
             try {
-                remoteSegmentMetadata = this.remoteDirectory.init();
+                remoteSegmentMetadata = this.remoteDirectory.readLatestMetadataFile();
             } catch (IOException e) {
                 logger.error("Exception while initialising RemoteSegmentStoreDirectory", e);
             }
@@ -239,6 +242,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             uploadMetadata(localSegmentsPostRefresh, segmentInfos);
                             clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                             onSuccessfulSegmentsSync(refreshTimeMs, refreshClockTimeMs, refreshSeqNo, lastRefreshedCheckpoint, checkpoint);
+                            compositeDirectory.afterUpload(localSegmentsPostRefresh);
                             // At this point since we have uploaded new segments, segment infos and segment metadata file,
                             // along with marking minSeqNoToKeep, upload has succeeded completely.
                             shouldRetry = false;

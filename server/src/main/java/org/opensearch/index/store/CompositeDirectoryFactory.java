@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.store.remote.directory;
+package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -14,8 +14,6 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.index.store.RemoteDirectory;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -35,18 +33,24 @@ import java.util.function.Supplier;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
 
 /**
- * Factory for a remote search directory
+ * Factory for a composite directory
  *
  * @opensearch.internal
  */
-public class RemoteSearchDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+public class CompositeDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     private final Supplier<RepositoriesService> repositoriesService;
     private final FileCache remoteStoreFileCache;
+    private FileTrackerImp fileTrackerImp;
 
-    public RemoteSearchDirectoryFactory(Supplier<RepositoriesService> repositoriesService, FileCache remoteStoreFileCache) {
+    public CompositeDirectoryFactory(
+        Supplier<RepositoriesService> repositoriesService,
+        FileCache remoteStoreFileCache,
+        FileTrackerImp fileTrackerImp
+    ) {
         this.repositoriesService = repositoriesService;
         this.remoteStoreFileCache = remoteStoreFileCache;
+        this.fileTrackerImp = fileTrackerImp;
     }
 
     @Override
@@ -61,18 +65,19 @@ public class RemoteSearchDirectoryFactory implements IndexStorePlugin.DirectoryF
         }
     }
 
-    private RemoteSearchDirectory createRemoteSearchDirectory(
+    private CompositeDirectory createRemoteSearchDirectory(
         IndexSettings indexSettings,
         ShardPath localShardPath,
         BlobStoreRepository blobStoreRepository,
         String repositoryName
     ) throws IOException {
+
+        final Path location = localShardPath.resolveIndex();
+        final FSDirectory primaryDirectory = FSDirectory.open(location);
         String shardId = String.valueOf(localShardPath.getShardId().getId());
         String indexUUID = indexSettings.getIndex().getUUID();
         BlobPath commonBlobPath = blobStoreRepository.basePath().add(indexUUID).add(shardId).add("segments");
 
-        // these directories are initialized again as the composite directory implementation is not yet implemented
-        // and there is no way to pass the remote segment directory info to this directory
         RemoteDirectory dataDirectory = createRemoteDirectory(blobStoreRepository, commonBlobPath, "data");
         RemoteDirectory metadataDirectory = createRemoteDirectory(blobStoreRepository, commonBlobPath, "metadata");
         RemoteStoreMetadataLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
@@ -97,7 +102,15 @@ public class RemoteSearchDirectoryFactory implements IndexStorePlugin.DirectoryF
 
         final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("data"));
         TransferManager transferManager = new TransferManager(blobContainer, remoteStoreFileCache);
-        return new RemoteSearchDirectory(segmentsUploadedToRemoteStore, localStoreDir, transferManager);
+
+        return new CompositeDirectory(
+            primaryDirectory,
+            remoteSegmentStoreDirectory,
+            transferManager,
+            remoteStoreFileCache,
+            localStoreDir,
+            fileTrackerImp
+        );
     }
 
     private RemoteDirectory createRemoteDirectory(Repository repository, BlobPath commonBlobPath, String extention) {

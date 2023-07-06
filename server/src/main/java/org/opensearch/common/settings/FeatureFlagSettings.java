@@ -40,7 +40,8 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
                 FeatureFlags.IDENTITY_SETTING,
                 FeatureFlags.SEARCH_PIPELINE_SETTING,
                 FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING,
-                FeatureFlags.TELEMETRY_SETTING
+                FeatureFlags.TELEMETRY_SETTING,
+                FeatureFlags.REMOTE_WARM_INDEX_SETTING
             )
         )
     );

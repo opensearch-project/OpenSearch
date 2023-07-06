@@ -70,6 +70,8 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.CompositeDirectoryFactory;
+import org.opensearch.index.store.FileTrackerImp;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.remote.directory.RemoteSearchDirectoryFactory;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
@@ -409,7 +411,8 @@ public final class IndexModule {
         SIMPLEFS("simplefs"),
         FS("fs"),
         REMOTE_SNAPSHOT("remote_snapshot"),
-        REMOTE_SEARCH("remote_search");
+        REMOTE_SEARCH("remote_search"),
+        REMOTE_WARM_INDEX("remote_warm_index");
 
         private final String settingsKey;
         private final boolean deprecated;
@@ -667,7 +670,8 @@ public final class IndexModule {
     public static Map<String, IndexStorePlugin.DirectoryFactory> createBuiltInDirectoryFactories(
         Supplier<RepositoriesService> repositoriesService,
         ThreadPool threadPool,
-        FileCache remoteStoreFileCache
+        FileCache remoteStoreFileCache,
+        FileTrackerImp fileTrackerImp
     ) {
         final Map<String, IndexStorePlugin.DirectoryFactory> factories = new HashMap<>();
         for (Type type : Type.values()) {
@@ -686,9 +690,12 @@ public final class IndexModule {
                     );
                     break;
                 case REMOTE_SEARCH:
+                    factories.put(type.getSettingsKey(), new RemoteSearchDirectoryFactory(repositoriesService, remoteStoreFileCache));
+                    break;
+                case REMOTE_WARM_INDEX:
                     factories.put(
                         type.getSettingsKey(),
-                        new RemoteSearchDirectoryFactory(repositoriesService, remoteStoreFileCache)
+                        new CompositeDirectoryFactory(repositoriesService, remoteStoreFileCache, fileTrackerImp)
                     );
                     break;
                 default:

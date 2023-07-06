@@ -36,8 +36,11 @@ public final class RemoteSearchDirectory extends Directory {
 
     private final Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap;
 
-    public RemoteSearchDirectory(Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap,
-                                 FSDirectory localStoreDir, TransferManager transferManager) {
+    public RemoteSearchDirectory(
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap,
+        FSDirectory localStoreDir,
+        TransferManager transferManager
+    ) {
         this.localStoreDir = localStoreDir;
         this.transferManager = transferManager;
         this.uploadedSegmentMetadataMap = uploadedSegmentMetadataMap;
@@ -53,6 +56,9 @@ public final class RemoteSearchDirectory extends Directory {
 
     @Override
     public long fileLength(String name) throws IOException {
+        // this needs to change
+        // calculate the length of the file which is downloaded
+        // one of the use-cases we need to solve
         return uploadedSegmentMetadataMap.get(name).getLength();
     }
 

@@ -27,6 +27,7 @@ import org.junit.Before;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
+import org.opensearch.index.store.FileTrackerImp;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
@@ -48,7 +49,8 @@ public class TransferManagerTests extends OpenSearchTestCase {
     private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
         EIGHT_MB * 2,
         1,
-        new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+        new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+        new FileTrackerImp()
     );
     private MMapDirectory directory;
     private BlobContainer blobContainer;

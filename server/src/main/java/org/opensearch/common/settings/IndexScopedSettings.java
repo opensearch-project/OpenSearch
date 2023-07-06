@@ -239,7 +239,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING
         ),
         FeatureFlags.CONCURRENT_SEGMENT_SEARCH,
-        List.of(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING)
+        List.of(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING),
+        FeatureFlags.REMOTE_WARM_INDEX,
+        List.of(IndexMetadata.INDEX_REMOTE_WARM_INDEX_ENABLED_SETTING)
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

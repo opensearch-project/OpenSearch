@@ -44,6 +44,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.store.FileTrackerImp;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
@@ -384,6 +385,8 @@ public class Node implements Closeable {
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
     private FileCache fileCache;
 
+    private FileTrackerImp fileTrackerImp;
+
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
     }
@@ -628,6 +631,7 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings()
             );
             // File cache will be initialized by the node once circuit breakers are in place.
+            fileTrackerImp = new FileTrackerImp();
             initializeFileCache(settings, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
             final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnvironment, fileCache);
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, fileCache);
@@ -677,7 +681,8 @@ public class Node implements Closeable {
             final Map<String, IndexStorePlugin.DirectoryFactory> builtInDirectoryFactories = IndexModule.createBuiltInDirectoryFactories(
                 repositoriesServiceReference::get,
                 threadPool,
-                fileCache
+                fileCache,
+                fileTrackerImp
             );
 
             final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = new HashMap<>();
@@ -1750,7 +1755,7 @@ public class Node implements Closeable {
             }
             capacity = Math.min(capacity, availableCapacity);
             fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(capacity, ByteSizeUnit.BYTES);
-            this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
+            this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker, fileTrackerImp);
             List<Path> fileCacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
             this.fileCache.restoreFromDirectory(fileCacheDataPaths);
         }

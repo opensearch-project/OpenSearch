@@ -53,7 +53,11 @@ public class OnDemandBlockSearchIndexInput extends OnDemandBlockIndexInput {
      */
     protected final long originalFileSize;
 
-    public OnDemandBlockSearchIndexInput(RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedSegmentMetadata, FSDirectory directory, TransferManager transferManager) {
+    public OnDemandBlockSearchIndexInput(
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedSegmentMetadata,
+        FSDirectory directory,
+        TransferManager transferManager
+    ) {
         this(
             "BlockedSearchIndexInput(path=\""
                 + directory.getDirectory().toString()
@@ -99,7 +103,7 @@ public class OnDemandBlockSearchIndexInput extends OnDemandBlockIndexInput {
     ) {
         super(builder);
         this.transferManager = transferManager;
-        this.uploadedSegmentMetadata  = uploadedSegmentMetadata;
+        this.uploadedSegmentMetadata = uploadedSegmentMetadata;
         this.fileName = uploadedSegmentMetadata.getOriginalFilename();
         this.directory = directory;
         this.originalFileSize = uploadedSegmentMetadata.getLength();

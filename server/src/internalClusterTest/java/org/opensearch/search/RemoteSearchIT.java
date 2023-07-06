@@ -41,7 +41,11 @@ public class RemoteSearchIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
+        return Settings.builder()
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.REMOTE_STORE, "true")
+            .put(FeatureFlags.REMOTE_WARM_INDEX, "true")
+            .build();
     }
 
     @Before
@@ -88,9 +92,7 @@ public class RemoteSearchIT extends AbstractSnapshotIntegTestCase {
         internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
 
         // Create index with remote translog index settings
-        createIndex(indexName, Settings.builder()
-            .put(remoteTranslogIndexSettings(numReplicasIndex))
-            .build());
+        createIndex(indexName, Settings.builder().put(remoteTranslogIndexSettings(numReplicasIndex)).build());
         ensureGreen();
 
         // Index some documents
@@ -104,14 +106,43 @@ public class RemoteSearchIT extends AbstractSnapshotIntegTestCase {
         client().admin().indices().close(closeIndexRequest).actionGet();
 
         // Apply the remote search setting to the index
-        client().admin().indices().updateSettings(new UpdateSettingsRequest(Settings.builder()
-            .put(INDEX_STORE_TYPE_SETTING.getKey(), "remote_search")
-            .build()
-        )).actionGet();
+        client().admin()
+            .indices()
+            .updateSettings(new UpdateSettingsRequest(Settings.builder().put(INDEX_STORE_TYPE_SETTING.getKey(), "remote_search").build()))
+            .actionGet();
 
         // Open the index back
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(indexName);
         client().admin().indices().open(openIndexRequest).actionGet();
+
+        // Perform search on the index again
+        assertDocCount(indexName, 100L);
+    }
+
+    public void testWritableWarmIndex() throws Exception {
+        final String indexName = "test-idx-1";
+        final int numReplicasIndex = randomIntBetween(0, 3);
+        final int numOfDocs = 100;
+
+        // Spin up node having search/data roles
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
+
+        // Create index with remote translog index settings
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(remoteTranslogIndexSettings(numReplicasIndex))
+                .put(INDEX_STORE_TYPE_SETTING.getKey(), "remote_warm_index")
+                .put(IndexMetadata.INDEX_REMOTE_WARM_INDEX_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        ensureGreen();
+
+        // Index some documents
+        indexRandomDocs(indexName, numOfDocs);
+        ensureGreen();
+        // Search the documents on the index
+        assertDocCount(indexName, 100L);
 
         // Perform search on the index again
         assertDocCount(indexName, 100L);

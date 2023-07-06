@@ -27,6 +27,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FileTrackerImp;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -50,7 +51,8 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
     private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
         1024 * 1024,
         1,
-        new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+        new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+        new FileTrackerImp()
     );
     private final Map<ShardId, Path> files = new HashMap<>();
     private NodeEnvironment env;

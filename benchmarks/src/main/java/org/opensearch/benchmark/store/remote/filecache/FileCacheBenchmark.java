@@ -29,6 +29,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
+import org.opensearch.index.store.FileTrackerImp;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
@@ -94,7 +95,8 @@ public class FileCacheBenchmark {
             fileCache = FileCacheFactory.createConcurrentLRUFileCache(
                 (long) maximumNumberOfEntries * INDEX_INPUT.length(),
                 concurrencyLevel,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                new FileTrackerImp()
             );
             for (long i = 0; i < maximumNumberOfEntries; i++) {
                 final Path key = Paths.get(Long.toString(i));

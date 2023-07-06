@@ -41,6 +41,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeEnvironment.NodePath;
+import org.opensearch.index.store.FileTrackerImp;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.test.OpenSearchTestCase;
@@ -124,7 +125,8 @@ public class FsProbeTests extends OpenSearchTestCase {
             FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
                 gbByteSizeValue.getBytes(),
                 16,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                new FileTrackerImp()
             );
             FsProbe probe = new FsProbe(env, fileCache);
             FsInfo stats = probe.stats(null);

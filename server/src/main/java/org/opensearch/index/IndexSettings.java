@@ -613,6 +613,7 @@ public final class IndexSettings {
     private final int numberOfShards;
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
+    private final boolean isRemoteWarmIndexEnabled;
     private final boolean isRemoteTranslogStoreEnabled;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private final String remoteStoreTranslogRepository;
@@ -784,6 +785,7 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isRemoteWarmIndexEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_WARM_INDEX_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -1063,6 +1065,13 @@ public final class IndexSettings {
      * Returns if remote store is enabled for this index.
      */
     public boolean isRemoteStoreEnabled() {
+        return isRemoteStoreEnabled;
+    }
+
+    /**
+     * Returns if remote warm index is enabled for this index.
+     */
+    public boolean isRemoteWarmIndexEnabled() {
         return isRemoteStoreEnabled;
     }
 

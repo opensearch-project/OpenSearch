@@ -10,6 +10,9 @@ package org.opensearch.index.store.remote.filecache;
 
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.index.store.FileTrackerImp;
+import org.opensearch.index.store.FileTrackingInfo;
+import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
 
 import java.nio.file.Files;
@@ -37,15 +40,36 @@ import static org.opensearch.ExceptionsHelper.catchAsRuntimeException;
  */
 public class FileCacheFactory {
 
-    public static FileCache createConcurrentLRUFileCache(long capacity, CircuitBreaker circuitBreaker) {
-        return new FileCache(createDefaultBuilder().capacity(capacity).build(), circuitBreaker);
+    public static FileCache createConcurrentLRUFileCache(long capacity, CircuitBreaker circuitBreaker, FileTrackerImp fileTrackerImp) {
+        return createFileCache(createDefaultBuilder(fileTrackerImp).capacity(capacity).build(), circuitBreaker);
     }
 
-    public static FileCache createConcurrentLRUFileCache(long capacity, int concurrencyLevel, CircuitBreaker circuitBreaker) {
-        return new FileCache(createDefaultBuilder().capacity(capacity).concurrencyLevel(concurrencyLevel).build(), circuitBreaker);
+    public static FileCache createConcurrentLRUFileCache(
+        long capacity,
+        int concurrencyLevel,
+        CircuitBreaker circuitBreaker,
+        FileTrackerImp fileTrackerImp
+    ) {
+        return createFileCache(
+            createDefaultBuilder(fileTrackerImp).capacity(capacity).concurrencyLevel(concurrencyLevel).build(),
+            circuitBreaker
+        );
     }
 
-    private static SegmentedCache.Builder<Path, CachedIndexInput> createDefaultBuilder() {
+    private static FileCache createFileCache(SegmentedCache<Path, CachedIndexInput> segmentedCache, CircuitBreaker circuitBreaker) {
+        /*
+         * Since OnDemandBlockSnapshotIndexInput.Builder.DEFAULT_BLOCK_SIZE is not overridden then it will be upper bound for max IndexInput
+         * size on disk. A single IndexInput size should always be more than a single segment in segmented cache. A FileCache capacity might
+         * be defined with large capacity (> IndexInput block size) but due to segmentation and concurrency factor, that capacity is
+         * distributed equally across segments.
+         */
+        if (segmentedCache.getPerSegmentCapacity() <= OnDemandBlockSnapshotIndexInput.Builder.DEFAULT_BLOCK_SIZE) {
+            throw new IllegalStateException("FileSystem Cache per segment capacity is less than single IndexInput default block size");
+        }
+        return new FileCache(segmentedCache, circuitBreaker);
+    }
+
+    private static SegmentedCache.Builder<Path, CachedIndexInput> createDefaultBuilder(FileTrackerImp fileTrackerImp) {
         return SegmentedCache.<Path, CachedIndexInput>builder()
             // use length in bytes as the weight of the file item
             .weigher(CachedIndexInput::length)
@@ -53,9 +77,15 @@ public class FileCacheFactory {
                 RemovalReason removalReason = removalNotification.getRemovalReason();
                 CachedIndexInput value = removalNotification.getValue();
                 Path key = removalNotification.getKey();
+                String fileName = key.toFile().getName();
                 if (removalReason != RemovalReason.REPLACED) {
                     catchAsRuntimeException(value::close);
                     catchAsRuntimeException(() -> Files.deleteIfExists(key));
+                    catchAsRuntimeException(() -> {
+                        if (fileTrackerImp.isPresent(fileName)) {
+                            fileTrackerImp.updateState(fileName, FileTrackingInfo.FileState.REMOTE_ONLY);
+                        }
+                    });
                 }
             });
     }
