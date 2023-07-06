@@ -455,9 +455,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public Entry withRemoteStoreIndexShallowCopy(final boolean remoteStoreIndexShallowCopy) {
-            if (remoteStoreIndexShallowCopy == this.remoteStoreIndexShallowCopy) {
-                return this;
-            }
             return new Entry(
                 snapshot,
                 includeGlobalState,
