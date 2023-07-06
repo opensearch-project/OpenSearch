@@ -20,7 +20,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.shard.RemoteStoreRefreshListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
@@ -48,7 +47,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
     private static final String INDEX_NAME_WILDCARD = "remote-store-test-*";
-    private static final String INDEX_NAMES = "remote-store-test-idx-1,remote-store-test-idx-2,remote-store-test-index-1,remote-store-test-index-2";
+    private static final String INDEX_NAMES =
+        "remote-store-test-idx-1,remote-store-test-idx-2,remote-store-test-index-1,remote-store-test-index-2";
     private static final String INDEX_NAMES_WILDCARD = "remote-store-test-idx-*,remote-store-test-index-*";
     private static final String TOTAL_OPERATIONS = "total-operations";
     private static final String REFRESHED_OR_FLUSHED_OPERATIONS = "refreshed-or-flushed-operations";
@@ -117,7 +117,13 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(statsGranularity) + 1);
     }
 
-    private void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, boolean remoteTranslogEnabled, String indices, int replicaCount) {
+    private void prepareCluster(
+        int numClusterManagerNodes,
+        int numDataOnlyNodes,
+        boolean remoteTranslogEnabled,
+        String indices,
+        int replicaCount
+    ) {
         internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
         internalCluster().startDataOnlyNodes(numDataOnlyNodes);
         for (String index : indices.split(",")) {
@@ -160,7 +166,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
      * @throws IOException IO Exception.
      */
-    private void testRestoreFlowBothPrimaryReplicasDown(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush) throws IOException, InterruptedException {
+    private void testRestoreFlowBothPrimaryReplicasDown(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush)
+        throws IOException {
         prepareCluster(1, 2, remoteTranslog, INDEX_NAME, 1);
 
         Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, INDEX_NAME);
@@ -168,49 +175,56 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeName(INDEX_NAME)));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
         ensureRed(INDEX_NAME);
-
         internalCluster().startDataOnlyNodes(2);
-        Thread.sleep(10000);
 
         assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
         client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
 
-        ensureYellow(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        assertEquals(0, getNumShards(INDEX_NAME).numReplicas);
         verifyRestoredData(indexStats, remoteTranslog, INDEX_NAME);
     }
 
-//    /**
-//     * Helper function to test restoring multiple indices from remote store when all the nodes housing the primary/replica drop.
-//     * @param remoteTranslog If true, Remote Translog Store is also enabled in addition to Remote Segment Store.
-//     * @param numberOfIterations Number of times a refresh/flush should be invoked, followed by indexing some data.
-//     * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
-//     * @throws IOException IO Exception.
-//     */
-//    private void testRestoreFlowMultipleIndices(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush) throws IOException {
-//        internalCluster().startDataOnlyNodes(3);
-//        if (remoteTranslog) {
-//            createIndex(INDEX_NAME, remoteTranslogIndexSettings(1));
-//        } else {
-//            createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
-//        }
-//        ensureYellowAndNoInitializingShards(INDEX_NAME);
-//        ensureGreen(INDEX_NAME);
-//
-//        Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, INDEX_NAME);
-//
-//        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
-//        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeName(INDEX_NAME)));
-//        assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
-//
-//        client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
-//        ensureGreen(INDEX_NAME);
-//
-//        if (remoteTranslog) {
-//            verifyRestoredData(indexStats, true, INDEX_NAME);
-//        } else {
-//            verifyRestoredData(indexStats, false, INDEX_NAME);
-//        }
-//    }
+    /**
+     * Helper function to test restoring multiple indices from remote store when all the nodes housing the primary/replica drop.
+     * @param remoteTranslog If true, Remote Translog Store is also enabled in addition to Remote Segment Store.
+     * @param numberOfIterations Number of times a refresh/flush should be invoked, followed by indexing some data.
+     * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
+     * @throws IOException IO Exception.
+     */
+    private void testRestoreFlowMultipleIndices(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush) throws IOException {
+        prepareCluster(1, 3, remoteTranslog, INDEX_NAMES, 1);
+        String[] indices = INDEX_NAMES.split(",");
+        Map<String, Map<String, Long>> indicesStats = new HashMap<>();
+        for (String index : indices) {
+            Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, index);
+            indicesStats.put(index, indexStats);
+        }
+
+        for (String index : indices) {
+            if (ClusterHealthStatus.RED.equals(ensureRed(index))) {
+                continue;
+            }
+
+            if (ClusterHealthStatus.GREEN.equals(ensureRed(index))) {
+                internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeName(index)));
+            }
+
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(index)));
+        }
+
+        ensureRed(indices);
+        internalCluster().startDataOnlyNodes(3);
+
+        assertAcked(client().admin().indices().prepareClose(indices));
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAMES_WILDCARD.split(",")), PlainActionFuture.newFuture());
+        ensureGreen(indices);
+        for (String index : indices) {
+            verifyRestoredData(indicesStats.get(index), remoteTranslog, index);
+        }
+    }
 
     /**
      * Simulates full data loss due to unrefreshed data, with no data restored from Remote Segment Store.
@@ -246,7 +260,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         testRestoreFlow(false, randomIntBetween(2, 5), true);
     }
 
-//    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
     /**
      * Simulates all data restored using Remote Translog Store.
      * @throws IOException IO Exception.
@@ -281,80 +295,217 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         testRestoreFlow(true, randomIntBetween(2, 5), true);
     }
 
-//    /**
-//     * Simulates full data loss due to unrefreshed data, with no data restored from Remote Segment Store.
-//     * @throws IOException IO Exception.
-//     */
-//    public void testRSSRestoreWithNoDataPostCommitPrimaryReplicaDown() throws IOException {
-//        testRestoreFlowBothPrimaryReplicasDown(false, 1, true);
-//    }
-//
-//    /**
-//     * Simulates full data loss due to unrefreshed data, with no data restored from Remote Segment Store.
-//     * @throws IOException IO Exception.
-//     */
-//    public void testRSSRestoreWithNoDataPostRefreshPrimaryReplicaDown() throws IOException {
-//        testRestoreFlowBothPrimaryReplicasDown(false, 1, false);
-//    }
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
+    /**
+     * Simulates full data loss due to unrefreshed data, with no data restored from Remote Segment Store.
+     * @throws IOException IO Exception.
+     */
+    public void testRSSRestoreWithNoDataPostCommitPrimaryReplicaDown() throws IOException {
+        testRestoreFlowBothPrimaryReplicasDown(false, 1, true);
+    }
 
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
+    /**
+     * Simulates full data loss due to unrefreshed data, with no data restored from Remote Segment Store.
+     * @throws IOException IO Exception.
+     */
+    public void testRSSRestoreWithNoDataPostRefreshPrimaryReplicaDown() throws IOException {
+        testRestoreFlowBothPrimaryReplicasDown(false, 1, false);
+    }
+
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     /**
      * Simulates data restored until the refreshed data in Remote Segment Store
      * and data loss for the unrefreshed data.
      * @throws IOException IO Exception.
      */
-    public void testRSSRestoreWithRefreshedDataPrimaryReplicaDown() throws IOException, InterruptedException {
+    public void testRSSRestoreWithRefreshedDataPrimaryReplicaDown() throws IOException {
         testRestoreFlowBothPrimaryReplicasDown(false, randomIntBetween(2, 5), false);
     }
 
-//    /**
-//     * Simulates data restored until the refreshed data in Remote Segment Store
-//     * and data loss for the unrefreshed data.
-//     * @throws IOException IO Exception.
-//     */
-//    public void testRSSRestoreWithCommittedDataPrimaryReplicaDown() throws IOException {
-//        testRestoreFlowBothPrimaryReplicasDown(false, randomIntBetween(2, 5), true);
-//    }
-//
-////    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
-//    /**
-//     * Simulates all data restored using Remote Translog Store.
-//     * @throws IOException IO Exception.
-//     */
-//    public void testRTSWithNoDataPostCommitPrimaryReplicaDown() throws IOException {
-//        testRestoreFlowBothPrimaryReplicasDown(true, 1, true);
-//    }
-//
-//    /**
-//     * Simulates all data restored using Remote Translog Store.
-//     * @throws IOException IO Exception.
-//     */
-//    public void testRTSWithNoDataPostRefreshPrimaryReplicaDown() throws IOException {
-//        testRestoreFlowBothPrimaryReplicasDown(true, 1, false);
-//    }
-//
-//    /**
-//     * Simulates refreshed data restored using Remote Segment Store
-//     * and unrefreshed data restored using Remote Translog Store.
-//     * @throws IOException IO Exception.
-//     */
-//    public void testRTSWithRefreshedDataPrimaryReplicaDown() throws IOException {
-//        testRestoreFlowBothPrimaryReplicasDown(true, randomIntBetween(2, 5), false);
-//    }
-//
-//    /**
-//     * Simulates refreshed data restored using Remote Segment Store
-//     * and unrefreshed data restored using Remote Translog Store.
-//     * @throws IOException IO Exception.
-//     */
-//    public void testRTSWithCommittedDataPrimaryReplicaDown() throws IOException {
-//        testRestoreFlowBothPrimaryReplicasDown(true, randomIntBetween(2, 5), true);
-//    }
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
+    /**
+     * Simulates data restored until the refreshed data in Remote Segment Store
+     * and data loss for the unrefreshed data.
+     * @throws IOException IO Exception.
+     */
+    public void testRSSRestoreWithCommittedDataPrimaryReplicaDown() throws IOException {
+        testRestoreFlowBothPrimaryReplicasDown(false, randomIntBetween(2, 5), true);
+    }
 
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
+    /**
+     * Simulates all data restored using Remote Translog Store.
+     * @throws IOException IO Exception.
+     */
+    public void testRTSRestoreWithNoDataPostCommitPrimaryReplicaDown() throws IOException {
+        testRestoreFlowBothPrimaryReplicasDown(true, 1, true);
+    }
 
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
+    /**
+     * Simulates all data restored using Remote Translog Store.
+     * @throws IOException IO Exception.
+     */
+    public void testRTSRestoreWithNoDataPostRefreshPrimaryReplicaDown() throws IOException {
+        testRestoreFlowBothPrimaryReplicasDown(true, 1, false);
+    }
 
-//    public void testRemoteTranslogRestoreWithCommittedDataIndexPattern() throws IOException {
-//        testRestoreFlow(true, randomIntBetween(2, 5), true);
-//    }
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
+    /**
+     * Simulates refreshed data restored using Remote Segment Store
+     * and unrefreshed data restored using Remote Translog Store.
+     * @throws IOException IO Exception.
+     */
+    public void testRTSRestoreWithRefreshedDataPrimaryReplicaDown() throws IOException {
+        testRestoreFlowBothPrimaryReplicasDown(true, randomIntBetween(2, 5), false);
+    }
+
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
+    /**
+     * Simulates refreshed data restored using Remote Segment Store
+     * and unrefreshed data restored using Remote Translog Store.
+     * @throws IOException IO Exception.
+     */
+    public void testRTSRestoreWithCommittedDataPrimaryReplicaDown() throws IOException {
+        testRestoreFlowBothPrimaryReplicasDown(true, randomIntBetween(2, 5), true);
+    }
+
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
+    /**
+     * Simulates refreshed data restored using Remote Segment Store
+     * and unrefreshed data restored using Remote Translog Store
+     * for multiple indices matching a wildcard name pattern.
+     * @throws IOException IO Exception.
+     */
+    public void testRTSRestoreWithCommittedDataMultipleIndicesPatterns() throws IOException {
+        testRestoreFlowMultipleIndices(true, randomIntBetween(2, 5), true);
+    }
+
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
+    /**
+     * Simulates refreshed data restored using Remote Segment Store
+     * and unrefreshed data restored using Remote Translog Store,
+     * with all remote-enabled red indices considered for the restore by default.
+     * @throws IOException IO Exception.
+     */
+    public void testRTSRestoreWithCommittedDataDefaultAllIndices() throws IOException {
+        prepareCluster(1, 3, true, INDEX_NAMES, 1);
+        String[] indices = INDEX_NAMES.split(",");
+        Map<String, Map<String, Long>> indicesStats = new HashMap<>();
+        for (String index : indices) {
+            Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true, index);
+            indicesStats.put(index, indexStats);
+        }
+
+        for (String index : indices) {
+            if (ClusterHealthStatus.RED.equals(ensureRed(index))) {
+                continue;
+            }
+
+            if (ClusterHealthStatus.GREEN.equals(ensureRed(index))) {
+                internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeName(index)));
+            }
+
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(index)));
+        }
+
+        ensureRed(indices);
+        internalCluster().startDataOnlyNodes(3);
+
+        assertAcked(client().admin().indices().prepareClose(indices));
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(new String[] {}), PlainActionFuture.newFuture());
+        ensureGreen(indices);
+
+        for (String index : indices) {
+            verifyRestoredData(indicesStats.get(index), true, index);
+        }
+    }
+
+    /**
+     * Simulates refreshed data restored using Remote Segment Store
+     * and unrefreshed data restored using Remote Translog Store,
+     * with only some of the remote-enabled red indices requested for the restore.
+     * @throws IOException IO Exception.
+     */
+    public void testRTSRestoreWithCommittedDataNotAllRedRemoteIndices() throws IOException {
+        prepareCluster(1, 3, true, INDEX_NAMES, 1);
+        String[] indices = INDEX_NAMES.split(",");
+        Map<String, Map<String, Long>> indicesStats = new HashMap<>();
+        for (String index : indices) {
+            Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true, index);
+            indicesStats.put(index, indexStats);
+        }
+
+        for (String index : indices) {
+            if (ClusterHealthStatus.RED.equals(ensureRed(index))) {
+                continue;
+            }
+
+            if (ClusterHealthStatus.GREEN.equals(ensureRed(index))) {
+                internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeName(index)));
+            }
+
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(index)));
+        }
+
+        ensureRed(indices);
+        internalCluster().startDataOnlyNodes(3);
+
+        assertAcked(client().admin().indices().prepareClose(indices[0], indices[1]));
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(indices[0], indices[1]), PlainActionFuture.newFuture());
+        ensureGreen(indices[0], indices[1]);
+        verifyRestoredData(indicesStats.get(indices[0]), true, indices[0]);
+        verifyRestoredData(indicesStats.get(indices[1]), true, indices[1]);
+        ensureRed(indices[2], indices[3]);
+    }
+
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
+    /**
+     * Simulates refreshed data restored using Remote Segment Store
+     * and unrefreshed data restored using Remote Translog Store,
+     * with all remote-enabled red indices being considered for the restore
+     * except those matching the specified exclusion pattern.
+     * @throws IOException IO Exception.
+     */
+    public void testRTSRestoreWithCommittedDataExcludeIndicesPatterns() throws IOException {
+        prepareCluster(1, 3, true, INDEX_NAMES, 1);
+        String[] indices = INDEX_NAMES.split(",");
+        Map<String, Map<String, Long>> indicesStats = new HashMap<>();
+        for (String index : indices) {
+            Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true, index);
+            indicesStats.put(index, indexStats);
+        }
+
+        for (String index : indices) {
+            if (ClusterHealthStatus.RED.equals(ensureRed(index))) {
+                continue;
+            }
+
+            if (ClusterHealthStatus.GREEN.equals(ensureRed(index))) {
+                internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeName(index)));
+            }
+
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(index)));
+        }
+
+        ensureRed(indices);
+        internalCluster().startDataOnlyNodes(3);
+
+        assertAcked(client().admin().indices().prepareClose(indices[0], indices[1]));
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices("*", "-remote-store-test-index-*"), PlainActionFuture.newFuture());
+        ensureGreen(indices[0], indices[1]);
+        verifyRestoredData(indicesStats.get(indices[0]), true, indices[0]);
+        verifyRestoredData(indicesStats.get(indices[1]), true, indices[1]);
+        ensureRed(indices[2], indices[3]);
+    }
 
     private void testPeerRecovery(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush) throws Exception {
         internalCluster().startDataOnlyNodes(3);
