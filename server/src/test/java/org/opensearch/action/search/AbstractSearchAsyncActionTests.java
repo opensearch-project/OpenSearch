@@ -333,6 +333,60 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals(requestIds, releasedContexts);
     }
 
+    public void testOnPhaseListenersFailure() {
+        SearchCoordinatorStatsTesting searchCoordinatorStatsTesting = new SearchCoordinatorStatsTesting();
+        SearchRequestOperationsListener testListener = createSearchRequestOperationsListener(searchCoordinatorStatsTesting);
+        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(Arrays.asList(testListener, testListener));
+
+        SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction();
+        action.setSearchListenerList(requestOperationListeners);
+        action.setCurrentPhase(action);
+        action.onPhaseFailure(new SearchPhase("test") {
+            @Override
+            public void run() {
+
+            }
+        }, "message", null);
+        assertEquals(2, searchCoordinatorStatsTesting.queryPhaseFailure.get());
+
+        SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction();
+        searchDfsQueryThenFetchAsyncAction.setSearchListenerList(requestOperationListeners);
+        searchDfsQueryThenFetchAsyncAction.setCurrentPhase(searchDfsQueryThenFetchAsyncAction);
+        searchDfsQueryThenFetchAsyncAction.onPhaseFailure(new SearchPhase("test") {
+            @Override
+            public void run() {
+
+            }
+        }, "message", null);
+        assertEquals(2, searchCoordinatorStatsTesting.dfsPreQueryPhaseFailure.get());
+
+        CanMatchPreFilterSearchPhase canMatchPreFilterSearchPhaseAction = createCanMatchPreFilterSearchPhase();
+        canMatchPreFilterSearchPhaseAction.setSearchListenerList(requestOperationListeners);
+        canMatchPreFilterSearchPhaseAction.setCurrentPhase(canMatchPreFilterSearchPhaseAction);
+
+        canMatchPreFilterSearchPhaseAction.onPhaseFailure(new SearchPhase("test") {
+            @Override
+            public void run() {
+
+            }
+        }, "message", null);
+        assertEquals(2, searchCoordinatorStatsTesting.canMatchPhaseFailure.get());
+
+        FetchSearchPhase fetchPhase = createFetchSearchPhase();
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
+        SearchShardIterator searchShardIterator = new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE);
+        searchShardIterator.resetAndSkip();
+        action.skipShard(searchShardIterator);
+        action.executeNextPhase(action, fetchPhase);
+        action.onPhaseFailure(new SearchPhase("test") {
+            @Override
+            public void run() {
+
+            }
+        }, "message", null);
+        assertEquals(2, searchCoordinatorStatsTesting.fetchPhaseFailure.get());
+    }
+
     public void testOnPhaseFailure() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -341,6 +395,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, 0);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
+
         action.onPhaseFailure(new SearchPhase("test") {
             @Override
             public void run() {
@@ -612,6 +667,9 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             shardsIter.size(),
             exc -> {}
         );
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
+
         return new SearchDfsQueryThenFetchAsyncAction(
             logger,
             null,
@@ -623,7 +681,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             executor,
             resultConsumer,
             searchRequest,
-            null,
+            listener,
             shardsIter,
             null,
             null,
@@ -652,6 +710,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             shardsIter.size(),
             exc -> {}
         );
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
         return new SearchQueryThenFetchAsyncAction(
             logger,
             null,
@@ -663,7 +723,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             executor,
             resultConsumer,
             searchRequest,
-            null,
+            listener,
             shardsIter,
             null,
             null,
@@ -709,6 +769,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             primaryNode,
             replicaNode
         );
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
         return new CanMatchPreFilterSearchPhase(
             logger,
             searchTransportService,
@@ -718,7 +780,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             OpenSearchExecutors.newDirectExecutorService(),
             searchRequest,
-            null,
+            listener,
             shardsIter,
             timeProvider,
             ClusterState.EMPTY_STATE,
