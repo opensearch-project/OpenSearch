@@ -77,12 +77,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
             latchedActionListener.onResponse(List.of());
             return null;
         }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(
-                any(),
-                eq(1),
-                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
-                any(ActionListener.class)
-            );
+            .listBlobsByPrefixInSortedOrder(any(), eq(1), eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC), any(ActionListener.class));
 
         when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
 
