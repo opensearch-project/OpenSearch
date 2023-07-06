@@ -41,6 +41,7 @@ import org.opensearch.common.xcontent.BaseXContentTestCase;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
+
 public class SmileXContentTests extends BaseXContentTestCase {
 
     @Override
