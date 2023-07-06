@@ -62,6 +62,8 @@ public class JsonXContent implements XContent {
         System.getProperty("opensearch.xcontent.string.length.max", Integer.toString(Integer.MAX_VALUE) /* no limit */)
     );
 
+    public static final boolean USE_FAST_DOUBLE_WRITER = Boolean.getBoolean("opensearch.xcontent.use_fast_double_writer");
+
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }
@@ -80,7 +82,7 @@ public class JsonXContent implements XContent {
         jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         jsonFactory.setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(DEFAULT_MAX_STRING_LEN).build());
         jsonFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
-        jsonFactory.configure(StreamWriteFeature.USE_FAST_DOUBLE_WRITER.mappedFeature(), Boolean.getBoolean("fast_double_writer.enabled"));
+        jsonFactory.configure(StreamWriteFeature.USE_FAST_DOUBLE_WRITER.mappedFeature(), USE_FAST_DOUBLE_WRITER);
         jsonXContent = new JsonXContent();
     }
 

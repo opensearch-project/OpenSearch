@@ -63,6 +63,8 @@ public class CborXContent implements XContent {
         System.getProperty("opensearch.xcontent.string.length.max", Integer.toString(Integer.MAX_VALUE) /* no limit */)
     );
 
+    public static final boolean USE_FAST_DOUBLE_WRITER = Boolean.getBoolean("opensearch.xcontent.use_fast_double_writer");
+
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(cborXContent);
     }
@@ -78,7 +80,7 @@ public class CborXContent implements XContent {
         cborFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         cborFactory.setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(DEFAULT_MAX_STRING_LEN).build());
         cborFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
-        cborFactory.configure(StreamWriteFeature.USE_FAST_DOUBLE_WRITER.mappedFeature(), Boolean.getBoolean("fast_double_writer.enabled"));
+        cborFactory.configure(StreamWriteFeature.USE_FAST_DOUBLE_WRITER.mappedFeature(), USE_FAST_DOUBLE_WRITER);
         cborXContent = new CborXContent();
     }
 
