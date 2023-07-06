@@ -4816,7 +4816,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void beforeSegmentDownload(RemoteRefreshSegmentTracker downloadStatsTracker, long incomingFileSize) {
-        if (!isRemoteStoreEnabled()) {
+        if (!indexSettings.isRemoteStoreEnabled()) {
             return;
         }
         downloadStatsTracker.incrementTotalDownloadsStarted();
@@ -4828,7 +4828,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long downloadedFileSize,
         long startTimeInNs
     ) {
-        if (!isRemoteStoreEnabled()) {
+        if (!indexSettings.isRemoteStoreEnabled()) {
             return;
         }
         long currentTimeInNs = System.nanoTime();
@@ -4842,7 +4842,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void afterSegmentDownloadFailed(RemoteRefreshSegmentTracker downloadStatsTracker, long failedFileSize) {
-        if (!isRemoteStoreEnabled()) {
+        if (!indexSettings.isRemoteStoreEnabled()) {
             return;
         }
         downloadStatsTracker.incrementTotalDownloadsFailed();
