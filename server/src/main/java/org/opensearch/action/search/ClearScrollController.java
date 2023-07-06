@@ -38,8 +38,8 @@ import org.opensearch.action.StepListener;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.Strings;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.common.Strings;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportResponse;
 

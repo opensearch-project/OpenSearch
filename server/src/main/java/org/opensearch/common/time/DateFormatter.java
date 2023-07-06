@@ -32,8 +32,8 @@
 
 package org.opensearch.common.time;
 
-import org.opensearch.common.Strings;
 import org.joda.time.DateTime;
+import org.opensearch.core.common.Strings;
 
 import java.time.Instant;
 import java.time.ZoneId;

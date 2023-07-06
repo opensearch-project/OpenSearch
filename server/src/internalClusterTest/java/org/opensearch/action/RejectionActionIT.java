@@ -32,7 +32,7 @@
 
 package org.opensearch.action;
 
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
@@ -105,7 +105,7 @@ public class RejectionActionIT extends OpenSearchIntegTestCase {
                 }
             } else {
                 Exception t = (Exception) response;
-                Throwable unwrap = ExceptionsHelper.unwrapCause(t);
+                Throwable unwrap = BaseExceptionsHelper.unwrapCause(t);
                 if (unwrap instanceof SearchPhaseExecutionException) {
                     SearchPhaseExecutionException e = (SearchPhaseExecutionException) unwrap;
                     for (ShardSearchFailure failure : e.shardFailures()) {

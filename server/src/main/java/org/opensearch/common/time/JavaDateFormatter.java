@@ -32,7 +32,7 @@
 
 package org.opensearch.common.time;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.text.ParsePosition;
 import java.time.ZoneId;

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.rankeval;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.core.ParseField;
@@ -136,7 +137,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         builder.startObject("failures");
         for (String key : failures.keySet()) {
             builder.startObject(key);
-            OpenSearchException.generateFailureXContent(builder, params, failures.get(key), true);
+            BaseOpenSearchException.generateFailureXContent(builder, params, failures.get(key), true);
             builder.endObject();
         }
         builder.endObject();

@@ -32,7 +32,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.internal.InternalSearchResponse;

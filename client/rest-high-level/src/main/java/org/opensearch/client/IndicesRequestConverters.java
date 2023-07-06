@@ -73,7 +73,7 @@ import org.opensearch.client.indices.ResizeRequest;
 import org.opensearch.client.indices.SimulateIndexTemplateRequest;
 import org.opensearch.client.indices.rollover.RolloverRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.util.Locale;

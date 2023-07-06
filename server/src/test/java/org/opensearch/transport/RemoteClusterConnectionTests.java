@@ -694,7 +694,7 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
         builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "sniff");
         builder.put(
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
-            Strings.collectionToCommaDelimitedString(seedNodes)
+            org.opensearch.core.common.Strings.collectionToCommaDelimitedString(seedNodes)
         );
         return builder.build();
     }

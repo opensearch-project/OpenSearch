@@ -33,7 +33,7 @@
 package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
@@ -137,7 +137,7 @@ public abstract class ScrollableHitSource {
 
     public final void close(Runnable onCompletion) {
         String scrollId = this.scrollId.get();
-        if (Strings.hasLength(scrollId)) {
+        if (org.opensearch.core.common.Strings.hasLength(scrollId)) {
             clearScroll(scrollId, () -> cleanup(onCompletion));
         } else {
             cleanup(onCompletion);
@@ -489,7 +489,7 @@ public abstract class ScrollableHitSource {
             builder.field(REASON_FIELD);
             {
                 builder.startObject();
-                OpenSearchException.generateThrowableXContent(builder, params, reason);
+                BaseExceptionsHelper.generateThrowableXContent(builder, params, reason);
                 builder.endObject();
             }
             builder.endObject();

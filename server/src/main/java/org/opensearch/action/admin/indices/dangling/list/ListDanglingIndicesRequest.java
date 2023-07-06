@@ -33,9 +33,9 @@
 package org.opensearch.action.admin.indices.dangling.list;
 
 import org.opensearch.action.support.nodes.BaseNodesRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 

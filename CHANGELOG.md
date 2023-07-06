@@ -83,6 +83,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Refactor] remaining ImmutableOpenMap usage to j.u.Map and remove class ([#7309](https://github.com/opensearch-project/OpenSearch/pull/7309))
 - [Refactor] Version and LegacyESVersion from server module to core lib ([#7328](https://github.com/opensearch-project/OpenSearch/pull/7328))
 - [Refactor] Stream Reader and Write Generics ([#7465](https://github.com/opensearch-project/OpenSearch/pull/7465))
+- [Refactor] OpenSearchException and ExceptionsHelper foundation to base class ([#7508](https://github.com/opensearch-project/OpenSearch/pull/7508))
 - Move ZSTD compression codecs out of the sandbox ([#7908](https://github.com/opensearch-project/OpenSearch/pull/7908))
 
 ### Deprecated

@@ -32,7 +32,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.util.automaton.RegExp;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.util.Locale;
 
