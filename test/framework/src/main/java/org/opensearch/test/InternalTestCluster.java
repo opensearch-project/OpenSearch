@@ -1524,11 +1524,13 @@ public final class InternalTestCluster extends TestCluster {
                         }
                         assertThat(replicaShardRouting + " seq_no_stats mismatch", seqNoStats, equalTo(primarySeqNoStats));
                         // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
-                        assertThat(
-                            replicaShardRouting + " global checkpoint syncs mismatch",
-                            seqNoStats.getGlobalCheckpoint(),
-                            equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId()))
-                        );
+                        if (primaryShard.isRemoteTranslogEnabled() == false) {
+                            assertThat(
+                                replicaShardRouting + " global checkpoint syncs mismatch",
+                                seqNoStats.getGlobalCheckpoint(),
+                                equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId()))
+                            );
+                        }
                     }
                 }
             }

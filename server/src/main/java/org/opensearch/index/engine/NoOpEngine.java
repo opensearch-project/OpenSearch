@@ -209,11 +209,12 @@ public final class NoOpEngine extends ReadOnlyEngine {
                                 translog.trimUnreferencedReaders();
                                 // refresh the translog stats
                                 translogStats = translog.stats();
-                                assert translog.currentFileGeneration() == translog.getMinFileGeneration() : "translog was not trimmed "
-                                    + " current gen "
-                                    + translog.currentFileGeneration()
-                                    + " != min gen "
-                                    + translog.getMinFileGeneration();
+                                assert engineConfig.getIndexSettings().isRemoteTranslogStoreEnabled()
+                                    || translog.currentFileGeneration() == translog.getMinFileGeneration() : "translog was not trimmed "
+                                        + " current gen "
+                                        + translog.currentFileGeneration()
+                                        + " != min gen "
+                                        + translog.getMinFileGeneration();
                             }
                         }
                     } catch (final Exception e) {

@@ -2481,5 +2481,4 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     protected ClusterState getClusterState() {
         return client(internalCluster().getClusterManagerName()).admin().cluster().prepareState().get().getState();
     }
-
 }
