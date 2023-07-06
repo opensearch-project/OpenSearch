@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeUnit;
@@ -456,6 +457,7 @@ public class Node implements Closeable {
 
             this.pluginsService = new PluginsService(
                 tmpSettings,
+                new ApplicationManager(),
                 initialEnvironment.configDir(),
                 initialEnvironment.modulesDir(),
                 initialEnvironment.pluginsDir(),

@@ -111,7 +111,7 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
         this.customFolderName = customFolderName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
-        this.pluginPrincipal =  new NamedPrincipal(this.name);
+        this.pluginPrincipal = new NamedPrincipal(this.name);
     }
 
     /**
@@ -165,7 +165,7 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
-        this.pluginPrincipal =  new NamedPrincipal(this.name);
+        this.pluginPrincipal = new NamedPrincipal(this.name);
     }
 
     @Override

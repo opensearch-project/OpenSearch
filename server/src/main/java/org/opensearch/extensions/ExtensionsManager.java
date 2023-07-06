@@ -461,7 +461,7 @@ public class ExtensionsManager {
         return clusterService;
     }
 
-    Map<String, DiscoveryExtensionNode> getExtensionIdMap() {
+    public Map<String, DiscoveryExtensionNode> getExtensionIdMap() {
         return extensionIdMap;
     }
 

@@ -23,6 +23,7 @@ public class ShiroServiceAccount implements ServiceAccount {
 
     private final Application application;
     private final NamedPrincipal name;
+    private List<String> permissions = List.of(); // Fine-grained access controls not yet configured
 
     /**
      * Creates a principal for an application identity
@@ -32,6 +33,15 @@ public class ShiroServiceAccount implements ServiceAccount {
 
         this.application = application;
         name = new NamedPrincipal(application.toString());
+    }
+
+    /**
+     * This method will not usually exist but is required until fine-grained access controls are implemented
+     *
+     * @param permissions The permissions to assign the service account
+     */
+    public void setPermissions(List<String> permissions) {
+        this.permissions = List.copyOf(permissions);
     }
 
     @Override
@@ -59,6 +69,6 @@ public class ShiroServiceAccount implements ServiceAccount {
 
     @Override
     public List<String> getPermissions() {
-        return null;
+        return List.copyOf(permissions);
     }
 }

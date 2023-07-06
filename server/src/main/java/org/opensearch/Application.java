@@ -12,6 +12,4 @@ import org.opensearch.identity.Subject;
  *
  * @opensearch.experimental
  */
-public interface Application extends Subject {
-
-}
+public interface Application extends Subject {}

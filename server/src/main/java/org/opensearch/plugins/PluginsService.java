@@ -32,29 +32,6 @@
 
 package org.opensearch.plugins;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.util.SPIClassIterator;
-import org.opensearch.Build;
-import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.opensearch.bootstrap.JarHell;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.component.LifecycleComponent;
-import org.opensearch.common.inject.Module;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.Strings;
-import org.opensearch.index.IndexModule;
-import org.opensearch.node.ReportingService;
-import org.opensearch.threadpool.ExecutorBuilder;
-import org.opensearch.transport.TransportSettings;
-
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.URL;
@@ -80,7 +57,29 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.util.SPIClassIterator;
+import org.opensearch.Build;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.bootstrap.JarHell;
+import org.opensearch.cluster.ApplicationManager;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.component.LifecycleComponent;
+import org.opensearch.common.inject.Module;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
+import org.opensearch.index.IndexModule;
+import org.opensearch.node.ReportingService;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.transport.TransportSettings;
 import static org.opensearch.core.util.FileSystemUtils.isAccessibleDirectory;
 
 /**
@@ -94,6 +93,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private final Settings settings;
     private final Path configPath;
+    private final ApplicationManager applicationManager;
 
     /**
      * We keep around a list of plugins and modules
@@ -125,6 +125,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     public PluginsService(
         Settings settings,
+        ApplicationManager applicationManager,
         Path configPath,
         Path modulesDirectory,
         Path pluginsDirectory,
@@ -132,6 +133,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     ) {
         this.settings = settings;
         this.configPath = configPath;
+        this.applicationManager = applicationManager;
 
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
         List<PluginInfo> pluginsList = new ArrayList<>();
@@ -216,6 +218,15 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 );
                 throw new IllegalStateException(message);
             }
+        }
+
+        // Register service accounts for all loaded plugins
+        for (Tuple<PluginInfo, Plugin> pluginTuple : pluginsLoaded) {
+            PluginInfo pluginInfo = pluginTuple.v1();
+            Plugin plugin = pluginTuple.v2();
+
+            // Register a service account for an application
+            applicationManager.registerServiceAccount(pluginInfo, plugin);
         }
 
         // we don't log jars in lib/ we really shouldn't log modules,
