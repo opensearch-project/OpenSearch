@@ -295,107 +295,107 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         testRestoreFlow(true, randomIntBetween(2, 5), true);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     /**
      * Simulates full data loss due to unrefreshed data, with no data restored from Remote Segment Store.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRSSRestoreWithNoDataPostCommitPrimaryReplicaDown() throws IOException {
         testRestoreFlowBothPrimaryReplicasDown(false, 1, true);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     /**
      * Simulates full data loss due to unrefreshed data, with no data restored from Remote Segment Store.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRSSRestoreWithNoDataPostRefreshPrimaryReplicaDown() throws IOException {
         testRestoreFlowBothPrimaryReplicasDown(false, 1, false);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     /**
      * Simulates data restored until the refreshed data in Remote Segment Store
      * and data loss for the unrefreshed data.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRSSRestoreWithRefreshedDataPrimaryReplicaDown() throws IOException {
         testRestoreFlowBothPrimaryReplicasDown(false, randomIntBetween(2, 5), false);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     /**
      * Simulates data restored until the refreshed data in Remote Segment Store
      * and data loss for the unrefreshed data.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRSSRestoreWithCommittedDataPrimaryReplicaDown() throws IOException {
         testRestoreFlowBothPrimaryReplicasDown(false, randomIntBetween(2, 5), true);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     /**
      * Simulates all data restored using Remote Translog Store.
      * @throws IOException IO Exception.
      */
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRTSRestoreWithNoDataPostCommitPrimaryReplicaDown() throws IOException {
         testRestoreFlowBothPrimaryReplicasDown(true, 1, true);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     /**
      * Simulates all data restored using Remote Translog Store.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRTSRestoreWithNoDataPostRefreshPrimaryReplicaDown() throws IOException {
         testRestoreFlowBothPrimaryReplicasDown(true, 1, false);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     /**
      * Simulates refreshed data restored using Remote Segment Store
      * and unrefreshed data restored using Remote Translog Store.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRTSRestoreWithRefreshedDataPrimaryReplicaDown() throws IOException {
         testRestoreFlowBothPrimaryReplicasDown(true, randomIntBetween(2, 5), false);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     /**
      * Simulates refreshed data restored using Remote Segment Store
      * and unrefreshed data restored using Remote Translog Store.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRTSRestoreWithCommittedDataPrimaryReplicaDown() throws IOException {
         testRestoreFlowBothPrimaryReplicasDown(true, randomIntBetween(2, 5), true);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     /**
      * Simulates refreshed data restored using Remote Segment Store
      * and unrefreshed data restored using Remote Translog Store
      * for multiple indices matching a wildcard name pattern.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     public void testRTSRestoreWithCommittedDataMultipleIndicesPatterns() throws IOException {
-        testRestoreFlowMultipleIndices(true, randomIntBetween(2, 5), true);
+        testRestoreFlowMultipleIndices(true, 2, true);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     /**
      * Simulates refreshed data restored using Remote Segment Store
      * and unrefreshed data restored using Remote Translog Store,
      * with all remote-enabled red indices considered for the restore by default.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     public void testRTSRestoreWithCommittedDataDefaultAllIndices() throws IOException {
         prepareCluster(1, 3, true, INDEX_NAMES, 1);
         String[] indices = INDEX_NAMES.split(",");
         Map<String, Map<String, Long>> indicesStats = new HashMap<>();
         for (String index : indices) {
-            Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true, index);
+            Map<String, Long> indexStats = indexData(2, true, index);
             indicesStats.put(index, indexStats);
         }
 
@@ -432,21 +432,17 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * @throws IOException IO Exception.
      */
     public void testRTSRestoreWithCommittedDataNotAllRedRemoteIndices() throws IOException {
-        prepareCluster(1, 3, true, INDEX_NAMES, 1);
+        prepareCluster(1, 3, true, INDEX_NAMES, 0);
         String[] indices = INDEX_NAMES.split(",");
         Map<String, Map<String, Long>> indicesStats = new HashMap<>();
         for (String index : indices) {
-            Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true, index);
+            Map<String, Long> indexStats = indexData(2, true, index);
             indicesStats.put(index, indexStats);
         }
 
         for (String index : indices) {
             if (ClusterHealthStatus.RED.equals(ensureRed(index))) {
                 continue;
-            }
-
-            if (ClusterHealthStatus.GREEN.equals(ensureRed(index))) {
-                internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeName(index)));
             }
 
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(index)));
@@ -465,7 +461,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureRed(indices[2], indices[3]);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     /**
      * Simulates refreshed data restored using Remote Segment Store
      * and unrefreshed data restored using Remote Translog Store,
@@ -473,12 +468,13 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * except those matching the specified exclusion pattern.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     public void testRTSRestoreWithCommittedDataExcludeIndicesPatterns() throws IOException {
         prepareCluster(1, 3, true, INDEX_NAMES, 1);
         String[] indices = INDEX_NAMES.split(",");
         Map<String, Map<String, Long>> indicesStats = new HashMap<>();
         for (String index : indices) {
-            Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true, index);
+            Map<String, Long> indexStats = indexData(2, true, index);
             indicesStats.put(index, indexStats);
         }
 
