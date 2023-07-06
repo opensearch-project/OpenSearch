@@ -1027,6 +1027,25 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         }
     }
 
+    protected void doTestInvalidSurrogatePair(JsonGenerator generator, ByteArrayOutputStream os) throws Exception {
+        String field = "ퟀ\uDD6Dlog_processeddetail٣{r";
+        generator.writeStartObject();
+        generator.writeFieldName(field);
+        generator.writeString("foo");
+        generator.writeEndObject();
+        generator.flush();
+        byte[] serialized = os.toByteArray();
+
+        try (
+            XContentParser parser = xcontentType().xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, serialized)
+        ) {
+
+            Map<String, Object> map = parser.map();
+            assertNotEquals(field, map.keySet().stream().findFirst().get());
+        }
+    }
+
     public void testEnsureNameNotNull() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureNameNotNull(null));
         assertThat(e.getMessage(), containsString("Field name cannot be null"));

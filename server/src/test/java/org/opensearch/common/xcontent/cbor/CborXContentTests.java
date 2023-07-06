@@ -32,9 +32,11 @@
 
 package org.opensearch.common.xcontent.cbor;
 
+import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 
+import com.fasterxml.jackson.dataformat.cbor.CBORGenerator;
 import org.opensearch.common.xcontent.BaseXContentTestCase;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -51,5 +53,18 @@ public class CborXContentTests extends BaseXContentTestCase {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         JsonGenerator generator = new CBORFactory().createGenerator(os);
         doTestBigInteger(generator, os);
+    }
+
+    public void testInvalidSurrogatePair() throws Exception {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        CBORFactory cborFactory = new CBORFactory();
+        JsonGenerator generator = cborFactory.createGenerator(os);
+        // default case throws an exception
+        expectThrows(JsonGenerationException.class, () -> generator.writeFieldName("ퟀ\uDD6Dlog_processeddetail٣{r"));
+
+        // LENIENT_UTF_ENCODING doesn't throw any exception
+        cborFactory.configure(CBORGenerator.Feature.LENIENT_UTF_ENCODING, true);
+        JsonGenerator generator2 = cborFactory.createGenerator(os);
+        doTestInvalidSurrogatePair(generator2, os);
     }
 }

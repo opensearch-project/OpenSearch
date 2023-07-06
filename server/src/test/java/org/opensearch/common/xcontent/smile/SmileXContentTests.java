@@ -32,14 +32,15 @@
 
 package org.opensearch.common.xcontent.smile;
 
+import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 
+import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 import org.opensearch.common.xcontent.BaseXContentTestCase;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
-
 public class SmileXContentTests extends BaseXContentTestCase {
 
     @Override
@@ -51,5 +52,18 @@ public class SmileXContentTests extends BaseXContentTestCase {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         JsonGenerator generator = new SmileFactory().createGenerator(os);
         doTestBigInteger(generator, os);
+    }
+
+    public void testInvalidSurrogatePair() throws Exception {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        SmileFactory smileFactory = new SmileFactory();
+        JsonGenerator generator = smileFactory.createGenerator(os);
+        // default case throws an exception
+        expectThrows(JsonGenerationException.class, () -> generator.writeFieldName("ퟀ\uDD6Dlog_processeddetail٣{r"));
+
+        // LENIENT_UTF_ENCODING doesn't throw any exception
+        smileFactory.configure(SmileGenerator.Feature.LENIENT_UTF_ENCODING, true);
+        JsonGenerator generator2 = smileFactory.createGenerator(os);
+        doTestInvalidSurrogatePair(generator2, os);
     }
 }

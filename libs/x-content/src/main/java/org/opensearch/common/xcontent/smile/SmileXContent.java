@@ -79,6 +79,7 @@ public class SmileXContent implements XContent {
         smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         smileFactory.setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(DEFAULT_MAX_STRING_LEN).build());
         smileFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
+        smileFactory.configure(SmileGenerator.Feature.LENIENT_UTF_ENCODING, true);
         smileXContent = new SmileXContent();
     }
 
