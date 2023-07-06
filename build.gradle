@@ -319,6 +319,7 @@ allprojects {
       javadoc.options.addStringOption('Xwerror', '-quiet')
     }
     javadoc.options.tags = ["opensearch.internal", "opensearch.api", "opensearch.experimental"]
+    javadoc.options.addStringOption("-release", java.targetCompatibility.majorVersion)
   }
 
   // support for reproducible builds
@@ -366,7 +367,7 @@ allprojects {
         } else {
           // Link to non-shadowed dependant projects
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-          String externalLinkName = upstreamProject.archivesBaseName
+          String externalLinkName = upstreamProject.base.archivesBaseName
           String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
           String projectRelativePath = project.relativePath(upstreamProject.buildDir)
           project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${projectRelativePath}/docs/javadoc/"
@@ -443,7 +444,7 @@ gradle.projectsEvaluated {
       testReportAggregation it
     }
     subprojects.findAll { it.pluginManager.hasPlugin('jacoco') }.forEach {
-     jacocoAggregation it
+      jacocoAggregation it
     }
   }
 }

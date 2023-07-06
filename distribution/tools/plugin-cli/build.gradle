@@ -30,7 +30,9 @@
 
 apply plugin: 'opensearch.build'
 
-archivesBaseName = 'opensearch-plugin-cli'
+base {
+  archivesBaseName = 'opensearch-plugin-cli'
+}
 
 dependencies {
   compileOnly project(":server")
