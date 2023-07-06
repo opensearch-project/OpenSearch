@@ -316,6 +316,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
         Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
-        assertEquals(1, getFileCount(indexPath));
+        assertEquals(numberOfIterations, getFileCount(indexPath));
     }
 }

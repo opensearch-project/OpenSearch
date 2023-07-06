@@ -126,4 +126,6 @@ public interface TranslogManager {
     Clean up if any needed on deletion of index
      */
     void onDelete();
+
+    Translog.TranslogGeneration getTranslogGeneration();
 }

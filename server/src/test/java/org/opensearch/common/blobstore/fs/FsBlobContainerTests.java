@@ -131,7 +131,7 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
 
         List<String> blobsInFileSystem = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+            final String blobName = randomAlphaOfLengthBetween(10, 20).toLowerCase(Locale.ROOT);
             final byte[] blobData = randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
             Files.write(path.resolve(blobName), blobData);
             blobsInFileSystem.add(blobName);

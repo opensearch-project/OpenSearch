@@ -11,8 +11,11 @@ package org.opensearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.Settings;
@@ -28,15 +31,16 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.doAnswer;
 
 public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase {
 
@@ -68,7 +72,12 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
         when(repository.blobStore()).thenReturn(blobStore);
         when(repository.basePath()).thenReturn(new BlobPath().add("base_path"));
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-        when(blobContainer.listBlobs()).thenReturn(Collections.emptyMap());
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            latchedActionListener.onResponse(List.of());
+            return null;
+        }).when(blobContainer)
+            .listBlobsByPrefixInSortedOrder(any(), eq(1), eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC), any(ActionListener.class));
 
         when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
 
@@ -81,7 +90,12 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
             assertEquals("base_path/uuid_1/0/segments/metadata/", blobPaths.get(1).buildAsString());
             assertEquals("base_path/uuid_1/0/segments/lock_files/", blobPaths.get(2).buildAsString());
 
-            verify(blobContainer).listBlobsByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX);
+            verify(blobContainer).listBlobsByPrefixInSortedOrder(
+                eq(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX),
+                eq(1),
+                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
+                any()
+            );
             verify(repositoriesService, times(2)).repository("remote_store_repository");
         }
     }

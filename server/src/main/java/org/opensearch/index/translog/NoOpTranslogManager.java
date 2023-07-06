@@ -117,4 +117,9 @@ public class NoOpTranslogManager implements TranslogManager {
     }
 
     public void onDelete() {}
+
+    @Override
+    public Translog.TranslogGeneration getTranslogGeneration() {
+        return null;
+    }
 }
