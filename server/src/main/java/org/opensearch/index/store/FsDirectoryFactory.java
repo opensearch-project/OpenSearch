@@ -97,10 +97,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case HYBRIDFS:
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
-                final Set<String> mmapExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
+                final Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_NIO_EXTENSIONS));
                 if (primaryDirectory instanceof MMapDirectory) {
                     MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
-                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions), mmapExtensions);
+                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions), nioExtensions);
                 } else {
                     return primaryDirectory;
                 }
@@ -143,12 +143,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
      */
     static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
-        private final Set<String> mmapExtensions;
+        private final Set<String> nioExtensions;
 
-        HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, Set<String> mmapExtensions) throws IOException {
+        HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, Set<String> nioExtensions) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
-            this.mmapExtensions = mmapExtensions;
+            this.nioExtensions = nioExtensions;
         }
 
         @Override
@@ -169,7 +169,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         boolean useDelegate(String name) {
             final String extension = FileSwitchDirectory.getExtension(name);
-            return mmapExtensions.contains(extension);
+            return !nioExtensions.contains(extension);
         }
 
         @Override

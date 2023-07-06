@@ -82,6 +82,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             assertTrue(hybridDirectory.useDelegate("foo.kdi"));
             assertTrue(hybridDirectory.useDelegate("foo.cfs"));
             assertTrue(hybridDirectory.useDelegate("foo.doc"));
+            assertTrue(hybridDirectory.useDelegate("foo.new"));
             assertFalse(hybridDirectory.useDelegate("foo.pos"));
             assertFalse(hybridDirectory.useDelegate("foo.pay"));
             MMapDirectory delegate = hybridDirectory.getDelegate();
@@ -94,7 +95,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
         build = Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "nvd", "dvd", "cfs")
-            .putList(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey(), "nvd", "dvd", "tim", "pos", "pay")
+            .putList(IndexModule.INDEX_STORE_NIO_EXTENSIONS.getKey(), "tip", "dim", "kdd", "kdi", "cfs", "doc")
             .build();
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
