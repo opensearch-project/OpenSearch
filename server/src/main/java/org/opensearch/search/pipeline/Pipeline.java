@@ -137,9 +137,8 @@ class Pipeline {
                         request = processor.processRequest(request);
                     } catch (Exception e) {
                         onRequestProcessorFailed(processor);
-                        if (processor.getIgnoreFailure()) {
-                            logger.info("failed to process request process: " + processor.getType());
-                            logger.warn("An error occurred in the processor", e);
+                        if (processor.isIgnoreFailure()) {
+                            logger.warn("Failed to process request: " + processor.getType() + ". An error occurred in the processor", e);
                         } else {
                             throw e;
                         }
@@ -171,9 +170,8 @@ class Pipeline {
                         response = processor.processResponse(request, response);
                     } catch (Exception e) {
                         onResponseProcessorFailed(processor);
-                        if (processor.getIgnoreFailure()) {
-                            logger.info("failed to process response process: " + processor.getType());
-                            logger.warn("An error occurred in the processor", e);
+                        if (processor.isIgnoreFailure()) {
+                            logger.warn("Failed to process request: " + processor.getType() + ". An error occurred in the processor", e);
                         } else {
                             throw e;
                         }

@@ -52,7 +52,7 @@ public interface Processor {
     /**
      * Gets the setting of ignoreFailure of a processor.
      */
-    boolean getIgnoreFailure();
+    boolean isIgnoreFailure();
 
     /**
      * A factory that knows how to construct a processor based on a map of maps.

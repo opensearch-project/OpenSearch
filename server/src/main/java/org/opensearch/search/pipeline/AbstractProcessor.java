@@ -33,7 +33,7 @@ public abstract class AbstractProcessor implements Processor {
     }
 
     @Override
-    public boolean getIgnoreFailure() {
+    public boolean isIgnoreFailure() {
         return ignoreFailure;
     }
 }
