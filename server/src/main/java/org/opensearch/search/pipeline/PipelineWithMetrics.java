@@ -78,19 +78,28 @@ class PipelineWithMetrics extends Pipeline {
         Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseResultsProcessorFactories,
         NamedWriteableRegistry namedWriteableRegistry,
         OperationMetrics totalRequestProcessingMetrics,
-        OperationMetrics totalResponseProcessingMetrics
+        OperationMetrics totalResponseProcessingMetrics,
+        Processor.PipelineContext pipelineContext
     ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         List<Map<String, Object>> requestProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, REQUEST_PROCESSORS_KEY);
-        List<SearchRequestProcessor> requestProcessors = readProcessors(requestProcessorFactories, requestProcessorConfigs);
+        List<SearchRequestProcessor> requestProcessors = readProcessors(
+            requestProcessorFactories,
+            requestProcessorConfigs,
+            pipelineContext
+        );
         List<Map<String, Object>> responseProcessorConfigs = ConfigurationUtils.readOptionalList(
             null,
             null,
             config,
             RESPONSE_PROCESSORS_KEY
         );
-        List<SearchResponseProcessor> responseProcessors = readProcessors(responseProcessorFactories, responseProcessorConfigs);
+        List<SearchResponseProcessor> responseProcessors = readProcessors(
+            responseProcessorFactories,
+            responseProcessorConfigs,
+            pipelineContext
+        );
         List<Map<String, Object>> phaseResultsProcessorConfigs = ConfigurationUtils.readOptionalList(
             null,
             null,
@@ -99,7 +108,8 @@ class PipelineWithMetrics extends Pipeline {
         );
         List<SearchPhaseResultsProcessor> phaseResultsProcessors = readProcessors(
             phaseResultsProcessorFactories,
-            phaseResultsProcessorConfigs
+            phaseResultsProcessorConfigs,
+            pipelineContext
         );
         if (config.isEmpty() == false) {
             throw new OpenSearchParseException(
@@ -126,7 +136,8 @@ class PipelineWithMetrics extends Pipeline {
 
     private static <T extends Processor> List<T> readProcessors(
         Map<String, Processor.Factory<T>> processorFactories,
-        List<Map<String, Object>> requestProcessorConfigs
+        List<Map<String, Object>> requestProcessorConfigs,
+        Processor.PipelineContext pipelineContext
     ) throws Exception {
         List<T> processors = new ArrayList<>();
         if (requestProcessorConfigs == null) {
@@ -142,7 +153,21 @@ class PipelineWithMetrics extends Pipeline {
                 String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
                 boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, IGNORE_FAILURE_KEY, false);
                 String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
-                processors.add(processorFactories.get(type).create(processorFactories, tag, description, ignoreFailure, config));
+                processors.add(
+                    processorFactories.get(type).create(processorFactories, tag, description, ignoreFailure, config, pipelineContext)
+                );
+                if (config.isEmpty() == false) {
+                    String processorName = type;
+                    if (tag != null) {
+                        processorName = processorName + ":" + tag;
+                    }
+                    throw new OpenSearchParseException(
+                        "processor ["
+                            + processorName
+                            + "] doesn't support one or more provided configuration parameters: "
+                            + Arrays.toString(config.keySet().toArray())
+                    );
+                }
             }
         }
         return Collections.unmodifiableList(processors);

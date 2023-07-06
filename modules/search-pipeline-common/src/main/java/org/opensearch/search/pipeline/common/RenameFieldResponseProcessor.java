@@ -150,7 +150,8 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
             String tag,
             String description,
             boolean ignoreFailure,
-            Map<String, Object> config
+            Map<String, Object> config,
+            PipelineContext pipelineContext
         ) throws Exception {
             String oldField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             String newField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field");
