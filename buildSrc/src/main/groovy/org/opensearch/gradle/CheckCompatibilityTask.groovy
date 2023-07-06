@@ -81,16 +81,16 @@ class CheckCompatibilityTask extends DefaultTask {
 
     protected static List getRepoUrls() {
         def json = new JsonSlurper().parse(REPO_URL.toURL())
-        def labels = json.projects.values()
-        def repoUrls = replaceSshWithHttps(labels as List)
+        def repository = json.projects.values()
+        def repoUrls = replaceSshWithHttps(repository as List)
         return repoUrls
     }
 
-    protected static replaceSshWithHttps(List<String> inputList) {
-        inputList.replaceAll { element ->
+    protected static replaceSshWithHttps(List<String> repoList) {
+        repoList.replaceAll { element ->
             element.replace("git@github.com:", "https://github.com/")
         }
-        return inputList
+        return repoList
     }
 
     protected boolean cloneAndCheckout(repoUrl, directory) {
