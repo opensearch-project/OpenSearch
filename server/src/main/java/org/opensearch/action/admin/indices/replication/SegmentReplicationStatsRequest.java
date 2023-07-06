@@ -10,9 +10,9 @@ package org.opensearch.action.admin.indices.replication;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 

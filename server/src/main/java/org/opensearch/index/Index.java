@@ -32,11 +32,11 @@
 
 package org.opensearch.index;
 
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -91,7 +91,7 @@ public class Index implements Writeable, ToXContentObject {
          * If we have a uuid we put it in the toString so it'll show up in logs which is useful as more and more things use the uuid rather
          * than the name as the lookup key for the index.
          */
-        if (ClusterState.UNKNOWN_UUID.equals(uuid)) {
+        if (Strings.UNKNOWN_UUID_VALUE.equals(uuid)) {
             return "[" + name + "]";
         }
         return "[" + name + "/" + uuid + "]";

@@ -36,6 +36,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.ExceptionsHelper;
@@ -48,8 +50,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 
 import static java.util.Collections.singletonMap;
-import static org.opensearch.OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
-import static org.opensearch.OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -112,7 +112,10 @@ public class BytesRestResponse extends RestResponse {
 
     public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         ToXContent.Params params = paramsFromRequest(channel.request());
-        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
+        if (params.paramAsBoolean(
+            BaseExceptionsHelper.REST_EXCEPTION_SKIP_STACK_TRACE,
+            BaseExceptionsHelper.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT
+        ) && e != null) {
             // log exception only if it is not returned in the response
             Supplier<?> messageSupplier = () -> new ParameterizedMessage(
                 "path: {}, params: {}",
@@ -153,8 +156,12 @@ public class BytesRestResponse extends RestResponse {
 
     private ToXContent.Params paramsFromRequest(RestRequest restRequest) {
         ToXContent.Params params = restRequest;
-        if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && false == skipStackTrace()) {
-            params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
+        if (params.paramAsBoolean("error_trace", !BaseExceptionsHelper.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)
+            && false == skipStackTrace()) {
+            params = new ToXContent.DelegatingMapParams(
+                singletonMap(BaseExceptionsHelper.REST_EXCEPTION_SKIP_STACK_TRACE, "false"),
+                params
+            );
         }
         return params;
     }
@@ -166,7 +173,7 @@ public class BytesRestResponse extends RestResponse {
     private void build(XContentBuilder builder, ToXContent.Params params, RestStatus status, boolean detailedErrorsEnabled, Exception e)
         throws IOException {
         builder.startObject();
-        OpenSearchException.generateFailureXContent(builder, params, e, detailedErrorsEnabled);
+        BaseOpenSearchException.generateFailureXContent(builder, params, e, detailedErrorsEnabled);
         builder.field(STATUS, status.getStatus());
         builder.endObject();
     }

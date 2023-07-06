@@ -76,7 +76,7 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
     }
 
     @Override
-    protected Reader getBucketReader() {
+    protected Reader<InternalGeoTileGridBucket> getBucketReader() {
         return InternalGeoTileGridBucket::new;
     }
 

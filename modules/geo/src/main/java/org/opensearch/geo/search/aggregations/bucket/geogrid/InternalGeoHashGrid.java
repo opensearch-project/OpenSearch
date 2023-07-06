@@ -76,7 +76,7 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
     }
 
     @Override
-    protected Reader getBucketReader() {
+    protected Reader<InternalGeoHashGridBucket> getBucketReader() {
         return InternalGeoHashGridBucket::new;
     }
 

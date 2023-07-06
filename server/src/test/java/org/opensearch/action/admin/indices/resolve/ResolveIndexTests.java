@@ -45,10 +45,10 @@ import org.opensearch.cluster.metadata.IndexAbstractionResolver;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.Clock;

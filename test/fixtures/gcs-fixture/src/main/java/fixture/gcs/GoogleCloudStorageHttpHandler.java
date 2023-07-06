@@ -36,7 +36,6 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
@@ -45,6 +44,7 @@ import org.opensearch.common.bytes.CompositeBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
 

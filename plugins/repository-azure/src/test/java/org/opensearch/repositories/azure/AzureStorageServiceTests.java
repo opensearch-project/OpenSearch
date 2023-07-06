@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.azure;
 
-import org.opensearch.common.Strings;
 import reactor.core.scheduler.Schedulers;
 
 import com.azure.core.http.policy.HttpPipelinePolicy;
@@ -45,6 +44,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

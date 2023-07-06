@@ -461,7 +461,7 @@ public class RestRequest implements ToXContent.Params {
         if (value == null) {
             return defaultValue;
         }
-        return Strings.splitStringByCommaToArray(value);
+        return org.opensearch.core.common.Strings.splitStringByCommaToArray(value);
     }
 
     public String[] paramAsStringArrayOrEmptyIfAll(String key) {

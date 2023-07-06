@@ -44,13 +44,13 @@ import org.opensearch.cloud.azure.classic.AzureServiceDisableException;
 import org.opensearch.cloud.azure.classic.AzureServiceRemoteException;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService.Discovery;
-import org.opensearch.common.Strings;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.transport.TransportService;
 

@@ -35,7 +35,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;

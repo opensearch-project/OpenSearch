@@ -32,7 +32,7 @@
 
 package org.opensearch.action.termvectors;
 
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.io.stream.StreamInput;
@@ -141,7 +141,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 Failure failure = response.getFailure();
                 builder.field(Fields._INDEX, failure.getIndex());
                 builder.field(Fields._ID, failure.getId());
-                OpenSearchException.generateFailureXContent(builder, params, failure.getCause(), true);
+                BaseOpenSearchException.generateFailureXContent(builder, params, failure.getCause(), true);
                 builder.endObject();
             } else {
                 TermVectorsResponse getResponse = response.getResponse();

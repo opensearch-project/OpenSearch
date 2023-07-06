@@ -32,7 +32,7 @@
 
 package org.opensearch.index.rankeval;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -129,7 +129,7 @@ public class RatedDocument implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return org.opensearch.common.Strings.toString(XContentType.JSON, this);
     }
 
     @Override

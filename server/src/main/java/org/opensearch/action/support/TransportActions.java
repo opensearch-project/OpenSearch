@@ -33,7 +33,7 @@
 package org.opensearch.action.support;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.index.IndexNotFoundException;
@@ -48,7 +48,7 @@ import org.opensearch.index.shard.ShardNotFoundException;
 public class TransportActions {
 
     public static boolean isShardNotAvailableException(final Throwable e) {
-        final Throwable actual = ExceptionsHelper.unwrapCause(e);
+        final Throwable actual = BaseExceptionsHelper.unwrapCause(e);
         return (actual instanceof ShardNotFoundException
             || actual instanceof IndexNotFoundException
             || actual instanceof IllegalIndexShardStateException

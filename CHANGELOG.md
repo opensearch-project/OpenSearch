@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add GeoTile and GeoHash Grid aggregations on GeoShapes. ([#5589](https://github.com/opensearch-project/OpenSearch/pull/5589))
 - Add distributed tracing framework ([#7543](https://github.com/opensearch-project/OpenSearch/issues/7543))
 - [Extensions] Support extension additional settings with extension REST initialization ([#8414](https://github.com/opensearch-project/OpenSearch/pull/8414))
+- Adds mock implementation for TelemetryPlugin ([#7545](https://github.com/opensearch-project/OpenSearch/issues/7545))
 - Support transport action names when registering NamedRoutes ([#7957](https://github.com/opensearch-project/OpenSearch/pull/7957))
 
 ### Dependencies
@@ -83,7 +84,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Check UTF16 string size before converting to String to avoid OOME ([#7963](https://github.com/opensearch-project/OpenSearch/pull/7963))
 - [Refactor] remaining ImmutableOpenMap usage to j.u.Map and remove class ([#7309](https://github.com/opensearch-project/OpenSearch/pull/7309))
 - [Refactor] Version and LegacyESVersion from server module to core lib ([#7328](https://github.com/opensearch-project/OpenSearch/pull/7328))
+- [Refactor] Stream Reader and Write Generics ([#7465](https://github.com/opensearch-project/OpenSearch/pull/7465))
+- [Refactor] OpenSearchException and ExceptionsHelper foundation to base class ([#7508](https://github.com/opensearch-project/OpenSearch/pull/7508))
 - Move ZSTD compression codecs out of the sandbox ([#7908](https://github.com/opensearch-project/OpenSearch/pull/7908))
+- Update ZSTD default compression level ([#8471](https://github.com/opensearch-project/OpenSearch/pull/8471))
 
 ### Deprecated
 
@@ -97,6 +101,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - With only GlobalAggregation in request causes unnecessary wrapping with MultiCollector ([#8125](https://github.com/opensearch-project/OpenSearch/pull/8125))
 - Fix mapping char_filter when mapping a hashtag ([#7591](https://github.com/opensearch-project/OpenSearch/pull/7591))
 - Fix NPE in multiterms aggregations involving empty buckets ([#7318](https://github.com/opensearch-project/OpenSearch/pull/7318))
+- Precise system clock time in MasterService debug logs ([#7902](https://github.com/opensearch-project/OpenSearch/pull/7902))
+- Adds log4j configuration for telemetry LogSpanExporter ([#8393](https://github.com/opensearch-project/OpenSearch/pull/8393))
 
 ### Security
 
