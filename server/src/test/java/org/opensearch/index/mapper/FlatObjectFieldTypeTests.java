@@ -120,7 +120,6 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType("field.bar", ft.name());
             assertEquals(new TermQuery(new Term("field", "field.bar")), dynamicMappedFieldType.existsQuery(null));
 
-
         }
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = new FlatObjectFieldMapper.FlatObjectFieldType(

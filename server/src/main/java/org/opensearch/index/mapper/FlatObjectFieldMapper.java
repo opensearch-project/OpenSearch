@@ -379,9 +379,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         /**
-         * If the search key is assigned with value,
-         * the dot path was used in search query, then
-         * rewrite the searchValueString as the format "dotpath=value",
+         * If the search key has mappedFieldTypeName as prefix,
+         * then the dot path was used in search query,
+         * then rewrite the searchValueString as the format "dotpath=value",
          * @return rewriteSearchValue
          */
         public String rewriteValue(String searchValueString) {
