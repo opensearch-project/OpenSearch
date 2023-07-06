@@ -35,6 +35,7 @@ dependencies {
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
   testImplementation project(path: ':client:rest-high-level')
   testImplementation 'junit:junit:4.13.2'
+	testImplementation project(path: ':server')
 }
 
 /*

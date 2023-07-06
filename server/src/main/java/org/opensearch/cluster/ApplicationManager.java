@@ -15,8 +15,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.opensearch.Application;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.ServiceAccountManager;
-import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 
 /**
@@ -95,10 +93,5 @@ public class ApplicationManager {
      */
     public ServiceAccountManager getServiceAccountManager() {
         return serviceAccountManager.get();
-    }
-
-    public void registerServiceAccount(PluginInfo pluginInfo, Plugin plugin) {
-
-        this.serviceAccountManager.get().registerServiceAccount(pluginInfo, plugin);
     }
 }

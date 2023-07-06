@@ -98,7 +98,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * We keep around a list of plugins and modules
      */
-    private final List<Tuple<PluginInfo, Plugin>> plugins;
+    public final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsAndModules info;
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
@@ -226,7 +226,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Plugin plugin = pluginTuple.v2();
 
             // Register a service account for an application
-            applicationManager.registerServiceAccount(pluginInfo, plugin);
+            applicationManager.getServiceAccountManager().getServiceAccount(pluginInfo);
         }
 
         // we don't log jars in lib/ we really shouldn't log modules,

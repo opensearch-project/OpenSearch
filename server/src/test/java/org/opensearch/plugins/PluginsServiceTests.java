@@ -32,23 +32,6 @@
 
 package org.opensearch.plugins;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.util.Constants;
-import org.apache.lucene.tests.util.LuceneTestCase;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
-import org.opensearch.bootstrap.JarHell;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.env.Environment;
-import org.opensearch.env.TestEnvironment;
-import org.opensearch.index.IndexModule;
-import org.opensearch.test.MockLogAppender;
-import org.opensearch.test.OpenSearchTestCase;
-import org.hamcrest.Matchers;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -67,7 +50,22 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Constants;
+import org.hamcrest.Matchers;
+import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
+import org.opensearch.bootstrap.JarHell;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.env.TestEnvironment;
+import org.opensearch.index.IndexModule;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -100,6 +98,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
         return new PluginsService(
             settings,
+            null,
             null,
             null,
             TestEnvironment.newEnvironment(settings).pluginsDir(),

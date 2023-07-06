@@ -16,8 +16,6 @@ import org.opensearch.Application;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.ServiceAccount;
 import org.opensearch.identity.ServiceAccountManager;
-import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.PluginInfo;
 
 /**
  * Oversees the assignment of ServiceAccounts when using the ShiroIdentityPlugin
@@ -30,13 +28,15 @@ class ShiroServiceAccountManager implements ServiceAccountManager {
 
     private static Map<Application, ServiceAccount> applicationServiceAccountMap = new HashMap<>();
 
-    @Override
-    public ServiceAccount getServiceAccount(Application app) {
-        return applicationServiceAccountMap.get(app);
+    public ShiroServiceAccountManager() {
+
     }
 
     @Override
-    public void registerServiceAccount(PluginInfo info, Plugin plugin) {
-
+    public ServiceAccount getServiceAccount(Application app) {
+        if (applicationServiceAccountMap.get(app) == null) {
+            applicationServiceAccountMap.put(app, new ShiroServiceAccount(app));
+        }
+        return applicationServiceAccountMap.get(app);
     }
 }
