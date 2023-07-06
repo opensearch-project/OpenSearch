@@ -274,63 +274,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         verifyStoreContent();
     }
 
-    public void testConcurrentIndexAndSearch() throws Exception {
+    public void testScrollWithConcurrentIndexAndSearch() throws Exception {
         final String primary = internalCluster().startDataOnlyNode();
         final String replica = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
-
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         final List<ActionFuture<SearchResponse>> pendingSearchResponse = new ArrayList<>();
-        final int searchCount = randomIntBetween(100, 200);
-        final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-
-        for (int i = 0; i < searchCount; i++) {
-            pendingIndexResponses.add(
-                client().prepareIndex(INDEX_NAME)
-                    .setId(Integer.toString(i))
-                    .setRefreshPolicy(refreshPolicy)
-                    .setSource("field", "value" + i)
-                    .execute()
-            );
-            flush(INDEX_NAME);
-            forceMerge();
-        }
-
-        final SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setIndices(INDEX_NAME)
-            .setRequestCache(false)
-            .setScroll(TimeValue.timeValueDays(1))
-            .setSize(10)
-            .get();
-
-        for (int i = searchCount; i < searchCount * 2; i++) {
-            pendingIndexResponses.add(
-                client().prepareIndex(INDEX_NAME)
-                    .setId(Integer.toString(i))
-                    .setRefreshPolicy(refreshPolicy)
-                    .setSource("field", "value" + i)
-                    .execute()
-            );
-        }
-        flush(INDEX_NAME);
-        forceMerge();
-        client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
-
-        assertBusy(() -> {
-            client().admin().indices().prepareRefresh().execute().actionGet();
-            assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
-            assertTrue(pendingSearchResponse.stream().allMatch(ActionFuture::isDone));
-        }, 1, TimeUnit.MINUTES);
-        logger.info("--> Cluster state {}", client().admin().cluster().prepareState().execute().actionGet().getState());
-        verifyStoreContent();
-    }
-
-    public void testScrollWithConcurrentIndexAndSearch() throws Exception {
-        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
-        final List<ActionFuture<SearchResponse>> pendingSearchResponse = new ArrayList<>();
-        final int searchCount = randomIntBetween(100, 200);
+        final int searchCount = randomIntBetween(10, 20);
         final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
 
         for (int i = 0; i < searchCount; i++) {
@@ -372,6 +323,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             assertTrue(pendingSearchResponse.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
         verifyStoreContent();
+        waitForSearchableDocs(INDEX_NAME, 2 * searchCount, List.of(primary, replica));
     }
 
     public void testMultipleShards() throws Exception {

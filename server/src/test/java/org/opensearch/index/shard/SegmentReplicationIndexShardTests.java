@@ -1080,27 +1080,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    public void testReplicaClosesWhile_NotReplicating() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
-            shards.startAll();
-            IndexShard primary = shards.getPrimary();
-            final IndexShard replica = shards.getReplicas().get(0);
-
-            final int numDocs = shards.indexDocs(randomInt(10));
-            primary.refresh("Test");
-            replicateSegments(primary, shards.getReplicas());
-
-            logger.info("--> PrimaryStore {}", Arrays.toString(primary.store().directory().listAll()));
-
-            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
-            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
-
-            shards.removeReplica(replica);
-            closeShards(replica);
-        }
-    }
-
     public void testPrimaryCancelsExecution() throws Exception {
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();

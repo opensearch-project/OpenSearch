@@ -801,7 +801,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
     public void cleanupAndPreserveLatestCommitPoint(String reason, SegmentInfos infos) throws IOException {
-        this.cleanupAndPreserveLatestCommitPoint(reason, infos, readLastCommittedSegmentsInfo(), true);
+        this.cleanupAndPreserveLatestCommitPoint(reason, infos, readLastCommittedSegmentsInfo());
     }
 
     /**
@@ -818,22 +818,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @param reason         the reason for this cleanup operation logged for each deleted file
      * @param infos          {@link SegmentInfos} Files from this infos will be preserved on disk if present.
      * @param lastCommittedSegmentInfos {@link SegmentInfos} Last committed segment infos
-     * @param deleteTempFiles Does this clean up delete temporary replication files
      *
      * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
     public void cleanupAndPreserveLatestCommitPoint(
         String reason,
         SegmentInfos infos,
-        SegmentInfos lastCommittedSegmentInfos,
-        boolean deleteTempFiles
+        SegmentInfos lastCommittedSegmentInfos
     ) throws IOException {
         assert indexSettings.isSegRepEnabled();
         // fetch a snapshot from the latest on disk Segments_N file. This can be behind
         // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles(reason, lastCommittedSegmentInfos.files(true), infos.files(true), deleteTempFiles);
+            cleanupFiles(reason, lastCommittedSegmentInfos.files(true), infos.files(true));
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -842,7 +840,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Segment Replication method
      *
-     * Performs cleanup of un-referenced files intended to be used reader release action
+     * Performs cleanup of un-referenced files intended to be used after reader close action
      *
      * @param reason Reason for cleanup
      * @param filesToConsider Files to consider for clean up
@@ -852,7 +850,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         assert indexSettings.isSegRepEnabled();
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles(reason, null, filesToConsider, false);
+            cleanupFiles(reason, null, filesToConsider);
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -861,8 +859,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private void cleanupFiles(
         String reason,
         Collection<String> localSnapshot,
-        @Nullable Collection<String> additionalFiles,
-        boolean deleteTempFiles
+        @Nullable Collection<String> additionalFiles
     ) throws IOException {
         assert metadataLock.isWriteLockedByCurrentThread();
         for (String existingFile : directory.listAll()) {
@@ -870,9 +867,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 || localSnapshot != null && localSnapshot.contains(existingFile)
                 || (additionalFiles != null && additionalFiles.contains(existingFile))
                 // also ensure we are not deleting a file referenced by an active reader.
-                || replicaFileTracker != null && replicaFileTracker.canDelete(existingFile) == false
-                // prevent temporary file deletion during reader cleanup
-                || deleteTempFiles == false && existingFile.startsWith(REPLICATION_PREFIX)) {
+                || replicaFileTracker != null && replicaFileTracker.canDelete(existingFile) == false) {
                 // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete
                 // checksum)
                 continue;
@@ -893,7 +888,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Used for segment replication method
+     * Segment replication method
      *
      * This method takes the segment info bytes to build SegmentInfos. It inc'refs files pointed by passed in SegmentInfos
      * bytes to ensure they are not deleted.
