@@ -109,6 +109,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -152,6 +153,7 @@ import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.test.telemetry.MockTelemetryPlugin;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
@@ -776,6 +778,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
+        featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         return featureSettings.build();
     }
 
@@ -2101,6 +2104,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (addMockGeoShapeFieldMapper()) {
             mocks.add(TestGeoShapeFieldMapperPlugin.class);
         }
+        mocks.add(MockTelemetryPlugin.class);
 
         return Collections.unmodifiableList(mocks);
     }

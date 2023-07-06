@@ -9,6 +9,7 @@
 package org.opensearch.remotestore;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.junit.Before;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -30,6 +31,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0)
 public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     private int shard_count = 5;
+
+    @Before
+    public void setup() {
+        setupRepo();
+    }
 
     @Override
     public Settings indexSettings() {
