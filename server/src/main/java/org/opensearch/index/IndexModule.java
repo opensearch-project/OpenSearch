@@ -159,7 +159,25 @@ public final class IndexModule {
      */
     public static final Setting<List<String>> INDEX_STORE_NIO_EXTENSIONS = Setting.listSetting(
         "index.store.hybrid.nio.extensions",
-        List.of("segments_N", "write.lock", "si", "cfe", "fnm", "fdx", "fdt", "pos", "pay", "nvm", "dvm", "tvx", "tvd", "liv", "dii", "vec", "vem"),
+        List.of(
+            "segments_N",
+            "write.lock",
+            "si",
+            "cfe",
+            "fnm",
+            "fdx",
+            "fdt",
+            "pos",
+            "pay",
+            "nvm",
+            "dvm",
+            "tvx",
+            "tvd",
+            "liv",
+            "dii",
+            "vec",
+            "vem"
+        ),
         Function.identity(),
         Property.IndexScope,
         Property.NodeScope
