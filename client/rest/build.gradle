@@ -33,11 +33,15 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
-targetCompatibility = JavaVersion.VERSION_11
-sourceCompatibility = JavaVersion.VERSION_11
+java {
+  targetCompatibility = JavaVersion.VERSION_11
+  sourceCompatibility = JavaVersion.VERSION_11
+}
 
-group = 'org.opensearch.client'
-archivesBaseName = 'opensearch-rest-client'
+base {
+  group = 'org.opensearch.client'
+  archivesBaseName = 'opensearch-rest-client'
+}
 
 dependencies {
   api "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"

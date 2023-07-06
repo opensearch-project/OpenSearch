@@ -46,7 +46,7 @@ import org.gradle.api.Task;
 import org.gradle.api.XmlProvider;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.BasePlugin;
-import org.gradle.api.plugins.BasePluginConvention;
+import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
@@ -77,7 +77,7 @@ public class PublishPlugin implements Plugin<Project> {
     }
 
     private static String getArchivesBaseName(Project project) {
-        return project.getConvention().getPlugin(BasePluginConvention.class).getArchivesBaseName();
+        return project.getExtensions().getByType(BasePluginExtension.class).getArchivesBaseName();
     }
 
     /**Configuration generation of maven poms. */
