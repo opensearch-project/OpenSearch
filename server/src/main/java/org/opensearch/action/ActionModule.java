@@ -946,11 +946,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteDecommissionStateAction());
 
         // Search pipelines API
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE)) {
-            registerHandler.accept(new RestPutSearchPipelineAction());
-            registerHandler.accept(new RestGetSearchPipelineAction());
-            registerHandler.accept(new RestDeleteSearchPipelineAction());
-        }
+        registerHandler.accept(new RestPutSearchPipelineAction());
+        registerHandler.accept(new RestGetSearchPipelineAction());
+        registerHandler.accept(new RestDeleteSearchPipelineAction());
 
         // Extensions API
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
