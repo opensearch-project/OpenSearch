@@ -17,6 +17,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.RemoteStoreRefreshListenerTests;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
@@ -70,7 +71,6 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
         );
         when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
-
         replicationSource = new RemoteStoreReplicationSource(mockShard);
     }
 
@@ -140,10 +140,19 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
 
             final PlainActionFuture<CheckpointInfoResponse> res = PlainActionFuture.newFuture();
+            when(mockShard.state()).thenReturn(IndexShardState.RECOVERING);
+            // Recovering shard should just do a noop and return empty metadata map.
             replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res);
             CheckpointInfoResponse response = res.get();
             assert (response.getCheckpoint().equals(checkpoint));
             assert (response.getMetadataMap().isEmpty());
+
+            when(mockShard.state()).thenReturn(IndexShardState.STARTED);
+            // Started shard should fail with assertion error.
+            expectThrows(AssertionError.class, () -> {
+                final PlainActionFuture<CheckpointInfoResponse> res2 = PlainActionFuture.newFuture();
+                replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res2);
+            });
         } finally {
             closeShards(emptyIndexShard);
         }
