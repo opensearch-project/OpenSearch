@@ -197,20 +197,18 @@ class Pipeline {
         String currentPhase,
         String nextPhase
     ) throws SearchPipelineProcessingException {
-        boolean isIgnoreFailure = false;
-        String searchPhaseResultsProcessorType = null;
         try {
             for (SearchPhaseResultsProcessor searchPhaseResultsProcessor : searchPhaseResultsProcessors) {
                 if (currentPhase.equals(searchPhaseResultsProcessor.getBeforePhase().getName())
                     && nextPhase.equals(searchPhaseResultsProcessor.getAfterPhase().getName())) {
-                    isIgnoreFailure = searchPhaseResultsProcessor.isIgnoreFailure();
-                    searchPhaseResultsProcessorType = searchPhaseResultsProcessor.getType();
                     try {
                         searchPhaseResultsProcessor.process(searchPhaseResult, context);
                     } catch (Exception e) {
-                        if (isIgnoreFailure) {
+                        if (searchPhaseResultsProcessor.isIgnoreFailure()) {
                             logger.warn(
-                                "Failed to process response: " + searchPhaseResultsProcessorType + ". An error occurred in the processor.",
+                                "Failed to process response: "
+                                    + searchPhaseResultsProcessor.getType()
+                                    + ". An error occurred in the processor.",
                                 e
                             );
                         } else {
