@@ -8,10 +8,10 @@
 
 package org.opensearch.identity.shiro;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.Objects;
 import org.opensearch.Application;
-import org.opensearch.identity.NamedPrincipal;
 import org.opensearch.identity.ServiceAccount;
 
 /**
@@ -22,7 +22,7 @@ import org.opensearch.identity.ServiceAccount;
 public class ShiroServiceAccount implements ServiceAccount {
 
     private final Application application;
-    private final NamedPrincipal name;
+    private final Principal name;
     private List<String> permissions = List.of(); // Fine-grained access controls not yet configured
 
     /**
@@ -32,7 +32,7 @@ public class ShiroServiceAccount implements ServiceAccount {
     public ShiroServiceAccount(final Application application) {
 
         this.application = application;
-        name = new NamedPrincipal(application.toString());
+        name = application.getPrincipal();
     }
 
     /**

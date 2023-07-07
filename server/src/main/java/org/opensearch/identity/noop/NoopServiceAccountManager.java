@@ -19,4 +19,3 @@ public class NoopServiceAccountManager implements ServiceAccountManager {
         return null;
     }
 }
-

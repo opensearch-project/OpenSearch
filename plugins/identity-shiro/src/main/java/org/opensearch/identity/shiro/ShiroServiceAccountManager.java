@@ -39,4 +39,8 @@ class ShiroServiceAccountManager implements ServiceAccountManager {
         }
         return applicationServiceAccountMap.get(app);
     }
+
+    public Map<Application, ServiceAccount> getApplicationServiceAccountMap() {
+        return applicationServiceAccountMap;
+    }
 }
