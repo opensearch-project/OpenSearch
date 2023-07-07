@@ -59,7 +59,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
      * @param ignoreFailure  option to ignore failure
      * @param filterQuery the query that will be added as a filter to incoming queries
      */
-    public FilterQueryRequestProcessor(String tag, String description, boolean ignoreFailure, QueryBuilder filterQuery) {
+    FilterQueryRequestProcessor(String tag, String description, boolean ignoreFailure, QueryBuilder filterQuery) {
         super(tag, description, ignoreFailure);
         this.filterQuery = filterQuery;
     }

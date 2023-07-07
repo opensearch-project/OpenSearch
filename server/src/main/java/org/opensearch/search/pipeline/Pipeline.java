@@ -138,7 +138,15 @@ class Pipeline {
                     } catch (Exception e) {
                         onRequestProcessorFailed(processor);
                         if (processor.isIgnoreFailure()) {
-                            logger.warn("Failed to process request: " + processor.getType() + ". An error occurred in the processor.", e);
+                            logger.warn(
+                                "The exception from request processor ["
+                                    + processor.getType()
+                                    + "] in the search pipeline ["
+                                    + id
+                                    + "] was ignored",
+                                e
+                            );
+
                         } else {
                             throw e;
                         }
@@ -171,7 +179,14 @@ class Pipeline {
                     } catch (Exception e) {
                         onResponseProcessorFailed(processor);
                         if (processor.isIgnoreFailure()) {
-                            logger.warn("Failed to process response: " + processor.getType() + ". An error occurred in the processor.", e);
+                            logger.warn(
+                                "The exception from response processor ["
+                                    + processor.getType()
+                                    + "] in the search pipeline ["
+                                    + id
+                                    + "] was ignored",
+                                e
+                            );
                         } else {
                             throw e;
                         }
@@ -206,9 +221,11 @@ class Pipeline {
                     } catch (Exception e) {
                         if (searchPhaseResultsProcessor.isIgnoreFailure()) {
                             logger.warn(
-                                "Failed to process response: "
+                                "The exception from search phase results processor ["
                                     + searchPhaseResultsProcessor.getType()
-                                    + ". An error occurred in the processor.",
+                                    + "] in the search pipeline ["
+                                    + id
+                                    + "] was ignored",
                                 e
                             );
                         } else {
