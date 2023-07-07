@@ -544,6 +544,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return includeGlobalState;
     }
 
+    @Nullable
     public Boolean isRemoteStoreIndexShallowCopyEnabled() {
         return remoteStoreIndexShallowCopy;
     }
