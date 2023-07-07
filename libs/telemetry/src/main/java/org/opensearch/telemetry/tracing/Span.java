@@ -63,6 +63,13 @@ public interface Span {
     void addAttribute(String key, Boolean value);
 
     /**
+     * Records error in the span
+     *
+     * @param exception exception to be recorded
+     */
+    void setError(Exception exception);
+
+    /**
      * Adds an event in the span
      *
      * @param event name of the event
