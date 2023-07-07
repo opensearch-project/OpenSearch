@@ -51,6 +51,7 @@ public class MockSpanData {
      * @param startEpochNanos startTime of span in epochNanos
      * @param hasEnded value if the span is closed
      * @param spanName Name of the span emitted
+     * @param stackTrace StackTrace to debug the problematic span
      */
     public MockSpanData(
         String spanID,
@@ -123,6 +124,9 @@ public class MockSpanData {
         return startEpochNanos;
     }
 
+    /**
+     * Returns StackTrace for a span.
+     */
     public StackTraceElement[] getStackTrace() {
         return stackTrace;
     }
