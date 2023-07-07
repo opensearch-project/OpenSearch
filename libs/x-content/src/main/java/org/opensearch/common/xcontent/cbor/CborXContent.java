@@ -36,6 +36,8 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.core.StreamWriteFeature;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -61,6 +63,8 @@ public class CborXContent implements XContent {
         System.getProperty("opensearch.xcontent.string.length.max", Integer.toString(Integer.MAX_VALUE) /* no limit */)
     );
 
+    public static final boolean USE_FAST_DOUBLE_WRITER = Boolean.getBoolean("opensearch.xcontent.use_fast_double_writer");
+
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(cborXContent);
     }
@@ -75,6 +79,8 @@ public class CborXContent implements XContent {
         cborFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         cborFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         cborFactory.setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(DEFAULT_MAX_STRING_LEN).build());
+        cborFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
+        cborFactory.configure(StreamWriteFeature.USE_FAST_DOUBLE_WRITER.mappedFeature(), USE_FAST_DOUBLE_WRITER);
         cborXContent = new CborXContent();
     }
 

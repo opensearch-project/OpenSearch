@@ -266,7 +266,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         SearchPhaseController.ReducedQueryPhase queryPhase,
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
-        return new SearchPhase("fetch") {
+        return new SearchPhase(SearchPhaseName.FETCH.getName()) {
             @Override
             public void run() throws IOException {
                 sendResponse(queryPhase, fetchResults);

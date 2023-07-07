@@ -43,11 +43,11 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.lease.Releasable;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
@@ -732,6 +732,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             // start another replica.
             dataNodes.add(internalCluster().startDataOnlyNode());
             ensureGreen(INDEX_NAME);
+            waitForSearchableDocs(initialDocCount, dataNodes);
 
             // index another doc and refresh - without this the new replica won't catch up.
             String docId = String.valueOf(initialDocCount + 1);

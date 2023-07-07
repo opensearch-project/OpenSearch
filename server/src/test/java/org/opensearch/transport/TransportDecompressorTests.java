@@ -41,8 +41,8 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.lease.Releasables;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

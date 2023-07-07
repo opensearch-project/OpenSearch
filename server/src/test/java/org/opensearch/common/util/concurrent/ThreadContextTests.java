@@ -71,6 +71,35 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertEquals("1", threadContext.getHeader("default"));
     }
 
+    public void testStashContextWithPersistentHeaders() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("ctx.foo", 1);
+        threadContext.putPersistent("persistent_foo", "baz");
+        threadContext.putPersistent("ctx.persistent_foo", 10);
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("ctx.foo"));
+            assertEquals("1", threadContext.getHeader("default"));
+
+            assertEquals("baz", threadContext.getPersistent("persistent_foo"));
+            assertEquals(Integer.valueOf(10), threadContext.getPersistent("ctx.persistent_foo"));
+            assertNull(threadContext.getPersistent("default"));
+        }
+
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+
+        assertEquals("baz", threadContext.getPersistent("persistent_foo"));
+        assertEquals(Integer.valueOf(10), threadContext.getPersistent("ctx.persistent_foo"));
+        assertNull(threadContext.getPersistent("default"));
+    }
+
     public void testNewContextWithClearedTransients() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putTransient("foo", "bar");

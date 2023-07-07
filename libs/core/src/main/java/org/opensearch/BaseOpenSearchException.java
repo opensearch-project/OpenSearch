@@ -31,8 +31,10 @@
  */
 package org.opensearch;
 
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.BaseStreamInput;
 import org.opensearch.core.common.logging.LoggerMessageFormat;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -41,10 +43,12 @@ import org.opensearch.core.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.singletonMap;
 
@@ -433,5 +437,99 @@ public abstract class BaseOpenSearchException extends RuntimeException implement
             return "[" + indexName + "][" + Integer.parseInt(shard.get(0)) + "]";
         }
         return null;
+    }
+
+    /**
+     * An ExceptionHandle for registering Exceptions that can be serialized over the transport wire
+     *
+     * @opensearch.internal
+     */
+    protected static abstract class BaseOpenSearchExceptionHandle {
+        final Class<? extends BaseOpenSearchException> exceptionClass;
+        final CheckedFunction<? extends BaseStreamInput, ? extends BaseOpenSearchException, IOException> constructor;
+        final int id;
+        final Version versionAdded;
+
+        <E extends BaseOpenSearchException, S extends BaseStreamInput> BaseOpenSearchExceptionHandle(
+            Class<E> exceptionClass,
+            CheckedFunction<S, E, IOException> constructor,
+            int id,
+            Version versionAdded
+        ) {
+            // We need the exceptionClass because you can't dig it out of the constructor reliably.
+            this.exceptionClass = exceptionClass;
+            this.constructor = constructor;
+            this.versionAdded = versionAdded;
+            this.id = id;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T extends BaseStreamInput> BaseOpenSearchException readException(T input, int id) throws IOException {
+        CheckedFunction<T, ? extends BaseOpenSearchException, IOException> opensearchException = (CheckedFunction<
+            T,
+            ? extends BaseOpenSearchException,
+            IOException>) OpenSearchExceptionHandleRegistry.getSupplier(id);
+        if (opensearchException == null) {
+            throw new IllegalStateException("unknown exception for id: " + id);
+        }
+        return opensearchException.apply(input);
+    }
+
+    /**
+     * Registry of ExceptionHandlers
+     *
+     * @opensearch.internal
+     */
+    public static class OpenSearchExceptionHandleRegistry {
+        /** Registry mapping from unique Ordinal to the Exception Constructor */
+        private static final Map<
+            Integer,
+            CheckedFunction<? extends BaseStreamInput, ? extends BaseOpenSearchException, IOException>> ID_TO_SUPPLIER_REGISTRY =
+                new ConcurrentHashMap<>();
+        /** Registry mapping from Exception class to the Exception Handler  */
+        private static final Map<
+            Class<? extends BaseOpenSearchException>,
+            BaseOpenSearchExceptionHandle> CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY = new ConcurrentHashMap<>();
+
+        /** returns the Exception constructor function from a given ordinal */
+        public static CheckedFunction<? extends BaseStreamInput, ? extends BaseOpenSearchException, IOException> getSupplier(final int id) {
+            return ID_TO_SUPPLIER_REGISTRY.get(id);
+        }
+
+        /** registers the Exception handler */
+        public static void registerExceptionHandle(final BaseOpenSearchExceptionHandle handle) {
+            ID_TO_SUPPLIER_REGISTRY.put(handle.id, handle.constructor);
+            CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.put(handle.exceptionClass, handle);
+        }
+
+        /** Gets the unique ordinal id of the Exception from the given class */
+        public static int getId(final Class<? extends BaseOpenSearchException> exception) {
+            return CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.get(exception).id;
+        }
+
+        /** returns a set of ids */
+        public static Set<Integer> ids() {
+            return ID_TO_SUPPLIER_REGISTRY.keySet();
+        }
+
+        /** returns a collection of handles */
+        public static Collection<BaseOpenSearchExceptionHandle> handles() {
+            return CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.values();
+        }
+
+        /** checks that the exception class is registered */
+        public static boolean isRegistered(final Class<? extends Throwable> exception, final Version version) {
+            BaseOpenSearchExceptionHandle openSearchExceptionHandle = CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.get(exception);
+            if (openSearchExceptionHandle != null) {
+                return version.onOrAfter(openSearchExceptionHandle.versionAdded);
+            }
+            return false;
+        }
+
+        /** returns a set of registered exception classes */
+        public static Set<Class<? extends BaseOpenSearchException>> getRegisteredKeys() { // for testing
+            return CLASS_TO_OPENSEARCH_EXCEPTION_HANDLE_REGISTRY.keySet();
+        }
     }
 }
