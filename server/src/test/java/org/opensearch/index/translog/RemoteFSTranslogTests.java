@@ -570,7 +570,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertEquals(1, translog.readers.size());
         }
         assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
-        assertBusy(() -> assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
+        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
         int moreDocs = randomIntBetween(3, 10);
         logger.info("numDocs={} moreDocs={}", numDocs, moreDocs);
         for (int i = numDocs; i < numDocs + moreDocs; i++) {
@@ -579,7 +579,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         translog.trimUnreferencedReaders();
         assertEquals(1 + moreDocs, translog.readers.size());
         assertBusy(() -> assertEquals(2 + 2L * moreDocs, translog.allUploaded().size()));
-        assertBusy(() -> assertEquals(1 + moreDocs, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
+        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
 
         int totalDocs = numDocs + moreDocs;
         translog.setMinSeqNoToKeep(totalDocs - 1);
@@ -592,7 +592,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         );
         translog.setMinSeqNoToKeep(totalDocs);
         translog.trimUnreferencedReaders();
-        assertBusy(() -> assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
+        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
 
         // Change primary term and test the deletion of older primaries
         String translogUUID = translog.translogUUID;
@@ -607,10 +607,6 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         long oldPrimaryTerm = primaryTerm.get();
         long newPrimaryTerm = primaryTerm.incrementAndGet();
 
-        // Check all metadata files corresponds to old primary term
-        Set<String> mdFileNames = blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR));
-        assertTrue(mdFileNames.stream().allMatch(name -> name.startsWith(String.valueOf(oldPrimaryTerm).concat("__"))));
-
         // Creating RemoteFsTranslog with the same location
         Translog newTranslog = create(translogDir, repository, translogUUID);
         int newPrimaryTermDocs = randomIntBetween(5, 10);
@@ -620,10 +616,6 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             newTranslog.setMinSeqNoToKeep(i);
             newTranslog.trimUnreferencedReaders();
         }
-
-        // Check that all metadata files are belonging now to the new primary
-        mdFileNames = blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR));
-        assertTrue(mdFileNames.stream().allMatch(name -> name.startsWith(String.valueOf(newPrimaryTerm).concat("__"))));
 
         try {
             newTranslog.close();

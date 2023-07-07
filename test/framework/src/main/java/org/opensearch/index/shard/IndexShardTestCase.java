@@ -42,6 +42,7 @@ import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
@@ -61,6 +62,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
@@ -68,14 +70,14 @@ import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
@@ -98,13 +100,13 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
-import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
@@ -172,6 +174,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -645,6 +649,17 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         when(repository.basePath()).thenReturn(new BlobPath());
         BlobStore blobStore = Mockito.mock(BlobStore.class);
         BlobContainer blobContainer = Mockito.mock(BlobContainer.class);
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> listener = invocation.getArgument(3);
+            listener.onResponse(new ArrayList<>());
+            return null;
+        }).when(blobContainer)
+            .listBlobsByPrefixInSortedOrder(
+                any(String.class),
+                anyInt(),
+                any(BlobContainer.BlobNameSortOrder.class),
+                any(ActionListener.class)
+            );
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
         when(repository.blobStore()).thenReturn(blobStore);
         when(repositoriesService.repository(any(String.class))).thenReturn(repository);
