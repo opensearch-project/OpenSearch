@@ -100,6 +100,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -108,6 +109,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.anyOf;
@@ -1191,8 +1194,12 @@ public class StoreTests extends OpenSearchTestCase {
         }
         assertFalse(additionalSegments.isEmpty());
 
+        Collection<String> filesToConsiderForCleanUp = Stream.of(store.readLastCommittedSegmentsInfo().files(true), additionalSegments)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toList());
+
         // clean up everything not in the latest commit point.
-        store.cleanupAndPreserveLatestCommitPoint(store.readLastCommittedSegmentsInfo().files(true), "test");
+        store.cleanupAndPreserveLatestCommitPoint(filesToConsiderForCleanUp, "test");
 
         // we want to ensure commitMetadata files are preserved after calling cleanup
         for (String existingFile : store.directory().listAll()) {
