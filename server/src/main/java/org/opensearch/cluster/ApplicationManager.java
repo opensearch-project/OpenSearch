@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.opensearch.Application;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.ServiceAccountManager;
+import org.opensearch.identity.noop.NoopServiceAccountManager;
 import org.opensearch.plugins.PluginsService;
 
 /**
@@ -92,6 +93,9 @@ public class ApplicationManager {
      * @return The ExtensionManager being queried by the ApplicationManager
      */
     public ServiceAccountManager getServiceAccountManager() {
+        if (serviceAccountManager.get() == null) {
+            this.register(new NoopServiceAccountManager());
+        }
         return serviceAccountManager.get();
     }
 }

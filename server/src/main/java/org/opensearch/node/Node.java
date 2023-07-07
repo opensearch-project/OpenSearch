@@ -157,6 +157,8 @@ import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.ServiceAccountManager;
+import org.opensearch.identity.noop.NoopServiceAccountManager;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
