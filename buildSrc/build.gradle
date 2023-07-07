@@ -34,7 +34,6 @@ import org.gradle.util.GradleVersion
 plugins {
   id 'java-gradle-plugin'
   id 'groovy'
-  id 'java-test-fixtures'
 }
 
 group = 'org.opensearch.gradle'
@@ -79,9 +78,17 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
 }
 
 sourceSets {
+  test {
+    java {
+      srcDirs += ['src/testFixtures/java']
+    }
+  }
   integTest {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
     runtimeClasspath += output + compileClasspath
+    java {
+      srcDirs += ['src/testFixtures/java']
+    }
   }
 }
 
@@ -111,7 +118,7 @@ dependencies {
   api 'org.apache.rat:apache-rat:0.15'
   api 'commons-io:commons-io:2.13.0'
   api "net.java.dev.jna:jna:5.13.0"
-  api 'gradle.plugin.com.github.johnrengelman:shadow:8.0.0'
+  api 'com.github.johnrengelman:shadow:8.1.1'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
   api 'de.thetaphi:forbiddenapis:3.5.1'
@@ -124,10 +131,10 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.2.0"
 
-  testFixturesApi "junit:junit:${props.getProperty('junit')}"
-  testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
-  testFixturesApi gradleApi()
-  testFixturesApi gradleTestKit()
+  testImplementation "junit:junit:${props.getProperty('junit')}"
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
+  testRuntimeOnly gradleApi()
+  testRuntimeOnly gradleTestKit()
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.35.0'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
   integTestImplementation('org.spockframework:spock-core:2.3-groovy-3.0') {
@@ -164,8 +171,10 @@ if (project != rootProject) {
   apply plugin: 'opensearch.publish'
 
   allprojects {
-    targetCompatibility = JavaVersion.VERSION_11
-    sourceCompatibility = JavaVersion.VERSION_11
+    java {
+        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_11
+    }
   }
 
   // groovydoc succeeds, but has some weird internal exception...
@@ -174,7 +183,7 @@ if (project != rootProject) {
   // build-tools is not ready for primetime with these...
   tasks.named("dependencyLicenses").configure { it.enabled = false }
   dependenciesInfo.enabled = false
-  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
+  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
   if (org.opensearch.gradle.info.BuildParams.inFipsJvm) {
@@ -239,12 +248,6 @@ if (project != rootProject) {
         baseClass 'org.opensearch.gradle.test.GradleIntegrationTestCase'
       }
     }
-  }
-
-  // disable fail-on-warnings for this specific task which trips Java 11 bug
-  // https://bugs.openjdk.java.net/browse/JDK-8209058
-  tasks.named("compileTestFixturesJava").configure {
-    options.compilerArgs -= '-Werror'
   }
 
   tasks.register("integTest", Test) {

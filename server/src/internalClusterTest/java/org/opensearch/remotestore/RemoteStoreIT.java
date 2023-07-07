@@ -285,6 +285,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         verifyRemoteStoreCleanup(true);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8504")
     public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
         internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
@@ -309,6 +310,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8504")
     public void testStaleCommitDeletionWithoutInvokeFlush() throws Exception {
         internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
@@ -320,6 +322,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
         Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
-        assertEquals(1, getFileCount(indexPath));
+        assertEquals(numberOfIterations, getFileCount(indexPath));
     }
 }

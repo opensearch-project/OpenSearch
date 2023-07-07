@@ -27,7 +27,7 @@ public class CorrelationCodecService extends CodecService {
      * @param codecServiceConfig Generic codec service config
      */
     public CorrelationCodecService(CodecServiceConfig codecServiceConfig) {
-        super(codecServiceConfig.getMapperService(), codecServiceConfig.getLogger());
+        super(codecServiceConfig.getMapperService(), codecServiceConfig.getIndexSettings(), codecServiceConfig.getLogger());
         mapperService = codecServiceConfig.getMapperService();
     }
 
