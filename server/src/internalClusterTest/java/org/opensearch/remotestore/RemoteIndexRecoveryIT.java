@@ -72,4 +72,14 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
     protected int numDocs() {
         return randomIntBetween(100, 200);
     }
+
+    @Override
+    public void testRerouteRecovery() throws Exception {
+        super.testRerouteRecovery();
+    }
+
+    @Override
+    protected boolean indexFurtherInRerouteRecoveryBeforeAssertOngoingRecovery() {
+        return true;
+    }
 }

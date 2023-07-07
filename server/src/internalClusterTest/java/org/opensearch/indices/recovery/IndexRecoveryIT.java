@@ -693,6 +693,18 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
             ensureStableCluster(2);
 
+            if (indexFurtherInRerouteRecoveryBeforeAssertOngoingRecovery()) {
+                logger.info("--> indexing sample data");
+                final int numDocs = numDocs();
+                final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+
+                for (int i = 0; i < numDocs; i++) {
+                    docs[i] = client().prepareIndex(INDEX_NAME)
+                        .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
+                }
+                indexRandom(true, docs);
+            }
+
             response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
             recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
 
@@ -730,6 +742,10 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         // relocations of replicas are marked as REPLICA and the source node is the node holding the primary (B)
         assertRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, false, Stage.DONE, nodeB, nodeC);
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+    }
+
+    protected boolean indexFurtherInRerouteRecoveryBeforeAssertOngoingRecovery() {
+        return false;
     }
 
     protected Matcher<Long> getMatcherForThrottling(long value) {
