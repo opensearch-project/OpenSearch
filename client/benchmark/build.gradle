@@ -31,13 +31,17 @@
 apply plugin: 'opensearch.build'
 apply plugin: 'application'
 
-group = 'org.opensearch.client'
+base {
+  group = 'org.opensearch.client'
+  archivesBaseName = 'client-benchmarks'
+}
 
 // Not published so no need to assemble
 assemble.enabled = true
 
-archivesBaseName = 'client-benchmarks'
-mainClassName = 'org.opensearch.client.benchmark.BenchmarkMain'
+application {
+  mainClass = 'org.opensearch.client.benchmark.BenchmarkMain'
+}
 
 // never try to invoke tests on the benchmark project - there aren't any
 test.enabled = false

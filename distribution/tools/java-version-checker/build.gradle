@@ -11,8 +11,10 @@
 
 apply plugin: 'opensearch.build'
 
-sourceCompatibility = JavaVersion.VERSION_11
-targetCompatibility = JavaVersion.VERSION_11
+java {
+  sourceCompatibility = JavaVersion.VERSION_11
+  targetCompatibility = JavaVersion.VERSION_11
+}
 
 // targetting very old java versions enables a warning by default on newer JDK: disable it.
 compileJava.options.compilerArgs += '-Xlint:-options'
