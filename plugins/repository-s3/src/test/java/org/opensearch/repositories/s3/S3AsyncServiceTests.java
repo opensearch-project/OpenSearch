@@ -14,7 +14,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
-import org.opensearch.repositories.s3.async.TransferNIOGroup;
+import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
@@ -32,13 +32,13 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
 
     public void testCachedClientsAreReleased() {
         final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
-        final Settings settings = Settings.builder().put("endpoint", "http://first").build();
+        final Settings settings = Settings.builder().put("endpoint", "http://first").put("region", "us-east-2").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
         final AsyncExecutorBuilder asyncExecutorBuilder = new AsyncExecutorBuilder(
             Executors.newSingleThreadExecutor(),
             Executors.newSingleThreadExecutor(),
-            new TransferNIOGroup(1)
+            new AsyncTransferEventLoopGroup(1)
         );
         final S3ClientSettings clientSettings = s3AsyncService.settings(metadata2);
         final S3ClientSettings otherClientSettings = s3AsyncService.settings(metadata2);
@@ -73,7 +73,7 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
         final AsyncExecutorBuilder asyncExecutorBuilder = new AsyncExecutorBuilder(
             Executors.newSingleThreadExecutor(),
             Executors.newSingleThreadExecutor(),
-            new TransferNIOGroup(1)
+            new AsyncTransferEventLoopGroup(1)
         );
         final S3ClientSettings clientSettings = s3AsyncService.settings(metadata2);
         final S3ClientSettings otherClientSettings = s3AsyncService.settings(metadata2);

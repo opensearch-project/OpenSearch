@@ -45,16 +45,16 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class AsyncUploadUtilsTests extends OpenSearchTestCase {
+public class AsyncTransferManagerTests extends OpenSearchTestCase {
 
-    private AsyncUploadUtils asyncUploadUtils;
+    private AsyncTransferManager asyncTransferManager;
     private S3AsyncClient s3AsyncClient;
 
     @Override
     @Before
     public void setUp() throws Exception {
         s3AsyncClient = mock(S3AsyncClient.class);
-        asyncUploadUtils = new AsyncUploadUtils(
+        asyncTransferManager = new AsyncTransferManager(
             ByteSizeUnit.MB.toBytes(5),
             Executors.newSingleThreadExecutor(),
             Executors.newSingleThreadExecutor()
@@ -69,13 +69,13 @@ public class AsyncUploadUtilsTests extends OpenSearchTestCase {
             putObjectResponseCompletableFuture
         );
 
-        CompletableFuture<Void> resultFuture = asyncUploadUtils.uploadObject(
+        CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(1), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
             }, false, null),
             new StreamContext(
-                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize),
+                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 1
@@ -107,13 +107,13 @@ public class AsyncUploadUtilsTests extends OpenSearchTestCase {
         deleteObjectResponseCompletableFuture.complete(DeleteObjectResponse.builder().build());
         when(s3AsyncClient.deleteObject(any(DeleteObjectRequest.class))).thenReturn(deleteObjectResponseCompletableFuture);
 
-        CompletableFuture<Void> resultFuture = asyncUploadUtils.uploadObject(
+        CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(1), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
             }, false, null),
             new StreamContext(
-                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize),
+                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 1
@@ -158,13 +158,13 @@ public class AsyncUploadUtilsTests extends OpenSearchTestCase {
             abortMultipartUploadResponseCompletableFuture
         );
 
-        CompletableFuture<Void> resultFuture = asyncUploadUtils.uploadObject(
+        CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
             }, true, 3376132981L),
             new StreamContext(
-                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize),
+                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 5
@@ -208,13 +208,13 @@ public class AsyncUploadUtilsTests extends OpenSearchTestCase {
             abortMultipartUploadResponseCompletableFuture
         );
 
-        CompletableFuture<Void> resultFuture = asyncUploadUtils.uploadObject(
+        CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
             }, true, 0L),
             new StreamContext(
-                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize),
+                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 5

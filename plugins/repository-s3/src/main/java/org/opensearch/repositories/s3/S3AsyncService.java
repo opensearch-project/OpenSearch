@@ -18,7 +18,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
 import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
-import org.opensearch.repositories.s3.async.TransferNIOGroup;
+import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
@@ -194,7 +194,7 @@ class S3AsyncService implements Closeable {
             builder.forcePathStyle(true);
         }
 
-        builder.httpClient(buildHttpClient(clientSettings, priorityExecutorBuilder.getTransferNIOGroup()));
+        builder.httpClient(buildHttpClient(clientSettings, priorityExecutorBuilder.getAsyncTransferEventLoopGroup()));
         builder.asyncConfiguration(
             ClientAsyncConfiguration.builder()
                 .advancedOption(
@@ -205,7 +205,7 @@ class S3AsyncService implements Closeable {
         );
         final S3AsyncClient priorityClient = SocketAccess.doPrivileged(builder::build);
 
-        builder.httpClient(buildHttpClient(clientSettings, normalExecutorBuilder.getTransferNIOGroup()));
+        builder.httpClient(buildHttpClient(clientSettings, normalExecutorBuilder.getAsyncTransferEventLoopGroup()));
         builder.asyncConfiguration(
             ClientAsyncConfiguration.builder()
                 .advancedOption(
@@ -234,7 +234,7 @@ class S3AsyncService implements Closeable {
     }
 
     // pkg private for tests
-    static SdkAsyncHttpClient buildHttpClient(S3ClientSettings clientSettings, TransferNIOGroup transferNIOGroup) {
+    static SdkAsyncHttpClient buildHttpClient(S3ClientSettings clientSettings, AsyncTransferEventLoopGroup asyncTransferEventLoopGroup) {
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
         NettyNioAsyncHttpClient.Builder clientBuilder = NettyNioAsyncHttpClient.builder();
@@ -254,7 +254,7 @@ class S3AsyncService implements Closeable {
         clientBuilder.connectionAcquisitionTimeout(Duration.ofMillis(clientSettings.connectionAcquisitionTimeoutMillis));
         clientBuilder.maxPendingConnectionAcquires(clientSettings.maxPendingConnectionAcquires);
         clientBuilder.maxConcurrency(clientSettings.maxConnections);
-        clientBuilder.eventLoopGroup(SdkEventLoopGroup.create(transferNIOGroup.getEventLoopGroup()));
+        clientBuilder.eventLoopGroup(SdkEventLoopGroup.create(asyncTransferEventLoopGroup.getEventLoopGroup()));
         clientBuilder.tcpKeepAlive(true);
 
         return clientBuilder.build();

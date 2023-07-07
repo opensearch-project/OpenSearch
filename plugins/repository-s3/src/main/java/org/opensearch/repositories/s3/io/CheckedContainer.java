@@ -8,16 +8,13 @@
 
 package org.opensearch.repositories.s3.io;
 
-import org.opensearch.common.io.InputStreamContainer;
-
-import java.io.InputStream;
-
-public class InputStreamCRC32Container extends InputStreamContainer {
+public class CheckedContainer {
 
     private String checksum;
+    private long contentLength;
 
-    public InputStreamCRC32Container(InputStream inputStream, long contentLength) {
-        super(inputStream, contentLength);
+    public CheckedContainer(long contentLength) {
+        this.contentLength = contentLength;
     }
 
     public void setChecksum(String checksum) {
@@ -26,5 +23,9 @@ public class InputStreamCRC32Container extends InputStreamContainer {
 
     public String getChecksum() {
         return checksum;
+    }
+
+    public long getContentLength() {
+        return contentLength;
     }
 }

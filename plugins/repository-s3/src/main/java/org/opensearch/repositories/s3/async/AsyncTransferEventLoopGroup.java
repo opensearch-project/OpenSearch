@@ -16,32 +16,33 @@ import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.repositories.s3.SocketAccess;
 
 import java.io.Closeable;
 import java.util.concurrent.TimeUnit;
 
 /**
- * TransferNIOGroup is an encapsulation for netty {@link EventLoopGroup}
+ * AsyncTransferEventLoopGroup is an encapsulation for netty {@link EventLoopGroup}
  */
-public class TransferNIOGroup implements Closeable {
-    private static final String THREAD_PREFIX = "aws-async-transfer-nio";
-    private final Logger logger = LogManager.getLogger(TransferNIOGroup.class);
+public class AsyncTransferEventLoopGroup implements Closeable {
+    private static final String THREAD_PREFIX = "s3-async-transfer-worker";
+    private final Logger logger = LogManager.getLogger(AsyncTransferEventLoopGroup.class);
 
     private final EventLoopGroup eventLoopGroup;
 
     /**
-     * Construct a new TransferNIOGroup
+     * Construct a new AsyncTransferEventLoopGroup
      *
      * @param eventLoopThreads The number of event loop threads for this event loop group
      */
-    public TransferNIOGroup(int eventLoopThreads) {
+    public AsyncTransferEventLoopGroup(int eventLoopThreads) {
         // Epoll event loop incurs less GC and provides better performance than Nio loop. Therefore,
         // using epoll wherever available is preferred.
         this.eventLoopGroup = SocketAccess.doPrivileged(
             () -> Epoll.isAvailable()
-                ? new EpollEventLoopGroup(eventLoopThreads, new OpenSearchThreadFactory(THREAD_PREFIX))
-                : new NioEventLoopGroup(eventLoopThreads, new OpenSearchThreadFactory(THREAD_PREFIX))
+                ? new EpollEventLoopGroup(eventLoopThreads, OpenSearchExecutors.daemonThreadFactory(THREAD_PREFIX))
+                : new NioEventLoopGroup(eventLoopThreads, OpenSearchExecutors.daemonThreadFactory(THREAD_PREFIX))
         );
     }
 

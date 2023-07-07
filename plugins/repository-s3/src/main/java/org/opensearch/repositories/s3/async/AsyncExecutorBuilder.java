@@ -11,23 +11,27 @@ package org.opensearch.repositories.s3.async;
 import java.util.concurrent.ExecutorService;
 
 /**
- * An encapsulation for the {@link TransferNIOGroup}, and the stream reader and future completion executor services
+ * An encapsulation for the {@link AsyncTransferEventLoopGroup}, and the stream reader and future completion executor services
  */
 public class AsyncExecutorBuilder {
 
     private final ExecutorService futureCompletionExecutor;
     private final ExecutorService streamReader;
-    private final TransferNIOGroup transferNIOGroup;
+    private final AsyncTransferEventLoopGroup asyncTransferEventLoopGroup;
 
     /**
      * Construct a new AsyncExecutorBuilder object
      *
      * @param futureCompletionExecutor An {@link ExecutorService} to pass to {@link software.amazon.awssdk.services.s3.S3AsyncClient} for future completion
      * @param streamReader An {@link ExecutorService} to read streams for upload
-     * @param transferNIOGroup A {@link TransferNIOGroup} which encapsulates the netty {@link io.netty.channel.EventLoopGroup} for async uploads
+     * @param asyncTransferEventLoopGroup A {@link AsyncTransferEventLoopGroup} which encapsulates the netty {@link io.netty.channel.EventLoopGroup} for async uploads
      */
-    public AsyncExecutorBuilder(ExecutorService futureCompletionExecutor, ExecutorService streamReader, TransferNIOGroup transferNIOGroup) {
-        this.transferNIOGroup = transferNIOGroup;
+    public AsyncExecutorBuilder(
+        ExecutorService futureCompletionExecutor,
+        ExecutorService streamReader,
+        AsyncTransferEventLoopGroup asyncTransferEventLoopGroup
+    ) {
+        this.asyncTransferEventLoopGroup = asyncTransferEventLoopGroup;
         this.streamReader = streamReader;
         this.futureCompletionExecutor = futureCompletionExecutor;
     }
@@ -36,8 +40,8 @@ public class AsyncExecutorBuilder {
         return futureCompletionExecutor;
     }
 
-    public TransferNIOGroup getTransferNIOGroup() {
-        return transferNIOGroup;
+    public AsyncTransferEventLoopGroup getAsyncTransferEventLoopGroup() {
+        return asyncTransferEventLoopGroup;
     }
 
     public ExecutorService getStreamReader() {

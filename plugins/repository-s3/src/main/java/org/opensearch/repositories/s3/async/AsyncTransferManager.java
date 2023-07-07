@@ -19,13 +19,12 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.ByteUtils;
-import org.opensearch.repositories.s3.io.InputStreamCRC32Container;
+import org.opensearch.repositories.s3.io.CheckedContainer;
 import org.opensearch.repositories.s3.SocketAccess;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
@@ -36,12 +35,9 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
-import software.amazon.awssdk.services.s3.model.UploadPartRequest;
-import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.utils.CompletableFutureUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -56,8 +52,8 @@ import java.util.stream.IntStream;
 /**
  * A helper class that automatically uses multipart upload based on the size of the source object
  */
-public final class AsyncUploadUtils {
-    private static final Logger log = LogManager.getLogger(AsyncUploadUtils.class);
+public final class AsyncTransferManager {
+    private static final Logger log = LogManager.getLogger(AsyncTransferManager.class);
     private final ExecutorService executorService;
     private final ExecutorService priorityExecutorService;
     private final long minimumPartSize;
@@ -68,13 +64,13 @@ public final class AsyncUploadUtils {
     private static final long MAX_UPLOAD_PARTS = 10_000;
 
     /**
-     * Construct a new object of AsyncUploadUtils
+     * Construct a new object of AsyncTransferManager
      *
      * @param minimumPartSize         The minimum part size for parallel multipart uploads
      * @param executorService         The stream reader {@link ExecutorService} for normal priority uploads
-     * @param priorityExecutorService the stream read {@link ExecutorService} for high priority uploads
+     * @param priorityExecutorService The stream read {@link ExecutorService} for high priority uploads
      */
-    public AsyncUploadUtils(long minimumPartSize, ExecutorService executorService, ExecutorService priorityExecutorService) {
+    public AsyncTransferManager(long minimumPartSize, ExecutorService executorService, ExecutorService priorityExecutorService) {
         this.executorService = executorService;
         this.priorityExecutorService = priorityExecutorService;
         this.minimumPartSize = minimumPartSize;
@@ -83,7 +79,7 @@ public final class AsyncUploadUtils {
     /**
      * Upload an object to S3 using the async client
      *
-     * @param s3AsyncClient The {@link S3AsyncClient} to use for uploads
+     * @param s3AsyncClient S3 client to use for upload
      * @param uploadRequest The {@link UploadRequest} object encapsulating all relevant details for upload
      * @param streamContext The {@link StreamContext} to supply streams during upload
      * @return A {@link CompletableFuture} to listen for upload completion
@@ -146,16 +142,23 @@ public final class AsyncUploadUtils {
 
         // The list of completed parts must be sorted
         AtomicReferenceArray<CompletedPart> completedParts = new AtomicReferenceArray<>(streamContext.getNumberOfParts());
-        AtomicReferenceArray<InputStreamCRC32Container> inputStreamContainers = new AtomicReferenceArray<>(
-            streamContext.getNumberOfParts()
-        );
+        AtomicReferenceArray<CheckedContainer> inputStreamContainers = new AtomicReferenceArray<>(streamContext.getNumberOfParts());
 
         List<CompletableFuture<CompletedPart>> futures;
         try {
-            futures = sendUploadPartRequests(s3AsyncClient, uploadRequest, streamContext, uploadId, completedParts, inputStreamContainers);
+            futures = AsyncPartsHandler.uploadParts(
+                s3AsyncClient,
+                executorService,
+                priorityExecutorService,
+                uploadRequest,
+                streamContext,
+                uploadId,
+                completedParts,
+                inputStreamContainers
+            );
         } catch (Exception ex) {
             try {
-                cleanUpParts(s3AsyncClient, uploadRequest, uploadId);
+                AsyncPartsHandler.cleanUpParts(s3AsyncClient, uploadRequest, uploadId);
             } finally {
                 returnFuture.completeExceptionally(ex);
             }
@@ -163,15 +166,18 @@ public final class AsyncUploadUtils {
         }
 
         CompletableFutureUtils.allOfExceptionForwarded(futures.toArray(CompletableFuture[]::new)).thenApply(resp -> {
-            uploadRequest.getUploadFinalizer().accept(true);
+            try {
+                uploadRequest.getUploadFinalizer().accept(true);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             return resp;
+        }).thenApply(ignore -> {
+            if (uploadRequest.doRemoteDataIntegrityCheck()) {
+                mergeAndVerifyChecksum(inputStreamContainers, uploadRequest.getKey(), uploadRequest.getExpectedChecksum());
+            }
+            return null;
         })
-            .thenApply(ignore -> {
-                if (uploadRequest.doRemoteDataIntegrityCheck()) {
-                    mergeAndVerifyChecksum(inputStreamContainers, uploadRequest.getKey(), uploadRequest.getExpectedChecksum());
-                }
-                return null;
-            })
             .thenCompose(ignore -> completeMultipartUpload(s3AsyncClient, uploadRequest, uploadId, completedParts))
             .handle(handleExceptionOrResponse(s3AsyncClient, uploadRequest, returnFuture, uploadId))
             .exceptionally(throwable -> {
@@ -181,7 +187,7 @@ public final class AsyncUploadUtils {
     }
 
     private void mergeAndVerifyChecksum(
-        AtomicReferenceArray<InputStreamCRC32Container> inputStreamContainers,
+        AtomicReferenceArray<CheckedContainer> inputStreamContainers,
         String fileName,
         long expectedChecksum
     ) {
@@ -205,7 +211,7 @@ public final class AsyncUploadUtils {
 
         return (response, throwable) -> {
             if (throwable != null) {
-                cleanUpParts(s3AsyncClient, uploadRequest, uploadId);
+                AsyncPartsHandler.cleanUpParts(s3AsyncClient, uploadRequest, uploadId);
                 handleException(returnFuture, () -> "Failed to send multipart upload requests.", throwable);
             } else {
                 returnFuture.complete(null);
@@ -251,30 +257,6 @@ public final class AsyncUploadUtils {
         return result;
     }
 
-    private void cleanUpParts(S3AsyncClient s3AsyncClient, UploadRequest uploadRequest, String uploadId) {
-
-        AbortMultipartUploadRequest abortMultipartUploadRequest = AbortMultipartUploadRequest.builder()
-            .bucket(uploadRequest.getBucket())
-            .key(uploadRequest.getKey())
-            .uploadId(uploadId)
-            .build();
-        SocketAccess.doPrivileged(() -> s3AsyncClient.abortMultipartUpload(abortMultipartUploadRequest).exceptionally(throwable -> {
-            log.warn(
-                () -> new ParameterizedMessage(
-                    "Failed to abort previous multipart upload "
-                        + "(id: {})"
-                        + ". You may need to call "
-                        + "S3AsyncClient#abortMultiPartUpload to "
-                        + "free all storage consumed by"
-                        + " all parts. ",
-                    uploadId
-                ),
-                throwable
-            );
-            return null;
-        }));
-    }
-
     private static void handleException(CompletableFuture<Void> returnFuture, Supplier<String> message, Throwable throwable) {
         Throwable cause = throwable instanceof CompletionException ? throwable.getCause() : throwable;
 
@@ -284,102 +266,6 @@ public final class AsyncUploadUtils {
             SdkClientException exception = SdkClientException.create(message.get(), cause);
             returnFuture.completeExceptionally(exception);
         }
-    }
-
-    private List<CompletableFuture<CompletedPart>> sendUploadPartRequests(
-        S3AsyncClient s3AsyncClient,
-        UploadRequest uploadRequest,
-        StreamContext streamContext,
-        String uploadId,
-        AtomicReferenceArray<CompletedPart> completedParts,
-        AtomicReferenceArray<InputStreamCRC32Container> inputStreamContainers
-    ) throws IOException {
-        List<CompletableFuture<CompletedPart>> futures = new ArrayList<>();
-        for (int partIdx = 0; partIdx < streamContext.getNumberOfParts(); partIdx++) {
-            InputStreamContainer inputStreamContainer = streamContext.provideStream(partIdx);
-            inputStreamContainers.set(
-                partIdx,
-                new InputStreamCRC32Container(inputStreamContainer.getInputStream(), inputStreamContainer.getContentLength())
-            );
-            UploadPartRequest.Builder uploadPartRequestBuilder = UploadPartRequest.builder()
-                .bucket(uploadRequest.getBucket())
-                .partNumber(partIdx + 1)
-                .key(uploadRequest.getKey())
-                .uploadId(uploadId)
-                .contentLength(inputStreamContainer.getContentLength());
-            if (uploadRequest.doRemoteDataIntegrityCheck()) {
-                uploadPartRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
-            }
-            sendIndividualUploadPart(
-                s3AsyncClient,
-                completedParts,
-                inputStreamContainers,
-                futures,
-                uploadPartRequestBuilder.build(),
-                inputStreamContainer,
-                uploadRequest
-            );
-        }
-
-        return futures;
-    }
-
-    private void sendIndividualUploadPart(
-        S3AsyncClient s3AsyncClient,
-        AtomicReferenceArray<CompletedPart> completedParts,
-        AtomicReferenceArray<InputStreamCRC32Container> inputStreamContainers,
-        List<CompletableFuture<CompletedPart>> futures,
-        UploadPartRequest uploadPartRequest,
-        InputStreamContainer inputStreamContainer,
-        UploadRequest uploadRequest
-    ) {
-        Integer partNumber = uploadPartRequest.partNumber();
-
-        ExecutorService streamReadExecutor = uploadRequest.getWritePriority() == WritePriority.HIGH
-            ? priorityExecutorService
-            : executorService;
-        CompletableFuture<UploadPartResponse> uploadPartResponseFuture = SocketAccess.doPrivileged(
-            () -> s3AsyncClient.uploadPart(
-                uploadPartRequest,
-                AsyncRequestBody.fromInputStream(
-                    inputStreamContainer.getInputStream(),
-                    inputStreamContainer.getContentLength(),
-                    streamReadExecutor
-                )
-            )
-        );
-
-        CompletableFuture<CompletedPart> convertFuture = uploadPartResponseFuture.thenApply(
-            uploadPartResponse -> convertUploadPartResponse(
-                completedParts,
-                inputStreamContainers,
-                uploadPartResponse,
-                partNumber,
-                uploadRequest.doRemoteDataIntegrityCheck()
-            )
-        );
-        futures.add(convertFuture);
-
-        CompletableFutureUtils.forwardExceptionTo(convertFuture, uploadPartResponseFuture);
-    }
-
-    private CompletedPart convertUploadPartResponse(
-        AtomicReferenceArray<CompletedPart> completedParts,
-        AtomicReferenceArray<InputStreamCRC32Container> inputStreamContainers,
-        UploadPartResponse partResponse,
-        int partNumber,
-        boolean isRemoteDataIntegrityCheckEnabled
-    ) {
-        CompletedPart.Builder completedPartBuilder = CompletedPart.builder().eTag(partResponse.eTag()).partNumber(partNumber);
-        if (isRemoteDataIntegrityCheckEnabled) {
-            completedPartBuilder.checksumCRC32(partResponse.checksumCRC32());
-            InputStreamCRC32Container inputStreamCRC32Container = inputStreamContainers.get(partNumber - 1);
-            inputStreamCRC32Container.setChecksum(partResponse.checksumCRC32());
-            inputStreamContainers.set(partNumber - 1, inputStreamCRC32Container);
-        }
-        CompletedPart completedPart = completedPartBuilder.build();
-        completedParts.set(partNumber - 1, completedPart);
-        return completedPart;
     }
 
     /**
@@ -431,7 +317,11 @@ public final class AsyncUploadUtils {
                     }
                     returnFuture.completeExceptionally(throwable);
                 } else {
-                    uploadRequest.getUploadFinalizer().accept(true);
+                    try {
+                        uploadRequest.getUploadFinalizer().accept(true);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                     returnFuture.complete(null);
                 }
 
