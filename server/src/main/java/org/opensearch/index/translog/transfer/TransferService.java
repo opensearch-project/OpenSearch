@@ -107,7 +107,7 @@ public interface TransferService {
      */
     InputStream downloadBlob(Iterable<String> path, String fileName) throws IOException;
 
-    void listAllInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException;
+    void listAllInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener);
 
     void listAllInSortedOrderAsync(String threadpoolName, Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener);
 

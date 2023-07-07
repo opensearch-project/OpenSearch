@@ -209,7 +209,7 @@ public class TranslogTransferManager {
         try {
             transferService.listAllInSortedOrder(remoteMetadataTransferPath, 1, latchedActionListener);
             latch.await();
-        } catch (InterruptedException | IOException e) {
+        } catch (InterruptedException e) {
             throw new IOException("Exception while reading/downloading metadafile", e);
         }
 

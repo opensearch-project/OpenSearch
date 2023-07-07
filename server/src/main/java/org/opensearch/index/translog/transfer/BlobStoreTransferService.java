@@ -133,7 +133,7 @@ public class BlobStoreTransferService implements TransferService {
         });
     }
 
-    public void listAllInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener) throws IOException {
+    public void listAllInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener) {
         blobStore.blobContainer((BlobPath) path).listBlobsByPrefixInSortedOrder("", limit, LEXICOGRAPHIC, listener);
     }
 
@@ -143,13 +143,7 @@ public class BlobStoreTransferService implements TransferService {
         int limit,
         ActionListener<List<BlobMetadata>> listener
     ) {
-        threadPool.executor(threadpoolName).execute(() -> {
-            try {
-                listAllInSortedOrder(path, limit, listener);
-            } catch (IOException e) {
-                listener.onFailure(e);
-            }
-        });
+        threadPool.executor(threadpoolName).execute(() -> { listAllInSortedOrder(path, limit, listener); });
     }
 
 }

@@ -201,7 +201,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertNull(translogTransferManager.readMetadata());
     }
 
-    public void testReadMetadataHappy() throws IOException {
+    // This should happen most of the time - Just a single metadata file
+    public void testReadMetadataSingleFile() throws IOException {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
@@ -389,6 +390,43 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(files));
+    }
+
+    public void testDeleteStaleTranslogMetadata() {
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            null
+        );
+        String tm1 = new TranslogTransferMetadata(1, 1, 1, 2).getFileName();
+        String tm2 = new TranslogTransferMetadata(1, 2, 1, 2).getFileName();
+        String tm3 = new TranslogTransferMetadata(2, 3, 1, 2).getFileName();
+        doAnswer(invocation -> {
+            ActionListener<List<BlobMetadata>> actionListener = invocation.getArgument(3);
+            List<BlobMetadata> bmList = new LinkedList<>();
+            bmList.add(new PlainBlobMetadata(tm1, 1));
+            bmList.add(new PlainBlobMetadata(tm2, 1));
+            bmList.add(new PlainBlobMetadata(tm3, 1));
+            actionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrderAsync(eq(ThreadPool.Names.REMOTE_PURGE), any(BlobPath.class), anyInt(), any(ActionListener.class));
+        List<String> files = List.of(tm2, tm3);
+        translogTransferManager.deleteStaleTranslogMetadataFilesAsync(() -> {
+            verify(transferService).listAllInSortedOrderAsync(
+                eq(ThreadPool.Names.REMOTE_PURGE),
+                any(BlobPath.class),
+                eq(Integer.MAX_VALUE),
+                any()
+            );
+            verify(transferService).deleteBlobsAsync(
+                eq(ThreadPool.Names.REMOTE_PURGE),
+                any(BlobPath.class),
+                eq(files),
+                any(ActionListener.class)
+            );
+        });
     }
 
     public void testDeleteTranslogFailure() throws Exception {
