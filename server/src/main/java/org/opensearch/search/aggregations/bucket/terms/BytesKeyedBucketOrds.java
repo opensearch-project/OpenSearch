@@ -35,8 +35,8 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BytesRefHash;
-import org.opensearch.core.common.lease.Releasable;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 
 /**

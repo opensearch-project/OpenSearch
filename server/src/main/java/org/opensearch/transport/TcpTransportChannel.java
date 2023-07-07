@@ -33,7 +33,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.Version;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;

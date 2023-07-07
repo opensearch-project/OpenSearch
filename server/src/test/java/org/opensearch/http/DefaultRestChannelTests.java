@@ -44,7 +44,7 @@ import org.opensearch.common.util.ByteArray;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.BytesRestResponse;

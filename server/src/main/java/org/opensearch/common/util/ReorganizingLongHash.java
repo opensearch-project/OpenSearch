@@ -9,7 +9,7 @@
 package org.opensearch.common.util;
 
 import org.apache.lucene.util.hppc.BitMixer;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 
 /**
  * Specialized hash table implementation that maps a (primitive) long to long.

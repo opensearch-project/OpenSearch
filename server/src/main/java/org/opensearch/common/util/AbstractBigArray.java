@@ -34,7 +34,7 @@ package org.opensearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.recycler.Recycler;
 
 import java.lang.reflect.Array;
