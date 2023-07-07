@@ -439,14 +439,6 @@ public class TranslogTransferManager {
     }
 
     /**
-     * Deletes metadata files asynchronously using the {@code REMOTE_PURGE} threadpool.
-     * @param metadataFilesToDelete list of metadata files to be deleted.
-     */
-    private void deleteMetadataFilesAsync(List<String> metadataFilesToDelete) {
-        deleteMetadataFilesAsync(metadataFilesToDelete, () -> {});
-    }
-
-    /**
      * Deletes metadata files asynchronously using the {@code REMOTE_PURGE} threadpool. On success or failure, runs {@code onCompletion}.
      *
      * @param files list of metadata files to be deleted.

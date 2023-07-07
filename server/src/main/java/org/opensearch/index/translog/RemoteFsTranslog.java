@@ -386,7 +386,7 @@ public class RemoteFsTranslog extends Translog {
         if (generationsToDelete.isEmpty() == false) {
             deleteRemoteGeneration(generationsToDelete);
             translogTransferManager.deleteStaleTranslogMetadataFilesAsync(remoteGenerationDeletionPermits::release);
-            deleteStaleRemotePrimaryTermsAndMetadataFiles();
+            deleteStaleRemotePrimaryTerms();
         } else {
             remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
         }
@@ -410,7 +410,7 @@ public class RemoteFsTranslog extends Translog {
      * <br>
      * This will also delete all stale translog metadata files from remote except the latest basis the metadata file comparator.
      */
-    private void deleteStaleRemotePrimaryTermsAndMetadataFiles() {
+    private void deleteStaleRemotePrimaryTerms() {
         // The deletion of older translog files in remote store is on best-effort basis, there is a possibility that there
         // are older files that are no longer needed and should be cleaned up. In here, we delete all files that are part
         // of older primary term.
