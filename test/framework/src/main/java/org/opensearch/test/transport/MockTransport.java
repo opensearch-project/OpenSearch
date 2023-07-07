@@ -40,6 +40,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
@@ -151,7 +152,7 @@ public class MockTransport extends StubbableTransport {
         } else {
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 output.writeException(t);
-                remoteException = new RemoteTransportException("remote failure", output.bytes().streamInput().readException());
+                remoteException = new RemoteTransportException("remote failure", output.bytes().<StreamInput>streamInput().readException());
             } catch (IOException ioException) {
                 throw new AssertionError("failed to serialize/deserialize supplied exception " + t, ioException);
             }

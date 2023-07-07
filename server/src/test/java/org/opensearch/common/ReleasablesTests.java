@@ -31,9 +31,9 @@
 
 package org.opensearch.common;
 
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.core.common.lease.Releasables;
 
 import java.util.concurrent.atomic.AtomicInteger;
 

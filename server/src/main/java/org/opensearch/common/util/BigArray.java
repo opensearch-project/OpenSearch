@@ -33,7 +33,7 @@
 package org.opensearch.common.util;
 
 import org.apache.lucene.util.Accountable;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.common.lease.Releasable;
 
 /**
  * Base abstraction of an array.

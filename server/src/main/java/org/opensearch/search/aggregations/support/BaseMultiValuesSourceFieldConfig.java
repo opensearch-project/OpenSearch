@@ -14,6 +14,7 @@ import org.opensearch.common.TriConsumer;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.joda.Joda;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
@@ -88,7 +89,7 @@ public abstract class BaseMultiValuesSourceFieldConfig implements Writeable, ToX
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
         if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            this.timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
+            this.timeZone = DateUtils.dateTimeZoneToZoneId(Joda.readOptionalTimeZone(in));
         } else {
             this.timeZone = in.readOptionalZoneId();
         }
