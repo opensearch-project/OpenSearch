@@ -8,7 +8,9 @@
 
 package org.opensearch.test.telemetry.tracing;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.opensearch.telemetry.tracing.Span;
@@ -31,26 +33,18 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     @Override
     public void onStart(Span span) {
         spanMap.put(span.getSpanId(), Thread.currentThread().getStackTrace());
-        MockSpanData spanData;
-        if (span.getParentSpan() == null){
-            spanData = new MockSpanData(span.getSpanId(),
-                "0000000000", span.getTraceId(), System.nanoTime(), false, span.getSpanName());
-        } else {
-            spanData = new MockSpanData(span.getSpanId(),
-                span.getParentSpan().getSpanId(), span.getTraceId(), System.nanoTime(), false, span.getSpanName());
-        }
-        MockSpanData put = finishedSpanItems.put(span.getSpanId(), spanData);
+        finishedSpanItems.put(span.getSpanId(), toMockSpanData(span));
     }
 
     @Override
     public void onEnd(Span span) {
-        spanMap.remove(span.getSpanId());
         MockSpanData spanData = finishedSpanItems.get(span.getSpanId());
-        if (spanData != null){
+        if (spanData != null) {
             spanData.setEndEpochNanos(System.nanoTime());
             spanData.setHasEnded(true);
         }
-        if(spanMap.containsKey(span.getSpanId())) {
+        spanMap.remove(span.getSpanId());
+        if (spanMap.containsKey(span.getSpanId())) {
             spanMap.remove(span.getSpanId());
         }
     }
@@ -60,5 +54,20 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
      */
     public List<MockSpanData> getFinishedSpanItems() {
         return new ArrayList<>(finishedSpanItems.values());
+    }
+
+    private MockSpanData toMockSpanData(Span span) {
+        String parentSpanId = (span.getParentSpan() != null) ? span.getParentSpan().getSpanId() : "";
+        MockSpanData spanData = new MockSpanData(
+            span.getSpanId(),
+            parentSpanId,
+            span.getTraceId(),
+            System.nanoTime(),
+            false,
+            span.getSpanName(),
+            Thread.currentThread().getStackTrace()
+        );
+        ;
+        return spanData;
     }
 }

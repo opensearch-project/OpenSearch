@@ -720,6 +720,7 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 threadPool
             );
+
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,

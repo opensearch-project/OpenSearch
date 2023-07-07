@@ -8,9 +8,10 @@
 
 package org.opensearch.test.telemetry.tracing.validators;
 
-import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.test.telemetry.tracing.*;
+import org.opensearch.test.telemetry.tracing.MockSpanData;
+import org.opensearch.test.telemetry.tracing.TracingValidator;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -18,7 +19,12 @@ import java.util.Set;
 /**
  * AllSpansHaveUniqueId validator checks if all spans emitted have a unique spanID.
  */
-public class AllSpansHaveUniqueId implements SpanDataValidator {
+public class AllSpansHaveUniqueId implements TracingValidator {
+
+    /**
+     * Base Constructor
+     */
+    public AllSpansHaveUniqueId() {}
 
     /**
      * validates if all spans emitted have a unique spanID
@@ -26,11 +32,15 @@ public class AllSpansHaveUniqueId implements SpanDataValidator {
      * @param requests requests for e.g. search/index call
      */
     @Override
-    public boolean validate(List<MockSpanData> spans, int requests) {
-        Set<String> uniqueIds = new HashSet<>();
-        for (MockSpanData s : spans) {
-            uniqueIds.add(s.getSpanID());
+    public List<MockSpanData> validate(List<MockSpanData> spans, int requests) {
+        List<MockSpanData> problematicSpans = new ArrayList<>();
+        Set<String> set = new HashSet<>();
+        for (MockSpanData span : spans) {
+            if (set.contains(span.getSpanID())) {
+                problematicSpans.add(span);
+            }
+            set.add(span.getSpanID());
         }
-        return Integer.compare(uniqueIds.size(), spans.size()) == 0;
+        return problematicSpans;
     }
 }

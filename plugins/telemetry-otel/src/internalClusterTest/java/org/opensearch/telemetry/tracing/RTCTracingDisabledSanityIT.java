@@ -19,30 +19,35 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, supportsDedicatedMasters=false, numDataNodes = 5)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, supportsDedicatedMasters = false, minNumDataNodes = 2)
 public class RTCTracingDisabledSanityIT extends OpenSearchIntegTestCase {
 
     private static MockOpenTelemetrySpanExporter exporter = new MockOpenTelemetrySpanExporter();
 
-    static{
-        OTelResourceProvider.get(Settings.builder().build(), exporter, ContextPropagators.create(W3CTraceContextPropagator.getInstance()), null);
+    static {
+        OTelResourceProvider.get(
+            Settings.builder().build(),
+            exporter,
+            ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
+            null
+        );
     }
+
     @Override
     protected Class<? extends Plugin> telemetryPlugin() {
         return OTelTelemetryPlugin.class;
     }
 
-    public void testSanityCheckWhenTracingDisabled() throws Exception{
+    public void testSanityCheckWhenTracingDisabled() throws Exception {
         Client client = client();
-        // ENABLE TRACING
-        client
-            .admin()
+        // DISABLE TRACING
+        client.admin()
             .cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false))
             .get();
 
-        //Create Index and ingest data
+        // Create Index and ingest data
         String indexName = "test-index-11";
         Settings basicSettings = Settings.builder().put("number_of_shards", 3).put("number_of_replicas", 1).build();
         createIndex(indexName, basicSettings);
@@ -51,13 +56,13 @@ public class RTCTracingDisabledSanityIT extends OpenSearchIntegTestCase {
         ensureGreen();
         refresh();
 
-        //Make the search call;
+        // Make the search call;
         client.prepareSearch().setQuery(queryStringQuery("fox")).get();
 
-        //Sleep for about 2s to wait for traces are published
+        // Sleep for about 2s to wait for traces are published
         Thread.sleep(2000);
 
-        assertTrue(exporter.getFinishedSpanItems().size() == 0);
+        assertTrue(exporter.getFinishedSpanItems().isEmpty());
     }
 
 }

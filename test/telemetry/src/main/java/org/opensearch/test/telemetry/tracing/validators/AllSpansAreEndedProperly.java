@@ -8,14 +8,21 @@
 
 package org.opensearch.test.telemetry.tracing.validators;
 
-import org.opensearch.test.telemetry.tracing.*;
+import org.opensearch.test.telemetry.tracing.MockSpanData;
+import org.opensearch.test.telemetry.tracing.TracingValidator;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * AllSpansAreEndedProperly validator to check if all spans are closed properly.
  */
-public class AllSpansAreEndedProperly implements SpanDataValidator {
+public class AllSpansAreEndedProperly implements TracingValidator {
+
+    /**
+     * Base Constructor
+     */
+    public AllSpansAreEndedProperly() {}
 
     /**
      * validates if all spans emitted have hasEnded attribute as true.
@@ -23,12 +30,8 @@ public class AllSpansAreEndedProperly implements SpanDataValidator {
      * @param requests requests for e.g. search/index call
      */
     @Override
-    public boolean validate(List<MockSpanData> spans, int requests) {
-        for (MockSpanData s : spans) {
-            if (!s.isHasEnded()) {
-                return false;
-            }
-        }
-        return true;
+    public List<MockSpanData> validate(List<MockSpanData> spans, int requests) {
+        List<MockSpanData> problematicSpans = spans.stream().filter(s -> s.isHasEnded() == false).collect(Collectors.toList());
+        return problematicSpans;
     }
 }

@@ -36,6 +36,7 @@ public final class OTelResourceProvider {
     private static final Object mutex = new Object();
 
     private static OpenTelemetry openTelemetry;
+
     private OTelResourceProvider() {}
 
     /**
@@ -71,14 +72,17 @@ public final class OTelResourceProvider {
                         .setResource(resource)
                         .setSampler(sampler)
                         .build();
-                } else{
+                } else {
                     sdkTracerProvider = SdkTracerProvider.builder()
                         .addSpanProcessor(spanProcessor(settings, spanExporter))
                         .setResource(resource)
                         .build();
                 }
 
-                openTelemetry = OpenTelemetrySdk.builder().setTracerProvider(sdkTracerProvider).setPropagators(contextPropagators).buildAndRegisterGlobal();
+                openTelemetry = OpenTelemetrySdk.builder()
+                    .setTracerProvider(sdkTracerProvider)
+                    .setPropagators(contextPropagators)
+                    .buildAndRegisterGlobal();
             }
         }
         return openTelemetry;

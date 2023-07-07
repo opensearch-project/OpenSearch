@@ -8,21 +8,20 @@
 
 package org.opensearch.test.telemetry.tracing;
 
-import java.lang.reflect.Proxy;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
  * TelemetryValidators for running validate on all applicable span Validator classes.
  */
 public class TelemetryValidators {
-    private Collection<Class<? extends SpanDataValidator>> validators;
+    private Collection<Class<? extends TracingValidator>> validators;
+
     /**
      * Base constructor.
      * @param validators list of validators applicable
      */
-    public TelemetryValidators(Collection<Class<? extends SpanDataValidator>> validators){
+    public TelemetryValidators(Collection<Class<? extends TracingValidator>> validators) {
         this.validators = validators;
     }
 
@@ -32,27 +31,21 @@ public class TelemetryValidators {
      * @param requests Request can be indexing/search call
      */
     public void validate(List<MockSpanData> spans, int requests) {
-        for (Class<? extends SpanDataValidator> v : this.validators) {
+        for (Class<? extends TracingValidator> v : this.validators) {
             try {
-                SpanDataValidator validator = v.newInstance();
-                if (!validator.validate(spans, requests)) {
-                    AssertionError error = new AssertionError(String.format(" SpanData validation failed for " +
-                        "validator %s %s", v.getName(), printMockSpanData(spans)));
-                    throw error;
+                TracingValidator validator = v.getConstructor().newInstance();
+                List<MockSpanData> problematicSpans = validator.validate(spans, requests);
+                StringBuilder sb = new StringBuilder();
+                for (MockSpanData span : problematicSpans) {
+                    sb.append(span.toString());
                 }
-            } catch (InstantiationException | IllegalAccessException e) {
-                e.printStackTrace();
-                throw new RuntimeException(e);
+                AssertionError error = new AssertionError(
+                    " SpanData validation failed for " + "validator " + v.getName() + " " + sb.toString()
+                );
+                error.getStackTrace();
+            } catch (Exception e) {
+                e.getStackTrace();
             }
         }
-    }
-
-    private String printMockSpanData(List<MockSpanData> spans){
-        StringBuilder str = new StringBuilder();
-        for (MockSpanData s : spans){
-            str.append(s.toString());
-            str.append("\n");
-        }
-        return str.toString();
     }
 }

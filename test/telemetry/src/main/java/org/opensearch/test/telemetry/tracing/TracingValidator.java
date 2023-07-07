@@ -8,18 +8,16 @@
 
 package org.opensearch.test.telemetry.tracing;
 
-import org.opensearch.telemetry.tracing.Span;
-
 import java.util.List;
 
 /**
- * Performs validations on span Data.
+ * Performs validations on traces emitted.
  */
-public interface SpanDataValidator {
+public interface TracingValidator {
     /**
      * Validates spanData and return boolean value on validation status.
      * @param spans spans emitted at any point of time.
      * @param requests requests can be search/index calls.
      */
-    public boolean validate(List<MockSpanData> spans, int requests);
+    public List<MockSpanData> validate(List<MockSpanData> spans, int requests);
 }

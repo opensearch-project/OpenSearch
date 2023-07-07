@@ -11,7 +11,9 @@ package org.opensearch.test.telemetry.tracing;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
-import org.opensearch.test.telemetry.tracing.validators.*;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansAreInOrder;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
 
 import java.util.Arrays;
 import java.util.List;
@@ -44,19 +46,12 @@ public class MockTracingTelemetry implements TracingTelemetry {
 
     @Override
     public void close() {
-        //Sleeping for 2s to get all the spans emitted.
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        List<MockSpanData> spanData = ((StrictCheckSpanProcessor)spanProcessor).getFinishedSpanItems();
-        if (spanData.size() != 0){
-            TelemetryValidators validators = new TelemetryValidators(Arrays.asList(
-                AllSpansAreEndedProperly.class,
-                AllSpansAreInOrder.class,
-                AllSpansHaveUniqueId.class));
+        List<MockSpanData> spanData = ((StrictCheckSpanProcessor) spanProcessor).getFinishedSpanItems();
+        if (spanData.size() != 0) {
+            TelemetryValidators validators = new TelemetryValidators(
+                Arrays.asList(AllSpansAreEndedProperly.class, AllSpansAreInOrder.class, AllSpansHaveUniqueId.class)
+            );
             validators.validate(spanData, 1);
         }
-   }
+    }
 }

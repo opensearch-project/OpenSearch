@@ -8,17 +8,23 @@
 
 package org.opensearch.test.telemetry.tracing.validators;
 
-import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.test.telemetry.tracing.*;
+import org.opensearch.test.telemetry.tracing.MockSpanData;
+import org.opensearch.test.telemetry.tracing.TracingValidator;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * NumberOfTraceIDsEqualToRequests checks if number of unique traceIDs are equal to unique requests.
  */
-public class NumberOfTraceIDsEqualToRequests implements SpanDataValidator {
+public class NumberOfTraceIDsEqualToRequests implements TracingValidator {
+
+    /**
+     * Base Constructor
+     */
+    public NumberOfTraceIDsEqualToRequests() {}
 
     /**
      * validates if all spans emitted for a particular request have same traceID.
@@ -26,11 +32,12 @@ public class NumberOfTraceIDsEqualToRequests implements SpanDataValidator {
      * @param requests requests for e.g. search/index call
      */
     @Override
-    public boolean validate(List<MockSpanData> spans, int requests) {
-        Set<String> uniqueTraceIds = new HashSet<>();
-        for (MockSpanData s : spans) {
-            uniqueTraceIds.add(s.getTraceID());
+    public List<MockSpanData> validate(List<MockSpanData> spans, int requests) {
+        Set<String> totalTraceIDs = spans.stream().map(MockSpanData::getTraceID).collect(Collectors.toSet());
+        List<MockSpanData> problematicSpans = new ArrayList<>();
+        if (totalTraceIDs.size() != requests) {
+            problematicSpans.addAll(spans);
         }
-        return Integer.compare(uniqueTraceIds.size(), requests) == 0;
+        return problematicSpans;
     }
 }

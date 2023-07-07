@@ -16,9 +16,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.test.telemetry.tracing.MockSpanData;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 
 /**
  * Writes the span to a log file. This is mostly for testing where you can trace one request and all your spans
@@ -32,7 +33,7 @@ public class MockOpenTelemetrySpanExporter implements SpanExporter {
 
     private final AtomicBoolean isShutdown = new AtomicBoolean();
 
-    private static List<MockSpanData> finishedSpanItems = new ArrayList<>();
+    private List<MockSpanData> finishedSpanItems = new ArrayList<>();
 
     /**
      * No-args constructor
@@ -98,7 +99,15 @@ public class MockOpenTelemetrySpanExporter implements SpanExporter {
     }
 
     private MockSpanData convertSpanDataToMockSpanData(SpanData spanData) {
-        MockSpanData span = new MockSpanData(spanData.getSpanId(), spanData.getParentSpanId(), spanData.getTraceId(), spanData.getStartEpochNanos(), spanData.getEndEpochNanos(), spanData.hasEnded(), spanData.getName());
+        MockSpanData span = new MockSpanData(
+            spanData.getSpanId(),
+            spanData.getParentSpanId(),
+            spanData.getTraceId(),
+            spanData.getStartEpochNanos(),
+            spanData.getEndEpochNanos(),
+            spanData.hasEnded(),
+            spanData.getName()
+        );
         return span;
     }
 }

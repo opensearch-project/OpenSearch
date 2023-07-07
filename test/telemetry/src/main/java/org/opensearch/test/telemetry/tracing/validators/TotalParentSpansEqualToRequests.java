@@ -8,15 +8,22 @@
 
 package org.opensearch.test.telemetry.tracing.validators;
 
-import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.test.telemetry.tracing.*;
+import org.opensearch.test.telemetry.tracing.MockSpanData;
+import org.opensearch.test.telemetry.tracing.TracingValidator;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * TotalParentSpansEqualToRequests validator to check sanity on total parent spans.
  */
-public class TotalParentSpansEqualToRequests implements SpanDataValidator {
+public class TotalParentSpansEqualToRequests implements TracingValidator {
+
+    /**
+     * Base Constructor
+     */
+    public TotalParentSpansEqualToRequests() {}
 
     /**
      * validates if total parent spans are equal to number of requests.
@@ -24,13 +31,12 @@ public class TotalParentSpansEqualToRequests implements SpanDataValidator {
      * @param requests requests for e.g. search/index call
      */
     @Override
-    public boolean validate(List<MockSpanData> spans, int requests) {
-        int totalParentSpans = 0;
-        for (MockSpanData s : spans) {
-            if (s.getParentSpanID().startsWith("00000")){
-                totalParentSpans++;
-            }
+    public List<MockSpanData> validate(List<MockSpanData> spans, int requests) {
+        List<MockSpanData> problematicSpans = new ArrayList<>();
+        List<MockSpanData> totalParentSpans = spans.stream().filter(s -> s.getParentSpanID().isEmpty()).collect(Collectors.toList());
+        if (totalParentSpans.size() != requests) {
+            problematicSpans.addAll(totalParentSpans);
         }
-        return totalParentSpans == requests;
+        return problematicSpans;
     }
 }

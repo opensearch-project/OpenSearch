@@ -8,6 +8,8 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import java.util.Arrays;
+
 /**
  * MockSpanData model for storing Telemetry information for testing.
  */
@@ -23,7 +25,15 @@ public class MockSpanData {
      * @param hasEnded value if the span is closed
      * @param spanName Name of the span emitted
      */
-    public MockSpanData(String spanID, String parentSpanID, String traceID, long startEpochNanos, long endEpochNanos, boolean hasEnded, String spanName) {
+    public MockSpanData(
+        String spanID,
+        String parentSpanID,
+        String traceID,
+        long startEpochNanos,
+        long endEpochNanos,
+        boolean hasEnded,
+        String spanName
+    ) {
         this.spanID = spanID;
         this.traceID = traceID;
         this.parentSpanID = parentSpanID;
@@ -42,13 +52,22 @@ public class MockSpanData {
      * @param hasEnded value if the span is closed
      * @param spanName Name of the span emitted
      */
-    public MockSpanData(String spanID, String parentSpanID, String traceID, long startEpochNanos, boolean hasEnded, String spanName) {
+    public MockSpanData(
+        String spanID,
+        String parentSpanID,
+        String traceID,
+        long startEpochNanos,
+        boolean hasEnded,
+        String spanName,
+        StackTraceElement[] stackTrace
+    ) {
         this.spanID = spanID;
         this.traceID = traceID;
         this.parentSpanID = parentSpanID;
         this.startEpochNanos = startEpochNanos;
         this.hasEnded = hasEnded;
         this.spanName = spanName;
+        this.stackTrace = stackTrace;
     }
 
     private final String spanID;
@@ -57,55 +76,96 @@ public class MockSpanData {
 
     private String spanName;
     private final long startEpochNanos;
-    private  long endEpochNanos;
+    private long endEpochNanos;
     private boolean hasEnded;
 
+    private StackTraceElement[] stackTrace;
 
-    public String getSpanID(){
+    /**
+     * Returns SpanID.
+     */
+    public String getSpanID() {
         return spanID;
     }
 
+    /**
+     * Returns ParentSpanID.
+     */
     public String getParentSpanID() {
         return parentSpanID;
     }
 
+    /**
+     * Returns TraceID.
+     */
     public String getTraceID() {
         return traceID;
     }
 
-    public boolean isHasEnded(){
+    /**
+     * Returns hasEnded.
+     */
+    public boolean isHasEnded() {
         return hasEnded;
     }
 
+    /**
+     * Returns EndEpochNanos for a span.
+     */
     public long getEndEpochNanos() {
         return endEpochNanos;
     }
 
+    /**
+     * Returns StartEpochNanos for a span.
+     */
     public long getStartEpochNanos() {
         return startEpochNanos;
     }
 
-    public String getSpanName() {
-        return spanName;
-    }
-    public void setEndEpochNanos(long endEpochNanos) {
-        this.endEpochNanos =  endEpochNanos;
+    public StackTraceElement[] getStackTrace() {
+        return stackTrace;
     }
 
-    public void setHasEnded(boolean hasEnded){
+    /**
+     * Sets EndEpochNanos for a span.
+     * @param endEpochNanos endtime in epoch nanos
+     */
+    public void setEndEpochNanos(long endEpochNanos) {
+        this.endEpochNanos = endEpochNanos;
+    }
+
+    /**
+     * Sets hasEnded for a span.
+     * @param hasEnded hasEnded value if span is closed.
+     */
+    public void setHasEnded(boolean hasEnded) {
         this.hasEnded = hasEnded;
     }
 
     @Override
     public String toString() {
-        return "MockSpanData{" +
-            "spanID='" + spanID + '\'' +
-            ", parentSpanID='" + parentSpanID + '\'' +
-            ", traceID='" + traceID + '\'' +
-            ", spanName='" + spanName + '\'' +
-            ", startEpochNanos=" + startEpochNanos +
-            ", endEpochNanos=" + endEpochNanos +
-            ", hasEnded=" + hasEnded +
-            '}';
+        return "MockSpanData{"
+            + "spanID='"
+            + spanID
+            + '\''
+            + ", parentSpanID='"
+            + parentSpanID
+            + '\''
+            + ", traceID='"
+            + traceID
+            + '\''
+            + ", spanName='"
+            + spanName
+            + '\''
+            + ", startEpochNanos="
+            + startEpochNanos
+            + ", endEpochNanos="
+            + endEpochNanos
+            + ", hasEnded="
+            + hasEnded
+            + ", stackTrace="
+            + Arrays.toString(stackTrace)
+            + '}';
     }
 }
