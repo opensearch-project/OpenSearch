@@ -144,6 +144,19 @@ public final class EngineConfig {
     }, Property.IndexScope, Property.NodeScope);
 
     /**
+     * Index setting to change the compression level of zstd and zstd_no_dict lucene codecs.
+     * Compression Level gives a trade-off between compression ratio and speed. The higher compression level results in higher compression ratio but slower compression and decompression speeds.
+     * This setting is <b>not</b> realtime updateable.
+     */
+    public static final Setting<Integer> INDEX_CODEC_COMPRESSION_LEVEL_SETTING = Setting.intSetting(
+        "index.codec.compression_level",
+        3,
+        1,
+        6,
+        Property.IndexScope
+    );
+
+    /**
      * Configures an index to optimize documents with auto generated ids for append only. If this setting is updated from <code>false</code>
      * to <code>true</code> might not take effect immediately. In other words, disabling the optimization will be immediately applied while
      * re-enabling it might not be applied until the engine is in a safe state to do so. Depending on the engine implementation a change to
