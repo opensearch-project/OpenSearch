@@ -31,8 +31,10 @@
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
-group = 'org.opensearch.plugin'
-archivesBaseName = 'opensearch-scripting-painless-spi'
+base {
+  group = 'org.opensearch.plugin'
+  archivesBaseName = 'opensearch-scripting-painless-spi'
+}
 
 dependencies {
   api project(":server")
