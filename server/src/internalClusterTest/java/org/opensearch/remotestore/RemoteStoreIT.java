@@ -285,7 +285,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         verifyRemoteStoreCleanup(true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8504")
     public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
         internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
@@ -301,16 +300,15 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         assertBusy(() -> {
             int actualFileCount = getFileCount(indexPath);
             if (numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP) {
-                assertEquals(numberOfIterations, actualFileCount);
+                assertTrue(numberOfIterations == actualFileCount || (numberOfIterations + 1) == actualFileCount);
             } else {
                 // As delete is async its possible that the file gets created before the deletion or after
                 // deletion.
-                assertTrue(actualFileCount >= 10 || actualFileCount <= 11);
+                assertTrue(actualFileCount == 10 || actualFileCount == 11);
             }
         }, 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8504")
     public void testStaleCommitDeletionWithoutInvokeFlush() throws Exception {
         internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
@@ -322,6 +320,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
         Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
-        assertEquals(numberOfIterations, getFileCount(indexPath));
+        int actualFileCount = getFileCount(indexPath);
+        // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
+        assertTrue(numberOfIterations == actualFileCount || (numberOfIterations + 1) == actualFileCount);
     }
 }
