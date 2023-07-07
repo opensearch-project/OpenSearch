@@ -261,7 +261,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
+            Joda.writeOptionalTimeZone(out, DateUtils.zoneIdToDateTimeZone(timeZone));
         } else {
             out.writeOptionalZoneId(timeZone);
         }

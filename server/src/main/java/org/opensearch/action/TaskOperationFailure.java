@@ -32,9 +32,8 @@
 
 package org.opensearch.action;
 
-import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -145,7 +144,7 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
         if (reason != null) {
             builder.field(REASON);
             builder.startObject();
-            BaseExceptionsHelper.generateThrowableXContent(builder, params, reason);
+            OpenSearchException.generateThrowableXContent(builder, params, reason);
             builder.endObject();
         }
         return builder;

@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -439,7 +439,7 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
 
             fail("Illegal percent's were provided but no exception was thrown.");
         } catch (Exception e) {
-            Throwable cause = BaseExceptionsHelper.unwrapCause(e);
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause == null) {
                 throw e;
             } else if (cause instanceof SearchPhaseExecutionException) {
@@ -474,7 +474,7 @@ public class PercentilesBucketIT extends OpenSearchIntegTestCase {
 
             fail("Illegal percent's were provided but no exception was thrown.");
         } catch (Exception e) {
-            Throwable cause = BaseExceptionsHelper.unwrapCause(e);
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause == null) {
                 throw e;
             } else if (cause instanceof SearchPhaseExecutionException) {

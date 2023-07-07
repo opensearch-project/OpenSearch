@@ -105,7 +105,7 @@ public abstract class BaseMultiValuesSourceFieldConfig implements Writeable, ToX
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
+            Joda.writeOptionalTimeZone(out, DateUtils.zoneIdToDateTimeZone(timeZone));
         } else {
             out.writeOptionalZoneId(timeZone);
         }

@@ -32,9 +32,8 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -48,6 +47,7 @@ import org.opensearch.rest.RestStatus;
 import java.io.IOException;
 
 import static org.opensearch.ExceptionsHelper.detailedMessage;
+import static org.opensearch.OpenSearchException.generateThrowableXContent;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
@@ -136,7 +136,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         builder.field("status", status.name());
         if (reason != null) {
             builder.startObject("reason");
-            BaseExceptionsHelper.generateThrowableXContent(builder, params, cause);
+            generateThrowableXContent(builder, params, cause);
             builder.endObject();
         }
         return builder;

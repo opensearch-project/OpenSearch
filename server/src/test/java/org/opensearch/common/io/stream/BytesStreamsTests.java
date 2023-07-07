@@ -321,9 +321,9 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         out.writeOptionalBytesReference(new BytesArray("test"));
         out.writeOptionalDouble(null);
         out.writeOptionalDouble(1.2);
-        out.writeTimeZone(DateTimeZone.forID("CET"));
-        out.writeOptionalTimeZone(DateTimeZone.getDefault());
-        out.writeOptionalTimeZone(null);
+        Joda.writeTimeZone(out, DateTimeZone.forID("CET"));
+        Joda.writeOptionalTimeZone(out, DateTimeZone.getDefault());
+        Joda.writeOptionalTimeZone(out, null);
         out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
@@ -931,7 +931,7 @@ public class BytesStreamsTests extends OpenSearchTestCase {
 
         BytesStreamOutput prodOut = new BytesStreamOutput() {
             @Override
-            boolean failOnTooManyNestedExceptions(Throwable throwable) {
+            public boolean failOnTooManyNestedExceptions(Throwable throwable) {
                 assertThat(throwable, sameInstance(rootEx));
                 return true;
             }
