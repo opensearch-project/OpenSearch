@@ -39,6 +39,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -49,8 +50,8 @@ import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
-import org.opensearch.repositories.s3.async.AsyncUploadUtils;
-import org.opensearch.repositories.s3.async.TransferNIOGroup;
+import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.FixedExecutorBuilder;
@@ -92,10 +93,14 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         List<ExecutorBuilder<?>> executorBuilders = new ArrayList<>();
-        executorBuilders.add(new FixedExecutorBuilder(settings, PRIORITY_FUTURE_COMPLETION, 4, 10_000, PRIORITY_FUTURE_COMPLETION));
-        executorBuilders.add(new FixedExecutorBuilder(settings, PRIORITY_STREAM_READER, 4, 10_000, PRIORITY_STREAM_READER));
-        executorBuilders.add(new FixedExecutorBuilder(settings, FUTURE_COMPLETION, 1, 10_000, FUTURE_COMPLETION));
-        executorBuilders.add(new FixedExecutorBuilder(settings, STREAM_READER, 1, 10_000, STREAM_READER));
+        executorBuilders.add(
+            new FixedExecutorBuilder(settings, PRIORITY_FUTURE_COMPLETION, priorityPoolCount(settings), 10_000, PRIORITY_FUTURE_COMPLETION)
+        );
+        executorBuilders.add(
+            new FixedExecutorBuilder(settings, PRIORITY_STREAM_READER, priorityPoolCount(settings), 10_000, PRIORITY_STREAM_READER)
+        );
+        executorBuilders.add(new FixedExecutorBuilder(settings, FUTURE_COMPLETION, normalPoolCount(settings), 10_000, FUTURE_COMPLETION));
+        executorBuilders.add(new FixedExecutorBuilder(settings, STREAM_READER, normalPoolCount(settings), 10_000, STREAM_READER));
         return executorBuilders;
     }
 
@@ -107,6 +112,22 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         this.s3AsyncService = Objects.requireNonNull(s3AsyncService, "S3AsyncService must not be null");
         this.service.refreshAndClearCache(clientsSettings);
         this.s3AsyncService.refreshAndClearCache(clientsSettings);
+    }
+
+    private static int boundedBy(int value, int min, int max) {
+        return Math.min(max, Math.max(min, value));
+    }
+
+    private static int allocatedProcessors(Settings settings) {
+        return OpenSearchExecutors.allocatedProcessors(settings);
+    }
+
+    private static int priorityPoolCount(Settings settings) {
+        return boundedBy((allocatedProcessors(settings) + 1) / 2, 2, 4);
+    }
+
+    private static int normalPoolCount(Settings settings) {
+        return boundedBy((allocatedProcessors(settings) + 7) / 8, 1, 2);
     }
 
     @Override
@@ -123,15 +144,17 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        int priorityEventLoopThreads = priorityPoolCount(clusterService.getSettings());
+        int normalEventLoopThreads = normalPoolCount(clusterService.getSettings());
         this.priorityExecutorBuilder = new AsyncExecutorBuilder(
             threadPool.executor(PRIORITY_FUTURE_COMPLETION),
             threadPool.executor(PRIORITY_STREAM_READER),
-            new TransferNIOGroup(S3Repository.PRIORITY_UPLOAD_EVENT_LOOP_THREAD_COUNT_SETTING.get(clusterService.getSettings()))
+            new AsyncTransferEventLoopGroup(priorityEventLoopThreads)
         );
         this.normalExecutorBuilder = new AsyncExecutorBuilder(
             threadPool.executor(FUTURE_COMPLETION),
             threadPool.executor(STREAM_READER),
-            new TransferNIOGroup(S3Repository.NORMAL_UPLOAD_EVENT_LOOP_THREAD_COUNT_SETTING.get(clusterService.getSettings()))
+            new AsyncTransferEventLoopGroup(normalEventLoopThreads)
         );
         return Collections.emptyList();
     }
@@ -143,7 +166,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        AsyncUploadUtils asyncUploadUtils = new AsyncUploadUtils(
+
+        AsyncTransferManager asyncUploadUtils = new AsyncTransferManager(
             S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.get(clusterService.getSettings()).getBytes(),
             normalExecutorBuilder.getStreamReader(),
             priorityExecutorBuilder.getStreamReader()

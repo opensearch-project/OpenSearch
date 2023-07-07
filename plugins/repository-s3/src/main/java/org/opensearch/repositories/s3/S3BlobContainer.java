@@ -45,6 +45,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
@@ -77,7 +78,6 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.async.UploadRequest;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.utils.CompletableFutureUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -97,7 +97,7 @@ import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
 import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
 import static org.opensearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 
-class S3BlobContainer extends AbstractBlobContainer {
+class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStreamBlobContainer {
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
 
@@ -175,17 +175,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean isMultiStreamUploadSupported() {
-        return blobStore.isMultipartUploadEnabled();
-    }
-
-    @Override
-    public boolean isRemoteDataIntegritySupported() {
-        return true;
-    }
-
-    @Override
-    public CompletableFuture<Void> writeBlobByStreams(WriteContext writeContext) throws IOException {
+    public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
         UploadRequest uploadRequest = new UploadRequest(
             blobStore.bucket(),
             buildKey(writeContext.getFileName()),
@@ -196,20 +186,23 @@ class S3BlobContainer extends AbstractBlobContainer {
             writeContext.getExpectedChecksum()
         );
         try {
-            long partSize = blobStore.getAsyncUploadUtils().calculateOptimalPartSize(writeContext.getFileSize());
+            long partSize = blobStore.getAsyncTransferManager().calculateOptimalPartSize(writeContext.getFileSize());
             StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamProvider(partSize));
             try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
 
                 S3AsyncClient s3AsyncClient = writeContext.getWritePriority() == WritePriority.HIGH
                     ? amazonS3Reference.get().priorityClient()
                     : amazonS3Reference.get().client();
-                CompletableFuture<Void> returnFuture = new CompletableFuture<>();
-                CompletableFuture<Void> completableFuture = blobStore.getAsyncUploadUtils()
+                CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
                     .uploadObject(s3AsyncClient, uploadRequest, streamContext);
-
-                CompletableFutureUtils.forwardExceptionTo(returnFuture, completableFuture);
-                CompletableFutureUtils.forwardResultTo(completableFuture, returnFuture);
-                return completableFuture;
+                completableFuture.whenComplete((response, throwable) -> {
+                    if (throwable == null) {
+                        completionListener.onResponse(response);
+                    } else {
+                        Exception ex = throwable instanceof Error ? new Exception(throwable) : (Exception) throwable;
+                        completionListener.onFailure(ex);
+                    }
+                });
             }
         } catch (Exception e) {
             logger.info("exception error from blob container for file {}", writeContext.getFileName());

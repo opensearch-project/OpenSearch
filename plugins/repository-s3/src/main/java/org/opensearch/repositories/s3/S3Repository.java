@@ -57,7 +57,7 @@ import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
-import org.opensearch.repositories.s3.async.AsyncUploadUtils;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.threadpool.Scheduler;
@@ -173,24 +173,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
-     * Event loop thread count for priority uploads
-     */
-    public static Setting<Integer> PRIORITY_UPLOAD_EVENT_LOOP_THREAD_COUNT_SETTING = Setting.intSetting(
-        "parallel_multipart_upload.priority.event_loop_thread_count",
-        4,
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * Event loop thread count for normal uploads
-     */
-    public static Setting<Integer> NORMAL_UPLOAD_EVENT_LOOP_THREAD_COUNT_SETTING = Setting.intSetting(
-        "parallel_multipart_upload.normal.event_loop_thread_count",
-        1,
-        Setting.Property.NodeScope
-    );
-
-    /**
      * Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
      */
     static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
@@ -237,7 +219,7 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final RepositoryMetadata repositoryMetadata;
 
-    private final AsyncUploadUtils asyncUploadUtils;
+    private final AsyncTransferManager asyncUploadUtils;
     private final S3AsyncService s3AsyncService;
     private final boolean multipartUploadEnabled;
     private final AsyncExecutorBuilder priorityExecutorBuilder;
@@ -252,7 +234,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3Service service,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings,
-        final AsyncUploadUtils asyncUploadUtils,
+        final AsyncTransferManager asyncUploadUtils,
         final AsyncExecutorBuilder priorityExecutorBuilder,
         final AsyncExecutorBuilder normalExecutorBuilder,
         final S3AsyncService s3AsyncService,

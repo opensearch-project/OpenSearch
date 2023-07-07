@@ -12,23 +12,23 @@ import org.apache.lucene.store.IndexInput;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.io.InputStreamContainer;
-import org.opensearch.common.StreamContext;
 import org.opensearch.common.CheckedTriFunction;
+import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.blobstore.transfer.UploadFinalizer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
+import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
-import org.opensearch.repositories.s3.async.AsyncUploadUtils;
-import org.opensearch.repositories.s3.async.TransferNIOGroup;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -53,11 +53,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -70,7 +73,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
     private MockS3AsyncService asyncService;
     private ExecutorService futureCompletionService;
     private ExecutorService streamReaderService;
-    private TransferNIOGroup transferNIOGroup;
+    private AsyncTransferEventLoopGroup transferNIOGroup;
     private S3BlobContainer blobContainer;
 
     static class MockS3AsyncService extends S3AsyncService {
@@ -342,7 +345,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         asyncService = new MockS3AsyncService(configPath(), 1000);
         futureCompletionService = Executors.newSingleThreadExecutor();
         streamReaderService = Executors.newSingleThreadExecutor();
-        transferNIOGroup = new TransferNIOGroup(1);
+        transferNIOGroup = new AsyncTransferEventLoopGroup(1);
         blobContainer = createBlobContainer();
         super.setUp();
     }
@@ -383,7 +386,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
             repositoryMetadata,
-            new AsyncUploadUtils(
+            new AsyncTransferManager(
                 S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
                 asyncExecutorBuilder.getStreamReader(),
                 asyncExecutorBuilder.getStreamReader()
@@ -438,39 +441,35 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         ExecutionException, InterruptedException {
         final byte[] bytes = randomByteArrayOfLength(100);
         List<InputStream> openInputStreams = new ArrayList<>();
-        CompletableFuture<Void> completableFuture = blobContainer.writeBlobByStreams(
-            new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
-                @Override
-                public StreamContext supplyStreamContext(long partSize) {
-                    return new StreamContext(new CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException>() {
-                        @Override
-                        public InputStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
-                            InputStream inputStream = new OffsetRangeIndexInputStream(
-                                new ByteArrayIndexInput("desc", bytes),
-                                size,
-                                position
-                            );
-                            openInputStreams.add(inputStream);
-                            return new InputStreamContainer(inputStream, size);
-                        }
-                    }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
-                }
-            }, bytes.length, false, WritePriority.NORMAL, new UploadFinalizer() {
-                @Override
-                public void accept(boolean uploadSuccess) {
-                    assertTrue(uploadSuccess);
-                    if (throwExceptionOnFinalizeUpload) {
-                        throw new RuntimeException();
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        ActionListener<Void> completionListener = ActionListener.wrap(resp -> { countDownLatch.countDown(); }, ex -> {
+            exceptionRef.set(ex);
+            countDownLatch.countDown();
+        });
+        blobContainer.asyncBlobUpload(new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
+            @Override
+            public StreamContext supplyStreamContext(long partSize) {
+                return new StreamContext(new CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException>() {
+                    @Override
+                    public InputStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
+                        InputStream inputStream = new OffsetRangeIndexInputStream(new ByteArrayIndexInput("desc", bytes), size, position);
+                        openInputStreams.add(inputStream);
+                        return new InputStreamContainer(inputStream, size, position);
                     }
-                }
-            }, false, null)
-        );
+                }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
+            }
+        }, bytes.length, false, WritePriority.NORMAL, uploadSuccess -> {
+            assertTrue(uploadSuccess);
+            if (throwExceptionOnFinalizeUpload) {
+                throw new RuntimeException();
+            }
+        }, false, null), completionListener);
 
+        assertTrue(countDownLatch.await(5000, TimeUnit.SECONDS));
         // wait for completableFuture to finish
         if (expectException || throwExceptionOnFinalizeUpload) {
-            assertThrows(ExecutionException.class, completableFuture::get);
-        } else {
-            completableFuture.get();
+            assertNotNull(exceptionRef.get());
         }
 
         asyncService.verifySingleChunkUploadCallCount(throwExceptionOnFinalizeUpload);
@@ -491,37 +490,35 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         int numberOfParts = randomIntBetween(2, 5);
         final long lastPartSize = randomLongBetween(10, 512);
         final long blobSize = ((numberOfParts - 1) * partSize.getBytes()) + lastPartSize;
-
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        ActionListener<Void> completionListener = ActionListener.wrap(resp -> { countDownLatch.countDown(); }, ex -> {
+            exceptionRef.set(ex);
+            countDownLatch.countDown();
+        });
         List<InputStream> openInputStreams = new ArrayList<>();
-        CompletableFuture<Void> completableFuture = blobContainer.writeBlobByStreams(
-            new WriteContext("write_large_blob", new StreamContextSupplier() {
-                @Override
-                public StreamContext supplyStreamContext(long partSize) {
-                    return new StreamContext(new CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException>() {
-                        @Override
-                        public InputStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
-                            InputStream inputStream = new OffsetRangeIndexInputStream(new ZeroIndexInput("desc", blobSize), size, position);
-                            openInputStreams.add(inputStream);
-                            return new InputStreamContainer(inputStream, size);
-                        }
-                    }, partSize, calculateLastPartSize(blobSize, partSize), calculateNumberOfParts(blobSize, partSize));
-                }
-            }, blobSize, false, WritePriority.HIGH, new UploadFinalizer() {
-                @Override
-                public void accept(boolean uploadSuccess) {
-                    assertTrue(uploadSuccess);
-                    if (throwExceptionOnFinalizeUpload) {
-                        throw new RuntimeException();
+        blobContainer.asyncBlobUpload(new WriteContext("write_large_blob", new StreamContextSupplier() {
+            @Override
+            public StreamContext supplyStreamContext(long partSize) {
+                return new StreamContext(new CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException>() {
+                    @Override
+                    public InputStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
+                        InputStream inputStream = new OffsetRangeIndexInputStream(new ZeroIndexInput("desc", blobSize), size, position);
+                        openInputStreams.add(inputStream);
+                        return new InputStreamContainer(inputStream, size, position);
                     }
-                }
-            }, false, null)
-        );
+                }, partSize, calculateLastPartSize(blobSize, partSize), calculateNumberOfParts(blobSize, partSize));
+            }
+        }, blobSize, false, WritePriority.HIGH, uploadSuccess -> {
+            assertTrue(uploadSuccess);
+            if (throwExceptionOnFinalizeUpload) {
+                throw new RuntimeException();
+            }
+        }, false, null), completionListener);
 
-        // wait for completableFuture to finish
+        assertTrue(countDownLatch.await(5000, TimeUnit.SECONDS));
         if (expectException || throwExceptionOnFinalizeUpload) {
-            assertThrows(ExecutionException.class, completableFuture::get);
-        } else {
-            completableFuture.get();
+            assertNotNull(exceptionRef.get());
         }
 
         asyncService.verifyMultipartUploadCallCount(numberOfParts, throwExceptionOnFinalizeUpload);

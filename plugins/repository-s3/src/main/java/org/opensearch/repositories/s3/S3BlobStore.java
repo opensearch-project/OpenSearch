@@ -43,7 +43,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
-import org.opensearch.repositories.s3.async.AsyncUploadUtils;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -71,7 +71,7 @@ class S3BlobStore implements BlobStore {
 
     private final StatsMetricPublisher statsMetricPublisher = new StatsMetricPublisher();
 
-    private final AsyncUploadUtils asyncUploadUtils;
+    private final AsyncTransferManager asyncTransferManager;
     private final AsyncExecutorBuilder priorityExecutorBuilder;
     private final AsyncExecutorBuilder normalExecutorBuilder;
     private final boolean multipartUploadEnabled;
@@ -86,7 +86,7 @@ class S3BlobStore implements BlobStore {
         String cannedACL,
         String storageClass,
         RepositoryMetadata repositoryMetadata,
-        AsyncUploadUtils asyncUploadUtils,
+        AsyncTransferManager asyncTransferManager,
         AsyncExecutorBuilder priorityExecutorBuilder,
         AsyncExecutorBuilder normalExecutorBuilder
     ) {
@@ -99,7 +99,7 @@ class S3BlobStore implements BlobStore {
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
-        this.asyncUploadUtils = asyncUploadUtils;
+        this.asyncTransferManager = asyncTransferManager;
         this.normalExecutorBuilder = normalExecutorBuilder;
         this.priorityExecutorBuilder = priorityExecutorBuilder;
     }
@@ -203,7 +203,7 @@ class S3BlobStore implements BlobStore {
         throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
     }
 
-    public AsyncUploadUtils getAsyncUploadUtils() {
-        return asyncUploadUtils;
+    public AsyncTransferManager getAsyncTransferManager() {
+        return asyncTransferManager;
     }
 }
