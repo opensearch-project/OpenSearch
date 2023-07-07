@@ -65,6 +65,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.termvectors.MultiTermVectorsRequest;
 import org.opensearch.action.termvectors.MultiTermVectorsResponse;
 import org.opensearch.client.Client;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
@@ -79,6 +80,8 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.identity.ServiceAccountManager;
+import org.opensearch.identity.noop.NoopServiceAccountManager;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -370,7 +373,10 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 throw new AssertionError("node.name must be set");
             });
             PluginsService pluginsService;
-            pluginsService = new PluginsService(nodeSettings, null, null, env.modulesDir(), env.pluginsDir(), plugins);
+            ServiceAccountManager serviceAccountManager = new NoopServiceAccountManager();
+            ApplicationManager applicationManager = new ApplicationManager();
+            applicationManager.register(serviceAccountManager);
+            pluginsService = new PluginsService(nodeSettings, applicationManager, null, env.modulesDir(), env.pluginsDir(), plugins);
 
             client = (Client) Proxy.newProxyInstance(Client.class.getClassLoader(), new Class[] { Client.class }, clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
