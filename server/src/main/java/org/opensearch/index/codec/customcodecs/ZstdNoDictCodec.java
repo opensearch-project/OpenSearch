@@ -32,8 +32,8 @@ public class ZstdNoDictCodec extends Lucene95CustomCodec {
         super(Mode.ZSTD_NO_DICT, compressionLevel);
     }
 
-    public ZstdNoDictCodec(MapperService mapperService, Logger logger) {
-        super(Mode.ZSTD_NO_DICT, DEFAULT_COMPRESSION_LEVEL, mapperService, logger);
+    public ZstdNoDictCodec(MapperService mapperService, Logger logger, int compressionLevel) {
+        super(Mode.ZSTD_NO_DICT, compressionLevel, mapperService, logger);
     }
 
     /** The name for this codec. */

@@ -4809,7 +4809,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .mergePolicy(config.getMergePolicy())
                 .analyzer(config.getAnalyzer())
                 .similarity(config.getSimilarity())
-                .codecService(new CodecService(null, logger))
+                .codecService(new CodecService(null, config.getIndexSettings(), logger))
                 .eventListener(config.getEventListener())
                 .queryCache(config.getQueryCache())
                 .queryCachingPolicy(config.getQueryCachingPolicy())

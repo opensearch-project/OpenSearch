@@ -155,7 +155,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             .mergePolicy(newMergePolicy())
             .analyzer(iwc.getAnalyzer())
             .similarity(iwc.getSimilarity())
-            .codecService(new CodecService(null, logger))
+            .codecService(new CodecService(null, indexSettings, logger))
             .eventListener(eventListener)
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
