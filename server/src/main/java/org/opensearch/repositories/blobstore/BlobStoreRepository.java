@@ -607,7 +607,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // We don't need to check if there exists a shallow/full copy snapshot with the same name as we have the check before starting
             // the clone operation ensuring that the snapshot name is available by checking the repository data. Also, the new clone shallow
             // snapshot would have a different UUID and hence a new unique shallow-snap-N file will be created.
-            RemoteStoreShardShallowCopySnapshot remStoreBasedShardMetadata = loadShallowCopyShardSnapshot(shardContainer, source);
+            RemoteStoreShardShallowCopySnapshot remStoreBasedShardMetadata = (RemoteStoreShardShallowCopySnapshot) loadShardSnapshot(
+                shardContainer,
+                source
+            );
             String indexUUID = remStoreBasedShardMetadata.getIndexUUID();
             String remoteStoreRepository = remStoreBasedShardMetadata.getRemoteStoreRepository();
             RemoteStoreMetadataLockManager remoteStoreMetadataLockManger = remoteStoreLockManagerFactory.newLockManager(
