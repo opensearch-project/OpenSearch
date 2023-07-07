@@ -33,7 +33,7 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
      * @return A map of processor factories, where the keys are the processor types and the values are the corresponding factory instances.
      */
     @Override
-    public Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessors(Processor.Parameters parameters) {
+    public Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessors(Parameters parameters) {
         return Map.of(
             FilterQueryRequestProcessor.TYPE,
             new FilterQueryRequestProcessor.Factory(parameters.namedXContentRegistry),
@@ -43,7 +43,7 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
     }
 
     @Override
-    public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Processor.Parameters parameters) {
+    public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Parameters parameters) {
         return Map.of(RenameFieldResponseProcessor.TYPE, new RenameFieldResponseProcessor.Factory());
     }
 }

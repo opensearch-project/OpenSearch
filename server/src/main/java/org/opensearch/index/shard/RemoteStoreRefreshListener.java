@@ -30,6 +30,7 @@ import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.threadpool.Scheduler;
@@ -85,7 +86,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     // Visible for testing
     static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
     // Visible for testing
-    static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
+    public static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;
@@ -202,9 +203,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 // if a new segments_N file is present in local that is not uploaded to remote store yet, it
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
-                // Ideally, we want this to be done in async flow. (GitHub issue #4315)
                 if (isRefreshAfterCommit()) {
-                    deleteStaleCommits();
+                    remoteDirectory.deleteStaleSegmentsAsync(LAST_N_METADATA_FILES_TO_KEEP);
                 }
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
@@ -226,7 +226,17 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         // Each metadata file in the remote segment store represents a commit and the following
                         // statement keeps sure that each metadata will always contain all the segments from last commit + refreshed
                         // segments.
-                        localSegmentsPostRefresh.addAll(SegmentInfos.readCommit(storeDirectory, latestSegmentInfos.get()).files(true));
+                        SegmentInfos segmentCommitInfos;
+                        try {
+                            segmentCommitInfos = SegmentInfos.readCommit(storeDirectory, latestSegmentInfos.get());
+                        } catch (Exception e) {
+                            // Seeing discrepancy in segment infos and files on disk. SegmentInfosSnapshot is returning
+                            // a segment_N file which does not exist on local disk.
+                            logger.error("Exception occurred while SegmentInfos.readCommit(..)", e);
+                            logger.error("segmentInfosFiles={} diskFiles={}", localSegmentsPostRefresh, storeDirectory.listAll());
+                            throw e;
+                        }
+                        localSegmentsPostRefresh.addAll(segmentCommitInfos.files(true));
                         segmentInfosFiles.stream()
                             .filter(file -> !file.equals(latestSegmentInfos.get()))
                             .forEach(localSegmentsPostRefresh::remove);
@@ -351,12 +361,19 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         segmentInfosSnapshot.setUserData(userData, false);
 
-        remoteDirectory.uploadMetadata(
-            localSegmentsPostRefresh,
-            segmentInfosSnapshot,
-            storeDirectory,
-            indexShard.getOperationPrimaryTerm()
-        );
+        Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
+        if (translogGeneration == null) {
+            throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
+        } else {
+            long translogFileGeneration = translogGeneration.translogFileGeneration;
+            remoteDirectory.uploadMetadata(
+                localSegmentsPostRefresh,
+                segmentInfosSnapshot,
+                storeDirectory,
+                indexShard.getOperationPrimaryTerm(),
+                translogFileGeneration
+            );
+        }
     }
 
     private boolean uploadNewSegments(Collection<String> localSegmentsPostRefresh) throws IOException {
@@ -380,14 +397,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             }
         }
         return localSegmentChecksumMap.get(file);
-    }
-
-    private void deleteStaleCommits() {
-        try {
-            remoteDirectory.deleteStaleSegments(LAST_N_METADATA_FILES_TO_KEEP);
-        } catch (IOException e) {
-            logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit", e);
-        }
     }
 
     /**

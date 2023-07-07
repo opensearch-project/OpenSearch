@@ -114,6 +114,9 @@ import org.opensearch.index.snapshots.blobstore.SlicedInputStream;
 import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.lockmanager.FileLockInfo;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.IndexId;
@@ -506,8 +509,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         executor.execute(ActionRunnable.supply(listener, () -> {
             final long startTime = threadPool.absoluteTimeInMillis();
             final BlobContainer shardContainer = shardContainer(index, shardNum);
-            final BlobStoreIndexShardSnapshots existingSnapshots;
             final String newGen;
+            final BlobStoreIndexShardSnapshots existingSnapshots;
             final String existingShardGen;
             if (shardGeneration == null) {
                 Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
@@ -560,6 +563,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + "]. A snapshot by that name already exists for this shard."
                 );
             }
+            // We don't need to check if there exists a shallow snapshot with the same name as we have the check before starting the clone
+            // operation ensuring that the snapshot name is available by checking the repository data. Also, the new clone snapshot would
+            // have a different UUID and hence a new unique snap-N file will be created.
             final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
             logger.trace("[{}] [{}] writing shard snapshot file for clone", shardId, target);
             INDEX_SHARD_SNAPSHOT_FORMAT.write(
@@ -575,6 +581,50 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 compressor
             );
             return newGen;
+        }));
+    }
+
+    @Override
+    public void cloneRemoteStoreIndexShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        @Nullable String shardGeneration,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        ActionListener<String> listener
+    ) {
+        if (isReadOnly()) {
+            listener.onFailure(new RepositoryException(metadata.name(), "cannot clone shard snapshot on a readonly repository"));
+            return;
+        }
+        final IndexId index = shardId.index();
+        final int shardNum = shardId.shardId();
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        executor.execute(ActionRunnable.supply(listener, () -> {
+            final long startTime = threadPool.relativeTimeInMillis();
+            final BlobContainer shardContainer = shardContainer(index, shardNum);
+            // We don't need to check if there exists a shallow/full copy snapshot with the same name as we have the check before starting
+            // the clone operation ensuring that the snapshot name is available by checking the repository data. Also, the new clone shallow
+            // snapshot would have a different UUID and hence a new unique shallow-snap-N file will be created.
+            RemoteStoreShardShallowCopySnapshot remStoreBasedShardMetadata = loadShallowCopyShardSnapshot(shardContainer, source);
+            String indexUUID = remStoreBasedShardMetadata.getIndexUUID();
+            String remoteStoreRepository = remStoreBasedShardMetadata.getRemoteStoreRepository();
+            RemoteStoreMetadataLockManager remoteStoreMetadataLockManger = remoteStoreLockManagerFactory.newLockManager(
+                remoteStoreRepository,
+                indexUUID,
+                String.valueOf(shardId.shardId())
+            );
+            remoteStoreMetadataLockManger.cloneLock(
+                FileLockInfo.getLockInfoBuilder().withAcquirerId(source.getUUID()).build(),
+                FileLockInfo.getLockInfoBuilder().withAcquirerId(target.getUUID()).build()
+            );
+            REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
+                remStoreBasedShardMetadata.asClone(target.getName(), startTime, threadPool.absoluteTimeInMillis() - startTime),
+                shardContainer,
+                target.getUUID(),
+                compressor
+            );
+            return shardGeneration;
         }));
     }
 

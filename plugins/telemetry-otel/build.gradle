@@ -54,3 +54,25 @@ thirdPartyAudit {
     'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider'
   )
 }
+
+tasks.named("bundlePlugin").configure {
+  from('config/telemetry-otel') {
+    into 'config'
+  }
+}
+
+tasks.register("writeTestJavaPolicy") {
+  doLast {
+    final File tmp = file("${buildDir}/tmp")
+    if (tmp.exists() == false && tmp.mkdirs() == false) {
+      throw new GradleException("failed to create temporary directory [${tmp}]")
+    }
+    final File javaPolicy = file("${tmp}/java.policy")
+    javaPolicy.write(
+      [
+        "grant {",
+        "  permission java.io.FilePermission \"config\", \"read\";",
+        "};"
+      ].join("\n"))
+  }
+}

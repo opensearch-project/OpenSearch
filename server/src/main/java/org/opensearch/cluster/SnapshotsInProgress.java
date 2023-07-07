@@ -167,7 +167,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             version,
             source,
             Map.of(),
-            false // TODO: need to pull this value from the original snapshot, use whatever we set during snapshot create.
+            false // initialising to false, will be updated in startCloning method of SnapshotsService while updating entry with
+                  // clone jobs
         );
     }
 
@@ -449,6 +450,26 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 version,
                 source,
                 updatedClones,
+                remoteStoreIndexShallowCopy
+            );
+        }
+
+        public Entry withRemoteStoreIndexShallowCopy(final boolean remoteStoreIndexShallowCopy) {
+            return new Entry(
+                snapshot,
+                includeGlobalState,
+                partial,
+                state,
+                indices,
+                dataStreams,
+                startTime,
+                repositoryStateId,
+                shards,
+                failure,
+                userMetadata,
+                version,
+                source,
+                clones,
                 remoteStoreIndexShallowCopy
             );
         }

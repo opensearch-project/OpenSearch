@@ -23,7 +23,7 @@ import org.opensearch.index.mapper.MapperService;
  * @opensearch.internal
  */
 public abstract class Lucene95CustomCodec extends FilterCodec {
-    public static final int DEFAULT_COMPRESSION_LEVEL = 6;
+    public static final int DEFAULT_COMPRESSION_LEVEL = 3;
 
     /** Each mode represents a compression algorithm. */
     public enum Mode {

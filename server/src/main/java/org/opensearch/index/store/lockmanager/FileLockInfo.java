@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store.lockmanager;
 
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -50,13 +51,21 @@ public class FileLockInfo implements LockInfo {
         return fileToLock + RemoteStoreLockManagerUtils.SEPARATOR;
     }
 
-    List<String> getLocksForAcquirer(String[] lockFiles) {
+    String getLockForAcquirer(String[] lockFiles) throws NoSuchFileException {
         if (acquirerId == null || acquirerId.isBlank()) {
             throw new IllegalArgumentException("Acquirer ID should be provided");
         }
-        return Arrays.stream(lockFiles)
+        List<String> locksForAcquirer = Arrays.stream(lockFiles)
             .filter(lockFile -> acquirerId.equals(LockFileUtils.getAcquirerIdFromLock(lockFile)))
             .collect(Collectors.toList());
+
+        if (locksForAcquirer.isEmpty()) {
+            throw new NoSuchFileException("No lock file found for the acquirer: " + acquirerId);
+        }
+        if (locksForAcquirer.size() != 1) {
+            throw new IllegalStateException("Expected single lock file but found [" + locksForAcquirer.size() + "] lock files");
+        }
+        return locksForAcquirer.get(0);
     }
 
     public static LockInfoBuilder getLockInfoBuilder() {
