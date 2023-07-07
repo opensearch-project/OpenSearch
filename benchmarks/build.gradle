@@ -32,10 +32,16 @@ import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.build'
 apply plugin: 'application'
-mainClassName = 'org.openjdk.jmh.Main'
 
 assemble.enabled = false
-archivesBaseName = 'opensearch-benchmarks'
+
+application {
+  mainClass = 'org.openjdk.jmh.Main'
+}
+
+base {
+  archivesBaseName = 'opensearch-benchmarks'
+}
 
 test.enabled = false
 

@@ -51,6 +51,8 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.settings.Settings;
@@ -61,6 +63,9 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.store.RemoteBufferedOutputDirectory;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -511,6 +516,26 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         assertDocCount(index, numdocs);
     }
 
+    protected Settings getRemoteStoreBackedIndexSettings(String remoteStoreRepo) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put("index.refresh_interval", "300s")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo)
+            .build();
+    }
+
+    protected Settings.Builder snapshotRepoSettingsForShallowCopy(Path path) {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", path);
+        settings.put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE);
+        return settings;
+    }
+
     protected long getCountForIndex(String indexName) {
         return client().search(
             new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
@@ -519,6 +544,21 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     protected void assertDocCount(String index, long count) {
         assertEquals(getCountForIndex(index), count);
+    }
+
+    protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName) throws IOException {
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(remoteStoreIndex)
+            .get()
+            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
+        final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
+        final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepositoryName);
+        BlobPath shardLevelBlobPath = remoteStoreRepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
+        BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
+        try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
+            return lockDirectory.listAll();
+        }
     }
 
     /**

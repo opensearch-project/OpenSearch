@@ -48,6 +48,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -374,6 +375,27 @@ public interface Repository extends LifecycleComponent {
         @Nullable String shardGeneration,
         ActionListener<String> listener
     );
+
+    /**
+     * Clones a remote store index shard snapshot.
+     *
+     * @param source                        source snapshot
+     * @param target                        target snapshot
+     * @param shardId                       shard id
+     * @param shardGeneration               shard generation in repo
+     * @param remoteStoreLockManagerFactory remoteStoreLockManagerFactory for cloning metadata lock file
+     * @param listener                      listener to complete with new shard generation once clone has completed
+     */
+    default void cloneRemoteStoreIndexShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        @Nullable String shardGeneration,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        ActionListener<String> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
