@@ -106,8 +106,6 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
 
-    public static final Setting<Boolean> SEARCH_PIPELINE_SETTING = Setting.boolSetting(SEARCH_PIPELINE, true, Property.NodeScope);
-
     public static final Setting<Boolean> IDENTITY_SETTING = Setting.boolSetting(IDENTITY, false, Property.NodeScope);
 
     public static final Setting<Boolean> TELEMETRY_SETTING = Setting.boolSetting(TELEMETRY, false, Property.NodeScope);
