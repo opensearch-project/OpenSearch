@@ -66,7 +66,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -791,80 +790,30 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * Segment Replication method
-     * This method deletes every file in this store that is not referenced by the passed in SegmentInfos or
-     * part of the latest on-disk commit point.
-     *
-     * This method is used for segment replication when the in memory SegmentInfos can be ahead of the on disk segment file.
-     * In this case files from both snapshots must be preserved. Verification has been done that all files are present on disk.
-     * @param reason         the reason for this cleanup operation logged for each deleted file
-     * @param infos          {@link SegmentInfos} Files from this infos will be preserved on disk if present.
-     * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
-     */
-    public void cleanupAndPreserveLatestCommitPoint(String reason, SegmentInfos infos) throws IOException {
-        this.cleanupAndPreserveLatestCommitPoint(reason, infos, readLastCommittedSegmentsInfo());
-    }
-
-    /**
-     * Segment Replication method
-     *
-     * Similar to {@link Store#cleanupAndPreserveLatestCommitPoint(String, SegmentInfos)} with extra parameters for cleanup
-     *
-     * This method deletes every file in this store. Except
-     *  1. Files referenced by the passed in SegmentInfos, usually in-memory segment infos copied from primary
-     *  2. Files part of the passed in segment infos, typically the last committed segment info
-     *  3. Files incremented by active reader for pit/scroll queries
-     *  4. Temporary replication file if passed in deleteTempFiles is true.
+     * This method deletes files in store that are not referenced by latest on-disk commit point
      *
      * @param reason         the reason for this cleanup operation logged for each deleted file
-     * @param infos          {@link SegmentInfos} Files from this infos will be preserved on disk if present.
-     * @param lastCommittedSegmentInfos {@link SegmentInfos} Last committed segment infos
+     * @param fileToConsiderForCleanUp Files to consider for clean up.
      *
-     * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
+     * @throws IOException Exception on locking.
      */
-    public void cleanupAndPreserveLatestCommitPoint(String reason, SegmentInfos infos, SegmentInfos lastCommittedSegmentInfos)
-        throws IOException {
+    public void cleanupAndPreserveLatestCommitPoint(Collection<String> fileToConsiderForCleanUp, String reason) throws IOException {
         assert indexSettings.isSegRepEnabled();
         // fetch a snapshot from the latest on disk Segments_N file. This can be behind
         // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles(List.of(directory.listAll()), reason, lastCommittedSegmentInfos.files(true), infos.files(true));
+            cleanupFiles(fileToConsiderForCleanUp, reason, this.readLastCommittedSegmentsInfo().files(true));
         } finally {
             metadataLock.writeLock().unlock();
         }
     }
 
-    /**
-     * Segment Replication method
-     *
-     * Performs cleanup of un-referenced files intended to be used after reader close action
-     *
-     * @param reason Reason for cleanup
-     * @param filesToCleanUp Files to consider for clean up
-     * @throws IOException Exception from cleanup operation
-     */
-    public void cleanupUnReferencedFiles(String reason, Collection<String> filesToCleanUp) throws IOException {
-        assert indexSettings.isSegRepEnabled();
-        metadataLock.writeLock().lock();
-        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles(filesToCleanUp, reason, null, null);
-        } finally {
-            metadataLock.writeLock().unlock();
-        }
-    }
-
-    private void cleanupFiles(
-        Collection<String> filesToCleanUp,
-        String reason,
-        Collection<String> localSnapshot,
-        @Nullable Collection<String> additionalFiles
-    ) throws IOException {
+    private void cleanupFiles(Collection<String> filesToConsiderForCleanup, String reason, Collection<String> lastCommittedSegmentInfos) {
         assert metadataLock.isWriteLockedByCurrentThread();
-        for (String existingFile : filesToCleanUp) {
-            if (Store.isAutogenerated(existingFile)
-                || localSnapshot != null && localSnapshot.contains(existingFile)
-                || (additionalFiles != null && additionalFiles.contains(existingFile))
-                // also ensure we are not deleting a file referenced by an active reader.
+        for (String existingFile : filesToConsiderForCleanup) {
+            if (Store.isAutogenerated(existingFile) || lastCommittedSegmentInfos != null && lastCommittedSegmentInfos.contains(existingFile)
+            // also ensure we are not deleting a file referenced by an active reader.
                 || replicaFileTracker != null && replicaFileTracker.canDelete(existingFile) == false
                 // Prevent temporary replication files as it should be cleaned up MultiFileWriter
                 || existingFile.startsWith(REPLICATION_PREFIX)) {
@@ -1008,7 +957,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             latestSegmentInfos.commit(directory());
             directory.sync(latestSegmentInfos.files(true));
             directory.syncMetaData();
-            cleanupAndPreserveLatestCommitPoint("After commit", latestSegmentInfos);
+            cleanupAndPreserveLatestCommitPoint(List.of(this.directory.listAll()), "After commit");
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -2024,6 +1973,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void decRefFileDeleter(Collection<String> files) {
         if (this.indexSettings.isSegRepEnabled()) {
             this.replicaFileTracker.decRef(files);
+            try {
+                this.cleanupAndPreserveLatestCommitPoint(files, "On reader close");
+            } catch (IOException e) {
+                // Log but do not rethrow - we can try cleaning up again after next replication cycle.
+                // If that were to fail, the shard will as well.
+                logger.error("Unable to clean store after reader closed", e);
+            }
         }
     }
 }

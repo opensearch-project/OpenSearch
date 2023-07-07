@@ -123,16 +123,7 @@ public class NRTReplicationEngine extends Engine {
         return new NRTReplicationReaderManager(
             OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
             store::incRefFileDeleter,
-            (files) -> {
-                store.decRefFileDeleter(files);
-                try {
-                    store.cleanupUnReferencedFiles("On reader closed", files);
-                } catch (IOException e) {
-                    // Log but do not rethrow - we can try cleaning up again after next replication cycle.
-                    // If that were to fail, the shard will as well.
-                    logger.error("Unable to clean store after reader closed", e);
-                }
-            }
+            store::decRefFileDeleter
         );
     }
 

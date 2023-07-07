@@ -1192,7 +1192,7 @@ public class StoreTests extends OpenSearchTestCase {
         assertFalse(additionalSegments.isEmpty());
 
         // clean up everything not in the latest commit point.
-        store.cleanupAndPreserveLatestCommitPoint("test", store.readLastCommittedSegmentsInfo());
+        store.cleanupAndPreserveLatestCommitPoint(store.readLastCommittedSegmentsInfo().files(true), "test");
 
         // we want to ensure commitMetadata files are preserved after calling cleanup
         for (String existingFile : store.directory().listAll()) {
