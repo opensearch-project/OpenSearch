@@ -390,7 +390,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             if (searchRequest.pipeline() != null) {
                 // Named pipeline specified for the request
                 pipelineId = searchRequest.pipeline();
-            } else if (searchRequest.indices() != null && searchRequest.indices().length == 1) {
+            } else if (state != null && searchRequest.indices() != null && searchRequest.indices().length == 1) {
                 // Check for index default pipeline
                 IndexMetadata indexMetadata = state.metadata().index(searchRequest.indices()[0]);
                 if (indexMetadata != null) {
