@@ -275,6 +275,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testScrollWithConcurrentIndexAndSearch() throws Exception {
+        assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
         final String primary = internalCluster().startDataOnlyNode();
         final String replica = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
