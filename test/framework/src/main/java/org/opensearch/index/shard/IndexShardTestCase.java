@@ -1322,6 +1322,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param clusterService {@link ClusterService} - The cluster service to be used on target
      * @param postGetFilesRunnable - Consumer which is executed after file copy operation. This can be used to stub operations
      *                             which are desired right after files are copied. e.g. To work with temp files
+     * @return Returns SegmentReplicationTargetService
      */
     public final SegmentReplicationTargetService prepareForReplication(
         IndexShard primaryShard,
@@ -1356,6 +1357,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      *
      * @param primaryShard {@link IndexShard} - The primary shard to replicate from.
      * @param target {@link IndexShard} - The target replica shard.
+     * @return Returns SegmentReplicationTargetService
      */
     public final SegmentReplicationTargetService prepareForReplication(IndexShard primaryShard, IndexShard target) {
         return prepareForReplication(
@@ -1384,7 +1386,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param replicaShard - target of segment replication
      * @param primaryMetadata - primary shard metadata before start of segment replication
      * @param latch - Latch which allows consumers of this utility to ensure segment replication completed successfully
-     * @return
+     * @return Returns SegmentReplicationTargetService.SegmentReplicationListener
      */
     public SegmentReplicationTargetService.SegmentReplicationListener getTargetListener(
         IndexShard primaryShard,
@@ -1427,7 +1429,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param getTargetFunc - provides replication target from target service using replication id
      * @param postGetFilesRunnable - Consumer which is executed after file copy operation. This can be used to stub operations
      *                             which are desired right after files are copied. e.g. To work with temp files
-     * @return
+     * @return Return SegmentReplicationSource
      */
     public SegmentReplicationSource getSegmentReplicationSource(
         IndexShard primaryShard,
