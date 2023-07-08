@@ -187,7 +187,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             logger.info("syncSegments is only supported with primaryMode=true, current value is false. Skipping");
             return;
         }
-        if(indexShard.getEngine() instanceof InternalEngine == false) {
+        if (indexShard.getEngine() instanceof InternalEngine == false) {
             logger.info("syncSegments is only supported for InternalEngine, called with {}. Skipping", indexShard.getEngine());
             return;
         }
@@ -359,7 +359,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         segmentInfosSnapshot.setUserData(userData, false);
 
-        Translog.TranslogGeneration translogGeneration = ((InternalEngine) indexShard.getEngine()).translogManager().getTranslogGeneration();
+        Translog.TranslogGeneration translogGeneration = ((InternalEngine) indexShard.getEngine()).translogManager()
+            .getTranslogGeneration();
         if (translogGeneration == null) {
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
