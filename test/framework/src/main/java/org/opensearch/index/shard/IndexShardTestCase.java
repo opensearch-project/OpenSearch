@@ -1320,7 +1320,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param transportService {@link TransportService} - Transport service to be used on target
      * @param indicesService {@link IndicesService} - The indices service to be used on target
      * @param clusterService {@link ClusterService} - The cluster service to be used on target
-     * @param indicesService {@link IndicesService} - The indices service to be used on target
      * @param postGetFilesRunnable - Consumer which is executed after file copy operation. This can be used to stub operations
      *                             which are desired right after files are copied. e.g. To work with temp files
      */
