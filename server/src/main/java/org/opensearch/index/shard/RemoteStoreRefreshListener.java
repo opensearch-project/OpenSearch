@@ -184,6 +184,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     private synchronized void syncSegments(boolean isRetry) {
         if (indexShard.getReplicationTracker().isPrimaryMode() == false) {
+            logger.info("syncSegments is only supported with primaryMode=true, current value is false. Skipping");
+            return;
+        }
+        if(indexShard.getEngine() instanceof InternalEngine == false) {
+            logger.info("syncSegments is only supported for InternalEngine, called with {}. Skipping", indexShard.getEngine());
             return;
         }
         beforeSegmentsSync(isRetry);
@@ -346,6 +351,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     }
 
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos) throws IOException {
+
         final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
@@ -353,7 +359,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         segmentInfosSnapshot.setUserData(userData, false);
 
-        Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
+        Translog.TranslogGeneration translogGeneration = ((InternalEngine) indexShard.getEngine()).translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
