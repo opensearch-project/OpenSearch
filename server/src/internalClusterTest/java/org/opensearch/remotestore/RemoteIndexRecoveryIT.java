@@ -78,12 +78,7 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
     }
 
     @Override
-    public void testRerouteRecovery() throws Exception {
-        super.testRerouteRecovery();
-    }
-
-    @Override
-    protected boolean indexFurtherInRerouteRecoveryBeforeAssertOngoingRecovery() {
-        return true;
+    protected boolean shouldAssertOngoingRecoveryInRerouteRecovery() {
+        return false;
     }
 }

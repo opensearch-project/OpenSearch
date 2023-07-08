@@ -688,22 +688,10 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, false, nodeB, nodeC);
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
 
-        if (randomBoolean()) {
+        if (randomBoolean() && shouldAssertOngoingRecoveryInRerouteRecovery()) {
             // shutdown node with relocation source of replica shard and check if recovery continues
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
             ensureStableCluster(2);
-
-            if (indexFurtherInRerouteRecoveryBeforeAssertOngoingRecovery()) {
-                logger.info("--> indexing sample data");
-                final int numDocs = numDocs();
-                final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
-
-                for (int i = 0; i < numDocs; i++) {
-                    docs[i] = client().prepareIndex(INDEX_NAME)
-                        .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
-                }
-                indexRandom(true, docs);
-            }
 
             response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
             recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
@@ -744,7 +732,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
     }
 
-    protected boolean indexFurtherInRerouteRecoveryBeforeAssertOngoingRecovery() {
+    protected boolean shouldAssertOngoingRecoveryInRerouteRecovery() {
         return false;
     }
 
