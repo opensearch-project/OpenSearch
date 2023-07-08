@@ -225,7 +225,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 store = store();
                 store.incRef();
                 CheckedConsumer<SegmentInfos, IOException> finalizeReplication = indexShard::finalizeReplication;
-                store.buildInfosFromStore(
+                store.buildInfosFromBytes(
                     multiFileWriter.getTempFileNames(),
                     checkpointInfoResponse.getInfosBytes(),
                     checkpointInfoResponse.getCheckpoint().getSegmentsGen(),

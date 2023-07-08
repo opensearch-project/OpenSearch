@@ -848,7 +848,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @param consumer consumer for generated SegmentInfos
      * @throws IOException Exception while reading store and building segment infos
      */
-    public void buildInfosFromStore(
+    public void buildInfosFromBytes(
         Map<String, String> tmpToFileName,
         byte[] infosBytes,
         long segmentsGen,

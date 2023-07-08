@@ -21,7 +21,6 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.ClusterSettings;
@@ -67,6 +66,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +74,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.containsString;
@@ -275,6 +278,85 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
+    /**
+     * Verifies that commits on replica engine resulting from engine or reader close does not cleanup the temporary
+     * replication files from ongoing round of segment replication
+     * @throws Exception
+     */
+    public void testTemporaryFilesNotCleanup() throws Exception {
+        String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
+        try (ReplicationGroup shards = createGroup(1, settings, mappings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            // Step 1. Ingest numDocs documents, commit to create commit point on primary & replicate
+            final int numDocs = randomIntBetween(100, 200);
+            logger.info("--> Inserting documents {}", numDocs);
+            for (int i = 0; i < numDocs; i++) {
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+            }
+            assertEqualTranslogOperations(shards, primaryShard);
+            primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            replicateSegments(primaryShard, shards.getReplicas());
+            shards.assertAllEqual(numDocs);
+
+            // Step 2. Ingest numDocs documents again to create a new commit on primary
+            logger.info("--> Ingest {} docs again", numDocs);
+            for (int i = 0; i < numDocs; i++) {
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+            }
+            assertEqualTranslogOperations(shards, primaryShard);
+            primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+
+            // Step 3. Copy segment files to replica shard but prevent commit
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            Map<String, StoreFileMetadata> primaryMetadata;
+            try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = primaryShard.getSegmentInfosSnapshot()) {
+                final SegmentInfos primarySegmentInfos = segmentInfosSnapshot.get();
+                primaryMetadata = primaryShard.store().getSegmentMetadataMap(primarySegmentInfos);
+            }
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final IndicesService indicesService = mock(IndicesService.class);
+            when(indicesService.getShardOrNull(replica.shardId)).thenReturn(replica);
+            final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
+                threadPool,
+                new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+                mock(TransportService.class),
+                sourceFactory,
+                indicesService,
+                clusterService
+            );
+            final Consumer<IndexShard> runnablePostGetFiles = (indexShard) -> {
+                try {
+                    Collection<String> temporaryFiles = Stream.of(indexShard.store().directory().listAll())
+                        .filter(name -> name.startsWith(SegmentReplicationTarget.REPLICATION_PREFIX))
+                        .collect(Collectors.toList());
+
+                    // Step 4. Perform a commit on replica shard.
+                    NRTReplicationEngine engine = (NRTReplicationEngine) indexShard.getEngine();
+                    engine.updateSegments(engine.getSegmentInfosSnapshot().get());
+
+                    // Step 5. Validate temporary files are not deleted from store.
+                    Collection<String> replicaStoreFiles = List.of(indexShard.store().directory().listAll());
+                    assertTrue(replicaStoreFiles.containsAll(temporaryFiles));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            };
+            SegmentReplicationSource segmentReplicationSource = getSegmentReplicationSource(
+                primaryShard,
+                (repId) -> targetService.get(repId),
+                runnablePostGetFiles
+            );
+            when(sourceFactory.get(any())).thenReturn(segmentReplicationSource);
+            targetService.startReplication(replica, getTargetListener(primaryShard, replica, primaryMetadata, countDownLatch));
+            countDownLatch.await(30, TimeUnit.SECONDS);
+            assertEquals("Replication failed", 0, countDownLatch.getCount());
+            shards.assertAllEqual(numDocs);
+        }
+    }
+
     public void testSegmentReplication_Index_Update_Delete() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
         try (ReplicationGroup shards = createGroup(2, settings, mappings, new NRTReplicationEngineFactory())) {
@@ -402,13 +484,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testRejectCheckpointOnShardRoutingPrimary() throws IOException {
         IndexShard primaryShard = newStartedShard(true);
         SegmentReplicationTargetService sut;
-        sut = prepareForReplication(
-            primaryShard,
-            null,
-            mock(TransportService.class),
-            mock(IndicesService.class),
-            mock(ClusterService.class)
-        );
+        sut = prepareForReplication(primaryShard, null);
         SegmentReplicationTargetService spy = spy(sut);
 
         // Starting a new shard in PrimaryMode and shard routing primary.
@@ -1007,6 +1083,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+
             SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
