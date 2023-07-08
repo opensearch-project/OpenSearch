@@ -27,6 +27,7 @@ import static org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings.R
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockRepositoryIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7703")
     public void testRemoteRefreshRetryOnFailure() throws Exception {
 
         Path location = randomRepoPath().toAbsolutePath();
