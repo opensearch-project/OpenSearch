@@ -47,6 +47,7 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
+import org.opensearch.index.store.remote.metadata.RemoteIndexMetadataStoreService;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
@@ -631,6 +632,8 @@ public class Node implements Closeable {
             initializeFileCache(settings, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
             final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnvironment, fileCache);
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, fileCache);
+            final RemoteIndexMetadataStoreService remoteIndexMetadataStoreService = new RemoteIndexMetadataStoreService
+                (clusterService, threadPool, settings, repositoriesServiceReference::get);
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
                 CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
@@ -744,7 +747,8 @@ public class Node implements Closeable {
                 recoveryStateFactories,
                 remoteDirectoryFactory,
                 repositoriesServiceReference::get,
-                fileCacheCleaner
+                fileCacheCleaner,
+                remoteIndexMetadataStoreService
             );
 
             final AliasValidator aliasValidator = new AliasValidator();

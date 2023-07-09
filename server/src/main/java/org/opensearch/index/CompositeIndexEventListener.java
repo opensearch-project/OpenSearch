@@ -34,6 +34,7 @@ package org.opensearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.logging.Loggers;
@@ -152,6 +153,27 @@ final class CompositeIndexEventListener implements IndexEventListener {
                     () -> new ParameterizedMessage(
                         "[{}] failed to invoke index shard state changed callback",
                         indexShard.shardId().getId()
+                    ),
+                    e
+                );
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public void indexMetadataChanged(
+        @Nullable IndexMetadata previousMetadata,
+        IndexMetadata currentMetadata
+    ) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.indexMetadataChanged(previousMetadata, currentMetadata);
+            } catch (Exception e) {
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "[{}] failed to invoke index shard metadata state changed callback",
+                        currentMetadata.getIndex().getName()
                     ),
                     e
                 );

@@ -133,6 +133,7 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
+import org.opensearch.index.store.remote.metadata.RemoteIndexMetadataStoreService;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -165,6 +166,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -330,6 +332,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
 
     private final FileCacheCleaner fileCacheCleaner;
+    private final RemoteIndexMetadataStoreService remoteIndexMetadataStoreService;
 
     @Override
     protected void doStart() {
@@ -360,7 +363,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        FileCacheCleaner fileCacheCleaner
+        FileCacheCleaner fileCacheCleaner,
+        RemoteIndexMetadataStoreService remoteIndexMetadataStoreService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -407,6 +411,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
         this.fileCacheCleaner = fileCacheCleaner;
+        this.remoteIndexMetadataStoreService = remoteIndexMetadataStoreService;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -697,6 +702,7 @@ public class IndicesService extends AbstractLifecycleComponent
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
         finalListeners.add(fileCacheCleaner);
+        finalListeners.add(remoteIndexMetadataStoreService);
         final IndexService indexService = createIndexService(
             CREATE_INDEX,
             indexMetadata,
@@ -919,7 +925,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metadata, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metadata.equals(metadataUpdate) == false) {
-                service.updateMetadata(metadata, metadataUpdate);
+                service.updateMetadata(metadata, metadataUpdate, Arrays.asList(new IndexEventListener(){}));
             }
         } finally {
             IOUtils.close(closeables);

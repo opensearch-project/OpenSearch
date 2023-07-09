@@ -308,13 +308,13 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
         }
 
         @Override
-        public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
+        public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata, List<IndexEventListener> builtInIndexListener) throws IOException {
             failRandomly();
             return false;
         }
 
         @Override
-        public void updateMetadata(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
+        public void updateMetadata(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata, List<IndexEventListener> builtInIndexListener) {
             indexSettings.updateIndexMetadata(newIndexMetadata);
             for (MockIndexShard shard : shards.values()) {
                 shard.updateTerm(newIndexMetadata.primaryTerm(shard.shardId().id()));

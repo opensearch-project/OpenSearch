@@ -77,6 +77,7 @@ import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
+import org.opensearch.index.store.remote.metadata.RemoteIndexMetadataStoreService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
@@ -170,7 +171,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final GlobalCheckpointSyncAction globalCheckpointSyncAction,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService
+        final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService,
+        final RemoteIndexMetadataStoreService remoteIndexMetadataStoreService
     ) {
         this(
             settings,
@@ -190,7 +192,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             primaryReplicaSyncer,
             globalCheckpointSyncAction::updateGlobalCheckpointForShard,
             retentionLeaseSyncer,
-            remoteRefreshSegmentPressureService
+            remoteRefreshSegmentPressureService,
+            remoteIndexMetadataStoreService
         );
     }
 
@@ -213,13 +216,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService
-    ) {
+        final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService,
+        final RemoteIndexMetadataStoreService remoteIndexMetadataStoreService
+        ) {
         this.settings = settings;
         this.checkpointPublisher = checkpointPublisher;
 
         final List<IndexEventListener> indexEventListeners = new ArrayList<>(
-            Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService)
+            Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService,
+                remoteIndexMetadataStoreService)
         );
         indexEventListeners.add(segmentReplicationTargetService);
         indexEventListeners.add(segmentReplicationSourceService);
@@ -558,7 +563,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     updatedIndexEventListeners.add(refreshListenerAfterSnapshotRestore);
                 }
                 indexService = indicesService.createIndex(indexMetadata, updatedIndexEventListeners, true);
-                if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
+                if (indexService.updateMapping(null, indexMetadata, builtInIndexListener) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(
                         state.nodes().getClusterManagerNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(
@@ -598,14 +603,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 try {
                     reason = "metadata update failed";
                     try {
-                        indexService.updateMetadata(currentIndexMetadata, newIndexMetadata);
+                        indexService.updateMetadata(currentIndexMetadata, newIndexMetadata, builtInIndexListener);
                     } catch (Exception e) {
                         assert false : e;
                         throw e;
                     }
 
                     reason = "mapping update failed";
-                    if (indexService.updateMapping(currentIndexMetadata, newIndexMetadata) && sendRefreshMapping) {
+                    if (indexService.updateMapping(currentIndexMetadata, newIndexMetadata, builtInIndexListener) && sendRefreshMapping) {
                         nodeMappingRefreshAction.nodeMappingRefresh(
                             state.nodes().getClusterManagerNode(),
                             new NodeMappingRefreshAction.NodeMappingRefreshRequest(
@@ -943,16 +948,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /**
          * Updates the metadata of this index. Changes become visible through {@link #getIndexSettings()}.
-         *
-         * @param currentIndexMetadata the current index metadata
+         *  @param currentIndexMetadata the current index metadata
          * @param newIndexMetadata the new index metadata
+         * @param builtInIndexListener
          */
-        void updateMetadata(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata);
+        void updateMetadata(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata,
+                            List<IndexEventListener> builtInIndexListener);
 
         /**
          * Checks if index requires refresh from master.
          */
-        boolean updateMapping(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata) throws IOException;
+        boolean updateMapping(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata,
+                              List<IndexEventListener> builtInIndexListener) throws IOException;
 
         /**
          * Returns shard with given id.

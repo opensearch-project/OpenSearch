@@ -173,19 +173,24 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         if (this.primaryTerm != indexShard.getOperationPrimaryTerm()
             || didRefresh
             || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
-            updateLocalRefreshTimeAndSeqNo();
-            try {
-                indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
-            } catch (InterruptedException | ExecutionException e) {
-                logger.info("Exception occurred while scheduling syncSegments", e);
-            }
+            /*
+             * Before starting any upload operation permit. We do this so that there is a barrier between marking a
+             * shard as in-sync and relocating a shard. If we acquire the permit then no relocation handoff can complete before we are done
+             * marking the shard as in-sync. If the relocation handoff holds all the permits then after the handoff completes and we acquire
+             * the permit then the state of the shard will be relocated and this recovery will fail.
+             */
+            indexShard.runUnderPrimaryPermit(() -> {
+                if (indexShard.getReplicationTracker().isPrimaryMode() == false) {
+                    return;
+                }
+                updateLocalRefreshTimeAndSeqNo();
+                syncSegments(false);
+            }, e -> logger.info("Exception occurred while scheduling syncSegments", e), ThreadPool.Names.REMOTE_REFRESH,  " remote-refresh");
+            //indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
         }
     }
 
     private synchronized void syncSegments(boolean isRetry) {
-        if (indexShard.getReplicationTracker().isPrimaryMode() == false) {
-            return;
-        }
         beforeSegmentsSync(isRetry);
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();

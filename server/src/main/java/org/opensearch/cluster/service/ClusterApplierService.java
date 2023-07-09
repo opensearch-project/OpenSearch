@@ -115,6 +115,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final AtomicReference<ClusterState> state; // last applied state
 
+    private final AtomicReference<ClusterState> applierState; // new incoming state
+
+
     private final String nodeName;
 
     private NodeConnectionsService nodeConnectionsService;
@@ -123,6 +126,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
+        this.applierState = new AtomicReference<>();
         this.nodeName = nodeName;
 
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -148,6 +152,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
         assert state.get() == null : "state is already set";
         state.set(initialState);
+        applierState.set(initialState);
     }
 
     @Override
@@ -210,6 +215,17 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     public ClusterState state() {
         assert assertNotCalledFromClusterStateApplier("the applied cluster state is not yet available");
         ClusterState clusterState = this.state.get();
+        assert clusterState != null : "initial cluster state not set yet";
+        return clusterState;
+    }
+
+    /**
+     * The current cluster state.
+     * Should be renamed to appliedClusterState
+     */
+    public ClusterState applierState() {
+        assert assertNotCalledFromClusterStateApplier("the applied cluster state is not yet available");
+        ClusterState clusterState = this.applierState.get();
         assert clusterState != null : "initial cluster state not set yet";
         return clusterState;
     }
@@ -557,6 +573,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             }
         }
 
+        applierState.set(newClusterState);
         logger.debug("apply cluster state with version {}", newClusterState.version());
         callClusterStateAppliers(clusterChangedEvent, stopWatch);
 

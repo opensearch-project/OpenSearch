@@ -31,6 +31,7 @@
 
 package org.opensearch.index.shard;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
@@ -102,6 +103,15 @@ public interface IndexEventListener {
         IndexShardState currentState,
         @Nullable String reason
     ) {}
+
+    /**
+     * Called when the index metadata changes
+     * @param previousIndexMetadata
+     * @param currentIndexMetadata
+     */
+    default void indexMetadataChanged(@Nullable IndexMetadata previousIndexMetadata,
+                                      IndexMetadata currentIndexMetadata) {}
+
 
     /**
      * Called before the index gets created. Note that this is also called

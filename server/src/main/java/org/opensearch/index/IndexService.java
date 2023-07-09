@@ -759,11 +759,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
+    public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata,
+                                 List<IndexEventListener> builtInIndexListener) throws IOException {
         if (mapperService == null) {
             return false;
         }
-        return mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+        boolean result = mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+        builtInIndexListener.forEach(c -> c.indexMetadataChanged(currentIndexMetadata, newIndexMetadata));
+        return result;
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -865,7 +868,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public synchronized void updateMetadata(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
+    public synchronized void updateMetadata(final IndexMetadata currentIndexMetadata,
+                                            final IndexMetadata newIndexMetadata,
+                                            List<IndexEventListener> builtInIndexListener) {
         final boolean updateIndexSettings = indexSettings.updateIndexMetadata(newIndexMetadata);
 
         if (Assertions.ENABLED && currentIndexMetadata != null) {
@@ -921,7 +926,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
             updateFsyncTaskIfNecessary();
         }
-
+        builtInIndexListener.forEach(c -> c.indexMetadataChanged(currentIndexMetadata, newIndexMetadata));
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
     }
 

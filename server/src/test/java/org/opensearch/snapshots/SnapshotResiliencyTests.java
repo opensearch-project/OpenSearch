@@ -177,6 +177,7 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
+import org.opensearch.index.store.remote.metadata.RemoteIndexMetadataStoreService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -1837,7 +1838,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
                     repositoriesServiceReference::get,
-                    fileCacheCleaner
+                    fileCacheCleaner,
+                    new RemoteIndexMetadataStoreService(clusterService, threadPool, settings, () -> null)
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -1902,7 +1904,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     RetentionLeaseSyncer.EMPTY,
                     SegmentReplicationCheckpointPublisher.EMPTY,
-                    mock(RemoteRefreshSegmentPressureService.class)
+                    mock(RemoteRefreshSegmentPressureService.class),
+                    mock(RemoteIndexMetadataStoreService.class)
                 );
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());
