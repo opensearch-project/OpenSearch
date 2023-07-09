@@ -29,7 +29,9 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 /**
- * The class is responsible for uploading the latest index metadata if changed to the remote store location
+ * The class is responsible for uploading the latest index metadata if changed to the remote store location. It is possible that
+ * an isolated cluster manager node can still write however the writes would be discriminated with the cluster term. The highest
+ * cluster term wins.
  *
  */
 public class RemoteIndexMetadataStoreService implements IndexEventListener {
@@ -39,7 +41,6 @@ public class RemoteIndexMetadataStoreService implements IndexEventListener {
     private final Settings settings;
     private final Supplier<RepositoriesService> repositoriesServiceSupplier;
     private static final String INDEX_METADATA_PATH = "index-metadata";
-    private final Object mutex = new Object();
 
     public RemoteIndexMetadataStoreService(ClusterService clusterService, ThreadPool threadPool, Settings settings,
                                            Supplier<RepositoriesService> repositoriesServiceSupplier) {
@@ -81,7 +82,7 @@ public class RemoteIndexMetadataStoreService implements IndexEventListener {
     }
 
     private void persistIndexMetadata(IndexMetadata indexMetaData) {
-        assertCalledFromClusterStateApplier("index metadata upload should occur as a part of cluster state application");
+        assert assertCalledFromClusterStateApplier("index metadata upload should occur as a part of cluster state application");
         if (isLocalNodeElectedClusterManager()) {
             String repositoryName = indexMetaData.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
             Repository repository = repositoriesServiceSupplier.get().repository(repositoryName);
@@ -99,7 +100,7 @@ public class RemoteIndexMetadataStoreService implements IndexEventListener {
     }
 
     /** asserts that the current stack trace involves a cluster state applier */
-    private static void assertCalledFromClusterStateApplier(String reason) {
+    private static boolean assertCalledFromClusterStateApplier(String reason) {
         if (Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)) {
             for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
                 final String className = element.getClassName();
@@ -108,11 +109,10 @@ public class RemoteIndexMetadataStoreService implements IndexEventListener {
                     // people may start an observer from an applier
                     throw new AssertionError("should not be called by a cluster state applier. reason [" + reason + "]");
                 } else if (className.equals(ClusterApplierService.class.getName()) && methodName.equals("callClusterStateAppliers")) {
-                    return;
+                    return true;
                 }
             }
-        } else {
-            throw new AssertionError("should not be called by a cluster state applier. reason [" + reason + "]");
         }
+        return false;
     }
 }

@@ -220,11 +220,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
-     * The current cluster state.
-     * Should be renamed to appliedClusterState
+     * The cluster state being applied.
      */
     public ClusterState applierState() {
-        assert assertNotCalledFromClusterStateApplier("the applied cluster state is not yet available");
         ClusterState clusterState = this.applierState.get();
         assert clusterState != null : "initial cluster state not set yet";
         return clusterState;
