@@ -88,15 +88,13 @@ public class RemoteIndexMetadataStoreService implements IndexEventListener {
                 Repository repository = repositoriesServiceSupplier.get().repository(repositoryName);
                 BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
                 final BlobPath indexMetadataBlobPath = commonBlobPath.add(indexMetaData.getIndexUUID()).add(INDEX_METADATA_PATH);
-                threadPool.executor(ThreadPool.Names.GENERIC).execute((() -> {
-                    String metaUUID = getClusterStateTerm() + "__" + UUIDs.base64UUID();
-                    try {
-                        BlobStoreRepository.INDEX_METADATA_FORMAT.write(indexMetaData,
-                            ((BlobStoreRepository)repository).blobStore().blobContainer(indexMetadataBlobPath), metaUUID, null);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }));
+                String metaUUID = getClusterStateTerm() + "__" + UUIDs.base64UUID();
+                try {
+                    BlobStoreRepository.INDEX_METADATA_FORMAT.write(indexMetaData,
+                        ((BlobStoreRepository)repository).blobStore().blobContainer(indexMetadataBlobPath), metaUUID, null);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
