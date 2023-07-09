@@ -270,8 +270,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     public void testScrollWithConcurrentIndexAndSearch() throws Exception {
         assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
-        final String primary = internalCluster().startDataOnlyNode();
-        final String replica = internalCluster().startDataOnlyNode();
+        final String primary = internalCluster().startNode();
+        final String replica = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
