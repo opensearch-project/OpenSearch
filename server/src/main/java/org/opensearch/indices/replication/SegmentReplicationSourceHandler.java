@@ -187,8 +187,8 @@ class SegmentReplicationSourceHandler {
         }
     }
 
-    // Replication checkpoint update for remote store indices happens via subsequent UPDATE_VISIBLE_CHECKPOINT transport call .
-    // For node-node, checkpoint update is done as part of this i.e. GET_SEGMENT_FILES call.
+    // Update target replication checkpoint on source for node-node communication. For remote store enabled indices, checkpoint
+    // update on source is performed via separate UPDATE_VISIBLE_CHECKPOINT transport call
     private void updateVisibleCheckpointForShard(String allocationId, ReplicationCheckpoint replicationCheckpoint) {
         if (shard.indexSettings().isRemoteStoreEnabled() == false) {
             // update visible checkpoint to primary
