@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Adds mock implementation for TelemetryPlugin ([#7545](https://github.com/opensearch-project/OpenSearch/issues/7545))
 - Create concept of persistent ThreadContext headers that are unstashable ([#8291]()https://github.com/opensearch-project/OpenSearch/pull/8291)
 - Enable Partial Flat Object ([#7997](https://github.com/opensearch-project/OpenSearch/pull/7997))
+- Add partial results support for concurrent segment search ([#8306](https://github.com/opensearch-project/OpenSearch/pull/8306))
 - Support transport action names when registering NamedRoutes ([#7957](https://github.com/opensearch-project/OpenSearch/pull/7957))
 
 ### Dependencies
@@ -97,6 +98,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Improved performance of parsing floating point numbers ([#8467](https://github.com/opensearch-project/OpenSearch/pull/8467))
 - Move span actions to Scope ([#8411](https://github.com/opensearch-project/OpenSearch/pull/8411))
 - [Refactor] OpenSearchException streamables to a registry ([#7646](https://github.com/opensearch-project/OpenSearch/pull/7646))
+- [Refactor] Serverless common classes to libraries ([#8065](https://github.com/opensearch-project/OpenSearch/pull/8065))
+- [Refactor] StreamIO and OpenSearchException foundation to core library ([#8035](https://github.com/opensearch-project/OpenSearch/pull/8035))
 
 ### Deprecated
 

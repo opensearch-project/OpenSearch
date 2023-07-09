@@ -32,7 +32,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;

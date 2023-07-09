@@ -40,8 +40,8 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.core.common.lease.Releasable;
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -98,6 +98,8 @@ public abstract class SearchContext implements Releasable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
+    private volatile boolean searchTimedOut;
+
     protected SearchContext() {}
 
     public abstract void setTask(SearchShardTask task);
@@ -105,6 +107,14 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
+
+    public boolean isSearchTimedOut() {
+        return this.searchTimedOut;
+    }
+
+    public void setSearchTimedOut(boolean searchTimedOut) {
+        this.searchTimedOut = searchTimedOut;
+    }
 
     @Override
     public final void close() {

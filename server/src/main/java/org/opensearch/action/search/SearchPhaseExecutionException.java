@@ -32,8 +32,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ShardOperationFailedException;
@@ -123,7 +121,7 @@ public class SearchPhaseExecutionException extends OpenSearchException {
         Throwable cause = super.getCause();
         if (cause == null) {
             // fall back to guessed root cause
-            for (BaseOpenSearchException rootCause : guessRootCauses()) {
+            for (OpenSearchException rootCause : guessRootCauses()) {
                 return rootCause;
             }
         }
@@ -161,14 +159,14 @@ public class SearchPhaseExecutionException extends OpenSearchException {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Throwable ex = BaseExceptionsHelper.unwrapCause(this);
+        Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            BaseExceptionsHelper.generateThrowableXContent(builder, params, this);
+            OpenSearchException.generateThrowableXContent(builder, params, this);
         } else {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
             // be rendered twice (one in the "cause" field, one in "failed_shards")
-            BaseExceptionsHelper.innerToXContent(
+            OpenSearchException.innerToXContent(
                 builder,
                 params,
                 this,
@@ -183,14 +181,14 @@ public class SearchPhaseExecutionException extends OpenSearchException {
     }
 
     @Override
-    public BaseOpenSearchException[] guessRootCauses() {
+    public OpenSearchException[] guessRootCauses() {
         ShardOperationFailedException[] failures = ExceptionsHelper.groupBy(shardFailures);
-        List<BaseOpenSearchException> rootCauses = new ArrayList<>(failures.length);
+        List<OpenSearchException> rootCauses = new ArrayList<>(failures.length);
         for (ShardOperationFailedException failure : failures) {
-            BaseOpenSearchException[] guessRootCauses = BaseOpenSearchException.guessRootCauses(failure.getCause());
+            OpenSearchException[] guessRootCauses = OpenSearchException.guessRootCauses(failure.getCause());
             rootCauses.addAll(Arrays.asList(guessRootCauses));
         }
-        return rootCauses.toArray(new BaseOpenSearchException[0]);
+        return rootCauses.toArray(new OpenSearchException[0]);
     }
 
     @Override

@@ -36,7 +36,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;

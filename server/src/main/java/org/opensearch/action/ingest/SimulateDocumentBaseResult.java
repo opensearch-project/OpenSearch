@@ -31,7 +31,6 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.ParseField;
@@ -147,7 +146,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
         if (failure == null) {
             ingestDocument.toXContent(builder, params);
         } else {
-            BaseOpenSearchException.generateFailureXContent(builder, params, failure, true);
+            OpenSearchException.generateFailureXContent(builder, params, failure, true);
         }
         builder.endObject();
         return builder;

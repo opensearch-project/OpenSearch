@@ -67,7 +67,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -1240,7 +1239,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final int len = (int) Math.min(1024 * 1024, size); // for safety we limit this to 1MB
             fileHash.grow(len);
             fileHash.setLength(len);
-            final int readBytes = Streams.readFully(in, fileHash.bytes(), 0, len);
+            final int readBytes = in.readNBytes(fileHash.bytes(), 0, len);
             assert readBytes == len : Integer.toString(readBytes) + " != " + Integer.toString(len);
             assert fileHash.length() == len : Integer.toString(fileHash.length()) + " != " + Integer.toString(len);
         }

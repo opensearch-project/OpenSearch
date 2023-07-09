@@ -36,7 +36,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -415,7 +415,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                     SearchPhaseExecutionException.class,
                     () -> client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test")).get()
                 );
-                assertThat(BaseExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertThat(ExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("<reduce_aggs>"));
             });
 
             final AtomicArray<Exception> exceptions = new AtomicArray<>(10);
@@ -443,7 +443,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             latch.await();
             assertThat(exceptions.asList().size(), equalTo(10));
             for (Exception exc : exceptions.asList()) {
-                assertThat(BaseExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertThat(ExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("<reduce_aggs>"));
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
@@ -482,7 +482,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         latch.await();
         assertThat(exceptions.asList().size(), equalTo(10));
         for (Exception exc : exceptions.asList()) {
-            assertThat(BaseExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("boom"));
+            assertThat(ExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("boom"));
         }
         assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
     }

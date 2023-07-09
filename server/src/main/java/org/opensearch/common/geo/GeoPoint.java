@@ -42,9 +42,6 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoUtils.EffectivePoint;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.BaseWriteable.Reader;
-import org.opensearch.core.common.io.stream.BaseWriteable.Writer;
-import org.opensearch.core.common.io.stream.BaseWriteable.WriteableRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.Geometry;
@@ -95,17 +92,6 @@ public class GeoPoint implements ToXContentFragment {
     public GeoPoint(final StreamInput in) throws IOException {
         this.lat = in.readDouble();
         this.lon = in.readDouble();
-    }
-
-    /**
-     * Register this type as a streamable so it can be serialized over the wire
-     */
-    public static void registerStreamables() {
-        WriteableRegistry.<Writer<StreamOutput, ?>>registerWriter(GeoPoint.class, (o, v) -> {
-            o.writeByte((byte) 22);
-            ((GeoPoint) v).writeTo(o);
-        });
-        WriteableRegistry.<Reader<StreamInput, ?>>registerReader(Byte.valueOf((byte) 22), GeoPoint::new);
     }
 
     public GeoPoint reset(double lat, double lon) {

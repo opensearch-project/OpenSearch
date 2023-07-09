@@ -34,7 +34,7 @@ package org.opensearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionListener;
@@ -126,7 +126,7 @@ public class TaskResultsService {
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (BaseExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         // we have the index, do it
                         try {
                             doStoreResult(taskResult, listener);

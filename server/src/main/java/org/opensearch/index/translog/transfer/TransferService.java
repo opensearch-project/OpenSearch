@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.io.IOException;
@@ -81,14 +82,6 @@ public interface TransferService {
     Set<String> listAll(Iterable<String> path) throws IOException;
 
     /**
-     * Lists the files and invokes the listener on success or failure
-     * @param threadpoolName threadpool type which will be used to list all files asynchronously.
-     * @param path the path to list
-     * @param listener the callback to be invoked once list operation completes successfully/fails.
-     */
-    void listAllAsync(String threadpoolName, Iterable<String> path, ActionListener<Set<String>> listener);
-
-    /**
      * Lists the folders inside the path.
      * @param path : the path
      * @return list of folders inside the path
@@ -113,5 +106,9 @@ public interface TransferService {
      * @throws IOException the exception while reading the data
      */
     InputStream downloadBlob(Iterable<String> path, String fileName) throws IOException;
+
+    void listAllInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener);
+
+    void listAllInSortedOrderAsync(String threadpoolName, Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener);
 
 }

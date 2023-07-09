@@ -41,7 +41,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Glob;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.RunOnce;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;

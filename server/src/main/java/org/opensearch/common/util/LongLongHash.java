@@ -34,7 +34,7 @@ package org.opensearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
 
-import org.opensearch.core.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 
 /**
  * Specialized hash table implementation similar to BytesRefHash that maps

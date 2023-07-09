@@ -38,7 +38,7 @@ import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.util.function.Consumer;
