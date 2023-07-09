@@ -25,6 +25,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.MultiChunkTransfer;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.threadpool.ThreadPool;
@@ -32,6 +33,7 @@ import org.opensearch.transport.Transports;
 
 import java.io.Closeable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -107,6 +109,14 @@ class SegmentReplicationSourceHandler {
      * @param listener {@link ActionListener} that completes with the list of files sent.
      */
     public synchronized void sendFiles(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
+        // Short circuit when no files to transfer
+        if (request.getFilesToFetch().isEmpty()) {
+            // before completion, alert the primary of the replica's state.
+            this.updateVisibleCheckpointForShard(request.getTargetAllocationId(), copyState.getCheckpoint());
+            listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+            return;
+        }
+
         final ReplicationTimer timer = new ReplicationTimer();
         if (isReplicating.compareAndSet(false, true) == false) {
             throw new OpenSearchException("Replication to {} is already running.", shard.shardId());
@@ -159,6 +169,7 @@ class SegmentReplicationSourceHandler {
 
             sendFileStep.whenComplete(r -> {
                 try {
+                    this.updateVisibleCheckpointForShard(allocationId, copyState.getCheckpoint());
                     future.onResponse(new GetSegmentFilesResponse(List.of(storeFileMetadata)));
                 } finally {
                     IOUtils.close(resources);
@@ -173,6 +184,15 @@ class SegmentReplicationSourceHandler {
             }, onFailure);
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
+        }
+    }
+
+    // Replication checkpoint update for remote store indices happens via subsequent UPDATE_VISIBLE_CHECKPOINT transport call .
+    // For node-node, checkpoint update is done as part of this i.e. GET_SEGMENT_FILES call.
+    private void updateVisibleCheckpointForShard(String allocationId, ReplicationCheckpoint replicationCheckpoint) {
+        if (shard.indexSettings().isRemoteStoreEnabled() == false) {
+            // update visible checkpoint to primary
+            shard.updateVisibleCheckpointForShard(allocationId, replicationCheckpoint);
         }
     }
 
