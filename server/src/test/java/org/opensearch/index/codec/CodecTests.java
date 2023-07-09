@@ -142,6 +142,40 @@ public class CodecTests extends OpenSearchTestCase {
         assertThrows(AssertionError.class, () -> new CodecService(null, null, LogManager.getLogger("test")));
     }
 
+    public void testCodecServiceWithNullMapperService() {
+        CodecService codecService = new CodecService(null, null, LogManager.getLogger("test"));
+        assert codecService.codec("default") instanceof Lucene95Codec;
+        assert codecService.codec("best_compression") instanceof Lucene95Codec;
+        Lucene95CustomStoredFieldsFormat zstdStoredFieldsFormat = (Lucene95CustomStoredFieldsFormat) codecService.codec("zstd")
+            .storedFieldsFormat();
+        Lucene95CustomStoredFieldsFormat zstdNoDictStoredFieldsFormat = (Lucene95CustomStoredFieldsFormat) codecService.codec("zstd")
+            .storedFieldsFormat();
+        assertEquals(Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL, zstdStoredFieldsFormat.getCompressionLevel());
+        assertEquals(Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL, zstdNoDictStoredFieldsFormat.getCompressionLevel());
+    }
+
+    public void testCodecServiceWithOnlyMapperService() throws IOException {
+        int randomCompressionLevel = randomIntBetween(1, 6);
+        Settings nodeSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put("index.codec.compression_level", randomCompressionLevel)
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
+        CodecService codecService = new CodecService(
+            getMapperService(indexSettings, nodeSettings),
+            indexSettings,
+            LogManager.getLogger("test")
+        );
+        assert codecService.codec("default") instanceof PerFieldMappingPostingFormatCodec;
+        assert codecService.codec("best_compression") instanceof PerFieldMappingPostingFormatCodec;
+        Lucene95CustomStoredFieldsFormat zstdStoredFieldsFormat = (Lucene95CustomStoredFieldsFormat) codecService.codec("zstd")
+            .storedFieldsFormat();
+        Lucene95CustomStoredFieldsFormat zstdNoDictStoredFieldsFormat = (Lucene95CustomStoredFieldsFormat) codecService.codec("zstd")
+            .storedFieldsFormat();
+        assertEquals(randomCompressionLevel, zstdStoredFieldsFormat.getCompressionLevel());
+        assertEquals(randomCompressionLevel, zstdNoDictStoredFieldsFormat.getCompressionLevel());
+    }
+
     // write some docs with it, inspect .si to see this was the used compression
     private void assertStoredFieldsCompressionEquals(Lucene95Codec.Mode expected, Codec actual) throws Exception {
         SegmentReader sr = getSegmentReader(actual);
@@ -176,10 +210,15 @@ public class CodecTests extends OpenSearchTestCase {
     private CodecService buildCodecService(Settings nodeSettings) throws IOException {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
+        MapperService mapperService = getMapperService(indexSettings, nodeSettings);
+        return new CodecService(mapperService, indexSettings, LogManager.getLogger("test"));
+    }
+
+    private MapperService getMapperService(IndexSettings indexSettings, Settings nodeSettings) throws IOException {
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
         IndexAnalyzers indexAnalyzers = createTestAnalysis(indexSettings, nodeSettings).indexAnalyzers;
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER);
-        MapperService service = new MapperService(
+        return new MapperService(
             indexSettings,
             indexAnalyzers,
             xContentRegistry(),
@@ -189,7 +228,6 @@ public class CodecTests extends OpenSearchTestCase {
             () -> false,
             null
         );
-        return new CodecService(service, indexSettings, LogManager.getLogger("test"));
     }
 
     private SegmentReader getSegmentReader(Codec codec) throws IOException {

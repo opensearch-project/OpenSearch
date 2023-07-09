@@ -39,6 +39,7 @@ import org.apache.lucene.codecs.lucene95.Lucene95Codec.Mode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.customcodecs.Lucene95CustomCodec;
 import org.opensearch.index.codec.customcodecs.ZstdCodec;
 import org.opensearch.index.codec.customcodecs.ZstdNoDictCodec;
 import org.opensearch.index.mapper.MapperService;
@@ -78,6 +79,31 @@ public class CodecService {
             codecs.put(ZSTD_CODEC, new ZstdCodec(compressionLevel));
             codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(compressionLevel));
         } else {
+            codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
+            codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
+            codecs.put(ZSTD_CODEC, new ZstdCodec(mapperService, logger, compressionLevel));
+            codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(mapperService, logger, compressionLevel));
+        }
+        codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
+        for (String codec : Codec.availableCodecs()) {
+            codecs.put(codec, Codec.forName(codec));
+        }
+        this.codecs = codecs.immutableMap();
+    }
+
+    @Deprecated(since = "2.9.0", forRemoval = true)
+    public CodecService(@Nullable MapperService mapperService, Logger logger) {
+        final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
+        if (mapperService == null) {
+            codecs.put(DEFAULT_CODEC, new Lucene95Codec());
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene95Codec(Mode.BEST_COMPRESSION));
+            codecs.put(ZSTD_CODEC, new ZstdCodec());
+            codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec());
+        } else {
+            IndexSettings indexSettings = mapperService.getIndexSettings();
+            int compressionLevel = indexSettings == null
+                ? Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL
+                : indexSettings.getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
             codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
             codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
             codecs.put(ZSTD_CODEC, new ZstdCodec(mapperService, logger, compressionLevel));
