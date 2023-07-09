@@ -563,7 +563,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     updatedIndexEventListeners.add(refreshListenerAfterSnapshotRestore);
                 }
                 indexService = indicesService.createIndex(indexMetadata, updatedIndexEventListeners, true);
-                if (indexService.updateMapping(null, indexMetadata, builtInIndexListener) && sendRefreshMapping) {
+                if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(
                         state.nodes().getClusterManagerNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(
@@ -610,7 +610,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     }
 
                     reason = "mapping update failed";
-                    if (indexService.updateMapping(currentIndexMetadata, newIndexMetadata, builtInIndexListener) && sendRefreshMapping) {
+                    if (indexService.updateMapping(currentIndexMetadata, newIndexMetadata) && sendRefreshMapping) {
                         nodeMappingRefreshAction.nodeMappingRefresh(
                             state.nodes().getClusterManagerNode(),
                             new NodeMappingRefreshAction.NodeMappingRefreshRequest(
@@ -958,8 +958,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Checks if index requires refresh from master.
          */
-        boolean updateMapping(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata,
-                              List<IndexEventListener> builtInIndexListener) throws IOException;
+        boolean updateMapping(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata) throws IOException;
 
         /**
          * Returns shard with given id.
