@@ -82,25 +82,24 @@ public class RemoteIndexMetadataStoreService implements IndexEventListener {
 
     private void persistIndexMetadata(IndexMetadata indexMetaData) {
         assertCalledFromClusterStateApplier("index metadata upload should occur as a part of cluster state application");
-        synchronized (mutex) {
-            if (isLocalNodeElectedClusterManager()) {
-                String repositoryName = indexMetaData.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
-                Repository repository = repositoriesServiceSupplier.get().repository(repositoryName);
-                BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
-                final BlobPath indexMetadataBlobPath = commonBlobPath.add(indexMetaData.getIndexUUID()).add(INDEX_METADATA_PATH);
-                String metaUUID = getClusterStateTerm() + "__" + UUIDs.base64UUID();
-                try {
-                    BlobStoreRepository.INDEX_METADATA_FORMAT.write(indexMetaData,
-                        ((BlobStoreRepository)repository).blobStore().blobContainer(indexMetadataBlobPath), metaUUID, null);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        if (isLocalNodeElectedClusterManager()) {
+            String repositoryName = indexMetaData.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
+            Repository repository = repositoriesServiceSupplier.get().repository(repositoryName);
+            BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
+            final BlobPath indexMetadataBlobPath = commonBlobPath.add(indexMetaData.getIndexUUID()).add(INDEX_METADATA_PATH);
+            String metaUUID = getClusterStateTerm() + "__" + UUIDs.base64UUID();
+            try {
+                BlobStoreRepository.INDEX_METADATA_FORMAT.write(indexMetaData,
+                    ((BlobStoreRepository)repository).blobStore().blobContainer(indexMetadataBlobPath), metaUUID, null);
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
+
     }
 
     /** asserts that the current stack trace involves a cluster state applier */
-    private static boolean assertCalledFromClusterStateApplier(String reason) {
+    private static void assertCalledFromClusterStateApplier(String reason) {
         if (Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)) {
             for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
                 final String className = element.getClassName();
@@ -109,10 +108,11 @@ public class RemoteIndexMetadataStoreService implements IndexEventListener {
                     // people may start an observer from an applier
                     throw new AssertionError("should not be called by a cluster state applier. reason [" + reason + "]");
                 } else if (className.equals(ClusterApplierService.class.getName()) && methodName.equals("callClusterStateAppliers")) {
-                    return true;
+                    return;
                 }
             }
+        } else {
+            throw new AssertionError("should not be called by a cluster state applier. reason [" + reason + "]");
         }
-        return false;
     }
 }
