@@ -322,11 +322,12 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
         RemoteRefreshSegmentPressureService pressureService = tuple.v2();
         RemoteRefreshSegmentTracker segmentTracker = pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
-        assertEquals(0, segmentTracker.getBytesLag());
-        assertEquals(0, segmentTracker.getRefreshSeqNoLag());
-        assertEquals(0, segmentTracker.getTimeMsLag());
-        assertEquals(2, segmentTracker.getTotalUploadsFailed());
-
+        assertBusy(() -> {
+            assertEquals(0, segmentTracker.getBytesLag());
+            assertEquals(0, segmentTracker.getRefreshSeqNoLag());
+            assertEquals(0, segmentTracker.getTimeMsLag());
+            assertEquals(2, segmentTracker.getTotalUploadsFailed());
+        });
     }
 
     public void testTrackerData() throws Exception {
