@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.hamcrest.MatcherAssert;
 import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -35,6 +36,8 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.comparesEqualTo;
+import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.is;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -300,11 +303,11 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         assertBusy(() -> {
             int actualFileCount = getFileCount(indexPath);
             if (numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP) {
-                assertTrue(numberOfIterations == actualFileCount || (numberOfIterations + 1) == actualFileCount);
+                MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations, numberOfIterations + 1)));
             } else {
                 // As delete is async its possible that the file gets created before the deletion or after
                 // deletion.
-                assertTrue(actualFileCount == 10 || actualFileCount == 11);
+                MatcherAssert.assertThat(actualFileCount, is(oneOf(10, 11)));
             }
         }, 30, TimeUnit.SECONDS);
     }
@@ -322,6 +325,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
-        assertTrue(numberOfIterations == actualFileCount || (numberOfIterations + 1) == actualFileCount);
+        MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations, numberOfIterations + 1)));
     }
 }
