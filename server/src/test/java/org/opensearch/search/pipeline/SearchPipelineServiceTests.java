@@ -1180,6 +1180,53 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertPipelineStats(stats.getTotalRequestStats(), 2, 0);
         assertPipelineStats(stats.getTotalResponseStats(), 2, 0);
 
+        for (SearchPipelineStats.PerPipelineStats perPipelineStats : stats.getPipelineStats()) {
+            SearchPipelineStats.PipelineDetailStats detailStats = stats.getPerPipelineProcessorStats()
+                .get(perPipelineStats.getPipelineId());
+            switch (perPipelineStats.getPipelineId()) {
+                case "good_request_pipeline":
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 1, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
+                    assertEquals(1, detailStats.requestProcessorStats().size());
+                    assertEquals(0, detailStats.responseProcessorStats().size());
+                    assertEquals("successful_request:2", detailStats.requestProcessorStats().get(0).getProcessorName());
+                    assertEquals("successful_request", detailStats.requestProcessorStats().get(0).getProcessorType());
+                    assertPipelineStats(detailStats.requestProcessorStats().get(0).getStats(), 1, 0);
+                    break;
+                case "bad_request_pipeline":
+                    //pipeline succeed when ignore failure is true
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 1, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
+                    assertEquals(1, detailStats.requestProcessorStats().size());
+                    assertEquals(0, detailStats.responseProcessorStats().size());
+                    assertEquals("throwing_request:1", detailStats.requestProcessorStats().get(0).getProcessorName());
+                    assertEquals("throwing_request", detailStats.requestProcessorStats().get(0).getProcessorType());
+                    //processor stats got 1 count and 1 failed
+                    assertPipelineStats(detailStats.requestProcessorStats().get(0).getStats(), 1, 1);
+                    break;
+                case "good_response_pipeline":
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 0, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 1, 0);
+                    assertEquals(0, detailStats.requestProcessorStats().size());
+                    assertEquals(1, detailStats.responseProcessorStats().size());
+                    assertEquals("successful_response:4", detailStats.responseProcessorStats().get(0).getProcessorName());
+                    assertEquals("successful_response", detailStats.responseProcessorStats().get(0).getProcessorType());
+                    assertPipelineStats(detailStats.responseProcessorStats().get(0).getStats(), 1, 0);
+                    break;
+                case "bad_response_pipeline":
+                    //pipeline succeed when ignore failure  is true
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 0, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 1, 0);
+                    assertEquals(0, detailStats.requestProcessorStats().size());
+                    assertEquals(1, detailStats.responseProcessorStats().size());
+                    assertEquals("throwing_response:3", detailStats.responseProcessorStats().get(0).getProcessorName());
+                    assertEquals("throwing_response", detailStats.responseProcessorStats().get(0).getProcessorType());
+                    //processor stats got 1 count and 1 failed
+                    assertPipelineStats(detailStats.responseProcessorStats().get(0).getStats(), 1, 1);
+                    break;
+            }
+        }
+
     }
 
     private SearchPipelineService getSearchPipelineService(
