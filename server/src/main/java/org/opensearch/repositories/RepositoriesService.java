@@ -149,19 +149,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         deleteRepositoryTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_REPOSITORY_KEY, true);
     }
 
-    public RepositoriesService repositories(Map<String, Repository> repositories) {
-        this.repositories = repositories;
-        return this;
-    }
-
-    public Map<String, Repository> repositories() {
-        return this.repositories;
-    }
-
-    public Map<String, Repository.Factory> typesRegistry() {
-        return this.typesRegistry;
-    }
-
     /**
      * Registers new repository in the cluster
      * <p>
@@ -589,7 +576,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Creates repository holder. This method starts the repository
      */
-    public Repository createRepository(RepositoryMetadata repositoryMetadata, Map<String, Repository.Factory> factories) {
+    private Repository createRepository(RepositoryMetadata repositoryMetadata, Map<String, Repository.Factory> factories) {
         logger.debug("creating repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name());
         Repository.Factory factory = factories.get(repositoryMetadata.type());
         if (factory == null) {
