@@ -19,10 +19,10 @@ import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.ProfileCollectorManager;
 import org.opensearch.search.query.QueryPhase.DefaultQueryPhaseSearcher;
-import org.opensearch.search.query.QueryPhase.TimeExceededException;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
@@ -80,12 +80,12 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         try {
             final ReduceableSearchResult result = searcher.search(query, collectorManager);
             result.reduce(queryResult);
-        } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
-            queryResult.terminatedEarly(true);
-        } catch (TimeExceededException e) {
+        } catch (RuntimeException re) {
+            rethrowCauseIfPossible(re, searchContext);
+        }
+        if (searchContext.isSearchTimedOut()) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
-                // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);
@@ -100,5 +100,27 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     @Override
     public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
         return aggregationProcessor;
+    }
+
+    private static <T extends Exception> void rethrowCauseIfPossible(RuntimeException re, SearchContext searchContext) throws T {
+        // Rethrow exception if cause is null
+        if (re.getCause() == null) {
+            throw re;
+        }
+
+        // Unwrap the RuntimeException and ExecutionException from Lucene concurrent search method and rethrow
+        if (re.getCause() instanceof ExecutionException || re.getCause() instanceof InterruptedException) {
+            Throwable t = re.getCause();
+            if (t.getCause() != null) {
+                throw (T) t.getCause();
+            }
+        }
+
+        // Rethrow any unexpected exception types
+        throw new QueryPhaseExecutionException(
+            searchContext.shardTarget(),
+            "Failed to execute concurrent segment search thread",
+            re.getCause()
+        );
     }
 }

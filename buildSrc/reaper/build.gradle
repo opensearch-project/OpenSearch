@@ -11,8 +11,10 @@
 
 apply plugin: 'java'
 
-targetCompatibility = JavaVersion.VERSION_11
-sourceCompatibility = JavaVersion.VERSION_11
+java {
+  targetCompatibility = JavaVersion.VERSION_11
+  sourceCompatibility = JavaVersion.VERSION_11
+}
 
 jar {
   archiveFileName = "${project.name}.jar"

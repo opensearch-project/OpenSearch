@@ -20,6 +20,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -34,8 +35,11 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
 
     private final Supplier<RepositoriesService> repositoriesService;
 
-    public RemoteSegmentStoreDirectoryFactory(Supplier<RepositoriesService> repositoriesService) {
+    private final ThreadPool threadPool;
+
+    public RemoteSegmentStoreDirectoryFactory(Supplier<RepositoriesService> repositoriesService, ThreadPool threadPool) {
         this.repositoriesService = repositoriesService;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -62,7 +66,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 shardId
             );
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager);
+            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool);
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }

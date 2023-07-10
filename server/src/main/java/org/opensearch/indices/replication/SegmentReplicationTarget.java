@@ -21,6 +21,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
@@ -221,18 +222,15 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
             Store store = null;
             try {
-                multiFileWriter.renameAllTempFiles();
                 store = store();
                 store.incRef();
-                // Deserialize the new SegmentInfos object sent from the primary.
-                final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
-                SegmentInfos infos = SegmentInfos.readCommit(
-                    store.directory(),
-                    toIndexInput(checkpointInfoResponse.getInfosBytes()),
-                    responseCheckpoint.getSegmentsGen()
+                CheckedConsumer<SegmentInfos, IOException> finalizeReplication = indexShard::finalizeReplication;
+                store.buildInfosFromBytes(
+                    multiFileWriter.getTempFileNames(),
+                    checkpointInfoResponse.getInfosBytes(),
+                    checkpointInfoResponse.getCheckpoint().getSegmentsGen(),
+                    finalizeReplication
                 );
-                cancellableThreads.checkForCancel();
-                indexShard.finalizeReplication(infos);
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are

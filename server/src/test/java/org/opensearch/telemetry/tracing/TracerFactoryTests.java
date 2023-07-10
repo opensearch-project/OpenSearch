@@ -45,7 +45,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
 
         Tracer tracer = tracerFactory.getTracer();
         assertTrue(tracer instanceof NoopTracer);
-        assertTrue(tracer.startSpan("foo") == Scope.NO_OP);
+        assertTrue(tracer.startSpan("foo") == SpanScope.NO_OP);
     }
 
     public void testGetTracerWithTracingEnabledReturnsDefaultTracer() {
