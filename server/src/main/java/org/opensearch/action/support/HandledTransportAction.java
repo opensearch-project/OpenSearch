@@ -97,7 +97,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         Writeable.Reader<Request> requestReader,
         TracerFactory tracerFactory
     ) {
-        this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, ThreadPool.Names.SAME, null);
+        this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, ThreadPool.Names.SAME, tracerFactory);
     }
 
     protected HandledTransportAction(
