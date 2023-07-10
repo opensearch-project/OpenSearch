@@ -8,57 +8,59 @@
 
 package org.opensearch.telemetry.tracing;
 
-import org.junit.After;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
-public class TracerFactoryTests extends OpenSearchTestCase {
+public class WrappedTracerTests extends OpenSearchTestCase {
 
-    private TracerFactory tracerFactory;
-
-    @After
-    public void close() {
-        tracerFactory.close();
-    }
-
-    public void testGetTracerWithUnavailableTracingTelemetryReturnsNoopTracer() {
+    public void testStartSpanWithTracingDisabledInvokesNoopTracer() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
-        Telemetry mockTelemetry = mock(Telemetry.class);
-        when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
-        tracerFactory = new TracerFactory(telemetrySettings, Optional.empty(), new ThreadContext(Settings.EMPTY));
+        DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
-        Tracer tracer = tracerFactory.getTracer();
+        WrappedTracer wrappedTracer = spy(new WrappedTracer(telemetrySettings, mockDefaultTracer));
 
-        assertTrue(tracer instanceof NoopTracer);
-        assertTrue(tracer.startSpan("foo") == SpanScope.NO_OP);
+        wrappedTracer.startSpan("foo");
+
+        assertTrue(wrappedTracer.getDelegateTracer() instanceof NoopTracer);
+        verify(mockDefaultTracer, never()).startSpan("foo");
     }
 
-    public void testGetTracerWithAvailableTracingTelemetryReturnsWrappedTracer() {
+    public void testStartSpanWithTracingEnabledInvokesDefaultTracer() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
-        Telemetry mockTelemetry = mock(Telemetry.class);
-        when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
-        tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), new ThreadContext(Settings.EMPTY));
+        DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
-        Tracer tracer = tracerFactory.getTracer();
-        assertTrue(tracer instanceof WrappedTracer);
+        WrappedTracer wrappedTracer = spy(new WrappedTracer(telemetrySettings, mockDefaultTracer));
 
+        wrappedTracer.startSpan("foo");
+
+        assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
+        verify(mockDefaultTracer).startSpan("foo");
+    }
+
+    public void testClose() throws IOException {
+        DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
+        WrappedTracer wrappedTracer = spy(new WrappedTracer(null, mockDefaultTracer));
+
+        wrappedTracer.close();
+
+        verify(mockDefaultTracer).close();
     }
 
     private Set<Setting<?>> getClusterSettings() {
