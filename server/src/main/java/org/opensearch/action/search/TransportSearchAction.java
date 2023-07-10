@@ -87,9 +87,7 @@ import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
-import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.TracerFactory;
-import org.opensearch.telemetry.tracing.listener.TracingActionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
@@ -159,7 +157,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
     private final SearchPipelineService searchPipelineService;
-    private final TracerFactory tracerFactory;
 
     @Inject
     public TransportSearchAction(
@@ -190,7 +187,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.searchPipelineService = searchPipelineService;
-        this.tracerFactory = tracerFactory;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -292,9 +288,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 listener
             );
         }
-        SpanScope scope = tracerFactory.getTracer().startSpan("SearchTask_" + task.getId());
-        TracingActionListener tracingActionListener = new TracingActionListener(tracerFactory, listener, scope);
-        executeRequest(task, searchRequest, this::searchAsyncAction, tracingActionListener);
+        executeRequest(task, searchRequest, this::searchAsyncAction, listener);
     }
 
     /**

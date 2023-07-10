@@ -32,6 +32,7 @@
 
 package org.opensearch.action.support;
 
+import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
@@ -48,6 +49,9 @@ import org.opensearch.tasks.TaskListener;
 import org.opensearch.tasks.TaskManager;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.TracerFactory;
+import org.opensearch.telemetry.tracing.listener.TracingActionListener;
 
 /**
  * Base class for a transport action
@@ -59,6 +63,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     public final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
+    private final Optional<TracerFactory> tracerFactory;
     /**
      * @deprecated declare your own logger.
      */
@@ -66,9 +71,14 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     protected Logger logger = LogManager.getLogger(getClass());
 
     protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+        this(actionName, actionFilters, taskManager, null);
+    }
+
+    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager, TracerFactory tracerFactory) {
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;
+        this.tracerFactory = Optional.ofNullable(tracerFactory);
     }
 
     private Releasable registerChildNode(TaskId parentTask) {
@@ -174,6 +184,12 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * Use this method when the transport action should continue to run in the context of the current task
      */
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
+        if (tracerFactory.isPresent()) {
+            SpanScope scope = tracerFactory.get().getTracer().startSpan(actionName);
+            scope.addSpanAttribute("task_id", task.getId());
+            listener = new TracingActionListener<>(tracerFactory.get(), listener, scope);
+        }
+
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
