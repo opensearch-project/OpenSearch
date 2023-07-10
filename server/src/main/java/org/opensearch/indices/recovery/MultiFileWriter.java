@@ -97,6 +97,10 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         return tempFilePrefix + origFile;
     }
 
+    public Map<String, String> getTempFileNames() {
+        return tempFileNames;
+    }
+
     public IndexOutput getOpenIndexOutput(String key) {
         ensureOpen.run();
         return openIndexOutputs.get(key);
