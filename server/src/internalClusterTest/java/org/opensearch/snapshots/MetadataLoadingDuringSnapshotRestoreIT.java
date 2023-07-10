@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This class tests whether global and index metadata are only loaded from the repository when needed.
- */
+*/
 public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
     @Override
