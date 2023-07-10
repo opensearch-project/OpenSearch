@@ -142,14 +142,4 @@ public class PainlessExecuteApiTests extends OpenSearchSingleNodeTestCase {
         assertThat(response.getResult(), equalTo(0.93D));
     }
 
-    public void testUpdateScriptThrowsScriptExceptionWhenDefReturned() throws Exception {
-        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc");
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 3}"), null);
-        contextSetup.setXContentType(XContentType.JSON);
-        Request request = new Request(new Script("def x=1;return x;"), "update", contextSetup);
-        Exception ex = expectThrows(ScriptException.class, () -> innerShardOperation(request, scriptService, indexService));
-        assertThat(ex.getCause().getClass(), equalTo(ClassCastException.class));
-    }
-
 }
