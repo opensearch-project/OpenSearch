@@ -23,40 +23,38 @@ import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 public class WrappedTracerTests extends OpenSearchTestCase {
 
-    public void testStartSpanWithTracingDisabledInvokesNoopTracer() {
+    public void testStartSpanWithTracingDisabledInvokesNoopTracer() throws Exception {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
-        WrappedTracer wrappedTracer = spy(new WrappedTracer(telemetrySettings, mockDefaultTracer));
-
-        wrappedTracer.startSpan("foo");
-
-        assertTrue(wrappedTracer.getDelegateTracer() instanceof NoopTracer);
-        verify(mockDefaultTracer, never()).startSpan("foo");
+        try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
+            wrappedTracer.startSpan("foo");
+            assertTrue(wrappedTracer.getDelegateTracer() instanceof NoopTracer);
+            verify(mockDefaultTracer, never()).startSpan("foo");
+        }
     }
 
-    public void testStartSpanWithTracingEnabledInvokesDefaultTracer() {
+    public void testStartSpanWithTracingEnabledInvokesDefaultTracer() throws Exception {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
-        WrappedTracer wrappedTracer = spy(new WrappedTracer(telemetrySettings, mockDefaultTracer));
+        try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
+            wrappedTracer.startSpan("foo");
 
-        wrappedTracer.startSpan("foo");
-
-        assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
-        verify(mockDefaultTracer).startSpan("foo");
+            assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
+            verify(mockDefaultTracer).startSpan("foo");
+        }
     }
 
     public void testClose() throws IOException {
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
-        WrappedTracer wrappedTracer = spy(new WrappedTracer(null, mockDefaultTracer));
+        WrappedTracer wrappedTracer = new WrappedTracer(null, mockDefaultTracer);
 
         wrappedTracer.close();
 
