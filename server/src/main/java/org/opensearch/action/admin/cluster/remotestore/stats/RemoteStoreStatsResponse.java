@@ -37,12 +37,9 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
 
     private Map<String, Map<Integer, List<RemoteStoreStats>>> indexWiseStats;
 
-    private final Logger logger;
-
     public RemoteStoreStatsResponse(StreamInput in) throws IOException {
         super(in);
         remoteStoreStats = in.readArray(RemoteStoreStats::new, RemoteStoreStats[]::new);
-        this.logger = Loggers.getLogger(getClass(), "sample-index");
     }
 
     public RemoteStoreStatsResponse(
@@ -54,7 +51,6 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.remoteStoreStats = shards;
-        this.logger = Loggers.getLogger(getClass(), "sample-index");
     }
 
     public RemoteStoreStats[] getRemoteStoreStats() {
@@ -89,7 +85,7 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
         return indexWiseStats;
     }
 
-    public Map<Integer, List<RemoteStoreStats>> groupByShards(Set<RemoteStoreStats> perIndexStats) {
+    private Map<Integer, List<RemoteStoreStats>> groupByShards(Set<RemoteStoreStats> perIndexStats) {
         Map<Integer, List<RemoteStoreStats>> shardStats = new HashMap<>();
         Set<Integer> shardIds = new HashSet<>();
         for (RemoteStoreStats eachShardStats : perIndexStats) {
