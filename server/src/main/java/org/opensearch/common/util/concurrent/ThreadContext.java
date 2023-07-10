@@ -149,8 +149,7 @@ public final class ThreadContext implements Writeable {
          * Otherwise when context is stash, it should be empty.
          */
 
-        ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
-        threadContextStruct = threadContextStruct.putPersistent(context.persistentHeaders);
+        ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putPersistent(context.persistentHeaders);
 
         if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
             threadContextStruct = threadContextStruct.putHeaders(

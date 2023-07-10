@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add events correlation engine plugin ([#6854](https://github.com/opensearch-project/OpenSearch/issues/6854))
 - Add support for ignoring missing Javadoc on generated code using annotation ([#7604](https://github.com/opensearch-project/OpenSearch/pull/7604))
+- Add partial results support for concurrent segment search ([#8306](https://github.com/opensearch-project/OpenSearch/pull/8306))
 
 ### Dependencies
 - Bump `log4j-core` from 2.18.0 to 2.19.0
@@ -100,10 +101,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Adds mock implementation for TelemetryPlugin ([#7545](https://github.com/opensearch-project/OpenSearch/issues/7545))
 - Support transport action names when registering NamedRoutes ([#7957](https://github.com/opensearch-project/OpenSearch/pull/7957))
 - Create concept of persistent ThreadContext headers that are unstashable ([#8291]()https://github.com/opensearch-project/OpenSearch/pull/8291)
+- Enable Partial Flat Object ([#7997](https://github.com/opensearch-project/OpenSearch/pull/7997))
 
 ### Dependencies
 - Bump `com.azure:azure-storage-common` from 12.21.0 to 12.21.1 (#7566, #7814)
-- Bump `com.google.guava:guava` from 30.1.1-jre to 32.0.0-jre (#7565, #7811, #7807, #7808)
+- Bump `com.google.guava:guava` from 30.1.1-jre to 32.1.1-jre (#7565, #7811, #7807, #7808, #8402, #8400, #8401)
 - Bump `net.minidev:json-smart` from 2.4.10 to 2.4.11 (#7660, #7812)
 - Bump `org.gradle.test-retry` from 1.5.2 to 1.5.3 (#7810)
 - Bump `com.diffplug.spotless` from 6.17.0 to 6.18.0 (#7896)
@@ -153,7 +155,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Check UTF16 string size before converting to String to avoid OOME ([#7963](https://github.com/opensearch-project/OpenSearch/pull/7963))
 - Move ZSTD compression codecs out of the sandbox ([#7908](https://github.com/opensearch-project/OpenSearch/pull/7908))
 - Update ZSTD default compression level ([#8471](https://github.com/opensearch-project/OpenSearch/pull/8471))
-
+- [Search Pipelines] Pass pipeline creation context to processor factories ([#8164](https://github.com/opensearch-project/OpenSearch/pull/8164))
+- Enabling compression levels for zstd and zstd_no_dict ([#8312](https://github.com/opensearch-project/OpenSearch/pull/8312))
+- Optimize Metadata build() to skip redundant computations as part of ClusterState build ([#7853](https://github.com/opensearch-project/OpenSearch/pull/7853))
 
 ### Deprecated
 
