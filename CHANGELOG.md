@@ -138,6 +138,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.maven:maven-model` from 3.9.2 to 3.9.3 (#8403)
 - Bump `io.projectreactor.netty:reactor-netty` and `io.projectreactor.netty:reactor-netty-core` from 1.1.7 to 1.1.8 (#8405)
 - Bump `com.azure:azure-storage-blob` from 12.22.2 to 12.22.3 (#8572)
+- Bump `com.google.jimfs:jimfs` from 1.2 to 1.3.0 (#8577)
 - Bump `net.minidev:json-smart` from 2.4.11 to 2.5.0 (#8569)
 
 ### Changed
@@ -175,6 +176,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix mapping char_filter when mapping a hashtag ([#7591](https://github.com/opensearch-project/OpenSearch/pull/7591))
 - Fix NPE in multiterms aggregations involving empty buckets ([#7318](https://github.com/opensearch-project/OpenSearch/pull/7318))
 - Precise system clock time in MasterService debug logs ([#7902](https://github.com/opensearch-project/OpenSearch/pull/7902))
+- Improve indexing performance for flat_object type ([#7855](https://github.com/opensearch-project/OpenSearch/pull/7855))
 
 ### Security
 
