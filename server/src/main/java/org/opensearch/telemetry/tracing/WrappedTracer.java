@@ -15,8 +15,10 @@ import java.io.IOException;
 
 /**
  * Wrapper implementation of Tracer. This delegates call to right tracer based on the tracer settings
+ *
+ * @opensearch.internal
  */
-public class WrappedTracer implements Tracer {
+final class WrappedTracer implements Tracer {
 
     private final Tracer defaultTracer;
     private final TelemetrySettings telemetrySettings;
