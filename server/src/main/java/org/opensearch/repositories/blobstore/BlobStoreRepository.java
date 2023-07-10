@@ -143,7 +143,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -836,35 +835,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Version repositoryMetaVersion,
         ActionListener<RepositoryData> listener
     ) {
-        if (isReadOnly()) {
-            listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
-        } else {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
-                @Override
-                protected void doRun() throws Exception {
-                    final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs();
-                    final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
-                    // Cache the indices that were found before writing out the new index-N blob so that a stuck cluster-manager will never
-                    // delete an index that was created by another cluster-manager node after writing this index-N blob.
-                    final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
-                    doDeleteShardSnapshots(
-                        snapshotIds,
-                        repositoryStateId,
-                        foundIndices,
-                        rootBlobs,
-                        repositoryData,
-                        repositoryMetaVersion,
-                        null, // Passing null since no remote store lock files need to be cleaned up.
-                        listener
-                    );
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshots " + snapshotIds, e));
-                }
-            });
-        }
+        deleteSnapshotsAndReleaseLockFiles(
+            snapshotIds,
+            repositoryStateId,
+            repositoryMetaVersion,
+            null, // Passing null since no remote store lock files need to be cleaned up.
+            listener
+        );
     }
 
     /**
@@ -941,7 +918,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) {
         // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
         final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep = new StepListener<>();
-        writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, true, writeShardMetaDataAndComputeDeletesStep);
+        writeUpdatedShardMetaDataAndComputeDeletes(
+            snapshotIds,
+            repositoryData,
+            true,
+            remoteStoreLockManagerFactory,
+            writeShardMetaDataAndComputeDeletesStep
+        );
         // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
         // 1. Remove the snapshots from the list of existing snapshots
         // 2. Update the index shard generations of all updated shard folders
@@ -1048,6 +1031,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    // When remoteStoreLockManagerFactory is non-null, while deleting the files, lock files are also released before deletion of respective
+    // shallow-snap-UUID files. And if it is null, we just delete the stale shard blobs.
     private void executeStaleShardDelete(
         BlockingQueue<List<String>> staleFilesToDeleteInBatch,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
@@ -1086,12 +1071,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     FileLockInfo.getLockInfoBuilder().withAcquirerId(snapshotUUID).build()
                                 );
                             }
-                            // Deleting the shard blob
-                            blobContainer().deleteBlobsIgnoringIfNotExists(Arrays.asList(fileToDelete));
                         }
-                    } else {
-                        deleteFromContainer(blobContainer(), filesToDelete);
                     }
+                    // Deleting the shard blobs
+                    deleteFromContainer(blobContainer(), filesToDelete);
                     l.onResponse(null);
                 } catch (Exception e) {
                     logger.warn(
@@ -1114,6 +1097,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> snapshotIds,
         RepositoryData oldRepositoryData,
         boolean useUUIDs,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
     ) {
 
@@ -1220,7 +1204,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     shardContainer,
                                     blobs,
                                     blobStoreIndexShardSnapshots,
-                                    newGen
+                                    newGen,
+                                    remoteStoreLockManagerFactory
                                 )
                             );
                         }
@@ -1553,6 +1538,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } catch (Exception e) {
                     assert false : e;
                     logger.warn(new ParameterizedMessage("[{}] Exception during single stale index delete", metadata.name()), e);
+                    listener.onFailure(e);
                 }
 
                 executeOneStaleIndexDelete(staleIndicesToDelete, remoteStoreLockManagerFactory, listener);
@@ -3091,7 +3077,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         BlobContainer shardContainer,
         Set<String> blobs,
         BlobStoreIndexShardSnapshots snapshots,
-        long indexGeneration
+        long indexGeneration,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory
     ) {
         // Build a list of snapshots that should be preserved
         List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
@@ -3128,7 +3115,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     indexId,
                     snapshotShardId,
                     writtenGeneration,
-                    unusedBlobs(blobs, survivingSnapshotUUIDs, updatedSnapshots)
+                    unusedBlobs(blobs, survivingSnapshotUUIDs, updatedSnapshots, remoteStoreLockManagerFactory)
                 );
             }
         } catch (IOException e) {
@@ -3162,11 +3149,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Unused blobs are all previous index-, data- and meta-blobs and that are not referenced by the new index- as well as all
-    // temporary blobs
+    // temporary blobs. If remoteStoreLockManagerFactory is non-null, the shallow-snap- files that do not belong to any of the
+    // surviving snapshots are also added for cleanup.
     private static List<String> unusedBlobs(
         Set<String> blobs,
         Set<String> survivingSnapshotUUIDs,
-        BlobStoreIndexShardSnapshots updatedSnapshots
+        BlobStoreIndexShardSnapshots updatedSnapshots,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory
     ) {
         return blobs.stream()
             .filter(
@@ -3176,11 +3165,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         && survivingSnapshotUUIDs.contains(
                             blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
                         ) == false)
-                    || (blob.startsWith(SHALLOW_SNAPSHOT_PREFIX)
-                        && blob.endsWith(".dat")
-                        && survivingSnapshotUUIDs.contains(
-                            blob.substring(SHALLOW_SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
-                        ) == false)
+                    || (remoteStoreLockManagerFactory != null
+                        ? (blob.startsWith(SHALLOW_SNAPSHOT_PREFIX)
+                            && blob.endsWith(".dat")
+                            && survivingSnapshotUUIDs.contains(
+                                blob.substring(SHALLOW_SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
+                            ) == false)
+                        : false)
                     || (blob.startsWith(UPLOADED_DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
                     || FsBlobContainer.isTempBlobName(blob)
             )

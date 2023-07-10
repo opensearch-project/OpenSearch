@@ -2232,6 +2232,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : "incorrect state for entry [" + deleteEntry + "]";
             final Repository repository = repositoriesService.repository(deleteEntry.repository());
             StepListener<Boolean> checkForShallowSnapshotStep = new StepListener<Boolean>();
+
+            // This check is done to preserve the bwc with repository implementations that don't support shallow snapshot
+            // and use the existing deleteSnapshots API of Repository plugin. For other repositories, we expect them to implement
+            // new delete API - deleteSnapshotsAndReleaseLockFiles or use the one implemented by BlobStoreRepository.
+            // TODO This can be improved by having this information (whether the repository contains any shallow copy snapshot)
+            // in the RepositoryData instead of fetching snapshot info for each snapshot and verifying.
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
