@@ -1324,9 +1324,4 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(2, nodes);
     }
-
-    private boolean segmentReplicationWithRemoteEnabled() {
-        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue()
-            && "true".equalsIgnoreCase(featureFlagSettings().get(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL));
-    }
 }
