@@ -123,21 +123,7 @@ public class NRTReplicationEngine extends Engine {
         return new NRTReplicationReaderManager(
             OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
             store::incRefFileDeleter,
-            (files) -> {
-                store.decRefFileDeleter(files);
-                try {
-                    store.cleanupAndPreserveLatestCommitPoint(
-                        "On reader closed",
-                        getLatestSegmentInfos(),
-                        getLastCommittedSegmentInfos(),
-                        false
-                    );
-                } catch (IOException e) {
-                    // Log but do not rethrow - we can try cleaning up again after next replication cycle.
-                    // If that were to fail, the shard will as well.
-                    logger.error("Unable to clean store after reader closed", e);
-                }
-            }
+            store::decRefFileDeleter
         );
     }
 
@@ -147,9 +133,9 @@ public class NRTReplicationEngine extends Engine {
     }
 
     public synchronized void updateSegments(final SegmentInfos infos) throws IOException {
-        // Update the current infos reference on the Engine's reader.
-        ensureOpen();
         try (ReleasableLock lock = writeLock.acquire()) {
+            // Update the current infos reference on the Engine's reader.
+            ensureOpen();
             final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
             final long incomingGeneration = infos.getGeneration();
             readerManager.updateSegments(infos);

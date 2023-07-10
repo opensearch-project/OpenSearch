@@ -32,8 +32,8 @@ public class ZstdCodec extends Lucene95CustomCodec {
         super(Mode.ZSTD, compressionLevel);
     }
 
-    public ZstdCodec(MapperService mapperService, Logger logger) {
-        super(Mode.ZSTD, DEFAULT_COMPRESSION_LEVEL, mapperService, logger);
+    public ZstdCodec(MapperService mapperService, Logger logger, int compressionLevel) {
+        super(Mode.ZSTD, compressionLevel, mapperService, logger);
     }
 
     /** The name for this codec. */
