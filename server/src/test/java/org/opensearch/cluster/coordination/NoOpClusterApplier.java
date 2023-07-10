@@ -48,8 +48,8 @@ public class NoOpClusterApplier implements ClusterApplier {
         listener.onSuccess(source);
     }
 
-    @Override
-    public void setInitialProtobufState(ProtobufClusterState initialState) {
+    // @Override
+    // public void setInitialProtobufState(ProtobufClusterState initialState) {
 
-    }
+    // }
 }

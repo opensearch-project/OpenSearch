@@ -171,13 +171,13 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterApplierService.state();
     }
 
-    /**
-     * The currently applied cluster state.
-     * TODO: Should be renamed to appliedState / appliedClusterState
-     */
-    public ProtobufClusterState protobufState() {
-        return clusterApplierService.protobufState();
-    }
+    // /**
+    //  * The currently applied cluster state.
+    //  * TODO: Should be renamed to appliedState / appliedClusterState
+    //  */
+    // public ProtobufClusterState protobufState() {
+    //     return clusterApplierService.protobufState();
+    // }
 
     /**
      * Adds a high priority applier of updated cluster states.

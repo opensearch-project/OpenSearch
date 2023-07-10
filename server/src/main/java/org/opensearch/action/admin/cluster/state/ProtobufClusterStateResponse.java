@@ -18,7 +18,7 @@ import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.cluster.ProtobufClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 
@@ -32,18 +32,18 @@ import java.io.IOException;
 public class ProtobufClusterStateResponse extends ProtobufActionResponse {
 
     private ClusterName clusterName;
-    private ProtobufClusterState clusterState;
+    private ClusterState clusterState;
     private boolean waitForTimedOut = false;
 
     public ProtobufClusterStateResponse(CodedInputStream in) throws IOException {
         super(in);
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         clusterName = new ClusterName(in);
-        clusterState = protobufStreamInput.readOptionalWriteable(innerIn -> ProtobufClusterState.readFrom(innerIn, null));
+        clusterState = protobufStreamInput.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
         waitForTimedOut = in.readBool();
     }
 
-    public ProtobufClusterStateResponse(ClusterName clusterName, ProtobufClusterState clusterState, boolean waitForTimedOut) {
+    public ProtobufClusterStateResponse(ClusterName clusterName, ClusterState clusterState, boolean waitForTimedOut) {
         this.clusterName = clusterName;
         this.clusterState = clusterState;
         this.waitForTimedOut = waitForTimedOut;
@@ -53,7 +53,7 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
      * The requested cluster state.  Only the parts of the cluster state that were
     * requested are included in the returned {@link ClusterState} instance.
     */
-    public ProtobufClusterState getState() {
+    public ClusterState getState() {
         return this.clusterState;
     }
 
@@ -74,6 +74,7 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
+        System.out.println("Inside writeTo of ProtobufClusterStateResponse");
         ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         clusterName.writeTo(out);
         protobufStreamOutput.writeOptionalWriteable(clusterState);
@@ -82,6 +83,6 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
 
     @Override
     public String toString() {
-        return "ClusterStateResponse{" + "clusterState=" + clusterState + '}';
+        return "ProtobufClusterStateResponse{" + "clusterState=" + clusterState + '}';
     }
 }

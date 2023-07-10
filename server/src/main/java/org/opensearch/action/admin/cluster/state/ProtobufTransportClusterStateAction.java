@@ -15,12 +15,12 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.clustermanager.ProtobufTransportClusterManagerNodeReadAction;
-import org.opensearch.cluster.ProtobufClusterState;
-import org.opensearch.cluster.ProtobufClusterStateObserver;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.ProtobufIndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -59,7 +59,7 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
         ClusterService clusterService,
         ThreadPool threadPool,
         ProtobufActionFilters actionFilters,
-        ProtobufIndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             ClusterStateAction.NAME,
@@ -85,7 +85,7 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ProtobufClusterStateRequest request, ProtobufClusterState state) {
+    protected ClusterBlockException checkBlock(ProtobufClusterStateRequest request, ClusterState state) {
         // cluster state calls are done also on a fully blocked cluster to figure out what is going
         // on in the cluster. For example, which nodes have joined yet the recovery has not yet kicked
         // in, we need to make sure we allow those calls
@@ -96,15 +96,15 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
     @Override
     protected void clusterManagerOperation(
         final ProtobufClusterStateRequest request,
-        final ProtobufClusterState state,
+        final ClusterState state,
         final ActionListener<ProtobufClusterStateResponse> listener
     ) throws IOException {
 
-        final Predicate<ProtobufClusterState> acceptableClusterStatePredicate = request.waitForMetadataVersion() == null
+        final Predicate<ClusterState> acceptableClusterStatePredicate = request.waitForMetadataVersion() == null
             ? clusterState -> true
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
 
-        final Predicate<ProtobufClusterState> acceptableClusterStateOrNotMasterPredicate = request.local()
+        final Predicate<ClusterState> acceptableClusterStateOrNotMasterPredicate = request.local()
             ? acceptableClusterStatePredicate
             : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedClusterManager() == false);
 
@@ -112,11 +112,11 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
             assert acceptableClusterStateOrNotMasterPredicate.test(state) == false;
-            new ProtobufClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
-                .waitForNextChange(new ProtobufClusterStateObserver.Listener() {
+            new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
+                .waitForNextChange(new ClusterStateObserver.Listener() {
 
                     @Override
-                    public void onNewClusterState(ProtobufClusterState newState) {
+                    public void onNewClusterState(ClusterState newState) {
                         if (acceptableClusterStatePredicate.test(newState)) {
                             ActionListener.completeWith(listener, () -> buildResponse(request, newState));
                         } else {
@@ -145,9 +145,9 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
         }
     }
 
-    private ProtobufClusterStateResponse buildResponse(final ProtobufClusterStateRequest request, final ProtobufClusterState currentState) {
+    private ProtobufClusterStateResponse buildResponse(final ProtobufClusterStateRequest request, final ClusterState currentState) {
         logger.trace("Serving cluster state request using version {}", currentState.version());
-        ProtobufClusterState.Builder builder = ProtobufClusterState.builder(currentState.getClusterName());
+        ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
         builder.stateUUID(currentState.stateUUID());
 
@@ -200,7 +200,7 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
         builder.metadata(mdBuilder);
 
         if (request.customs()) {
-            for (ObjectObjectCursor<String, ProtobufClusterState.Custom> custom : currentState.customs()) {
+            for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
                 if (custom.value.isPrivate() == false) {
                     builder.putCustom(custom.key, custom.value);
                 }

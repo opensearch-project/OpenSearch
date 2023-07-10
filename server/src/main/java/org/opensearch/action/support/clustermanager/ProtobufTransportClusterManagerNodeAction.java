@@ -20,13 +20,14 @@ import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.ProtobufHandledTransportAction;
 import org.opensearch.action.support.RetryableAction;
-import org.opensearch.cluster.ProtobufClusterState;
-import org.opensearch.cluster.ProtobufClusterStateObserver;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateObserver;
+import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterManagerNodeChangePredicate;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.opensearch.cluster.metadata.ProtobufIndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -62,7 +63,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
     protected final ThreadPool threadPool;
     protected final ProtobufTransportService transportService;
     protected final ClusterService clusterService;
-    protected final ProtobufIndexNameExpressionResolver indexNameExpressionResolver;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final String executor;
 
@@ -73,7 +74,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
         ThreadPool threadPool,
         ProtobufActionFilters actionFilters,
         ProtobufWriteable.Reader<Request> request,
-        ProtobufIndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
@@ -86,7 +87,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
         ThreadPool threadPool,
         ProtobufActionFilters actionFilters,
         ProtobufWriteable.Reader<Request> request,
-        ProtobufIndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
@@ -101,25 +102,25 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
     protected abstract Response read(CodedInputStream in) throws IOException;
 
     /**
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ProtobufClusterManagerNodeRequest, ProtobufClusterState, ActionListener)}
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ProtobufClusterManagerNodeRequest, ClusterState, ActionListener)}
      */
     @Deprecated
-    protected void masterOperation(Request request, ProtobufClusterState state, ActionListener<Response> listener) throws Exception {
+    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         throw new UnsupportedOperationException("Must be overridden");
     }
 
     // TODO: Add abstract keyword after removing the deprecated masterOperation()
-    protected void clusterManagerOperation(Request request, ProtobufClusterState state, ActionListener<Response> listener)
+    protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
         masterOperation(request, state, listener);
     }
 
     /**
      * Override this operation if access to the task parameter is needed
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ProtobufTask, ProtobufClusterManagerNodeRequest, ProtobufClusterState, ActionListener)}
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ProtobufTask, ProtobufClusterManagerNodeRequest, ClusterState, ActionListener)}
      */
     @Deprecated
-    protected void masterOperation(ProtobufTask task, Request request, ProtobufClusterState state, ActionListener<Response> listener)
+    protected void masterOperation(ProtobufTask task, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
         clusterManagerOperation(request, state, listener);
     }
@@ -131,7 +132,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
     protected void clusterManagerOperation(
         ProtobufTask task,
         Request request,
-        ProtobufClusterState state,
+        ClusterState state,
         ActionListener<Response> listener
     ) throws Exception {
         masterOperation(task, request, state, listener);
@@ -141,7 +142,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
         return false;
     }
 
-    protected abstract ClusterBlockException checkBlock(Request request, ProtobufClusterState state);
+    protected abstract ClusterBlockException checkBlock(Request request, ClusterState state);
 
     @Override
     protected void doExecute(ProtobufTask task, final Request request, ActionListener<Response> listener) {
@@ -160,7 +161,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
 
         private ActionListener<Response> listener;
         private final Request request;
-        private ProtobufClusterStateObserver observer;
+        private ClusterStateObserver observer;
         private final long startTime;
         private final ProtobufTask task;
 
@@ -184,7 +185,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
 
         @Override
         public void tryAction(ActionListener retryListener) {
-            ProtobufClusterState state = clusterService.protobufState();
+            ClusterState state = clusterService.state();
             logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
             this.listener = retryListener;
             doStart(state);
@@ -213,7 +214,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
             return new ProcessClusterEventTimeoutException(request.masterNodeTimeout, actionName);
         }
 
-        protected void doStart(ProtobufClusterState clusterState) {
+        protected void doStart(ClusterState clusterState) {
             try {
                 System.out.println("ProtobufTransportClusterManagerNodeAction.doStart");
                 //this needs fixing
@@ -304,11 +305,11 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
             }
         }
 
-        private void retryOnMasterChange(ProtobufClusterState state, Throwable failure) {
-            retry(state, failure, ClusterManagerNodeChangePredicate.buildProtobuf(state));
+        private void retryOnMasterChange(ClusterState state, Throwable failure) {
+            retry(state, failure, ClusterManagerNodeChangePredicate.build(state));
         }
 
-        private void retry(ProtobufClusterState state, final Throwable failure, final Predicate<ProtobufClusterState> statePredicate) {
+        private void retry(ClusterState state, final Throwable failure, final Predicate<ClusterState> statePredicate) {
             if (observer == null) {
                 final long remainingTimeoutMS = request.clusterManagerNodeTimeout().millis() - (threadPool.relativeTimeInMillis()
                     - startTime);
@@ -317,7 +318,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
                     listener.onFailure(new ClusterManagerNotDiscoveredException(failure));
                     return;
                 }
-                this.observer = new ProtobufClusterStateObserver(
+                this.observer = new ClusterStateObserver(
                     state,
                     clusterService,
                     TimeValue.timeValueMillis(remainingTimeoutMS),
@@ -325,9 +326,9 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
                     threadPool.getThreadContext()
                 );
             }
-            observer.waitForNextChange(new ProtobufClusterStateObserver.Listener() {
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
-                public void onNewClusterState(ProtobufClusterState state) {
+                public void onNewClusterState(ClusterState state) {
                     doStart(state);
                 }
 

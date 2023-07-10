@@ -102,7 +102,7 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.ProtobufClusterState;
-import org.opensearch.cluster.ProtobufClusterStateObserver;
+// import org.opensearch.cluster.ProtobufClusterStateObserver;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -131,7 +131,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.NodeAndClusterIdStateListener;
-import org.opensearch.common.logging.ProtobufNodeAndClusterIdStateListener;
+// import org.opensearch.common.logging.ProtobufNodeAndClusterIdStateListener;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
@@ -1461,25 +1461,25 @@ public class Node implements Closeable {
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
-        configureProtobufNodeAndClusterIdStateListener(clusterService);
+        // configureProtobufNodeAndClusterIdStateListener(clusterService);
 
         ClusterState clusterState1 = clusterService.state();
         System.out.println("Cluster state: " + clusterState1);
-        ProtobufClusterState protobufClusterState1 = clusterService.protobufState();
-        System.out.println("Protobuf Cluster state: " + protobufClusterState1);
+        // ProtobufClusterState protobufClusterState1 = clusterService.protobufState();
+        // System.out.println("Protobuf Cluster state: " + protobufClusterState1);
 
         if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterState clusterState = clusterService.state();
-            ProtobufClusterState protobufClusterState = clusterService.protobufState();
+            // ProtobufClusterState protobufClusterState = clusterService.protobufState();
             ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
-            ProtobufClusterStateObserver protobufObserver = new ProtobufClusterStateObserver(
-                protobufClusterState,
-                clusterService,
-                null,
-                logger,
-                thread.getThreadContext()
-            );
+            // ProtobufClusterStateObserver protobufObserver = new ProtobufClusterStateObserver(
+            //     protobufClusterState,
+            //     clusterService,
+            //     null,
+            //     logger,
+            //     thread.getThreadContext()
+            // );
 
             if (clusterState.nodes().getClusterManagerNodeId() == null) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
@@ -1508,33 +1508,33 @@ public class Node implements Closeable {
                     throw new OpenSearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
             }
-            if (protobufClusterState.nodes().getClusterManagerNodeId() == null) {
-                logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
-                final CountDownLatch latch = new CountDownLatch(1);
-                protobufObserver.waitForNextChange(new ProtobufClusterStateObserver.Listener() {
-                    @Override
-                    public void onNewClusterState(ProtobufClusterState state) {
-                        latch.countDown();
-                    }
+            // if (protobufClusterState.nodes().getClusterManagerNodeId() == null) {
+            //     logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
+            //     final CountDownLatch latch = new CountDownLatch(1);
+            //     protobufObserver.waitForNextChange(new ProtobufClusterStateObserver.Listener() {
+            //         @Override
+            //         public void onNewClusterState(ProtobufClusterState state) {
+            //             latch.countDown();
+            //         }
 
-                    @Override
-                    public void onClusterServiceClose() {
-                        latch.countDown();
-                    }
+            //         @Override
+            //         public void onClusterServiceClose() {
+            //             latch.countDown();
+            //         }
 
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        logger.warn("timed out while waiting for initial discovery state - timeout: {}", initialStateTimeout);
-                        latch.countDown();
-                    }
-                }, state -> state.nodes().getClusterManagerNodeId() != null, initialStateTimeout);
+            //         @Override
+            //         public void onTimeout(TimeValue timeout) {
+            //             logger.warn("timed out while waiting for initial discovery state - timeout: {}", initialStateTimeout);
+            //             latch.countDown();
+            //         }
+            //     }, state -> state.nodes().getClusterManagerNodeId() != null, initialStateTimeout);
 
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new OpenSearchTimeoutException("Interrupted while waiting for initial discovery state");
-                }
-            }
+            //     try {
+            //         latch.await();
+            //     } catch (InterruptedException e) {
+            //         throw new OpenSearchTimeoutException("Interrupted while waiting for initial discovery state");
+            //     }
+            // }
         }
 
         injector.getInstance(HttpServerTransport.class).start();
@@ -1560,12 +1560,12 @@ public class Node implements Closeable {
         );
     }
 
-    protected void configureProtobufNodeAndClusterIdStateListener(ClusterService clusterService) {
-        ProtobufNodeAndClusterIdStateListener.getAndSetNodeIdAndClusterId(
-            clusterService,
-            injector.getInstance(ThreadPool.class).getThreadContext()
-        );
-    }
+    // protected void configureProtobufNodeAndClusterIdStateListener(ClusterService clusterService) {
+    //     ProtobufNodeAndClusterIdStateListener.getAndSetNodeIdAndClusterId(
+    //         clusterService,
+    //         injector.getInstance(ThreadPool.class).getThreadContext()
+    //     );
+    // }
 
     private Node stop() {
         if (!lifecycle.moveToStopped()) {

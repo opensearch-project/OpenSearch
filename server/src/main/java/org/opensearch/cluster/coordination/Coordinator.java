@@ -613,6 +613,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 processJoinRequest(joinRequest, joinCallback);
             }
         }, joinCallback::onFailure));
+
+        
     }
 
     // package private for tests
@@ -853,19 +855,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .build();
-            ProtobufClusterState protobufInitialState = ProtobufClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                .blocks(
-                    ClusterBlocks.builder()
-                        .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-                        .addGlobalBlock(noClusterManagerBlockService.getNoClusterManagerBlock())
-                )
-                .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
-                .build();
+            // ProtobufClusterState protobufInitialState = ProtobufClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+            //     .blocks(
+            //         ClusterBlocks.builder()
+            //             .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+            //             .addGlobalBlock(noClusterManagerBlockService.getNoClusterManagerBlock())
+            //     )
+            //     .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
+            //     .build();
             System.out.println("cluster state initial: " + initialState);
-            System.out.println("protobuf cluster state initial: " + protobufInitialState);
+            // System.out.println("protobuf cluster state initial: " + protobufInitialState);
             applierState = initialState;
             clusterApplier.setInitialState(initialState);
-            clusterApplier.setInitialProtobufState(protobufInitialState);
+            // clusterApplier.setInitialProtobufState(protobufInitialState);
         }
     }
 

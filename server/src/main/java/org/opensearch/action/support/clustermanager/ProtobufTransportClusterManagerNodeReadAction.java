@@ -10,7 +10,7 @@ package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.action.support.ProtobufActionFilters;
-import org.opensearch.cluster.metadata.ProtobufIndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.threadpool.ThreadPool;
@@ -33,7 +33,7 @@ public abstract class ProtobufTransportClusterManagerNodeReadAction<
         ThreadPool threadPool,
         ProtobufActionFilters actionFilters,
         ProtobufWriteable.Reader<Request> request,
-        ProtobufIndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
@@ -46,7 +46,7 @@ public abstract class ProtobufTransportClusterManagerNodeReadAction<
         ThreadPool threadPool,
         ProtobufActionFilters actionFilters,
         ProtobufWriteable.Reader<Request> request,
-        ProtobufIndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             actionName,

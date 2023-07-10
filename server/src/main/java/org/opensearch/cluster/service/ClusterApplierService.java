@@ -115,7 +115,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private final Map<TimeoutClusterStateListener, NotifyTimeout> timeoutClusterStateListeners = new ConcurrentHashMap<>();
 
     private final AtomicReference<ClusterState> state; // last applied state
-    private final AtomicReference<ProtobufClusterState> protobufState; // last applied state
+    // private final AtomicReference<ProtobufClusterState> protobufState; // last applied state
 
     private final String nodeName;
 
@@ -125,7 +125,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
-        this.protobufState = new AtomicReference<>();
+        // this.protobufState = new AtomicReference<>();
         this.nodeName = nodeName;
 
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -153,14 +153,14 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         state.set(initialState);
     }
 
-    @Override
-    public void setInitialProtobufState(ProtobufClusterState initialState) {
-        if (lifecycle.started()) {
-            throw new IllegalStateException("can't set initial state when started");
-        }
-        assert protobufState.get() == null : "state is already set";
-        protobufState.set(initialState);
-    }
+    // @Override
+    // public void setInitialProtobufState(ProtobufClusterState initialState) {
+    //     if (lifecycle.started()) {
+    //         throw new IllegalStateException("can't set initial state when started");
+    //     }
+    //     assert protobufState.get() == null : "state is already set";
+    //     protobufState.set(initialState);
+    // }
 
     @Override
     protected synchronized void doStart() {
@@ -226,16 +226,16 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         return clusterState;
     }
 
-    /**
-     * The current cluster state.
-     * Should be renamed to appliedClusterState
-     */
-    public ProtobufClusterState protobufState() {
-        assert assertNotCalledFromClusterStateApplier("the applied cluster state is not yet available");
-        ProtobufClusterState clusterState = this.protobufState.get();
-        assert clusterState != null : "initial cluster state not set yet";
-        return clusterState;
-    }
+    // /**
+    //  * The current cluster state.
+    //  * Should be renamed to appliedClusterState
+    //  */
+    // public ProtobufClusterState protobufState() {
+    //     assert assertNotCalledFromClusterStateApplier("the applied cluster state is not yet available");
+    //     ProtobufClusterState clusterState = this.protobufState.get();
+    //     assert clusterState != null : "initial cluster state not set yet";
+    //     return clusterState;
+    // }
 
     /**
      * Returns true if the appliedClusterState is not null
