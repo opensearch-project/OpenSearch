@@ -42,7 +42,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalClusterUpdateTask;
-import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ProtobufClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
@@ -54,7 +53,6 @@ import org.opensearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
@@ -861,8 +859,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
                         .addGlobalBlock(noClusterManagerBlockService.getNoClusterManagerBlock())
                 )
-                .nodes(ProtobufDiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
+                .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .build();
+            System.out.println("cluster state initial: " + initialState);
+            System.out.println("protobuf cluster state initial: " + protobufInitialState);
             applierState = initialState;
             clusterApplier.setInitialState(initialState);
             clusterApplier.setInitialProtobufState(protobufInitialState);

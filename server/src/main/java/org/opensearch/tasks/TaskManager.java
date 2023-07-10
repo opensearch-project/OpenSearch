@@ -49,8 +49,6 @@ import org.opensearch.cluster.ProtobufClusterChangedEvent;
 import org.opensearch.cluster.ProtobufClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -135,7 +133,6 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
     private final SetOnce<ProtobufTaskResourceTrackingService> protobufTaskResourceTrackingService = new SetOnce<>();
 
     private volatile DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
-    private volatile ProtobufDiscoveryNodes lastDiscoveryNodesProtobuf = ProtobufDiscoveryNodes.EMPTY_NODES;
 
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
@@ -557,10 +554,6 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
         return () -> {};
     }
 
-    public DiscoveryNode localProtobufNode() {
-        return lastDiscoveryNodesProtobuf.getLocalNode();
-    }
-
     /**
      * Stores the task failure
      */
@@ -601,7 +594,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
         Exception error,
         ActionListener<Response> listener
     ) {
-        DiscoveryNode localNode = lastDiscoveryNodesProtobuf.getLocalNode();
+        DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
         if (localNode == null) {
             // too early to store anything, shouldn't really be here - just pass the error along
             listener.onFailure(error);
@@ -671,7 +664,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
         Response response,
         ActionListener<Response> listener
     ) {
-        DiscoveryNode localNode = lastDiscoveryNodesProtobuf.getLocalNode();
+        DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
         if (localNode == null) {
             // too early to store anything, shouldn't really be here - just pass the response along
             logger.warn("couldn't store response {}, the node didn't join the cluster yet", response);
@@ -875,7 +868,7 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
 
         // Set the ban first, so the newly created tasks cannot be registered
         synchronized (banedParentsProtobuf) {
-            if (lastDiscoveryNodesProtobuf.nodeExists(parentTaskId.getNodeId())) {
+            if (lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId())) {
                 // Only set the ban if the node is the part of the cluster
                 banedParentsProtobuf.put(parentTaskId, reason);
             }
@@ -944,15 +937,15 @@ public class TaskManager implements ClusterStateApplier, ProtobufClusterStateApp
 
     @Override
     public void applyProtobufClusterState(ProtobufClusterChangedEvent event) {
-        lastDiscoveryNodesProtobuf = event.state().getNodes();
+        lastDiscoveryNodes = event.state().getNodes();
         if (event.nodesRemoved()) {
             synchronized (banedParentsProtobuf) {
-                lastDiscoveryNodesProtobuf = event.state().getNodes();
+                lastDiscoveryNodes = event.state().getNodes();
                 // Remove all bans that were registered by nodes that are no longer in the cluster state
                 Iterator<ProtobufTaskId> banIterator = banedParentsProtobuf.keySet().iterator();
                 while (banIterator.hasNext()) {
                     ProtobufTaskId taskId = banIterator.next();
-                    if (lastDiscoveryNodesProtobuf.nodeExists(taskId.getNodeId()) == false) {
+                    if (lastDiscoveryNodes.nodeExists(taskId.getNodeId()) == false) {
                         logger.debug(
                             "Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone",
                             taskId,

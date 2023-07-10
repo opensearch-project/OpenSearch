@@ -713,7 +713,7 @@ public final class ProtobufDiffableUtils {
 
         @Override
         public ProtobufDiff<V> diff(V value, V beforePart) {
-            return value.diff(beforePart);
+            return value.protobufDiff(beforePart);
         }
 
         @Override

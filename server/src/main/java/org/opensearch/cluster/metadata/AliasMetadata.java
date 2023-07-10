@@ -51,6 +51,8 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
@@ -64,7 +66,7 @@ import static java.util.Collections.emptySet;
  *
  * @opensearch.internal
  */
-public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
+public class AliasMetadata extends AbstractDiffable<AliasMetadata, AliasMetadata> implements ToXContentFragment {
 
     private final String alias;
 
@@ -430,5 +432,11 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             }
             return builder.build();
         }
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 }

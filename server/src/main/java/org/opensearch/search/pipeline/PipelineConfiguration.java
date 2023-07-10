@@ -24,6 +24,8 @@ import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
@@ -33,7 +35,7 @@ import java.util.Objects;
  *
  * See if we can refactor into a common class. I suspect not, just because this one will hold
  */
-public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContentObject {
+public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration, PipelineConfiguration> implements ToXContentObject {
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
         "pipeline_config",
         true,
@@ -161,5 +163,11 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
         int result = id.hashCode();
         result = 31 * result + getConfigAsMap().hashCode();
         return result;
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 }

@@ -1463,6 +1463,11 @@ public class Node implements Closeable {
         configureNodeAndClusterIdStateListener(clusterService);
         configureProtobufNodeAndClusterIdStateListener(clusterService);
 
+        ClusterState clusterState1 = clusterService.state();
+        System.out.println("Cluster state: " + clusterState1);
+        ProtobufClusterState protobufClusterState1 = clusterService.protobufState();
+        System.out.println("Protobuf Cluster state: " + protobufClusterState1);
+
         if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterState clusterState = clusterService.state();

@@ -19,7 +19,7 @@ import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.client.node.ProtobufNodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -335,7 +335,7 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
         ProtobufNodesInfoResponse nodesInfo,
         ProtobufNodesStatsResponse nodesStats
     ) {
-        ProtobufDiscoveryNodes nodes = state.getState().nodes();
+        DiscoveryNodes nodes = state.getState().nodes();
         String clusterManagerId = nodes.getClusterManagerNodeId();
         Table table = getTableWithHeader(req);
 

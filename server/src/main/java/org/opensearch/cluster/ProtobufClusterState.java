@@ -25,8 +25,9 @@ import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigurat
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingNodes;
@@ -151,7 +152,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
 
     private final RoutingTable routingTable;
 
-    private final ProtobufDiscoveryNodes nodes;
+    private final DiscoveryNodes nodes;
 
     private final Metadata metadata;
 
@@ -189,7 +190,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         String stateUUID,
         Metadata metadata,
         RoutingTable routingTable,
-        ProtobufDiscoveryNodes nodes,
+        DiscoveryNodes nodes,
         ClusterBlocks blocks,
         ImmutableOpenMap<String, Custom> customs,
         int minimumClusterManagerNodesOnPublishingClusterManager,
@@ -234,11 +235,11 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         return this.stateUUID;
     }
 
-    public ProtobufDiscoveryNodes nodes() {
+    public DiscoveryNodes nodes() {
         return this.nodes;
     }
 
-    public ProtobufDiscoveryNodes getNodes() {
+    public DiscoveryNodes getNodes() {
         return nodes();
     }
 
@@ -578,7 +579,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         private String uuid = UNKNOWN_UUID;
         private Metadata metadata = Metadata.EMPTY_METADATA;
         private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
-        private ProtobufDiscoveryNodes nodes = ProtobufDiscoveryNodes.EMPTY_NODES;
+        private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
         private boolean fromDiff;
@@ -602,16 +603,16 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
             this.clusterName = clusterName;
         }
 
-        public Builder nodes(ProtobufDiscoveryNodes.Builder nodesBuilder) {
+        public Builder nodes(DiscoveryNodes.Builder nodesBuilder) {
             return nodes(nodesBuilder.build());
         }
 
-        public Builder nodes(ProtobufDiscoveryNodes nodes) {
+        public Builder nodes(DiscoveryNodes nodes) {
             this.nodes = nodes;
             return this;
         }
 
-        public ProtobufDiscoveryNodes nodes() {
+        public DiscoveryNodes nodes() {
             return nodes;
         }
 
@@ -717,7 +718,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
     }
 
     @Override
-    public ProtobufDiff<ProtobufClusterState> diff(ProtobufClusterState previousState) {
+    public ProtobufDiff<ProtobufClusterState> protobufDiff(ProtobufClusterState previousState) {
         return new ClusterStateDiff(previousState, this);
     }
 
@@ -733,7 +734,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         builder.uuid = in.readString();
         // builder.metadata = Metadata.readFrom(in);
         // builder.routingTable = RoutingTable.readFrom(in);
-        // builder.nodes = ProtobufDiscoveryNodes.readFrom(in, localNode);
+        builder.nodes = DiscoveryNodes.readFromProtobuf(in, localNode);
         // builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readInt32();
         for (int i = 0; i < customSize; i++) {
@@ -752,7 +753,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
         out.writeStringNoTag(stateUUID);
         // metadata.writeTo(out);
         // routingTable.writeTo(out);
-        // nodes.writeTo(out);
+        nodes.writeTo(out);
         // blocks.writeTo(out);
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
@@ -787,7 +788,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
 
         private final ProtobufDiff<RoutingTable> routingTable;
 
-        private final ProtobufDiff<ProtobufDiscoveryNodes> nodes;
+        private final ProtobufDiff<DiscoveryNodes> nodes;
 
         private final ProtobufDiff<Metadata> metadata;
 
@@ -803,7 +804,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
             toVersion = after.version;
             clusterName = after.clusterName;
             routingTable = null;
-            nodes = null;
+            nodes = after.nodes.protobufDiff(before.nodes);;
             metadata = null;
             blocks = null;
             customs = ProtobufDiffableUtils.diff(
@@ -821,7 +822,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
             toUuid = in.readString();
             toVersion = in.readInt64();
             routingTable = null;
-            nodes = null;
+            nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             metadata = null;
             blocks = null;
             customs = ProtobufDiffableUtils.readImmutableOpenMapDiff(
@@ -839,7 +840,7 @@ public class ProtobufClusterState implements ToXContentFragment, ProtobufDiffabl
             out.writeStringNoTag(toUuid);
             out.writeInt64NoTag(toVersion);
             // routingTable.writeTo(out);
-            // nodes.writeTo(out);
+            nodes.writeTo(out);
             // metadata.writeTo(out);
             // blocks.writeTo(out);
             // customs.writeTo(out);

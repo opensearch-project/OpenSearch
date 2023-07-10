@@ -45,6 +45,8 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
@@ -54,7 +56,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writeable, ToXContentFragment {
+public class RolloverInfo extends AbstractDiffable<RolloverInfo, RolloverInfo> implements Writeable, ToXContentFragment {
 
     public static final ParseField CONDITION_FIELD = new ParseField("met_conditions");
     public static final ParseField TIME_FIELD = new ParseField("time");
@@ -150,5 +152,11 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     @Override
     public String toString() {
         return Strings.toString(XContentType.JSON, this);
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 }

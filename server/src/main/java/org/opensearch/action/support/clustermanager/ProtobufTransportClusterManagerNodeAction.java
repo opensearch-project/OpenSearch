@@ -30,7 +30,7 @@ import org.opensearch.cluster.metadata.ProtobufIndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.cluster.service.ClusterService;
@@ -215,9 +215,13 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
 
         protected void doStart(ProtobufClusterState clusterState) {
             try {
-                final ProtobufDiscoveryNodes nodes = clusterState.nodes();
-                final DiscoveryNodes discoveryNodes = clusterService.state().nodes();
-                if (discoveryNodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
+                System.out.println("ProtobufTransportClusterManagerNodeAction.doStart");
+                //this needs fixing
+                final DiscoveryNodes nodes = clusterService.state().nodes();
+                System.out.println("nodes: " + nodes);
+                // final DiscoveryNodes discoveryNodes = clusterService.state().nodes();
+                if (nodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
+                    System.out.println("ProtobufTransportClusterManagerNodeAction.doStart.isLocalNodeElectedClusterManager");
                     // check for block, if blocked, retry, else, execute locally
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
@@ -256,10 +260,13 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
                             .execute(ActionRunnable.wrap(delegate, l -> clusterManagerOperation(task, request, clusterState, l)));
                     }
                 } else {
+                    System.out.println("In else");
                     if (nodes.getClusterManagerNode() == null) {
+                        System.out.println("In else if");
                         logger.debug("no known cluster-manager node, scheduling a retry");
                         retryOnMasterChange(clusterState, null);
                     } else {
+                        System.out.println("In else else");
                         DiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
                         final String actionName = getClusterManagerActionName(clusterManagerNode);
                         transportService.sendRequest(

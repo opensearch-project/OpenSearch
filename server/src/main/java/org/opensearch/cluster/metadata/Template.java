@@ -49,6 +49,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -61,7 +63,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class Template extends AbstractDiffable<Template> implements ToXContentObject {
+public class Template extends AbstractDiffable<Template, Template> implements ToXContentObject {
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
@@ -213,5 +215,11 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         } else {
             return mapping;
         }
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 }

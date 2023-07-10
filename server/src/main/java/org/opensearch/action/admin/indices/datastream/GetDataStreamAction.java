@@ -64,6 +64,8 @@ import org.opensearch.core.index.Index;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -166,7 +168,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
          *
          * @opensearch.internal
          */
-        public static class DataStreamInfo extends AbstractDiffable<DataStreamInfo> implements ToXContentObject {
+        public static class DataStreamInfo extends AbstractDiffable<DataStreamInfo, DataStreamInfo> implements ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
@@ -234,6 +236,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @Override
             public int hashCode() {
                 return Objects.hash(dataStream, dataStreamStatus, indexTemplate);
+            }
+
+            @Override
+            public void writeTo(CodedOutputStream out) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
             }
         }
 

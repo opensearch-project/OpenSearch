@@ -15,7 +15,7 @@ import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -142,7 +142,7 @@ final class ProtobufRemoteClusterConnection implements Closeable {
 
                         @Override
                         public void handleResponse(ProtobufClusterStateResponse response) {
-                            ProtobufDiscoveryNodes nodes = response.getState().nodes();
+                            DiscoveryNodes nodes = response.getState().nodes();
                             contextPreservingActionListener.onResponse(nodes::get);
                         }
 

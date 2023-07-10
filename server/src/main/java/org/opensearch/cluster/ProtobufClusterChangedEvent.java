@@ -12,7 +12,8 @@ import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.node.ProtobufDiscoveryNodes;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.Index;
 
@@ -38,7 +39,7 @@ public class ProtobufClusterChangedEvent {
 
     private final ProtobufClusterState state;
 
-    private final ProtobufDiscoveryNodes.Delta nodesDelta;
+    private final DiscoveryNodes.Delta nodesDelta;
 
     public ProtobufClusterChangedEvent(String source, ProtobufClusterState state, ProtobufClusterState previousState) {
         Objects.requireNonNull(source, "source must not be null");
@@ -201,10 +202,10 @@ public class ProtobufClusterChangedEvent {
     }
 
     /**
-     * Returns the {@link org.opensearch.cluster.node.ProtobufDiscoveryNodes.Delta} between
+     * Returns the {@link org.opensearch.cluster.node.DiscoveryNodes.Delta} between
     * the previous cluster state and the new cluster state.
     */
-    public ProtobufDiscoveryNodes.Delta nodesDelta() {
+    public DiscoveryNodes.Delta nodesDelta() {
         return this.nodesDelta;
     }
 

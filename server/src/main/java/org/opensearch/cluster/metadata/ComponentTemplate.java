@@ -45,6 +45,8 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
@@ -57,7 +59,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> implements ToXContentObject {
+public class ComponentTemplate extends AbstractDiffable<ComponentTemplate, ComponentTemplate> implements ToXContentObject {
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField METADATA = new ParseField("_meta");
@@ -167,5 +169,11 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 }

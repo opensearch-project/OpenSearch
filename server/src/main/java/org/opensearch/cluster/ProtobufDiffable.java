@@ -25,6 +25,6 @@ public interface ProtobufDiffable<T> extends ProtobufWriteable {
     /**
      * Returns serializable object representing differences between this and previousState
     */
-    ProtobufDiff<T> diff(T previousState);
+    ProtobufDiff<T> protobufDiff(T previousState);
 
 }

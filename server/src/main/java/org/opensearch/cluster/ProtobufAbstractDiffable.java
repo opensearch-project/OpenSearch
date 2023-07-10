@@ -10,6 +10,8 @@ package org.opensearch.cluster;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 
 import java.io.IOException;
@@ -26,7 +28,7 @@ public abstract class ProtobufAbstractDiffable<T extends ProtobufDiffable<T>> im
 
     @SuppressWarnings("unchecked")
     @Override
-    public ProtobufDiff<T> diff(T previousState) {
+    public ProtobufDiff<T> protobufDiff(T previousState) {
         if (this.equals(previousState)) {
             return (ProtobufDiff<T>) EMPTY;
         } else {

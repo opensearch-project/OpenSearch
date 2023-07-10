@@ -48,7 +48,7 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
 
     private Releasable registerChildNode(ProtobufTaskId parentTask) {
         if (parentTask.isSet()) {
-            return taskManager.registerProtobufChildNode(parentTask.getId(), taskManager.localProtobufNode());
+            return taskManager.registerProtobufChildNode(parentTask.getId(), taskManager.localNode());
         } else {
             return () -> {};
         }

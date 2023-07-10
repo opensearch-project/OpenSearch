@@ -45,6 +45,9 @@ import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+
+import com.google.protobuf.CodedOutputStream;
+
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -57,7 +60,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContentObject {
+public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration, PipelineConfiguration> implements ToXContentObject {
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", true, Builder::new);
     static {
@@ -182,5 +185,11 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         int result = id.hashCode();
         result = 31 * result + getConfigAsMap().hashCode();
         return result;
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 }

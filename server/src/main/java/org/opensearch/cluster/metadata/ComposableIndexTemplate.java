@@ -49,6 +49,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -65,7 +67,7 @@ import static java.util.Collections.unmodifiableMap;
  *
  * @opensearch.internal
  */
-public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate> implements ToXContentObject {
+public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate, ComposableIndexTemplate> implements ToXContentObject {
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -357,5 +359,11 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         public int hashCode() {
             return Objects.hash(timestampField);
         }
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 }
