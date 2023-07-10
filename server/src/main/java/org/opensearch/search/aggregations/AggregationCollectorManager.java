@@ -17,11 +17,8 @@ import org.opensearch.search.query.ReduceableSearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Deque;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -53,26 +50,7 @@ class AggregationCollectorManager implements CollectorManager<Collector, Reducea
 
     @Override
     public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
-        List<Aggregator> aggregators = new ArrayList<>();
-
-        final Deque<Collector> allCollectors = new LinkedList<>(collectors);
-        while (!allCollectors.isEmpty()) {
-            final Collector currentCollector = allCollectors.pop();
-            if (currentCollector instanceof Aggregator) {
-                aggregators.add((Aggregator) currentCollector);
-            } else if (currentCollector instanceof InternalProfileCollector) {
-                if (((InternalProfileCollector) currentCollector).getCollector() instanceof Aggregator) {
-                    aggregators.add((Aggregator) ((InternalProfileCollector) currentCollector).getCollector());
-                } else if (((InternalProfileCollector) currentCollector).getCollector() instanceof MultiBucketCollector) {
-                    allCollectors.addAll(
-                        Arrays.asList(((MultiBucketCollector) ((InternalProfileCollector) currentCollector).getCollector()).getCollectors())
-                    );
-                }
-            } else if (currentCollector instanceof MultiBucketCollector) {
-                allCollectors.addAll(Arrays.asList(((MultiBucketCollector) currentCollector).getCollectors()));
-            }
-        }
-
+        final List<Aggregator> aggregators = context.bucketCollectorProcessor().toAggregators(collectors);
         final List<InternalAggregation> internals = new ArrayList<>(aggregators.size());
         context.aggregations().resetBucketMultiConsumer();
         for (Aggregator aggregator : aggregators) {
