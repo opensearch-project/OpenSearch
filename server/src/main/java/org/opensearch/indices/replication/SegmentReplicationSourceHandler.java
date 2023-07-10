@@ -112,7 +112,7 @@ class SegmentReplicationSourceHandler {
         // Short circuit when no files to transfer
         if (request.getFilesToFetch().isEmpty()) {
             // before completion, alert the primary of the replica's state.
-            this.updateVisibleCheckpointForShard(request.getTargetAllocationId(), copyState.getCheckpoint());
+            shard.updateVisibleCheckpointForShard(request.getTargetAllocationId(), copyState.getCheckpoint());
             listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
             return;
         }
@@ -169,7 +169,7 @@ class SegmentReplicationSourceHandler {
 
             sendFileStep.whenComplete(r -> {
                 try {
-                    this.updateVisibleCheckpointForShard(allocationId, copyState.getCheckpoint());
+                    shard.updateVisibleCheckpointForShard(allocationId, copyState.getCheckpoint());
                     future.onResponse(new GetSegmentFilesResponse(List.of(storeFileMetadata)));
                 } finally {
                     IOUtils.close(resources);
@@ -184,15 +184,6 @@ class SegmentReplicationSourceHandler {
             }, onFailure);
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
-        }
-    }
-
-    // Update target replication checkpoint on source for node-node communication. For remote store enabled indices, checkpoint
-    // update on source is performed via separate UPDATE_VISIBLE_CHECKPOINT transport call
-    private void updateVisibleCheckpointForShard(String allocationId, ReplicationCheckpoint replicationCheckpoint) {
-        if (shard.indexSettings().isRemoteStoreEnabled() == false) {
-            // update visible checkpoint to primary
-            shard.updateVisibleCheckpointForShard(allocationId, replicationCheckpoint);
         }
     }
 
