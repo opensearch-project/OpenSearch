@@ -11,6 +11,7 @@ package org.opensearch.remotestore;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -40,8 +41,11 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
             .build();
     }
 
+    @Before
     @Override
-    protected void afterFirstStartNode() {
+    public void setUp() throws Exception {
+        super.setUp();
+        internalCluster().startClusterManagerOnlyNode();
         absolutePath = randomRepoPath().toAbsolutePath();
         assertAcked(
             clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))

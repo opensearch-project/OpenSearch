@@ -232,7 +232,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         int shardId,
         RecoverySource type,
         boolean primary,
-        RecoveryState.Stage stage,
+        Stage stage,
         String sourceNode,
         String targetNode
     ) {
@@ -288,7 +288,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     public void testGatewayRecovery() throws Exception {
         logger.info("--> start nodes");
         String node = internalCluster().startNode();
-        afterFirstStartNode();
 
         createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
@@ -311,14 +310,9 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         validateIndexRecoveryState(recoveryState.getIndex());
     }
 
-    protected void afterFirstStartNode() {
-        // No-op
-    }
-
     public void testGatewayRecoveryTestActiveOnly() throws Exception {
         logger.info("--> start nodes");
         internalCluster().startNode();
-        afterFirstStartNode();
 
         createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
@@ -335,7 +329,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testReplicaRecovery() throws Exception {
         final String nodeA = internalCluster().startNode();
-        afterFirstStartNode();
         createIndex(
             INDEX_NAME,
             Settings.builder()
@@ -407,7 +400,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     public void testCancelNewShardRecoveryAndUsesExistingShardCopy() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
-        afterFirstStartNode();
 
         logger.info("--> create index on node: {}", nodeA);
         createIndex(
@@ -506,7 +498,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
-        afterFirstStartNode();
 
         logger.info("--> create index on node: {}", nodeA);
         ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats()
@@ -587,8 +578,12 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 .clear()
                 .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
                 .get();
-            assertThat(statsResponse1.getNodes(), hasSize(2));
-            for (NodeStats nodeStats : statsResponse1.getNodes()) {
+            List<NodeStats> dataNodeStats = statsResponse1.getNodes()
+                .stream()
+                .filter(nodeStats -> nodeStats.getNode().isDataNode())
+                .collect(Collectors.toList());
+            assertThat(dataNodeStats, hasSize(2));
+            for (NodeStats nodeStats : dataNodeStats) {
                 final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
                 if (nodeStats.getNode().getName().equals(nodeA)) {
                     assertThat(
@@ -654,7 +649,8 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
         logger.info("--> start node C");
         String nodeC = internalCluster().startNode();
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().isTimedOut());
+        int nodeCount = internalCluster().getNodeNames().length;
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(String.valueOf(nodeCount)).get().isTimedOut());
 
         logger.info("--> slowing down recoveries");
         slowDownRecovery(shardSize);
@@ -743,7 +739,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     public void testSnapshotRecovery() throws Exception {
         logger.info("--> start node A");
         String nodeA = internalCluster().startNode();
-        afterFirstStartNode();
 
         logger.info("--> create repository");
         assertAcked(
@@ -878,7 +873,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .build();
         // start a cluster-manager node
         internalCluster().startNode(nodeSettings);
-        afterFirstStartNode();
 
         final String blueNodeName = internalCluster().startNode(
             Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build()
@@ -1081,7 +1075,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             .build();
         // start a cluster-manager node
         internalCluster().startNode(nodeSettings);
-        afterFirstStartNode();
 
         final String blueNodeName = internalCluster().startNode(
             Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build()
@@ -1239,7 +1232,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         TimeValue disconnectAfterDelay = TimeValue.timeValueMillis(randomIntBetween(0, 100));
         // start a cluster-manager node
         String clusterManagerNodeName = internalCluster().startClusterManagerOnlyNode(nodeSettings);
-        afterFirstStartNode();
 
         final String blueNodeName = internalCluster().startNode(
             Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build()
@@ -1385,7 +1377,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testHistoryRetention() throws Exception {
         internalCluster().startNodes(3);
-        afterFirstStartNode();
 
         final String indexName = "test";
         client().admin()
@@ -1411,10 +1402,10 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             flush(indexName);
         }
 
-        String firstNodeToStop = randomFrom(internalCluster().getNodeNames());
+        String firstNodeToStop = randomFrom(internalCluster().getDataNodeNames());
         Settings firstNodeToStopDataPathSettings = internalCluster().dataPathSettings(firstNodeToStop);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(firstNodeToStop));
-        String secondNodeToStop = randomFrom(internalCluster().getNodeNames());
+        String secondNodeToStop = randomFrom(internalCluster().getDataNodeNames());
         Settings secondNodeToStopDataPathSettings = internalCluster().dataPathSettings(secondNodeToStop);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(secondNodeToStop));
 
@@ -1452,7 +1443,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testDoNotInfinitelyWaitForMapping() {
         internalCluster().ensureAtLeastNumDataNodes(3);
-        afterFirstStartNode();
         createIndex(
             "test",
             Settings.builder()
@@ -1499,7 +1489,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     public void testOngoingRecoveryAndClusterManagerFailOver() throws Exception {
         String indexName = "test";
         internalCluster().startNodes(2);
-        afterFirstStartNode();
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
         assertAcked(
             client().admin()
@@ -1564,7 +1553,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testRecoverLocallyUpToGlobalCheckpoint() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        afterFirstStartNode();
         List<String> nodes = randomSubsetOf(
             2,
             StreamSupport.stream(Spliterators.spliterator(clusterService().state().nodes().getDataNodes().values(), 0), false)
@@ -1672,7 +1660,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testUsesFileBasedRecoveryIfRetentionLeaseMissing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        afterFirstStartNode();
 
         String indexName = "test-index";
         createIndex(
@@ -1744,7 +1731,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testUsesFileBasedRecoveryIfRetentionLeaseAheadOfGlobalCheckpoint() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        afterFirstStartNode();
 
         String indexName = "test-index";
         createIndex(
@@ -1830,7 +1816,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testUsesFileBasedRecoveryIfOperationsBasedRecoveryWouldBeUnreasonable() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        afterFirstStartNode();
 
         String indexName = "test-index";
         final Settings.Builder settings = Settings.builder()
@@ -1976,7 +1961,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testDoesNotCopyOperationsInSafeCommit() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        afterFirstStartNode();
 
         String indexName = "test-index";
         createIndex(
@@ -2061,7 +2045,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testRepeatedRecovery() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        afterFirstStartNode();
 
         // Ensures that you can remove a replica and then add it back again without any ill effects, even if it's allocated back to the
         // node that held it previously, in case that node hasn't completely cleared it up.
@@ -2126,7 +2109,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     public void testAllocateEmptyPrimaryResetsGlobalCheckpoint() throws Exception {
         internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
-        afterFirstStartNode();
         final Settings randomNodeDataPathSettings = internalCluster().dataPathSettings(randomFrom(dataNodes));
         final String indexName = "test";
         assertAcked(
@@ -2167,7 +2149,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testPeerRecoveryTrimsLocalTranslog() throws Exception {
         internalCluster().startNode();
-        afterFirstStartNode();
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         String indexName = "test-index";
         createIndex(
@@ -2227,7 +2208,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        afterFirstStartNode();
         assertAcked(
             client().admin()
                 .indices()
@@ -2248,7 +2228,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     public void testReservesBytesDuringPeerRecoveryPhaseOne() throws Exception {
         internalCluster().startNode();
-        afterFirstStartNode();
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         String indexName = "test-index";
         createIndex(

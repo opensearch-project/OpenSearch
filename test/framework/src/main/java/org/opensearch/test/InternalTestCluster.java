@@ -2157,6 +2157,10 @@ public final class InternalTestCluster extends TestCluster {
         return set;
     }
 
+    public Set<String> getDataNodeNames() {
+        return allDataNodesButN(0);
+    }
+
     /**
      * Returns a set of nodes that have at least one shard of the given index.
      */
