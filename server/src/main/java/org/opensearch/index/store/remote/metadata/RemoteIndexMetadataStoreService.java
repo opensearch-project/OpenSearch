@@ -8,13 +8,16 @@
 
 package org.opensearch.index.store.remote.metadata;
 
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -26,6 +29,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
 /**
@@ -77,23 +81,37 @@ public class RemoteIndexMetadataStoreService implements IndexEventListener {
         return clusterService.getClusterApplierService().applierState().nodes().isLocalNodeElectedClusterManager();
     }
 
-    private long getClusterStateTerm() {
-        return clusterService.getClusterApplierService().applierState().term();
+    private Tuple<Long, Long> getClusterStateTermVersion() {
+        ClusterState clusterState = clusterService.getClusterApplierService().applierState();
+        return new Tuple<>(clusterState.term(), clusterState.version()) ;
     }
 
     private void persistIndexMetadata(IndexMetadata indexMetaData) {
-        assert assertCalledFromClusterStateApplier("index metadata upload should occur as a part of cluster state application");
-        if (isLocalNodeElectedClusterManager()) {
-            String repositoryName = indexMetaData.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
-            Repository repository = repositoriesServiceSupplier.get().repository(repositoryName);
-            BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
-            final BlobPath indexMetadataBlobPath = commonBlobPath.add(indexMetaData.getIndexUUID()).add(INDEX_METADATA_PATH);
-            String metaUUID = getClusterStateTerm() + "__" + UUIDs.base64UUID();
-            try {
-                BlobStoreRepository.INDEX_METADATA_FORMAT.write(indexMetaData,
-                    ((BlobStoreRepository)repository).blobStore().blobContainer(indexMetadataBlobPath), metaUUID, null);
-            } catch (IOException e) {
-                e.printStackTrace();
+        synchronized (indexMetaData) {
+            assert assertCalledFromClusterStateApplier("index metadata upload should occur as a part of cluster state application");
+            if (isLocalNodeElectedClusterManager()) {
+                String repositoryName = indexMetaData.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
+                Repository repository = repositoriesServiceSupplier.get().repository(repositoryName);
+                BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
+                final BlobPath indexMetadataBlobPath = commonBlobPath.add(indexMetaData.getIndexUUID()).add(INDEX_METADATA_PATH);
+                String metaUUID = getClusterStateTermVersion().v1() + "__" + getClusterStateTermVersion().v2() + UUIDs.base64UUID();
+                Future<?> uploadFuture = null;
+                try {
+                    //TODO introduce dedicated thread pool
+                    uploadFuture = threadPool.generic().submit(() -> {
+                        try {
+                            BlobStoreRepository.INDEX_METADATA_FORMAT.write(indexMetaData,
+                                ((BlobStoreRepository) repository).blobStore().blobContainer(indexMetadataBlobPath), metaUUID, null);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    });
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                finally {
+                    FutureUtils.get(uploadFuture);
+                }
             }
         }
 
