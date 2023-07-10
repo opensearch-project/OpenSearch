@@ -53,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Pass localNode info to all plugins on node start ([#7919](https://github.com/opensearch-project/OpenSearch/pull/7919))
 - Improved performance of parsing floating point numbers ([#7909](https://github.com/opensearch-project/OpenSearch/pull/7909))
 - Move span actions to Scope ([#8411](https://github.com/opensearch-project/OpenSearch/pull/8411))
+- Add wrapper tracer implementation
 
 ### Deprecated
 
