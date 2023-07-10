@@ -170,9 +170,9 @@ class SegmentReplicationSourceHandler {
                 try {
                     shard.updateVisibleCheckpointForShard(allocationId, copyState.getCheckpoint());
                     future.onResponse(new GetSegmentFilesResponse(List.of(storeFileMetadata)));
+                    timer.stop();
                 } finally {
                     IOUtils.close(resources);
-                    timer.stop();
                     logger.trace(
                         "[replication id {}] Source node completed sending files to target node [{}], timing: {}",
                         request.getReplicationId(),
