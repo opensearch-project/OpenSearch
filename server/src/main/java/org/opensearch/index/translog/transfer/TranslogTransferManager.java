@@ -8,7 +8,6 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
@@ -21,6 +20,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
@@ -61,8 +61,7 @@ public class TranslogTransferManager {
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
 
-    private static final Logger logger = LogManager.getLogger(TranslogTransferManager.class);
-
+    private final Logger logger;
     private final static String METADATA_DIR = "metadata";
     private final static String DATA_DIR = "data";
 
@@ -84,6 +83,7 @@ public class TranslogTransferManager {
         this.remoteDataTransferPath = remoteBaseTransferPath.add(DATA_DIR);
         this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferTracker = fileTransferTracker;
+        this.logger = Loggers.getLogger(getClass(), shardId);
     }
 
     public ShardId getShardId() {
@@ -200,7 +200,7 @@ public class TranslogTransferManager {
                     exceptionSetOnce.set(e);
                 }
             }, e -> {
-                logger.error(() -> new ParameterizedMessage("Exception while listing metadata files "), e);
+                logger.error(() -> new ParameterizedMessage("Exception while listing metadata files"), e);
                 exceptionSetOnce.set((IOException) e);
             }),
             latch
@@ -295,7 +295,7 @@ public class TranslogTransferManager {
      * @param minPrimaryTermToKeep all primary terms below this primary term are deleted.
      */
     public void deletePrimaryTermsAsync(long minPrimaryTermToKeep) {
-        logger.info("Deleting primary terms from remote store lesser than {} for {}", minPrimaryTermToKeep, shardId);
+        logger.info("Deleting primary terms from remote store lesser than {}", minPrimaryTermToKeep);
         transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteDataTransferPath, new ActionListener<>() {
             @Override
             public void onResponse(Set<String> folders) {
@@ -333,7 +333,7 @@ public class TranslogTransferManager {
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
-                    logger.info("Deleted primary term {} for {}", primaryTerm, shardId);
+                    logger.info("Deleted primary term {}", primaryTerm);
                 }
 
                 @Override
@@ -349,12 +349,12 @@ public class TranslogTransferManager {
         transferService.deleteAsync(ThreadPool.Names.REMOTE_PURGE, remoteBaseTransferPath, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                logger.info("Deleted all remote translog data  for {}", shardId);
+                logger.info("Deleted all remote translog data");
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Exception occurred while cleaning translog ", e);
+                logger.error("Exception occurred while cleaning translog", e);
             }
         });
     }
