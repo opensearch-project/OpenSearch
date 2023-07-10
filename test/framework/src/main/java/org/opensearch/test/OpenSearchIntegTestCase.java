@@ -779,8 +779,16 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
-        featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         return featureSettings.build();
+    }
+
+    /**
+     * Setting Telemetry feature flag settings at base IT. We don't need this to be overridden by
+     * individual test cases.
+     * @return Telemetry Feature flag settings.
+     */
+    private Settings telemetryFeatureFlagSettings() {
+        return Settings.builder().put(FeatureFlags.TELEMETRY_SETTING.getKey(), true).build();
     }
 
     /**
@@ -1906,7 +1914,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
             .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
-            .put(featureFlagSettings());
+            .put(featureFlagSettings())
+            .put(telemetryFeatureFlagSettings());
         return builder.build();
     }
 
