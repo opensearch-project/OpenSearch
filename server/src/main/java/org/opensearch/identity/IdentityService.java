@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.tokens.TokenManager;
@@ -60,7 +61,7 @@ public class IdentityService {
     /**
      * Gets the Service Account manager
      */
-    public ServiceAccountManager getServiceAccountManager() {
-        return identityPlugin.getServiceAccountManager();
+    public ApplicationManager getApplicationManager() {
+        return identityPlugin.getApplicationManager();
     }
 }

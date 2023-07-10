@@ -11,11 +11,12 @@ package org.opensearch.cluster;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import org.opensearch.Application;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.ServiceAccountManager;
-import org.opensearch.identity.noop.NoopServiceAccountManager;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 
 /**
@@ -27,47 +28,24 @@ import org.opensearch.plugins.PluginsService;
  */
 public class ApplicationManager {
 
-    AtomicReference<ExtensionsManager> extensionManager;
-    AtomicReference<PluginsService> pluginManager;
-    AtomicReference<ServiceAccountManager> serviceAccountManager;
+    ExtensionsManager extensionManager;
+    PluginsService pluginManager;
+    ServiceAccountManager serviceAccountManager;
     public static ApplicationManager instance; // Required for access in static contexts
     private List<Application> registeredApplications = new ArrayList<>(); // A list of all application subjects
 
-    public ApplicationManager() {
+    public ApplicationManager(
+        ExtensionsManager extensionsManager,
+        PluginsService pluginsService,
+        ServiceAccountManager serviceAccountManager
+    ) {
         instance = this;
-        extensionManager = new AtomicReference<>();
-        pluginManager = new AtomicReference<>();
-        serviceAccountManager = new AtomicReference<>();
-    }
-
-    public void register(ExtensionsManager manager) {
-        if (this.extensionManager == null) {
-            this.extensionManager = new AtomicReference<>(manager);
-        } else {
-            this.extensionManager.set(manager);
-        }
-    }
-
-    public void register(PluginsService manager) {
-        if (this.pluginManager == null) {
-            this.pluginManager = new AtomicReference<>(manager);
-        } else {
-            this.pluginManager.set(manager);
-        }
-    }
-
-    public void register(ServiceAccountManager manager) {
-        if (this.serviceAccountManager == null) {
-            this.serviceAccountManager = new AtomicReference<>(manager);
-        } else {
-            this.serviceAccountManager.set(manager);
-        }
+        extensionManager = extensionsManager;
+        pluginManager = pluginsService;
+        this.serviceAccountManager = serviceAccountManager;
     }
 
     public static ApplicationManager getInstance() {
-        if (instance == null) {
-            new ApplicationManager();
-        }
         return instance;
     }
 
@@ -77,7 +55,7 @@ public class ApplicationManager {
      * @return Whether the application exists (TRUE) or not (FALSE)
      */
     public boolean associatedApplicationExists(Principal principal) {
-        return (this.extensionManager.get().getExtensionIdMap().containsKey(principal.getName()));
+        return (this.extensionManager.getExtensionIdMap().containsKey(principal.getName()));
     }
 
     /**
@@ -85,7 +63,7 @@ public class ApplicationManager {
      * @return The ExtensionManager being queried by the ApplicationManager
      */
     public ExtensionsManager getExtensionManager() {
-        return extensionManager.get();
+        return extensionManager;
     }
 
     /**
@@ -93,9 +71,20 @@ public class ApplicationManager {
      * @return The ExtensionManager being queried by the ApplicationManager
      */
     public ServiceAccountManager getServiceAccountManager() {
-        if (serviceAccountManager.get() == null) {
-            this.register(new NoopServiceAccountManager());
+        return serviceAccountManager;
+    }
+
+    /**
+     * Register all plugins and modules loaded by the PluginsService and add them to the application store
+     */
+    public void registerPluginsAndModules() {
+        List<Tuple<PluginInfo, Plugin>> pluginsLoaded = pluginManager.getPlugins();
+        // Register service accounts for all loaded plugins
+        for (Tuple<PluginInfo, Plugin> pluginTuple : pluginsLoaded) {
+            PluginInfo pluginInfo = pluginTuple.v1();
+            Plugin plugin = pluginTuple.v2();
+
+            serviceAccountManager.getServiceAccount(pluginInfo);
         }
-        return serviceAccountManager.get();
     }
 }

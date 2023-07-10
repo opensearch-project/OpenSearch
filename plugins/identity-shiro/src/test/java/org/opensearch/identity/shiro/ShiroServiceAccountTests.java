@@ -8,13 +8,16 @@
 
 package org.opensearch.identity.shiro;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import org.junit.Before;
 import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.ServiceAccount;
 import org.opensearch.index.IndexModule;
@@ -47,7 +50,6 @@ public class ShiroServiceAccountTests extends OpenSearchTestCase {
     ) {
         return new PluginsService(
             settings,
-            applicationManager,
             null,
             null,
             TestEnvironment.newEnvironment(settings).pluginsDir(),
@@ -73,15 +75,14 @@ public class ShiroServiceAccountTests extends OpenSearchTestCase {
     }
 
     @Before
-    public void setup() {
-        identityPlugin = new ShiroIdentityPlugin(Settings.EMPTY);
+    public void setup() throws IOException {
+        shiroServiceAccountManager = new ShiroServiceAccountManager();
+        applicationManager = new ApplicationManager(new ExtensionsManager(Set.of()), pluginsService, shiroServiceAccountManager);
+        identityPlugin = new ShiroIdentityPlugin(Settings.EMPTY, applicationManager);
         List<IdentityPlugin> pluginList = List.of(identityPlugin);
-        applicationManager = new ApplicationManager();
         identityService = new IdentityService(Settings.EMPTY, pluginList);
         additionalSettingsPlugin1 = new AdditionalSettingsPlugin1();
         additionalSettingsPlugin2 = new AdditionalSettingsPlugin2();
-        shiroServiceAccountManager = new ShiroServiceAccountManager();
-        applicationManager.register(shiroServiceAccountManager);
     }
 
     @SuppressWarnings("unchecked")

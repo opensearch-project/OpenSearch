@@ -68,7 +68,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.bootstrap.JarHell;
-import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.inject.Module;
@@ -93,7 +92,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private final Settings settings;
     private final Path configPath;
-    private final ApplicationManager applicationManager;
 
     /**
      * We keep around a list of plugins and modules
@@ -125,7 +123,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     public PluginsService(
         Settings settings,
-        ApplicationManager applicationManager,
         Path configPath,
         Path modulesDirectory,
         Path pluginsDirectory,
@@ -133,7 +130,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     ) {
         this.settings = settings;
         this.configPath = configPath;
-        this.applicationManager = applicationManager;
 
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
         List<PluginInfo> pluginsList = new ArrayList<>();
@@ -218,15 +214,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 );
                 throw new IllegalStateException(message);
             }
-        }
-
-        // Register service accounts for all loaded plugins
-        for (Tuple<PluginInfo, Plugin> pluginTuple : pluginsLoaded) {
-            PluginInfo pluginInfo = pluginTuple.v1();
-            Plugin plugin = pluginTuple.v2();
-
-            // Register a service account for an application
-            applicationManager.getServiceAccountManager().getServiceAccount(pluginInfo);
         }
 
         // we don't log jars in lib/ we really shouldn't log modules,
@@ -816,5 +803,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     public <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).map(p -> ((T) p.v2())).collect(Collectors.toList());
+    }
+
+    public List<Tuple<PluginInfo, Plugin>> getPlugins() {
+        return plugins;
     }
 }

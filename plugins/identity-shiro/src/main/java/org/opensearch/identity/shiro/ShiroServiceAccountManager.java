@@ -22,7 +22,7 @@ import org.opensearch.identity.ServiceAccountManager;
  *
  * @opensearch.experimental
  */
-class ShiroServiceAccountManager implements ServiceAccountManager {
+class ShiroServiceAccountManager extends ServiceAccountManager {
 
     private static final Logger log = LogManager.getLogger(IdentityService.class);
 

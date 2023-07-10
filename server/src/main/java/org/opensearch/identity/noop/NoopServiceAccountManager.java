@@ -15,7 +15,7 @@ import org.opensearch.identity.ServiceAccountManager;
 /**
  * This class is a NoopServiceAccountManager used by a Noop version of the Identity Plugin.
  */
-public class NoopServiceAccountManager implements ServiceAccountManager {
+public class NoopServiceAccountManager extends ServiceAccountManager {
 
     @Override
     public ServiceAccount getServiceAccount(Application app) {

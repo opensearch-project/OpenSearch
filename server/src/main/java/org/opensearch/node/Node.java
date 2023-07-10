@@ -82,7 +82,6 @@ import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
@@ -453,10 +452,8 @@ public class Node implements Closeable {
                 );
             }
 
-            ApplicationManager applicationManager = new ApplicationManager();
             this.pluginsService = new PluginsService(
                 tmpSettings,
-                applicationManager,
                 initialEnvironment.configDir(),
                 initialEnvironment.modulesDir(),
                 initialEnvironment.pluginsDir(),
@@ -487,10 +484,6 @@ public class Node implements Closeable {
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
-
-            applicationManager.register(extensionsManager);
-            applicationManager.register(pluginsService);
-            applicationManager.register(identityService.getServiceAccountManager());
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
                 .stream()

@@ -34,6 +34,14 @@ public class NoopExtensionsManager extends ExtensionsManager {
         super(Set.of());
     }
 
+    public static NoopExtensionsManager buildNoopExtensionsManager() {
+        try {
+            return new NoopExtensionsManager();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     public void initializeServicesAndRestHandler(
         ActionModule actionModule,

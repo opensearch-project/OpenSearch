@@ -8,10 +8,11 @@
 
 package org.opensearch.identity.noop;
 
-import org.opensearch.identity.ServiceAccountManager;
+import org.opensearch.cluster.ApplicationManager;
+import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
-import org.opensearch.identity.Subject;
+import static org.opensearch.extensions.NoopExtensionsManager.buildNoopExtensionsManager;
 
 /**
  * Implementation of identity plugin that does not enforce authentication or authorization
@@ -41,7 +42,7 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     }
 
     @Override
-    public ServiceAccountManager getServiceAccountManager() {
-        return new NoopServiceAccountManager();
+    public ApplicationManager getApplicationManager() {
+        return new ApplicationManager(buildNoopExtensionsManager(), null, new NoopServiceAccountManager());
     }
 }

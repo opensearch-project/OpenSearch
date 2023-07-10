@@ -19,7 +19,7 @@ import org.opensearch.identity.ServiceAccount;
  *
  * Here we can see the ShiroServiceAccount implement the ServiceAccount and be used to track permissions assigned to applications.
  */
-public class ShiroServiceAccount implements ServiceAccount {
+public class ShiroServiceAccount extends ServiceAccount {
 
     private final Application application;
     private final Principal name;
@@ -30,6 +30,7 @@ public class ShiroServiceAccount implements ServiceAccount {
      * @param application The application to be associated with the service account
      */
     public ShiroServiceAccount(final Application application) {
+        super(application);
 
         this.application = application;
         name = application.getPrincipal();
