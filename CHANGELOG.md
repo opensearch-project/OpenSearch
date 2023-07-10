@@ -139,6 +139,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.maven:maven-model` from 3.9.2 to 3.9.3 (#8403)
 - Bump `io.projectreactor.netty:reactor-netty` and `io.projectreactor.netty:reactor-netty-core` from 1.1.7 to 1.1.8 (#8405)
 - Bump `com.azure:azure-storage-blob` from 12.22.2 to 12.22.3 (#8572)
+- Bump `com.google.jimfs:jimfs` from 1.2 to 1.3.0 (#8577)
 
 ### Changed
 - Replace jboss-annotations-api_1.2_spec with jakarta.annotation-api ([#7836](https://github.com/opensearch-project/OpenSearch/pull/7836))
