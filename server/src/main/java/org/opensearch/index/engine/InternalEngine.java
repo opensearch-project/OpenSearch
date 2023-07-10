@@ -596,7 +596,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean isTranslogSyncNeeded() {
-        return translogManager.getTranslog().syncNeeded();
+        return translogManager.isTranslogSyncNeeded();
     }
 
     @Override
@@ -611,7 +611,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public TranslogStats getTranslogStats() {
-        return translogManager.getTranslog().stats();
+        return translogManager.getTranslogStats();
     }
 
     @Override
@@ -1892,31 +1892,10 @@ public class InternalEngine extends Engine {
         final long localCheckpointOfLastCommit = Long.parseLong(
             lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
         );
-        final long translogGenerationOfLastCommit = translogManager.getTranslog()
-            .getMinGenerationForSeqNo(localCheckpointOfLastCommit + 1).translogFileGeneration;
-        final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        if (translogManager.getTranslog().sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
-            return false;
-        }
-        /*
-         * We flush to reduce the size of uncommitted translog but strictly speaking the uncommitted size won't always be
-         * below the flush-threshold after a flush. To avoid getting into an endless loop of flushing, we only enable the
-         * periodically flush condition if this condition is disabled after a flush. The condition will change if the new
-         * commit points to the later generation the last commit's(eg. gen-of-last-commit < gen-of-new-commit)[1].
-         *
-         * When the local checkpoint equals to max_seqno, and translog-gen of the last commit equals to translog-gen of
-         * the new commit, we know that the last generation must contain operations because its size is above the flush
-         * threshold and the flush-threshold is guaranteed to be higher than an empty translog by the setting validation.
-         * This guarantees that the new commit will point to the newly rolled generation. In fact, this scenario only
-         * happens when the generation-threshold is close to or above the flush-threshold; otherwise we have rolled
-         * generations as the generation-threshold was reached, then the first condition (eg. [1]) is already satisfied.
-         *
-         * This method is to maintain translog only, thus IndexWriter#hasUncommittedChanges condition is not considered.
-         */
-        final long translogGenerationOfNewCommit = translogManager.getTranslog()
-            .getMinGenerationForSeqNo(localCheckpointTracker.getProcessedCheckpoint() + 1).translogFileGeneration;
-        return translogGenerationOfLastCommit < translogGenerationOfNewCommit
-            || localCheckpointTracker.getProcessedCheckpoint() == localCheckpointTracker.getMaxSeqNo();
+        return translogManager.shouldPeriodicallyFlush(
+            localCheckpointOfLastCommit,
+            config().getIndexSettings().getFlushThresholdSize().getBytes()
+        );
     }
 
     @Override
@@ -1955,7 +1934,7 @@ public class InternalEngine extends Engine {
                     )) {
                     translogManager.ensureCanFlush();
                     try {
-                        translogManager.getTranslog().rollGeneration();
+                        translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translogManager.getTranslog());
                         logger.trace("finished commit for flush");
@@ -2247,8 +2226,8 @@ public class InternalEngine extends Engine {
             }
             failEngine("already closed by tragic event on the index writer", tragicException);
             engineFailed = true;
-        } else if (translogManager.getTranslog().isOpen() == false && translogManager.getTranslog().getTragicException() != null) {
-            failEngine("already closed by tragic event on the translog", translogManager.getTranslog().getTragicException());
+        } else if (translogManager.getTragicExceptionIfClosed() != null) {
+            failEngine("already closed by tragic event on the translog", translogManager.getTragicExceptionIfClosed());
             engineFailed = true;
         } else if (failedEngine.get() == null && isClosed.get() == false) { // we are closed but the engine is not failed yet?
             // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
@@ -2273,7 +2252,7 @@ public class InternalEngine extends Engine {
             return failOnTragicEvent((AlreadyClosedException) e);
         } else if (e != null
             && ((indexWriter.isOpen() == false && indexWriter.getTragicException() == e)
-                || (translogManager.getTranslog().isOpen() == false && translogManager.getTranslog().getTragicException() == e))) {
+                || (translogManager.getTragicExceptionIfClosed() == e))) {
                     // this spot on - we are handling the tragic event exception here so we have to fail the engine
                     // right away
                     failEngine(source, e);
@@ -2381,7 +2360,7 @@ public class InternalEngine extends Engine {
                     logger.warn("Failed to close ReaderManager", e);
                 }
                 try {
-                    IOUtils.close(translogManager.getTranslog());
+                    IOUtils.close(translogManager);
                 } catch (Exception e) {
                     logger.warn("Failed to close translog", e);
                 }
