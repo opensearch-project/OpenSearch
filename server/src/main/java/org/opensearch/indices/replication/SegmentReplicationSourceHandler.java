@@ -25,7 +25,6 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.MultiChunkTransfer;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.threadpool.ThreadPool;
