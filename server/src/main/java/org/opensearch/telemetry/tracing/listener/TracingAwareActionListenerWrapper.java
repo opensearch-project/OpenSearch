@@ -16,7 +16,7 @@ import org.opensearch.telemetry.tracing.TracerFactory;
  * Handles the tracing scope and delegate the request to the action listener.
  * @param <Response> response.
  */
-public class TracingActionListener<Response> implements ActionListener<Response> {
+public class TracingAwareActionListenerWrapper<Response> implements ActionListener<Response> {
 
     private final ActionListener<Response> delegate;
     private final SpanScope spanScope;
@@ -28,7 +28,7 @@ public class TracingActionListener<Response> implements ActionListener<Response>
      * @param delegate  action listener to be delegated
      * @param spanScope tracer scope.
      */
-    public TracingActionListener(TracerFactory tracerFactory, ActionListener<Response> delegate, SpanScope spanScope) {
+    public TracingAwareActionListenerWrapper(TracerFactory tracerFactory, ActionListener<Response> delegate, SpanScope spanScope) {
         this.tracerFactory = tracerFactory;
         this.delegate = delegate;
         this.spanScope = spanScope;

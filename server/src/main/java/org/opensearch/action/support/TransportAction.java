@@ -49,9 +49,10 @@ import org.opensearch.tasks.TaskListener;
 import org.opensearch.tasks.TaskManager;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import org.opensearch.telemetry.TelemetryConstants;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.TracerFactory;
-import org.opensearch.telemetry.tracing.listener.TracingActionListener;
+import org.opensearch.telemetry.tracing.listener.TracingAwareActionListenerWrapper;
 
 /**
  * Base class for a transport action
@@ -186,8 +187,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
         if (tracerFactory.isPresent()) {
             SpanScope scope = tracerFactory.get().getTracer().startSpan(actionName);
-            scope.addSpanAttribute("task_id", task.getId());
-            listener = new TracingActionListener<>(tracerFactory.get(), listener, scope);
+            scope.addSpanAttribute(TelemetryConstants.ATTR_TASK_ID_KEY, task.getId());
+            listener = new TracingAwareActionListenerWrapper<>(tracerFactory.get(), listener, scope);
         }
 
         ActionRequestValidationException validationException = request.validate();
