@@ -143,7 +143,7 @@ public class CodecTests extends OpenSearchTestCase {
     }
 
     public void testCodecServiceWithNullMapperService() {
-        CodecService codecService = new CodecService(null, null, LogManager.getLogger("test"));
+        CodecService codecService = new CodecService(null, LogManager.getLogger("test"));
         assert codecService.codec("default") instanceof Lucene95Codec;
         assert codecService.codec("best_compression") instanceof Lucene95Codec;
         Lucene95CustomStoredFieldsFormat zstdStoredFieldsFormat = (Lucene95CustomStoredFieldsFormat) codecService.codec("zstd")
