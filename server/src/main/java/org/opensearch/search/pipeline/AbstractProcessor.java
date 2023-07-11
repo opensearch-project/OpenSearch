@@ -6,20 +6,20 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.pipeline.common;
-
-import org.opensearch.search.pipeline.Processor;
+package org.opensearch.search.pipeline;
 
 /**
  * Base class for common processor behavior.
  */
-abstract class AbstractProcessor implements Processor {
+public abstract class AbstractProcessor implements Processor {
     private final String tag;
     private final String description;
+    private final boolean ignoreFailure;
 
-    protected AbstractProcessor(String tag, String description) {
+    protected AbstractProcessor(String tag, String description, boolean ignoreFailure) {
         this.tag = tag;
         this.description = description;
+        this.ignoreFailure = ignoreFailure;
     }
 
     @Override
@@ -30,5 +30,10 @@ abstract class AbstractProcessor implements Processor {
     @Override
     public String getDescription() {
         return description;
+    }
+
+    @Override
+    public boolean isIgnoreFailure() {
+        return ignoreFailure;
     }
 }
