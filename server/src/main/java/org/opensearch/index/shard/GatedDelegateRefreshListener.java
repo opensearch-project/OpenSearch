@@ -65,23 +65,23 @@ public class GatedDelegateRefreshListener implements ReferenceManager.RefreshLis
         });
     }
 
-    private void handleDelegate(Runnable delegate) throws IOException {
+    private void handleDelegate(Runnable delegate) {
         assert Thread.holdsLock(this);
-        try {
-            if (closed.get() == false) {
+        if (closed.get() == false) {
+            try {
                 if (semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) {
                     try {
                         delegate.run();
                     } finally {
                         semaphore.release(1);
                     }
+                } else {
+                    // this should never happen, if it does something is deeply wrong
+                    throw new TimeoutException("failed to obtain permit but operations are not delayed");
                 }
-            } else {
-                // this should never happen, if it does something is deeply wrong
-                throw new TimeoutException("failed to obtain permit but operations are not delayed");
+            } catch(InterruptedException | TimeoutException e){
+                throw new RuntimeException("Failed to handle delegate due to ", e);
             }
-        } catch (InterruptedException | TimeoutException e) {
-            throw new RuntimeException("Failed to handle delegate due to ", e);
         }
     }
 
