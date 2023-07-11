@@ -3659,18 +3659,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate();
     }
 
-    private void closeInternalRefreshListeners() {
-        for (ReferenceManager.RefreshListener internalRefreshListener : internalRefreshListeners) {
-            if (internalRefreshListener instanceof Closeable) {
-                try {
-                    ((Closeable) internalRefreshListener).close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) throws IOException {
         final Sort indexSort = indexSortSupplier.get();
         final Engine.Warmer warmer = reader -> {
