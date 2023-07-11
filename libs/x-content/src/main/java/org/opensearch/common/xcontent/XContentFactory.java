@@ -113,7 +113,7 @@ public class XContentFactory {
     /**
      * Constructs a xcontent builder that will output the result into the provided output stream.
      */
-    public static XContentBuilder contentBuilder(XContentType type, OutputStream outputStream) throws IOException {
+    public static XContentBuilder contentBuilder(MediaType type, OutputStream outputStream) throws IOException {
         if (type == XContentType.JSON) {
             return jsonBuilder(outputStream);
         } else if (type == XContentType.SMILE) {
@@ -131,7 +131,7 @@ public class XContentFactory {
      */
     public static XContentBuilder contentBuilder(MediaType type) throws IOException {
         if (type instanceof XContentType) {
-            return contentBuilder(XContentType.fromMediaType(type));
+            return contentBuilder((XContentType) (type));
         }
         throw new IllegalArgumentException("Content type [" + type.getClass().getName() + "] not supported");
     }
