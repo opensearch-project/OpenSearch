@@ -12,7 +12,6 @@ import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
@@ -30,8 +29,8 @@ import java.util.Map;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteStoreForcemergeIT extends RemoteStoreBaseIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 3)
+public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
     private static final String TOTAL_OPERATIONS = "total-operations";
@@ -52,13 +51,6 @@ public class RemoteStoreForcemergeIT extends RemoteStoreBaseIntegTestCase {
         return remoteStoreIndexSettings(0);
     }
 
-    private IndexResponse indexSingleDoc() {
-        return client().prepareIndex(INDEX_NAME)
-            .setId(UUIDs.randomBase64UUID())
-            .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
-            .get();
-    }
-
     private Map<String, Long> indexData(int numberOfIterations, boolean invokeFlush, boolean flushAfterMerge, boolean deleteDocs) {
         long totalOperations = 0;
         long maxSeqNo = -1;
@@ -66,7 +58,7 @@ public class RemoteStoreForcemergeIT extends RemoteStoreBaseIntegTestCase {
         for (int i = 0; i < numberOfIterations; i++) {
             int numberOfOperations = randomIntBetween(20, 50);
             for (int j = 0; j < numberOfOperations; j++) {
-                IndexResponse response = indexSingleDoc();
+                IndexResponse response = indexSingleDoc(INDEX_NAME);
                 maxSeqNo = response.getSeqNo();
                 indexResponseList.add(response);
             }
@@ -100,7 +92,7 @@ public class RemoteStoreForcemergeIT extends RemoteStoreBaseIntegTestCase {
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) - deletedDocs);
-        IndexResponse response = indexSingleDoc();
+        IndexResponse response = indexSingleDoc(INDEX_NAME);
         assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL) + 1, response.getSeqNo());
         refresh(INDEX_NAME);
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1 - deletedDocs);
@@ -108,7 +100,6 @@ public class RemoteStoreForcemergeIT extends RemoteStoreBaseIntegTestCase {
 
     private void testRestoreWithMergeFlow(int numberOfIterations, boolean invokeFlush, boolean flushAfterMerge, boolean deleteDocs)
         throws IOException {
-        internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -127,14 +118,14 @@ public class RemoteStoreForcemergeIT extends RemoteStoreBaseIntegTestCase {
     // Following integ tests use randomBoolean to control the number of integ tests. If we use the separate
     // values for each of the flags, number of integ tests become 16 in comparison to current 2.
     // We have run all the 16 tests on local and they run fine.
-    public void testRestoreForcemegeSingleIteration() throws IOException {
+    public void testRestoreForceMergeSingleIteration() throws IOException {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
         boolean deleteDocs = randomBoolean();
         testRestoreWithMergeFlow(1, invokeFLush, flushAfterMerge, deleteDocs);
     }
 
-    public void testRestoreForcemegeMultipleIterations() throws IOException {
+    public void testRestoreForceMergeMultipleIterations() throws IOException {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
         boolean deleteDocs = randomBoolean();
