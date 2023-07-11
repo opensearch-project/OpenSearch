@@ -677,19 +677,24 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         indexDocs(142364, 5);
         flushShard(indexShard, true);
         SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
+        long primaryTerm = 12;
+        String primaryTermLong = RemoteStoreUtils.invertLong(primaryTerm);
         long generation = segInfos.getGeneration();
-        String latestMetadataFileName = "metadata__12__" + generation + "__abc";
+        String generationLong = RemoteStoreUtils.invertLong(generation);
+        String latestMetadataFileName = "metadata__" + primaryTermLong + "__" + generationLong + "__abc";
         List<String> metadataFiles = List.of(latestMetadataFileName);
-        when(remoteMetadataDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX)).thenReturn(
-            metadataFiles
-        );
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                1
+            )
+        ).thenReturn(metadataFiles);
         Map<String, Map<String, String>> metadataFilenameContentMapping = Map.of(
             latestMetadataFileName,
             getDummyMetadata("_0", (int) generation)
         );
-
         when(remoteMetadataDirectory.openInput(latestMetadataFileName, IOContext.DEFAULT)).thenReturn(
-            createMetadataFileBytes(metadataFilenameContentMapping.get(latestMetadataFileName), generation, 12)
+            createMetadataFileBytes(metadataFilenameContentMapping.get(latestMetadataFileName), generation, primaryTerm)
         );
 
         remoteSegmentStoreDirectory.init();
@@ -697,22 +702,17 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         Directory storeDirectory = mock(Directory.class);
         BytesStreamOutput output = new BytesStreamOutput();
         IndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
+        when(storeDirectory.createOutput(startsWith("metadata__" + primaryTermLong + "__" + generationLong), eq(IOContext.DEFAULT)))
+            .thenReturn(indexOutput);
 
-        String generation = RemoteStoreUtils.invertLong(segmentInfos.getGeneration());
-        String primaryTerm = RemoteStoreUtils.invertLong(12);
-        when(storeDirectory.createOutput(startsWith("metadata__" + primaryTerm + "__" + generation), eq(IOContext.DEFAULT))).thenReturn(
-            indexOutput
-        );
-
-        remoteSegmentStoreDirectory.uploadMetadata(segInfos.files(true), segInfos, storeDirectory, 12L, 34L);
+        remoteSegmentStoreDirectory.uploadMetadata(segInfos.files(true), segInfos, storeDirectory, primaryTerm, generation);
 
         verify(remoteMetadataDirectory).copyFrom(
             eq(storeDirectory),
-            startsWith("metadata__" + primaryTerm + "__" + generation),
-            startsWith("metadata__" + primaryTerm + "__" + generation),
+            startsWith("metadata__" + primaryTermLong + "__" + generationLong),
+            startsWith("metadata__" + primaryTermLong + "__" + generationLong),
             eq(IOContext.DEFAULT)
         );
-
         VersionedCodecStreamWrapper<RemoteSegmentMetadata> streamWrapper = new VersionedCodecStreamWrapper<>(
             new RemoteSegmentMetadataHandler(),
             RemoteSegmentMetadata.CURRENT_VERSION,
@@ -721,11 +721,9 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         RemoteSegmentMetadata remoteSegmentMetadata = streamWrapper.readStream(
             new ByteArrayIndexInput("expected", BytesReference.toBytes(output.bytes()))
         );
-
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> actual = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore();
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> expected = remoteSegmentMetadata.getMetadata();
-
         for (String filename : expected.keySet()) {
             assertEquals(expected.get(filename).toString(), actual.get(filename).toString());
         }
