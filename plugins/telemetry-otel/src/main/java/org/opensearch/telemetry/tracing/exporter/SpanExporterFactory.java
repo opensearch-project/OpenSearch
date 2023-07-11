@@ -11,6 +11,8 @@ package org.opensearch.telemetry.tracing.exporter;
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import java.lang.reflect.Method;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
@@ -18,6 +20,8 @@ import org.opensearch.common.settings.Settings;
  * Factory class to create the {@link SpanExporter} instance.
  */
 public class SpanExporterFactory {
+
+    private static final Logger logger = LogManager.getLogger(SpanExporterFactory.class);
 
     /**
      * Span Exporter type setting.
@@ -54,6 +58,7 @@ public class SpanExporterFactory {
     public SpanExporter create(Settings settings) {
         Class<SpanExporter> spanExporterProviderClass = OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.get(settings);
         SpanExporter spanExporter = instantiateSpanExporter(spanExporterProviderClass);
+        logger.info("Successfully instantiated the SpanExporter class {}", spanExporterProviderClass);
         return spanExporter;
     }
 
