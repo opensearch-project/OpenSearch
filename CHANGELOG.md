@@ -165,6 +165,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Enabling compression levels for zstd and zstd_no_dict ([#8312](https://github.com/opensearch-project/OpenSearch/pull/8312))
 - Optimize Metadata build() to skip redundant computations as part of ClusterState build ([#7853](https://github.com/opensearch-project/OpenSearch/pull/7853))
 - Add safeguard limits for file cache during node level allocation ([#8208](https://github.com/opensearch-project/OpenSearch/pull/8208))
+- Move span actions to Scope ([#8411](https://github.com/opensearch-project/OpenSearch/pull/8411))
+- Add wrapper tracer implementation ([#8565](https://github.com/opensearch-project/OpenSearch/pull/8565))
 
 ### Deprecated
 
