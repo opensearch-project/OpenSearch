@@ -4777,23 +4777,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } else {
                     skippedSegments.add(file);
                 }
-                if (targetRemoteDirectory != null) {
-
-                }
-
             }
-            beforeSegmentDownload(downloadStatsTracker, segmentsToDownload.size(), totalSizeOfSegmentsToDownload);
-            // Copying segments files to local store directory from remote store directory (Shard Recovery)
-            for (String file : segmentsToDownload) {
+            // Upload stats before starting Segment downloads
+            // Adding a check to prevent stats being published for NoOp runs
+            if (!segmentsToDownload.isEmpty()) {
+                beforeSegmentDownloads(downloadStatsTracker, totalSizeOfSegmentsToDownload);
+            }
+            long sizeOfDownloadedSegments = 0;
+            try {
                 long startTimeInMs = System.currentTimeMillis();
-                try {
+                // Copying segments files to local store directory from remote store directory (Shard Recovery)
+                for (String file : segmentsToDownload) {
+                    // Throws IOException if download fails
                     storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
                     storeDirectory.sync(Collections.singleton(file));
                     downloadedSegments.add(file);
-                    afterSegmentDownloadCompleted(downloadStatsTracker, uploadedSegments.get(file).getLength(), startTimeInMs);
-                } catch (IOException e) {
-                    afterSegmentDownloadFailed(downloadStatsTracker, uploadedSegments.get(file).getLength());
+                    sizeOfDownloadedSegments += uploadedSegments.get(file).getLength();
                 }
+                // Upload stats after download batch is completed
+                // Adding a check to prevent stats being published for NoOp runs
+                if (!downloadedSegments.isEmpty()) {
+                    afterSegmentDownloadsCompleted(downloadStatsTracker, sizeOfDownloadedSegments, startTimeInMs);
+                }
+            } catch (IOException e) {
+                // Upload stats if file download batch fails
+                afterSegmentDownloadsFailed(downloadStatsTracker, totalSizeOfSegmentsToDownload - sizeOfDownloadedSegments);
+                throw e;
             }
             // Copying segment files over to target remote directory from local store directory (Snapshot)
             for (String file : uploadedSegments.keySet()) {
@@ -4828,7 +4837,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // TODO: Move the following three methods also to the generic class with `copySegmentFiles`
-    private void beforeSegmentDownload(RemoteRefreshSegmentTracker downloadStatsTracker, long totalFiles, long incomingFilesSize) {
+    private void beforeSegmentDownloads(RemoteRefreshSegmentTracker downloadStatsTracker, long incomingFilesSize) {
         // The `copySegmentFiles` method is being used for both
         // - `syncSegmentsFromRemoteSegmentStore` (Remote store based shard recovery)
         // - `syncSegmentsFromGivenRemoteSegmentStore` (Snapshot inter-op with remote store)
@@ -4837,11 +4846,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (!indexSettings.isRemoteStoreEnabled()) {
             return;
         }
-        downloadStatsTracker.addTotalDownloadsStarted(totalFiles);
+        downloadStatsTracker.incrementTotalDownloadsStarted();
         downloadStatsTracker.addDownloadBytesStarted(incomingFilesSize);
     }
 
-    private void afterSegmentDownloadCompleted(
+    private void afterSegmentDownloadsCompleted(
         RemoteRefreshSegmentTracker downloadStatsTracker,
         long downloadedFileSize,
         long startTimeInMs
@@ -4859,7 +4868,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         downloadStatsTracker.addDownloadBytesPerSec((downloadedFileSize * 1_000L) / timeTakenInMS);
     }
 
-    private void afterSegmentDownloadFailed(RemoteRefreshSegmentTracker downloadStatsTracker, long failedFileSize) {
+    private void afterSegmentDownloadsFailed(RemoteRefreshSegmentTracker downloadStatsTracker, long failedFileSize) {
         if (!indexSettings.isRemoteStoreEnabled()) {
             return;
         }

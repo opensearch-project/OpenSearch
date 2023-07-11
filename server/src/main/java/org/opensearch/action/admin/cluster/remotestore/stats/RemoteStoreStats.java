@@ -61,7 +61,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         if (!shardRouting.primary()) {
             builder.startObject(SubFields.DOWNLOAD);
             builder.field(DownloadStatsFields.LAST_DOWNLOAD_TIMESTAMP, remoteSegmentShardStats.lastDownloadTimestampMs);
-            builder.startObject(DownloadStatsFields.TOTAL_FILES_DOWNLOADED)
+            builder.startObject(DownloadStatsFields.TOTAL_SYNCS_FROM_REMOTE)
                 .field(SubFields.STARTED, remoteSegmentShardStats.totalDownloadsStarted)
                 .field(SubFields.SUCCEEDED, remoteSegmentShardStats.totalDownloadsSucceeded)
                 .field(SubFields.FAILED, remoteSegmentShardStats.totalDownloadsFailed);
@@ -224,7 +224,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         /**
          * Total number of segment files downloaded from the remote store for a specific shard
          */
-        static final String TOTAL_FILES_DOWNLOADED = "total_file_downloads";
+        static final String TOTAL_SYNCS_FROM_REMOTE = "total_syncs_from_remote";
 
         /**
          * Total bytes of segment files downloaded from the remote store for a specific shard

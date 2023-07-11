@@ -196,8 +196,6 @@ public class RemoteRefreshSegmentTracker {
      */
     private final AtomicReference<MovingAverage> downloadBytesMovingAverageReference;
 
-    private final Object downloadBytesMutex = new Object();
-
     /**
      * Provides moving average over the last N upload speed (in bytes/s) of segment files uploaded as part of remote refresh.
      * N is window size. Wrapped with {@code AtomicReference} for dynamic changes in window size.
@@ -211,8 +209,6 @@ public class RemoteRefreshSegmentTracker {
      * N is window size. Wrapped with {@code AtomicReference} for dynamic changes in window size.
      */
     private final AtomicReference<MovingAverage> downloadBytesPerSecMovingAverageReference;
-
-    private final Object downloadBytesPerSecMutex = new Object();
 
     /**
      * Provides moving average over the last N overall upload time (in millis) as part of remote refresh.N is window size.
@@ -229,8 +225,6 @@ public class RemoteRefreshSegmentTracker {
     private final AtomicReference<MovingAverage> downloadTimeMovingAverageReference;
 
     private final int SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE = 20;
-
-    private final Object downloadTimeMutex = new Object();
 
     public RemoteRefreshSegmentTracker(
         ShardId shardId,
@@ -449,8 +443,8 @@ public class RemoteRefreshSegmentTracker {
         return totalDownloadsStarted;
     }
 
-    public void addTotalDownloadsStarted(long totalFiles) {
-        totalDownloadsStarted += totalFiles;
+    public void incrementTotalDownloadsStarted() {
+        totalDownloadsStarted += 1;
     }
 
     public long getTotalDownloadsFailed() {
@@ -561,9 +555,7 @@ public class RemoteRefreshSegmentTracker {
 
     public void addDownloadBytes(long size) {
         lastSuccessfulSegmentDownloadBytes = size;
-        synchronized (downloadBytesMutex) {
-            this.downloadBytesMovingAverageReference.get().record(size);
-        }
+        this.downloadBytesMovingAverageReference.get().record(size);
     }
 
     boolean isUploadBytesPerSecAverageReady() {
@@ -589,9 +581,7 @@ public class RemoteRefreshSegmentTracker {
     }
 
     public void addDownloadBytesPerSec(long bytesPerSec) {
-        synchronized (downloadBytesPerSecMutex) {
-            this.downloadBytesPerSecMovingAverageReference.get().record(bytesPerSec);
-        }
+        this.downloadBytesPerSecMovingAverageReference.get().record(bytesPerSec);
     }
 
     /**
@@ -639,9 +629,7 @@ public class RemoteRefreshSegmentTracker {
     }
 
     public void addDownloadTime(long timeMs) {
-        synchronized (downloadTimeMutex) {
-            this.downloadTimeMovingAverageReference.get().record(timeMs);
-        }
+        this.downloadTimeMovingAverageReference.get().record(timeMs);
     }
 
     public RemoteRefreshSegmentTracker.Stats stats() {

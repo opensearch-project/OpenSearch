@@ -290,12 +290,10 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
             pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
             pressureSettings.getUploadTimeMovingAverageWindowSize()
         );
-        long firstDownloadBatch = 20;
-        pressureTracker.addTotalDownloadsStarted(firstDownloadBatch);
-        assertEquals(firstDownloadBatch, pressureTracker.getTotalDownloadsStarted());
-        long secondDownloadBatch = 20;
-        pressureTracker.addTotalDownloadsStarted(secondDownloadBatch);
-        assertEquals(firstDownloadBatch + secondDownloadBatch, pressureTracker.getTotalDownloadsStarted());
+        pressureTracker.incrementTotalDownloadsStarted();
+        assertEquals(1, pressureTracker.getTotalDownloadsStarted());
+        pressureTracker.incrementTotalDownloadsStarted();
+        assertEquals(2, pressureTracker.getTotalDownloadsStarted());
     }
 
     public void testIncrementTotalDownloadsFailed() {
@@ -387,9 +385,9 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
             pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
             pressureSettings.getUploadTimeMovingAverageWindowSize()
         );
-        pressureTracker.addTotalDownloadsStarted(1);
+        pressureTracker.incrementTotalDownloadsStarted();
         assertEquals(1, pressureTracker.getInflightDownloads());
-        pressureTracker.addTotalDownloadsStarted(1);
+        pressureTracker.incrementTotalDownloadsStarted();
         assertEquals(2, pressureTracker.getInflightDownloads());
         pressureTracker.incrementTotalDownloadsSucceeded();
         assertEquals(1, pressureTracker.getInflightDownloads());
@@ -700,7 +698,7 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         segmentPressureTracker.updateRemoteRefreshTimeMs(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
         segmentPressureTracker.incrementRejectionCount();
         segmentPressureTracker.updateLastDownloadTimestampMs(System.currentTimeMillis());
-        segmentPressureTracker.addTotalDownloadsStarted(10);
+        segmentPressureTracker.incrementTotalDownloadsStarted();
         segmentPressureTracker.incrementTotalDownloadsSucceeded();
         segmentPressureTracker.addDownloadBytesStarted(50);
         segmentPressureTracker.addDownloadBytesSucceeded(50);
