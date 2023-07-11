@@ -63,7 +63,7 @@ public class TranslogHeaderTests extends OpenSearchTestCase {
         final long generation = randomNonNegativeLong();
         final Path translogFile = createTempDir().resolve(Translog.getFilename(generation));
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            outHeader.write(channel);
+            outHeader.write(channel, true);
             assertThat(outHeader.sizeInBytes(), equalTo((int) channel.position()));
         }
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
@@ -165,7 +165,7 @@ public class TranslogHeaderTests extends OpenSearchTestCase {
         final Path translogLocation = createTempDir();
         final Path translogFile = translogLocation.resolve(Translog.getFilename(generation));
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            outHeader.write(channel);
+            outHeader.write(channel, true);
             assertThat(outHeader.sizeInBytes(), equalTo((int) channel.position()));
         }
         TestTranslog.corruptFile(logger, random(), translogFile, false);
