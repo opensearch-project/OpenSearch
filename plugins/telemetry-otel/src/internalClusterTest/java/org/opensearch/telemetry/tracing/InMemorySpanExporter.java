@@ -11,8 +11,6 @@ package org.opensearch.telemetry.tracing;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.test.telemetry.tracing.MockSpanData;
 
 import java.util.ArrayList;
@@ -27,7 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Writes the span to the list of MockSpanData, everytime a span is emitted.
  */
 public class InMemorySpanExporter implements SpanExporter {
-    private final Logger DEFAULT_LOGGER = LogManager.getLogger(InMemorySpanExporter.class);
 
     private final AtomicBoolean isShutdown = new AtomicBoolean();
 
