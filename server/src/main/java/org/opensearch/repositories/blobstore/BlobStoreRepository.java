@@ -3093,11 +3093,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Using survivingSnapshots instead of newSnapshotsList as shallow snapshots can be present which won't be part of
             // newSnapshotsList
             if (survivingSnapshots.isEmpty()) {
+                // No shallow copy or full copy snapshot is surviving.
                 return new ShardSnapshotMetaDeleteResult(indexId, snapshotShardId, ShardGenerations.DELETED_SHARD_GEN, blobs);
             } else {
                 final BlobStoreIndexShardSnapshots updatedSnapshots;
                 // If we have surviving non shallow snapshots, update index- file.
                 if (newSnapshotsList.size() > 0) {
+                    // Some full copy snapshots are surviving.
                     updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
                     if (indexGeneration < 0L) {
                         writtenGeneration = UUIDs.randomBase64UUID();
@@ -3107,8 +3109,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots);
                     }
                 } else {
+                    // Some shallow copy snapshots are surviving. In this case, since no full copy snapshots are present, we use
+                    // EMPTY BlobStoreIndexShardSnapshots for updatedSnapshots which is used in unusedBlobs to compute stale files,
+                    // and use DELETED_SHARD_GEN since index-N file would not be present anymore.
                     updatedSnapshots = BlobStoreIndexShardSnapshots.EMPTY;
-                    writtenGeneration = ShardGenerations.NEW_SHARD_GEN;
+                    writtenGeneration = ShardGenerations.DELETED_SHARD_GEN;
                 }
                 final Set<String> survivingSnapshotUUIDs = survivingSnapshots.stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
                 return new ShardSnapshotMetaDeleteResult(

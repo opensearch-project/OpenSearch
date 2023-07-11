@@ -2231,57 +2231,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
             assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : "incorrect state for entry [" + deleteEntry + "]";
             final Repository repository = repositoriesService.repository(deleteEntry.repository());
-            StepListener<Boolean> checkForShallowSnapshotStep = new StepListener<Boolean>();
 
-            // This check is done to preserve the bwc with repository implementations that don't support shallow snapshot
-            // and use the existing deleteSnapshots API of Repository plugin. For other repositories, we expect them to implement
-            // new delete API - deleteSnapshotsAndReleaseLockFiles or use the one implemented by BlobStoreRepository.
-            // TODO This can be improved by having this information (whether the repository contains any shallow copy snapshot)
-            // in the RepositoryData instead of fetching snapshot info for each snapshot and verifying.
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    checkForShallowSnapshotStep.onFailure(e);
-                }
-
-                @Override
-                protected void doRun() {
-                    boolean cleanupRemoteStoreLockFiles = false;
-                    final List<SnapshotId> allSnapshotIds = repositoryData.getSnapshotIds().stream().collect(Collectors.toList());
-                    for (SnapshotId snapshotId : allSnapshotIds) {
-                        if (Boolean.TRUE.equals(repository.getSnapshotInfo(snapshotId).isRemoteStoreIndexShallowCopyEnabled())) {
-                            cleanupRemoteStoreLockFiles = true;
-                            break;
-                        }
-                    }
-                    checkForShallowSnapshotStep.onResponse(cleanupRemoteStoreLockFiles);
-                }
-            });
-
-            checkForShallowSnapshotStep.whenComplete(cleanupRemoteStoreLockFiles -> {
-                if (cleanupRemoteStoreLockFiles) {
-                    repository.deleteSnapshotsAndReleaseLockFiles(
-                        snapshotIds,
-                        repositoryData.getGenId(),
-                        minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                        remoteStoreLockManagerFactory,
-                        ActionListener.wrap(updatedRepoData -> {
-                            logger.info("snapshots {} deleted", snapshotIds);
-                            removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
-                        }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
-                    );
-                } else {
-                    repository.deleteSnapshots(
-                        snapshotIds,
-                        repositoryData.getGenId(),
-                        minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                        ActionListener.wrap(updatedRepoData -> {
-                            logger.info("snapshots {} deleted", snapshotIds);
-                            removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
-                        }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
-                    );
-                }
-            }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData));
+            // TODO: Relying on repository flag to decide delete flow may lead to shallow snapshot blobs not being taken up for cleanup
+            // when the repository currently have the flag disabled and we try to delete the shallow snapshots taken prior to disabling
+            // the flag. This can be improved by having the info whether there ever were any shallow snapshot present in this repository
+            // or not in RepositoryData.
+            final boolean cleanupRemoteStoreLockFiles = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
+            if (cleanupRemoteStoreLockFiles) {
+                repository.deleteSnapshotsAndReleaseLockFiles(
+                    snapshotIds,
+                    repositoryData.getGenId(),
+                    minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
+                    remoteStoreLockManagerFactory,
+                    ActionListener.wrap(updatedRepoData -> {
+                        logger.info("snapshots {} deleted", snapshotIds);
+                        removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
+                    }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
+                );
+            } else {
+                repository.deleteSnapshots(
+                    snapshotIds,
+                    repositoryData.getGenId(),
+                    minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
+                    ActionListener.wrap(updatedRepoData -> {
+                        logger.info("snapshots {} deleted", snapshotIds);
+                        removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
+                    }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
+                );
+            }
         }
     }
 
