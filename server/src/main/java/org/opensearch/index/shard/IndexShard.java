@@ -44,7 +44,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -294,6 +293,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
+    private final MeanMetric refreshListenerMetric = new MeanMetric();
     private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
@@ -337,6 +337,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final boolean isTimeSeriesIndex;
     private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
+    private final List<ReferenceManager.RefreshListener> internalRefreshListeners;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -458,6 +459,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ? false
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteRefreshSegmentPressureService = remoteRefreshSegmentPressureService;
+        this.internalRefreshListeners = new ArrayList<>(2);
     }
 
     public ThreadPool getThreadPool() {
@@ -801,9 +803,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable performSegRep
     ) throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
+        //Force refreshes pending refresh listeners
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
+            //Run a round of segrep while we are waiting for the permits. We need to evaluate if this needs to be put inside
+            //the permit to synchronise segments. However since indexing operations are stalled, we need to justify the cost
+            //of blocking segrep round, which for remote store enabled nodes will require operations to drain on the remote store.
+            performSegRep.run();
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                //Prevents new refresh listeners to be registered while all permits are acquired
                 forceRefreshes.close();
+                //Ensures all in-flight remote store operations drain, before we hand-off.
+                internalRefreshListeners.stream().filter(i -> i instanceof Closeable).map(i -> (Closeable)i).close();
 
                 boolean syncTranslog = isRemoteTranslogEnabled() && Durability.ASYNC == indexSettings.getTranslogDurability();
                 // Since all the index permits are acquired at this point, the translog buffer will not change.
@@ -816,7 +826,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
                     : "in-flight operations in progress while moving shard state to relocated";
 
-                performSegRep.run();
+
                 /*
                  * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
@@ -3649,6 +3659,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate();
     }
 
+    private void closeInternalRefreshListeners() {
+        for (ReferenceManager.RefreshListener internalRefreshListener : internalRefreshListeners) {
+            if (internalRefreshListener instanceof Closeable) {
+                try {
+                    ((Closeable) internalRefreshListener).close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) throws IOException {
         final Sort indexSort = indexSortSupplier.get();
         final Engine.Warmer warmer = reader -> {
@@ -3659,21 +3681,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
 
-        final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
-        internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
+        internalRefreshListeners.add(new RefreshMetricUpdater(refreshMetric));
         if (isRemoteStoreEnabled()) {
-            internalRefreshListener.add(
+            internalRefreshListeners.add(new GatedDelegateRefreshListener(
                 new RemoteStoreRefreshListener(
                     this,
                     // Add the checkpoint publisher if the Segment Replciation via remote store is enabled.
                     indexSettings.isSegRepWithRemoteEnabled() ? this.checkpointPublisher : SegmentReplicationCheckpointPublisher.EMPTY,
                     remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId())
-                )
+                ), refreshListenerMetric)
             );
         }
 
         if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
-            internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
+            internalRefreshListeners.add(new GatedDelegateRefreshListener(
+                new CheckpointRefreshListener(this, this.checkpointPublisher), null));
         }
         /**
          * With segment replication enabled for primary relocation, recover replica shard initially as read only and
@@ -3699,7 +3721,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, refreshPendingLocationListener),
-            internalRefreshListener,
+            internalRefreshListeners,
             indexSort,
             circuitBreakerService,
             globalCheckpointSupplier,
