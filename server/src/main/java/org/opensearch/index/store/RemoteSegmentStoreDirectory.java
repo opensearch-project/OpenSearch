@@ -475,30 +475,32 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 RemoteSegmentMetadata.CURRENT_VERSION
             );
             try {
-                IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
-                Map<String, String> uploadedSegments = new HashMap<>();
-                for (String file : segmentFiles) {
-                    if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                        uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
-                    } else {
-                        throw new NoSuchFileException(file);
+                try (IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT)) {
+                    Map<String, String> uploadedSegments = new HashMap<>();
+                    for (String file : segmentFiles) {
+                        if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                            uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
+                        } else {
+                            throw new NoSuchFileException(file);
+                        }
                     }
+
+                    ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
+                    segmentInfosSnapshot.write(
+                        new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos")
+                    );
+                    byte[] segmentInfoSnapshotByteArray = byteBuffersIndexOutput.toArrayCopy();
+
+                    metadataStreamWrapper.writeStream(
+                        indexOutput,
+                        new RemoteSegmentMetadata(
+                            RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
+                            segmentInfoSnapshotByteArray,
+                            primaryTerm,
+                            segmentInfosSnapshot.getGeneration()
+                        )
+                    );
                 }
-
-                ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
-                segmentInfosSnapshot.write(new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos"));
-                byte[] segmentInfoSnapshotByteArray = byteBuffersIndexOutput.toArrayCopy();
-
-                metadataStreamWrapper.writeStream(
-                    indexOutput,
-                    new RemoteSegmentMetadata(
-                        RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
-                        segmentInfoSnapshotByteArray,
-                        primaryTerm,
-                        segmentInfosSnapshot.getGeneration()
-                    )
-                );
-                indexOutput.close();
                 storeDirectory.sync(Collections.singleton(metadataFilename));
                 remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
             } finally {
