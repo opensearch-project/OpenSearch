@@ -209,11 +209,15 @@ public final class NoOpEngine extends ReadOnlyEngine {
                                 translog.trimUnreferencedReaders();
                                 // refresh the translog stats
                                 translogStats = translog.stats();
-                                assert translog.currentFileGeneration() == translog.getMinFileGeneration() : "translog was not trimmed "
-                                    + " current gen "
-                                    + translog.currentFileGeneration()
-                                    + " != min gen "
-                                    + translog.getMinFileGeneration();
+                                // When remote translog is enabled, the min file generation is dependent on the (N-1)
+                                // lastRefreshedCheckpoint SeqNo - refer RemoteStoreRefreshListener. This leads to older generations not
+                                // being trimmed and leading to current generation being higher than the min file generation.
+                                assert engineConfig.getIndexSettings().isRemoteTranslogStoreEnabled()
+                                    || translog.currentFileGeneration() == translog.getMinFileGeneration() : "translog was not trimmed "
+                                        + " current gen "
+                                        + translog.currentFileGeneration()
+                                        + " != min gen "
+                                        + translog.getMinFileGeneration();
                             }
                         }
                     } catch (final Exception e) {

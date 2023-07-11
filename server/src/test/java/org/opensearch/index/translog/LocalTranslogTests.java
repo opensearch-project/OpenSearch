@@ -1541,6 +1541,91 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         }
     }
 
+    public void testTranslogWriterFsyncedWithLocalTranslog() throws IOException {
+        Path tempDir = createTempDir();
+        final TranslogConfig temp = getTranslogConfig(tempDir);
+        final TranslogConfig config = new TranslogConfig(
+            temp.getShardId(),
+            temp.getTranslogPath(),
+            temp.getIndexSettings(),
+            temp.getBigArrays(),
+            new ByteSizeValue(1, ByteSizeUnit.KB)
+        );
+
+        final Set<Long> persistedSeqNos = new HashSet<>();
+        final AtomicInteger translogFsyncCalls = new AtomicInteger();
+        final AtomicInteger checkpointFsyncCalls = new AtomicInteger();
+
+        final ChannelFactory channelFactory = (file, openOption) -> {
+            FileChannel delegate = FileChannel.open(file, openOption);
+            boolean success = false;
+            try {
+                // don't do partial writes for checkpoints we rely on the fact that the bytes are written as an atomic operation
+                final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp");
+
+                final FileChannel channel;
+                if (isCkpFile) {
+                    channel = new FilterFileChannel(delegate) {
+                        @Override
+                        public void force(boolean metaData) throws IOException {
+                            checkpointFsyncCalls.incrementAndGet();
+                        }
+                    };
+                } else {
+                    channel = new FilterFileChannel(delegate) {
+
+                        @Override
+                        public void force(boolean metaData) throws IOException {
+                            translogFsyncCalls.incrementAndGet();
+                        }
+                    };
+                }
+                success = true;
+                return channel;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(delegate);
+                }
+            }
+        };
+
+        String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            channelFactory,
+            primaryTerm.get()
+        );
+
+        try (
+            Translog translog = new LocalTranslog(
+                config,
+                translogUUID,
+                new DefaultTranslogDeletionPolicy(-1, -1, 0),
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                primaryTerm::get,
+                persistedSeqNos::add
+            ) {
+                @Override
+                ChannelFactory getChannelFactory() {
+                    return channelFactory;
+                }
+            }
+        ) {
+            TranslogWriter writer = translog.getCurrent();
+            byte[] bytes = new byte[256];
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 3);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 4);
+            writer.sync();
+            assertEquals(4, checkpointFsyncCalls.get());
+            assertEquals(3, translogFsyncCalls.get());
+            // Sequence numbers are marked as persisted after sync
+            assertThat(persistedSeqNos, contains(1L, 2L, 3L, 4L));
+        }
+    }
+
     public void testTranslogWriterDoesNotBlockAddsOnWrite() throws IOException, InterruptedException {
         Path tempDir = createTempDir();
         final TranslogConfig config = getTranslogConfig(tempDir);

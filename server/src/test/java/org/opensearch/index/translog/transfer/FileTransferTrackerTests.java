@@ -34,7 +34,8 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
         try (
             FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
                 testFile,
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                null
             )
         ) {
             fileTransferTracker.onSuccess(transferFileSnapshot);
@@ -58,11 +59,13 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
         try (
             FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
                 testFile,
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                null
             );
             FileSnapshot.TransferFileSnapshot transferFileSnapshot2 = new FileSnapshot.TransferFileSnapshot(
                 testFile2,
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                null
             )
         ) {
 
@@ -82,7 +85,8 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
         try (
             FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
                 testFile,
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                null
             );
 
         ) {

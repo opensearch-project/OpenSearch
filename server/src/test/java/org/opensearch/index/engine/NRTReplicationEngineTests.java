@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -157,6 +158,38 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
             nrtEngine.close();
             assertEquals(5, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+        }
+    }
+
+    public void testSimultaneousEngineCloseAndCommit() throws IOException, InterruptedException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (
+            final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+        ) {
+            CountDownLatch latch = new CountDownLatch(1);
+            Thread commitThread = new Thread(() -> {
+                try {
+                    nrtEngine.updateSegments(store.readLastCommittedSegmentsInfo());
+                    latch.countDown();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            Thread closeThread = new Thread(() -> {
+                try {
+                    latch.await();
+                    nrtEngine.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            commitThread.start();
+            closeThread.start();
+            commitThread.join();
+            closeThread.join();
         }
     }
 

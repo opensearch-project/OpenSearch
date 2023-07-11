@@ -34,6 +34,7 @@ import org.gradle.util.GradleVersion
 plugins {
   id 'java-gradle-plugin'
   id 'groovy'
+  id 'java-test-fixtures'
 }
 
 group = 'org.opensearch.gradle'
@@ -78,17 +79,9 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
 }
 
 sourceSets {
-  test {
-    java {
-      srcDirs += ['src/testFixtures/java']
-    }
-  }
   integTest {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
     runtimeClasspath += output + compileClasspath
-    java {
-      srcDirs += ['src/testFixtures/java']
-    }
   }
 }
 
@@ -114,7 +107,7 @@ dependencies {
   api 'org.apache.ant:ant:1.10.13'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:10.0.0'
   api 'com.netflix.nebula:nebula-publishing-plugin:20.3.0'
-  api 'com.netflix.nebula:gradle-info-plugin:12.1.4'
+  api 'com.netflix.nebula:gradle-info-plugin:12.1.5'
   api 'org.apache.rat:apache-rat:0.15'
   api 'commons-io:commons-io:2.13.0'
   api "net.java.dev.jna:jna:5.13.0"
@@ -125,16 +118,16 @@ dependencies {
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.16.12'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
   api 'org.apache.maven:maven-model:3.9.3'
-  api 'com.networknt:json-schema-validator:1.0.85'
+  api 'com.networknt:json-schema-validator:1.0.86'
   api 'org.jruby.jcodings:jcodings:1.0.58'
   api 'org.jruby.joni:joni:2.2.1'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.2.0"
 
-  testImplementation "junit:junit:${props.getProperty('junit')}"
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
-  testRuntimeOnly gradleApi()
-  testRuntimeOnly gradleTestKit()
+  testFixturesApi "junit:junit:${props.getProperty('junit')}"
+  testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
+  testFixturesApi gradleApi()
+  testFixturesApi gradleTestKit()
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.35.0'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
   integTestImplementation('org.spockframework:spock-core:2.3-groovy-3.0') {
@@ -183,7 +176,7 @@ if (project != rootProject) {
   // build-tools is not ready for primetime with these...
   tasks.named("dependencyLicenses").configure { it.enabled = false }
   dependenciesInfo.enabled = false
-  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest')
+  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
   if (org.opensearch.gradle.info.BuildParams.inFipsJvm) {
@@ -248,6 +241,12 @@ if (project != rootProject) {
         baseClass 'org.opensearch.gradle.test.GradleIntegrationTestCase'
       }
     }
+  }
+
+  // disable fail-on-warnings for this specific task which trips Java 11 bug
+  // https://bugs.openjdk.java.net/browse/JDK-8209058
+  tasks.named("compileTestFixturesJava").configure {
+    options.compilerArgs -= '-Werror'
   }
 
   tasks.register("integTest", Test) {
