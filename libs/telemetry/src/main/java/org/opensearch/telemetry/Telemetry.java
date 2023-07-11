@@ -13,6 +13,8 @@ import org.opensearch.telemetry.tracing.TracingTelemetry;
 
 /**
  * Interface defining telemetry
+ *
+ * @opensearch.internal
  */
 public interface Telemetry {
 
