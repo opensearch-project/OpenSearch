@@ -3661,6 +3661,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
+        if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
+            internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
+        }
+
         if (isRemoteStoreEnabled()) {
             internalRefreshListener.add(
                 new RemoteStoreRefreshListener(
@@ -3672,9 +3676,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
         }
 
-        if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
-            internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
-        }
         /**
          * With segment replication enabled for primary relocation, recover replica shard initially as read only and
          * change to a writeable engine during relocation handoff after a round of segment replication.
