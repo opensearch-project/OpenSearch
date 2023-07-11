@@ -43,6 +43,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.snapshots.blobstore.IndexShardSnapshot;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.snapshots.mockstore.MockRepository;
@@ -832,18 +833,14 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         RepositoryShardId repositoryShardId,
         SnapshotId snapshotId
     ) {
-        return PlainActionFuture.get(
-            f -> repository.threadPool()
-                .generic()
-                .execute(
-                    ActionRunnable.supply(
-                        f,
-                        () -> repository.loadShardSnapshot(
-                            repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
-                            snapshotId
-                        )
-                    )
-                )
-        );
+        return PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.supply(f, () -> {
+            IndexShardSnapshot indexShardSnapshot = repository.loadShardSnapshot(
+                repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
+                snapshotId
+            );
+            assert indexShardSnapshot instanceof BlobStoreIndexShardSnapshot
+                : "indexShardSnapshot should be an instance of BlobStoreIndexShardSnapshot";
+            return (BlobStoreIndexShardSnapshot) indexShardSnapshot;
+        })));
     }
 }

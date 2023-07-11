@@ -13,6 +13,7 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
+public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, IndexShardSnapshot {
 
     private final String snapshot;
     private final String version;
@@ -432,5 +433,18 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
             repositoryBasePath,
             fileNames
         );
+    }
+
+    @Override
+    public IndexShardSnapshotStatus getIndexShardSnapshotStatus() {
+        return IndexShardSnapshotStatus.newDone(
+            startTime,
+            time,
+            incrementalFileCount(),
+            totalFileCount,
+            incrementalSize(),
+            totalSize,
+            null
+        ); // Not adding a real generation here as it doesn't matter to callers
     }
 }
