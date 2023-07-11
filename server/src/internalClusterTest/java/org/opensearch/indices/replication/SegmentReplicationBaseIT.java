@@ -24,7 +24,9 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
@@ -158,6 +160,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                     final String indexName = primaryRouting.getIndexName();
                     final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
                     final IndexShard primaryShard = getIndexShard(clusterState, primaryRouting, indexName);
+                    final int primaryDocCount = getDocCountFromShard(primaryShard);
                     final Map<String, StoreFileMetadata> primarySegmentMetadata = primaryShard.getSegmentMetadataMap();
                     for (ShardRouting replica : replicaRouting) {
                         IndexShard replicaShard = getIndexShard(clusterState, replica, indexName);
@@ -165,6 +168,8 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                             primarySegmentMetadata,
                             replicaShard.getSegmentMetadataMap()
                         );
+                        final int replicaDocCount = getDocCountFromShard(replicaShard);
+                        assertEquals("Doc counts should match", primaryDocCount, replicaDocCount);
                         if (recoveryDiff.missing.isEmpty() == false || recoveryDiff.different.isEmpty() == false) {
                             fail(
                                 "Expected no missing or different segments between primary and replica but diff was missing: "
@@ -185,10 +190,30 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         }, 1, TimeUnit.MINUTES);
     }
 
-    private IndexShard getIndexShard(ClusterState state, ShardRouting routing, String indexName) {
-        return getIndexShard(state.nodes().get(routing.currentNodeId()).getName(), indexName);
+    private int getDocCountFromShard(IndexShard shard) {
+        try (final Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            return searcher.getDirectoryReader().numDocs();
+        }
     }
 
+    private IndexShard getIndexShard(ClusterState state, ShardRouting routing, String indexName) {
+        return getIndexShard(state.nodes().get(routing.currentNodeId()).getName(), routing.shardId(), indexName);
+    }
+
+    /**
+     * Fetch IndexShard by shardId, multiple shards per node allowed.
+     */
+    protected IndexShard getIndexShard(String node, ShardId shardId, String indexName) {
+        final Index index = resolveIndex(indexName);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+        IndexService indexService = indicesService.indexServiceSafe(index);
+        final Optional<Integer> id = indexService.shardIds().stream().filter(sid -> sid == shardId.id()).findFirst();
+        return indexService.getShard(id.get());
+    }
+
+    /**
+     * Fetch IndexShard, assumes only a single shard per node.
+     */
     protected IndexShard getIndexShard(String node, String indexName) {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
