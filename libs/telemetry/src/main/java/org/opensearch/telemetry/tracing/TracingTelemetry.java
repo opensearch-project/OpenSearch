@@ -12,6 +12,8 @@ import java.io.Closeable;
 
 /**
  * Interface for tracing telemetry providers
+ *
+ * @opensearch.internal
  */
 public interface TracingTelemetry extends Closeable {
 
