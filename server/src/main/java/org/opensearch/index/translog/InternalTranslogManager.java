@@ -299,6 +299,11 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         translog.onDelete();
     }
 
+    @Override
+    public Translog.TranslogGeneration getTranslogGeneration() {
+        return translog.getGeneration();
+    }
+
     /**
      * Reads operations from the translog
      * @param location location of translog

@@ -30,6 +30,7 @@ import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.threadpool.Scheduler;
@@ -183,6 +184,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     private synchronized void syncSegments(boolean isRetry) {
         if (indexShard.getReplicationTracker().isPrimaryMode() == false) {
+            logger.info("syncSegments is only supported with primaryMode=true, current value is false. Skipping");
+            return;
+        }
+        if (indexShard.getEngine() instanceof InternalEngine == false) {
+            logger.info("syncSegments is only supported for InternalEngine, called with {}. Skipping", indexShard.getEngine());
             return;
         }
         beforeSegmentsSync(isRetry);
@@ -345,6 +351,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     }
 
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos) throws IOException {
+
         final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
@@ -352,12 +359,20 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         segmentInfosSnapshot.setUserData(userData, false);
 
-        remoteDirectory.uploadMetadata(
-            localSegmentsPostRefresh,
-            segmentInfosSnapshot,
-            storeDirectory,
-            indexShard.getOperationPrimaryTerm()
-        );
+        Translog.TranslogGeneration translogGeneration = ((InternalEngine) indexShard.getEngine()).translogManager()
+            .getTranslogGeneration();
+        if (translogGeneration == null) {
+            throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
+        } else {
+            long translogFileGeneration = translogGeneration.translogFileGeneration;
+            remoteDirectory.uploadMetadata(
+                localSegmentsPostRefresh,
+                segmentInfosSnapshot,
+                storeDirectory,
+                indexShard.getOperationPrimaryTerm(),
+                translogFileGeneration
+            );
+        }
     }
 
     private boolean uploadNewSegments(Collection<String> localSegmentsPostRefresh) throws IOException {

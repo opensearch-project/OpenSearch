@@ -857,6 +857,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     public void testPressureServiceStats() throws Exception {
         final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
         final String replicaNode = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
 
