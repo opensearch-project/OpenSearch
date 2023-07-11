@@ -472,7 +472,7 @@ public class Node implements Closeable {
                 identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
             }
 
-            final IdentityService identityService = new IdentityService(settings, identityPlugins);
+
 
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 final List<ExtensionAwarePlugin> extensionAwarePlugins = pluginsService.filterPlugins(ExtensionAwarePlugin.class);
@@ -491,7 +491,6 @@ public class Node implements Closeable {
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
             DiscoveryNode.setAdditionalRoles(additionalRoles);
-
             DiscoveryNode.setDeprecatedMasterRole();
 
             /*
@@ -537,6 +536,9 @@ public class Node implements Closeable {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
             client = new NodeClient(settings, threadPool);
+
+            final IdentityService identityService = new IdentityService(settings, identityPlugins, threadPool);
+            identityService.getApplicationManager().registerPluginsAndModules();
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
             final ScriptService scriptService = newScriptService(settings, scriptModule.engines, scriptModule.contexts);

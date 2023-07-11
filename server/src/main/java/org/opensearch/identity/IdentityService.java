@@ -5,16 +5,21 @@
 
 package org.opensearch.identity;
 
+import java.security.Principal;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.client.Client;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
+import org.opensearch.threadpool.ThreadPool;
 
 /**
  * Identity and access control for OpenSearch.
@@ -26,9 +31,11 @@ public class IdentityService {
 
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
+    private final ThreadPool threadPool;
 
-    public IdentityService(final Settings settings, final List<IdentityPlugin> identityPlugins) {
+    public IdentityService(final Settings settings, final List<IdentityPlugin> identityPlugins, final ThreadPool threadPool) {
         this.settings = settings;
+        this.threadPool = threadPool;
 
         if (identityPlugins.size() == 0) {
             log.debug("Identity plugins size is 0");
@@ -42,6 +49,33 @@ public class IdentityService {
                     + identityPlugins.stream().map(Object::getClass).map(Class::getName).collect(Collectors.joining(","))
             );
         }
+    }
+
+    public void runAs(Principal principal, Consumer<Client> action) {
+
+        // Save the current principal
+        Principal currentPrincipal = identityPlugin.getSubject().getPrincipal();
+
+        identityPlugin.getSubject().setPrincipal(principal);
+
+        try {
+            Client client = createClient();
+            action.accept(client);
+        }
+        finally {
+
+        }
+
+
+
+    }
+
+    public void releaseRunAs() {
+
+    }
+
+    public NodeClient createClient() {
+        return new NodeClient(settings, threadPool);
     }
 
     /**
@@ -59,7 +93,7 @@ public class IdentityService {
     }
 
     /**
-     * Gets the Service Account manager
+     * Gets the Application Manager
      */
     public ApplicationManager getApplicationManager() {
         return identityPlugin.getApplicationManager();

@@ -26,12 +26,11 @@ import org.opensearch.plugins.PluginsService;
  *
  * @opensearch.experimental
  */
-public class ApplicationManager {
+public final class ApplicationManager {
 
-    ExtensionsManager extensionManager;
-    PluginsService pluginManager;
-    ServiceAccountManager serviceAccountManager;
-    public static ApplicationManager instance; // Required for access in static contexts
+    private final ExtensionsManager extensionManager;
+    private final PluginsService pluginManager;
+    private final ServiceAccountManager serviceAccountManager;
     private List<Application> registeredApplications = new ArrayList<>(); // A list of all application subjects
 
     public ApplicationManager(
@@ -39,14 +38,9 @@ public class ApplicationManager {
         PluginsService pluginsService,
         ServiceAccountManager serviceAccountManager
     ) {
-        instance = this;
         extensionManager = extensionsManager;
         pluginManager = pluginsService;
         this.serviceAccountManager = serviceAccountManager;
-    }
-
-    public static ApplicationManager getInstance() {
-        return instance;
     }
 
     /**

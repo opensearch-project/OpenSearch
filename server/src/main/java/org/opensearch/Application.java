@@ -5,11 +5,14 @@
 
 package org.opensearch;
 
-import org.opensearch.identity.Subject;
+import java.security.Principal;
 
 /**
  * A service that transmits data to and/or from OpenSearch
  *
  * @opensearch.experimental
  */
-public interface Application extends Subject {}
+public interface Application {
+
+    public Principal getPrincipal();
+}

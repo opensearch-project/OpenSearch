@@ -9,7 +9,6 @@
 package org.opensearch.identity;
 
 import java.security.Principal;
-import java.util.List;
 import java.util.Objects;
 import org.opensearch.Application;
 
@@ -22,7 +21,6 @@ public class ServiceAccount implements Principal {
 
     private final Application application;
     private final Principal name;
-    private List<String> permissions = List.of(); // Fine-grained access controls not yet configured
 
     /**
      * Creates a principal for an application identity
@@ -32,15 +30,6 @@ public class ServiceAccount implements Principal {
 
         this.application = application;
         name = application.getPrincipal();
-    }
-
-    /**
-     * This method will not usually exist but is required until fine-grained access controls are implemented
-     *
-     * @param permissions The permissions to assign the service account
-     */
-    public void setPermissions(List<String> permissions) {
-        this.permissions = List.copyOf(permissions);
     }
 
     @Override
@@ -64,9 +53,5 @@ public class ServiceAccount implements Principal {
     @Override
     public String toString() {
         return "ServiceAccount(" + "name=" + name + ")";
-    }
-
-    public List<String> getPermissions() {
-        return List.copyOf(permissions);
     }
 }

@@ -55,7 +55,6 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.tokens.AuthToken;
 
 /**
  * An in-memory representation of the plugin descriptor.
@@ -463,10 +462,5 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
     @Override
     public Principal getPrincipal() {
         return this.pluginPrincipal;
-    }
-
-    @Override
-    public void authenticate(AuthToken token) {
-
     }
 }

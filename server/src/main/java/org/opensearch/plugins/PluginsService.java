@@ -96,7 +96,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * We keep around a list of plugins and modules
      */
-    public final List<Tuple<PluginInfo, Plugin>> plugins;
+    private final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsAndModules info;
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
