@@ -459,7 +459,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ? false
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteRefreshSegmentPressureService = remoteRefreshSegmentPressureService;
-        this.internalRefreshListeners = new ArrayList<>(2);
+        this.internalRefreshListeners = new ArrayList<>();
     }
 
     public ThreadPool getThreadPool() {
