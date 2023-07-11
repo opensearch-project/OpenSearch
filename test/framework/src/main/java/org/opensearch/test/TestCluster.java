@@ -32,8 +32,6 @@
 
 package org.opensearch.test;
 
-import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -53,6 +51,8 @@ import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
@@ -189,12 +189,14 @@ public abstract class TestCluster implements Closeable {
                 // which is the case in the CloseIndexDisableCloseAllTests
                 if ("_all".equals(indices[0])) {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
-                    ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
+                    List<String> concreteIndices = new ArrayList<>();
                     for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
                         concreteIndices.add(indexMetadata.getIndex().getName());
                     }
                     if (!concreteIndices.isEmpty()) {
-                        OpenSearchAssertions.assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
+                        OpenSearchAssertions.assertAcked(
+                            client().admin().indices().prepareDelete(concreteIndices.toArray(new String[concreteIndices.size()]))
+                        );
                     }
                 }
             }
