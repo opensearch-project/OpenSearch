@@ -8,8 +8,9 @@
 
 package org.opensearch.telemetry.tracing.exporter;
 
+import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
-import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
@@ -22,12 +23,12 @@ public class SpanExporterFactory {
      * Span Exporter type setting.
      */
     @SuppressWarnings("unchecked")
-    public static final Setting<Class<SpanExporterProvider>> OTEL_TRACER_SPAN_EXPORTER_PROVIDE_CLASS_SETTING = new Setting<>(
-        "telemetry.otel.tracer.span.exporter.provider.class",
-        LoggingSpanExporterProvider.class.getName(),
+    public static final Setting<Class<SpanExporter>> OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING = new Setting<>(
+        "telemetry.otel.tracer.span.exporter.class",
+        LoggingSpanExporter.class.getName(),
         className -> {
             try {
-                return (Class<SpanExporterProvider>) Class.forName(className);
+                return (Class<SpanExporter>) Class.forName(className);
             } catch (ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
@@ -44,33 +45,26 @@ public class SpanExporterFactory {
     }
 
     /**
-     * Creates the {@link SpanExporter} instances based on the OTEL_TRACER_SPAN_EXPORTER_PROVIDE_CLASS_SETTING value.
+     * Creates the {@link SpanExporter} instances based on the OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING value.
+     * As of now, it expects the SpanExporter implemetations to have create factory method to instantiate the
+     * SpanExporter.
      * @param settings settings.
      * @return SpanExporter instance.
      */
     public SpanExporter create(Settings settings) {
-        Class<SpanExporterProvider> spanExporterProviderClass = OTEL_TRACER_SPAN_EXPORTER_PROVIDE_CLASS_SETTING.get(settings);
-        SpanExporterProvider spanExporterProvider = instantiateProvider(spanExporterProviderClass);
-        return spanExporterProvider.create(settings);
+        Class<SpanExporter> spanExporterProviderClass = OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.get(settings);
+        SpanExporter spanExporter = instantiateSpanExporter(spanExporterProviderClass);
+        return spanExporter;
     }
 
-    private SpanExporterProvider instantiateProvider(Class<SpanExporterProvider> spanExporterProviderClass) {
-        final Constructor<?>[] constructors = spanExporterProviderClass.getConstructors();
-        if (constructors.length == 0) {
-            throw new IllegalStateException("no public constructor for [" + spanExporterProviderClass.getName() + "]");
-        }
-
-        if (constructors.length > 1) {
-            throw new IllegalStateException("no unique public constructor for [" + spanExporterProviderClass.getName() + "]");
-        }
-        final Constructor<?> constructor = constructors[0];
-        if (constructor.getParameterCount() > 0) {
-            throw new IllegalStateException("no no-arg public constructor for [" + spanExporterProviderClass.getName() + "]");
-        }
+    private SpanExporter instantiateSpanExporter(Class<SpanExporter> spanExporterProviderClass) {
         try {
-            return (SpanExporterProvider) constructor.newInstance();
+            Method m = spanExporterProviderClass.getMethod("create");
+            return (SpanExporter) m.invoke(null);
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException("No create factory method exist in [" + spanExporterProviderClass.getName() + "]");
         } catch (Exception e) {
-            throw new IllegalStateException("failed to load span exporter provider class [" + spanExporterProviderClass.getName() + "]", e);
+            throw new IllegalStateException("SpanExporter instantiation failed for class [" + spanExporterProviderClass.getName() + "]");
         }
     }
 }

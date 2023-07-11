@@ -26,8 +26,8 @@ public class SpanExporterFactoryTests extends OpenSearchTestCase {
     public void testSpanExporterLogging() {
         Settings settings = Settings.builder()
             .put(
-                SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_PROVIDE_CLASS_SETTING.getKey(),
-                "org.opensearch.telemetry.tracing.exporter.LoggingSpanExporterProvider"
+                SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
+                "io.opentelemetry.exporter.logging.LoggingSpanExporter"
             )
             .build();
         SpanExporter spanExporter = spanExporterFactory.create(settings);
@@ -35,37 +35,15 @@ public class SpanExporterFactoryTests extends OpenSearchTestCase {
     }
 
     public void testSpanExporterInvalid() {
-        Settings settings = Settings.builder()
-            .put(SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_PROVIDE_CLASS_SETTING.getKey(), "abc")
-            .build();
+        Settings settings = Settings.builder().put(SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(), "abc").build();
         assertThrows(IllegalArgumentException.class, () -> spanExporterFactory.create(settings));
     }
 
-    public void testSpanExporterInvalidProviderConstructors() {
+    public void testSpanExporterNoCreateFactoryMethod() {
         Settings settings = Settings.builder()
             .put(
-                SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_PROVIDE_CLASS_SETTING.getKey(),
-                "org.opensearch.telemetry.tracing.exporter.DummySpanExporterProvider"
-            )
-            .build();
-        assertThrows(IllegalStateException.class, () -> spanExporterFactory.create(settings));
-    }
-
-    public void testSpanExporterInvalidMultipleConstructors() {
-        Settings settings = Settings.builder()
-            .put(
-                SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_PROVIDE_CLASS_SETTING.getKey(),
-                "org.opensearch.telemetry.tracing.exporter.DummySpanExporterProviderMultipleConstructor"
-            )
-            .build();
-        assertThrows(IllegalStateException.class, () -> spanExporterFactory.create(settings));
-    }
-
-    public void testSpanExporterInvalidZeroConstructors() {
-        Settings settings = Settings.builder()
-            .put(
-                SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_PROVIDE_CLASS_SETTING.getKey(),
-                "org.opensearch.telemetry.tracing.exporter.DummySpanExporterProviderNoBaseConstructor"
+                SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
+                "org.opensearch.telemetry.tracing.exporter.DummySpanExporter"
             )
             .build();
         assertThrows(IllegalStateException.class, () -> spanExporterFactory.create(settings));
