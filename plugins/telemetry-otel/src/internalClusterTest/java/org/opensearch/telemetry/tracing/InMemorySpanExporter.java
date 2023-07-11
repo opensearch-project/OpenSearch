@@ -28,7 +28,7 @@ public class InMemorySpanExporter implements SpanExporter {
 
     private final AtomicBoolean isShutdown = new AtomicBoolean();
 
-    private List<MockSpanData> finishedSpanItems = new ArrayList<>();
+    private  static List<MockSpanData> finishedSpanItems = new ArrayList<>();
 
     /**
      * No-args constructor
@@ -75,5 +75,12 @@ public class InMemorySpanExporter implements SpanExporter {
             spanData.getName()
         );
         return span;
+    }
+
+    /**
+     * Used by SpanExporterFactory to instantiate InMemorySpanExporter
+     */
+    public static InMemorySpanExporter create() {
+        return new InMemorySpanExporter();
     }
 }

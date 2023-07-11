@@ -8,12 +8,11 @@
 
 package org.opensearch.telemetry.tracing;
 
-import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
-import io.opentelemetry.context.propagation.ContextPropagators;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
+import org.opensearch.telemetry.OtelTelemetrySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.client.Client;
 import org.opensearch.test.telemetry.tracing.TelemetryValidators;
@@ -29,19 +28,21 @@ import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, minNumDataNodes = 2)
 public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
-    private static InMemorySpanExporter exporter = new InMemorySpanExporter();;
 
-    static {
-        OTelResourceProvider.get(
-            Settings.builder().build(),
-            exporter,
-            ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
-            null
-        );
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(
+                OtelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
+                "org.opensearch.telemetry.tracing.InMemorySpanExporter"
+            )
+            .build();
     }
 
     @Override
     protected Class<? extends Plugin> telemetryPlugin() {
+
         return OTelTelemetryPlugin.class;
     }
 
@@ -68,8 +69,8 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
         client.prepareSearch().setQuery(queryStringQuery("fox")).get();
         client.prepareSearch().setQuery(queryStringQuery("jumps")).get();
 
-        // Sleep for about 2s to wait for traces are published
-        Thread.sleep(2000);
+        // Sleep for about 3s to wait for traces are published
+        Thread.sleep(3000);
 
         TelemetryValidators validators = new TelemetryValidators(
             Arrays.asList(
@@ -80,7 +81,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
                 TotalParentSpansEqualToRequests.class
             )
         );
-
+        InMemorySpanExporter exporter = new InMemorySpanExporter();
         if (!exporter.getFinishedSpanItems().isEmpty()) {
             validators.validate(exporter.getFinishedSpanItems(), 2);
         }

@@ -8,6 +8,7 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -31,6 +32,7 @@ public class TelemetryValidators {
      * @param requests Request can be indexing/search call
      */
     public void validate(List<MockSpanData> spans, int requests) {
+        List<MockSpanData> totalProblematicSpans = new ArrayList<>();
         for (Class<? extends TracingValidator> v : this.validators) {
             try {
                 TracingValidator validator = v.getConstructor().newInstance();
@@ -39,13 +41,16 @@ public class TelemetryValidators {
                 for (MockSpanData span : problematicSpans) {
                     sb.append(span.toString());
                 }
-                AssertionError error = new AssertionError(
-                    " SpanData validation failed for " + "validator " + v.getName() + " " + sb.toString()
-                );
-                error.getStackTrace();
+                totalProblematicSpans.addAll(problematicSpans);
             } catch (Exception e) {
                 e.getStackTrace();
             }
+        }
+        if (!totalProblematicSpans.isEmpty()){
+            AssertionError error = new AssertionError(
+                " SpanData validation failed for following spans " + totalProblematicSpans
+            );
+            throw error;
         }
     }
 }
