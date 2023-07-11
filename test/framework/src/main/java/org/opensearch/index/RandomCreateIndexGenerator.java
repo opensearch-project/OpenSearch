@@ -35,8 +35,8 @@ package org.opensearch.index;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -96,7 +96,7 @@ public final class RandomCreateIndexGenerator {
      * Creates a random mapping
      */
     public static XContentBuilder randomMapping() throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         builder.startObject();
 
         randomMappingFields(builder, true);

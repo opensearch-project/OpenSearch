@@ -37,8 +37,8 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestSearchAction;
@@ -106,7 +106,7 @@ public abstract class AbstractBulkByQueryRestHandler<
         }
         try (
             XContentParser parser = restRequest.contentOrSourceParamParser();
-            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(parser.contentType())
         ) {
             Map<String, Object> body = parser.map();
 

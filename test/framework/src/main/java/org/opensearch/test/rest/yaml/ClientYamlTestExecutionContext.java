@@ -43,8 +43,8 @@ import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -185,7 +185,7 @@ public class ClientYamlTestExecutionContext {
 
     private BytesRef bodyAsBytesRef(Map<String, Object> bodyAsMap, MediaType mediaType) throws IOException {
         Map<String, Object> finalBodyAsMap = stash.replaceStashedValues(bodyAsMap);
-        try (XContentBuilder builder = XContentFactory.contentBuilder(mediaType)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(mediaType)) {
             return BytesReference.bytes(builder.map(finalBodyAsMap)).toBytesRef();
         }
     }
