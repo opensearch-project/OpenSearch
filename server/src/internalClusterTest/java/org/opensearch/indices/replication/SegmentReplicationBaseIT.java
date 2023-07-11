@@ -24,6 +24,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
@@ -159,6 +160,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                     final String indexName = primaryRouting.getIndexName();
                     final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
                     final IndexShard primaryShard = getIndexShard(clusterState, primaryRouting, indexName);
+                    final int primaryDocCount = getDocCountFromShard(primaryShard);
                     final Map<String, StoreFileMetadata> primarySegmentMetadata = primaryShard.getSegmentMetadataMap();
                     for (ShardRouting replica : replicaRouting) {
                         IndexShard replicaShard = getIndexShard(clusterState, replica, indexName);
@@ -166,6 +168,8 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                             primarySegmentMetadata,
                             replicaShard.getSegmentMetadataMap()
                         );
+                        final int replicaDocCount = getDocCountFromShard(replicaShard);
+                        assertEquals("Doc counts should match", primaryDocCount, replicaDocCount);
                         if (recoveryDiff.missing.isEmpty() == false || recoveryDiff.different.isEmpty() == false) {
                             fail(
                                 "Expected no missing or different segments between primary and replica but diff was missing: "
@@ -184,6 +188,12 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                 }
             }
         }, 1, TimeUnit.MINUTES);
+    }
+
+    private int getDocCountFromShard(IndexShard shard) {
+        try (final Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            return searcher.getDirectoryReader().numDocs();
+        }
     }
 
     private IndexShard getIndexShard(ClusterState state, ShardRouting routing, String indexName) {

@@ -220,7 +220,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         if (replicaShard.state().equals(IndexShardState.STARTED) == true) {
             // Checks if received checkpoint is already present and ahead then it replaces old received checkpoint
             SegmentReplicationTarget ongoingReplicationTarget = onGoingReplications.getOngoingReplicationTarget(replicaShard.shardId());
-
             if (ongoingReplicationTarget != null) {
                 if (ongoingReplicationTarget.getCheckpoint().getPrimaryTerm() < receivedCheckpoint.getPrimaryTerm()) {
                     logger.trace(

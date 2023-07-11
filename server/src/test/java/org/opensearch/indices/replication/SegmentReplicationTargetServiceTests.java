@@ -277,7 +277,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
                 ActionListener<CheckpointInfoResponse> listener
             ) {
                 // set the listener, we will only fail it once we cancel the source.
-                logger.info("In test source");
                 this.listener = listener;
                 latch.countDown();
                 // do not resolve this listener yet, wait for cancel to hit.
