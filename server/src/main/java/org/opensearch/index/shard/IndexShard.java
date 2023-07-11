@@ -805,10 +805,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         //Force refreshes pending refresh listeners
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
-            //Run a round of segrep while we are waiting for the permits. We need to evaluate if this needs to be put inside
-            //the permit to synchronise segments. However since indexing operations are stalled, we need to justify the cost
-            //of blocking segrep round, which for remote store enabled nodes will require operations to drain on the remote store.
-            performSegRep.run();
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 //Prevents new refresh listeners to be registered while all permits are acquired
                 forceRefreshes.close();
@@ -825,7 +821,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
                     : "in-flight operations in progress while moving shard state to relocated";
-
+                //Run a round of segrep while we are waiting for the permits. We need to evaluate if this needs to be put inside
+                //the permit to synchronise segments. However since indexing operations are stalled, we need to justify the cost
+                //of blocking segrep round, which for remote store enabled nodes will require operations to drain on the remote store.
+                performSegRep.run();
 
                 /*
                  * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a

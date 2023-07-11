@@ -23,7 +23,6 @@ import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
@@ -32,7 +31,6 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.threadpool.Scheduler;
@@ -114,8 +112,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     private final FileUploader fileUploader;
 
-    private final CancellableThreads cancellableThreads = new CancellableThreads();
-
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
@@ -178,18 +174,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
             updateLocalRefreshTimeAndSeqNo();
             try {
-                indexShard.getThreadPool()
-                    .executor(ThreadPool.Names.REMOTE_REFRESH)
-                    .submit(
-                        () -> RunUnderPrimaryPermit.run(
-                            () -> syncSegments(false),
-                            "Remote Store Sync",
-                            indexShard,
-                            cancellableThreads,
-                            logger
-                        )
-                    )
-                    .get();
+                indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
             } catch (InterruptedException | ExecutionException e) {
                 logger.info("Exception occurred while scheduling syncSegments", e);
             }
@@ -359,11 +344,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         // refresh not occurring until write happens.
         if (shouldRetry && indexShard.state() != IndexShardState.CLOSED && retryScheduled.compareAndSet(false, true)) {
             scheduledCancellableRetry = indexShard.getThreadPool()
-                .schedule(
-                    () -> RunUnderPrimaryPermit.run(() -> syncSegments(true), "Remote Store Sync", indexShard, cancellableThreads, logger),
-                    backoffDelayIterator.next(),
-                    ThreadPool.Names.REMOTE_REFRESH
-                );
+                .schedule(() -> this.syncSegments(true), backoffDelayIterator.next(), ThreadPool.Names.REMOTE_REFRESH);
         }
     }
 
