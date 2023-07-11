@@ -951,7 +951,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (SnapshotsService.useShardGenerations(repoMetaVersion)) {
             // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
             final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep = new StepListener<>();
-            writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, true, remoteStoreLockManagerFactory, writeShardMetaDataAndComputeDeletesStep);
+            writeUpdatedShardMetaDataAndComputeDeletes(
+                snapshotIds,
+                repositoryData,
+                true,
+                remoteStoreLockManagerFactory,
+                writeShardMetaDataAndComputeDeletesStep
+            );
             // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
             // 1. Remove the snapshots from the list of existing snapshots
             // 2. Update the index shard generations of all updated shard folders
@@ -981,7 +987,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     ActionListener.wrap(() -> listener.onResponse(updatedRepoData)),
                     2
                 );
-                cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData, remoteStoreLockManagerFactory, afterCleanupsListener);
+                cleanupUnlinkedRootAndIndicesBlobs(
+                    snapshotIds,
+                    foundIndices,
+                    rootBlobs,
+                    updatedRepoData,
+                    remoteStoreLockManagerFactory,
+                    afterCleanupsListener
+                );
                 asyncCleanupUnlinkedShardLevelBlobs(
                     repositoryData,
                     snapshotIds,
@@ -999,11 +1012,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     ActionListener.wrap(() -> listener.onResponse(newRepoData)),
                     2
                 );
-                cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, newRepoData, remoteStoreLockManagerFactory, afterCleanupsListener);
+                cleanupUnlinkedRootAndIndicesBlobs(
+                    snapshotIds,
+                    foundIndices,
+                    rootBlobs,
+                    newRepoData,
+                    remoteStoreLockManagerFactory,
+                    afterCleanupsListener
+                );
                 final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep = new StepListener<>();
-                writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, false, remoteStoreLockManagerFactory, writeMetaAndComputeDeletesStep);
+                writeUpdatedShardMetaDataAndComputeDeletes(
+                    snapshotIds,
+                    repositoryData,
+                    false,
+                    remoteStoreLockManagerFactory,
+                    writeMetaAndComputeDeletesStep
+                );
                 writeMetaAndComputeDeletesStep.whenComplete(
-                    deleteResults -> asyncCleanupUnlinkedShardLevelBlobs(repositoryData, snapshotIds, deleteResults, remoteStoreLockManagerFactory, afterCleanupsListener),
+                    deleteResults -> asyncCleanupUnlinkedShardLevelBlobs(
+                        repositoryData,
+                        snapshotIds,
+                        deleteResults,
+                        remoteStoreLockManagerFactory,
+                        afterCleanupsListener
+                    ),
                     afterCleanupsListener::onFailure
                 );
             }, listener::onFailure));
