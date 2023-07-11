@@ -8,12 +8,15 @@
 
 package org.opensearch.telemetry.tracing.exporter;
 
-import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
-import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.settings.Setting;
+import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.OtelTelemetrySettings;
 
@@ -47,12 +50,29 @@ public class SpanExporterFactory {
 
     private SpanExporter instantiateSpanExporter(Class<SpanExporter> spanExporterProviderClass) {
         try {
-            Method m = spanExporterProviderClass.getMethod("create");
-            return (SpanExporter) m.invoke(null);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalStateException("No create factory method exist in [" + spanExporterProviderClass.getName() + "]");
-        } catch (Exception e) {
-            throw new IllegalStateException("SpanExporter instantiation failed for class [" + spanExporterProviderClass.getName() + "]");
+            // Check we ourselves are not being called by unprivileged code.
+            SpecialPermission.check();
+            return AccessController.doPrivileged((PrivilegedExceptionAction<SpanExporter>) () -> {
+                try {
+                    return (SpanExporter) MethodHandles.publicLookup()
+                        .findStatic(spanExporterProviderClass, "create", MethodType.methodType(SpanExporter.class))
+                        .invoke();
+                } catch (Throwable e) {
+                    if (e.getCause() instanceof NoSuchMethodException) {
+                        throw new IllegalStateException("No create factory method exist in [" + spanExporterProviderClass.getName() + "]");
+                    } else {
+                        throw new IllegalStateException(
+                            "SpanExporter instantiation failed for class [" + spanExporterProviderClass.getName() + "]",
+                            e.getCause()
+                        );
+                    }
+                }
+            });
+        } catch (PrivilegedActionException ex) {
+            throw new IllegalStateException(
+                "SpanExporter instantiation failed for class [" + spanExporterProviderClass.getName() + "]",
+                ex.getCause()
+            );
         }
     }
 }

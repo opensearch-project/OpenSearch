@@ -23,9 +23,9 @@ import java.util.Set;
 import java.util.Optional;
 
 import static org.opensearch.telemetry.OTelTelemetryPlugin.OTEL_TRACER_NAME;
-import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_BATCH_SIZE_SETTING;
-import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_DELAY_SETTING;
-import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
+import static org.opensearch.telemetry.OtelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
+import static org.opensearch.telemetry.OtelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
+import static org.opensearch.telemetry.OtelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
 
 public class OTelTelemetryPluginTests extends OpenSearchTestCase {
 

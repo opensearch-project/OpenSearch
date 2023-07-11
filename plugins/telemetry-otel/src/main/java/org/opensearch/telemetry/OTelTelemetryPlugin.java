@@ -10,7 +10,6 @@ package org.opensearch.telemetry;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
@@ -21,7 +20,6 @@ import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import org.opensearch.telemetry.tracing.exporter.SpanExporterFactory;
 
 /**
  * Telemetry plugin based on Otel

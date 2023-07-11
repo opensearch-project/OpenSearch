@@ -10,8 +10,13 @@ package org.opensearch.telemetry;
 
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.telemetry.tracing.exporter.SpanExporterFactory;
 
 /**
  * Otel specific telemetry settings.
@@ -56,10 +61,16 @@ public class OtelTelemetrySettings {
         "telemetry.otel.tracer.span.exporter.class",
         LoggingSpanExporter.class.getName(),
         className -> {
+            // Check we ourselves are not being called by unprivileged code.
+            SpecialPermission.check();
+
             try {
-                return (Class<SpanExporter>) Class.forName(className);
-            } catch (ClassNotFoundException e) {
-                throw new RuntimeException(e);
+                return AccessController.doPrivileged((PrivilegedExceptionAction<Class<SpanExporter>>) () -> {
+                    final ClassLoader loader = SpanExporterFactory.class.getClassLoader();
+                    return (Class<SpanExporter>) loader.loadClass(className);
+                });
+            } catch (PrivilegedActionException ex) {
+                throw new IllegalStateException("Unable to load span exporter class:" + className, ex.getCause());
             }
         },
         Setting.Property.NodeScope,
