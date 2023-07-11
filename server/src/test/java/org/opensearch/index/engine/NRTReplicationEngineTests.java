@@ -198,7 +198,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
         ) {
             CountDownLatch latch = new CountDownLatch(1);
             Thread commitThread = new Thread(() -> {
