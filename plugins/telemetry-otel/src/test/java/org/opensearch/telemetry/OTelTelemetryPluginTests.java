@@ -8,6 +8,8 @@
 
 package org.opensearch.telemetry;
 
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -26,25 +28,40 @@ import static org.opensearch.telemetry.OTelTelemetryPlugin.OTEL_TRACER_NAME;
 import static org.opensearch.telemetry.OtelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OtelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.OtelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
+import static org.opensearch.telemetry.OtelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING;
 
 public class OTelTelemetryPluginTests extends OpenSearchTestCase {
+
+    private OTelTelemetryPlugin oTelTracerModulePlugin;
+    private Optional<Telemetry> telemetry;
+    private TracingTelemetry tracingTelemetry;
+
+    @Before
+    public void setup() {
+        oTelTracerModulePlugin = new OTelTelemetryPlugin(Settings.builder().build());
+        telemetry = oTelTracerModulePlugin.getTelemetry(null);
+        tracingTelemetry = telemetry.get().getTracingTelemetry();
+    }
 
     public void testGetTelemetry() {
         Set<Setting<?>> allTracerSettings = new HashSet<>();
         ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));
-        Settings settings = Settings.builder().build();
-        OTelTelemetryPlugin oTelTracerModulePlugin = new OTelTelemetryPlugin(settings);
-        Optional<Telemetry> tracer = oTelTracerModulePlugin.getTelemetry(null);
-
         assertEquals(OTEL_TRACER_NAME, oTelTracerModulePlugin.getName());
-        TracingTelemetry tracingTelemetry = tracer.get().getTracingTelemetry();
         assertTrue(tracingTelemetry instanceof OTelTracingTelemetry);
         assertEquals(
-            Arrays.asList(TRACER_EXPORTER_BATCH_SIZE_SETTING, TRACER_EXPORTER_DELAY_SETTING, TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING),
+            Arrays.asList(
+                TRACER_EXPORTER_BATCH_SIZE_SETTING,
+                TRACER_EXPORTER_DELAY_SETTING,
+                TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
+                OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING
+            ),
             oTelTracerModulePlugin.getSettings()
         );
-        tracingTelemetry.close();
 
     }
 
+    @After
+    public void cleaup() {
+        tracingTelemetry.close();
+    }
 }

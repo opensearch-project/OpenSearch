@@ -53,7 +53,7 @@ public class OtelTelemetrySettings {
      */
     public static final Setting<TimeValue> TRACER_EXPORTER_DELAY_SETTING = Setting.timeSetting(
         "telemetry.otel.tracer.exporter.delay",
-        TimeValue.timeValueSeconds(60),
+        TimeValue.timeValueSeconds(2),
         Setting.Property.NodeScope,
         Setting.Property.Final
     );
