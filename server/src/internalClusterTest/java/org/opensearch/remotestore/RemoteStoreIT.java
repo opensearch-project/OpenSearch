@@ -47,8 +47,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
     private static final String INDEX_NAME_WILDCARD = "remote-store-test-*";
-    private static final String INDEX_NAMES =
-        "remote-store-test-idx-1,remote-store-test-idx-2,remote-store-test-index-1,remote-store-test-index-2";
+    private static final String INDEX_NAMES = "remote-store-test-1,remote-store-test-2,remote-store-test-index-1,remote-store-test-index-2";
     private static final String INDEX_NAMES_WILDCARD = "remote-store-test-idx-*,remote-store-test-index-*";
     private static final String TOTAL_OPERATIONS = "total-operations";
     private static final String REFRESHED_OR_FLUSHED_OPERATIONS = "refreshed-or-flushed-operations";
@@ -77,11 +76,20 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get();
     }
 
+    private IndexResponse indexSingleDoc(String indexName) {
+        return client().prepareIndex(indexName)
+            .setId(UUIDs.randomBase64UUID())
+            .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
+            .get();
+    }
+
     private Map<String, Long> indexData(int numberOfIterations, boolean invokeFlush, String index) {
         long totalOperations = 0;
         long refreshedOrFlushedOperations = 0;
         long maxSeqNo = -1;
         long maxSeqNoRefreshedOrFlushed = -1;
+        int shardId = 0;
+        Map<String, Long> indexingStats = new HashMap<>();
         for (int i = 0; i < numberOfIterations; i++) {
             if (invokeFlush) {
                 flush(index);
@@ -89,15 +97,18 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
                 refresh(index);
             }
             maxSeqNoRefreshedOrFlushed = maxSeqNo;
+            indexingStats.put(MAX_SEQ_NO_REFRESHED_OR_FLUSHED + "-shard-" + shardId, maxSeqNoRefreshedOrFlushed);
             refreshedOrFlushedOperations = totalOperations;
             int numberOfOperations = randomIntBetween(20, 50);
             for (int j = 0; j < numberOfOperations; j++) {
-                IndexResponse response = indexSingleDoc();
+                IndexResponse response = INDEX_NAME.equals(index) ? indexSingleDoc() : indexSingleDoc(index);
                 maxSeqNo = response.getSeqNo();
+                shardId = response.getShardId().id();
+                indexingStats.put(MAX_SEQ_NO_TOTAL + "-shard-" + shardId, maxSeqNo);
             }
             totalOperations += numberOfOperations;
         }
-        Map<String, Long> indexingStats = new HashMap<>();
+
         indexingStats.put(TOTAL_OPERATIONS, totalOperations);
         indexingStats.put(REFRESHED_OR_FLUSHED_OPERATIONS, refreshedOrFlushedOperations);
         indexingStats.put(MAX_SEQ_NO_TOTAL, maxSeqNo);
@@ -112,7 +123,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureGreen(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(statsGranularity));
         IndexResponse response = indexSingleDoc();
-        assertEquals(indexStats.get(maxSeqNoGranularity) + 1, response.getSeqNo());
+        assertEquals(indexStats.get(maxSeqNoGranularity + "-shard-" + response.getShardId().id()) + 1, response.getSeqNo());
         refresh(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(statsGranularity) + 1);
     }
@@ -205,11 +216,12 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }
 
         for (String index : indices) {
-            if (ClusterHealthStatus.RED.equals(ensureRed(index))) {
+            ClusterHealthStatus indexHealth = ensureRed(index);
+            if (ClusterHealthStatus.RED.equals(indexHealth)) {
                 continue;
             }
 
-            if (ClusterHealthStatus.GREEN.equals(ensureRed(index))) {
+            if (ClusterHealthStatus.GREEN.equals(indexHealth)) {
                 internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeName(index)));
             }
 
@@ -229,11 +241,11 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
     /**
      * Simulates all data restored using Remote Translog Store.
      * @throws IOException IO Exception.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
     public void testRemoteTranslogRestoreWithNoDataPostCommit() throws IOException {
         testRestoreFlow(true, 1, true, 1);
     }
@@ -434,8 +446,24 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureRed(indices[2], indices[3]);
     }
 
+    /**
+     * Simulates refreshed data restored using Remote Segment Store
+     * and unrefreshed data restored using Remote Translog Store,
+     * when the index has multiple shards.
+     * @throws IOException IO Exception.
+     */
     public void testRTSRestoreWithCommittedDataMultipleShards() throws IOException {
         testRestoreFlow(true, 2, true, 2);
+    }
+
+    /**
+     * Simulates no-op restore from remote store,
+     * when the index has no data.
+     * @throws IOException IO Exception.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
+    public void testRTSRestoreNoData() throws IOException {
+        testRestoreFlow(true, 0, true, 2);
     }
 
     // TODO: Restore flow - index aliases
