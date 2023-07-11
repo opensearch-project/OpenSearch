@@ -12,10 +12,12 @@ import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.tasks.ProtobufTask;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportChannel;
 import org.opensearch.transport.ProtobufTransportRequestHandler;
-import org.opensearch.transport.ProtobufTransportService;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportService;
 
 /**
  * A ProtobufTransportAction that self registers a handler into the transport service
@@ -27,7 +29,7 @@ public abstract class ProtobufHandledTransportAction<Request extends ProtobufAct
 
     protected ProtobufHandledTransportAction(
         String actionName,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ProtobufActionFilters actionFilters,
         ProtobufWriteable.Reader<Request> requestReader
     ) {
@@ -36,7 +38,7 @@ public abstract class ProtobufHandledTransportAction<Request extends ProtobufAct
 
     protected ProtobufHandledTransportAction(
         String actionName,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ProtobufActionFilters actionFilters,
         ProtobufWriteable.Reader<Request> requestReader,
         String executor
@@ -47,7 +49,7 @@ public abstract class ProtobufHandledTransportAction<Request extends ProtobufAct
     protected ProtobufHandledTransportAction(
         String actionName,
         boolean canTripCircuitBreaker,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ProtobufActionFilters actionFilters,
         ProtobufWriteable.Reader<Request> requestReader
     ) {
@@ -57,13 +59,13 @@ public abstract class ProtobufHandledTransportAction<Request extends ProtobufAct
     protected ProtobufHandledTransportAction(
         String actionName,
         boolean canTripCircuitBreaker,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ProtobufActionFilters actionFilters,
         ProtobufWriteable.Reader<Request> requestReader,
         String executor
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader, new TransportHandler());
+        transportService.registerRequestHandlerProtobuf(actionName, executor, false, canTripCircuitBreaker, requestReader, new TransportHandler());
     }
 
     /**
@@ -73,7 +75,7 @@ public abstract class ProtobufHandledTransportAction<Request extends ProtobufAct
     */
     class TransportHandler implements ProtobufTransportRequestHandler<Request> {
         @Override
-        public final void messageReceived(final Request request, final ProtobufTransportChannel channel, ProtobufTask task) {
+        public final void messageReceived(final Request request, final TransportChannel channel, ProtobufTask task) {
             // We already got the task created on the network layer - no need to create it again on the transport layer
             execute(task, request, new ProtobufChannelActionListener<>(channel, actionName, request));
         }

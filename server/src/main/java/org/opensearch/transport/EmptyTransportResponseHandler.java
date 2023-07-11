@@ -32,8 +32,13 @@
 
 package org.opensearch.transport;
 
+import java.io.IOException;
+
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportResponse.Empty;
+
+import com.google.protobuf.CodedInputStream;
 
 /**
  * Handler for empty transport response
@@ -64,5 +69,17 @@ public class EmptyTransportResponseHandler implements TransportResponseHandler<T
     @Override
     public String executor() {
         return executor;
+    }
+
+    @Override
+    public Empty read(CodedInputStream in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
+    }
+
+    @Override
+    public void handleExceptionProtobuf(ProtobufTransportException exp) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
     }
 }

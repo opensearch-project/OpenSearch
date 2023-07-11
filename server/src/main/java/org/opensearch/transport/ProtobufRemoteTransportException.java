@@ -10,7 +10,7 @@ package org.opensearch.transport;
 
 import com.google.protobuf.CodedInputStream;
 import org.opensearch.OpenSearchWrapperException;
-import org.opensearch.common.transport.ProtobufTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 
 import java.io.IOException;
 
@@ -26,7 +26,7 @@ public class ProtobufRemoteTransportException extends ProtobufActionTransportExc
         super(msg, null, null, cause);
     }
 
-    public ProtobufRemoteTransportException(String name, ProtobufTransportAddress address, String action, Throwable cause) {
+    public ProtobufRemoteTransportException(String name, TransportAddress address, String action, Throwable cause) {
         super(name, address, action, cause);
     }
 

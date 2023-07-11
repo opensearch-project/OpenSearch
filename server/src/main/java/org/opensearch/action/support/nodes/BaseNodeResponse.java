@@ -37,6 +37,9 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportResponse;
 
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 
 /**
@@ -49,6 +52,11 @@ public abstract class BaseNodeResponse extends TransportResponse {
     private DiscoveryNode node;
 
     protected BaseNodeResponse(StreamInput in) throws IOException {
+        super(in);
+        node = new DiscoveryNode(in);
+    }
+
+    protected BaseNodeResponse(CodedInputStream in) throws IOException {
         super(in);
         node = new DiscoveryNode(in);
     }
@@ -67,6 +75,11 @@ public abstract class BaseNodeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        node.writeTo(out);
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
         node.writeTo(out);
     }
 }

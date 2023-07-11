@@ -20,7 +20,7 @@ import org.opensearch.common.network.InetAddresses;
 
 import java.io.IOException;
 
-/**
+/** not used
  * A bounded transport address is a tuple of {@link TransportAddress}, one array that represents
 * the addresses the transport is bound to, and the other is the published one that represents the address clients
 * should communicate on.
@@ -29,20 +29,20 @@ import java.io.IOException;
 */
 public class ProtobufBoundTransportAddress implements ProtobufWriteable {
 
-    private ProtobufTransportAddress[] boundAddresses;
+    private TransportAddress[] boundAddresses;
 
-    private ProtobufTransportAddress publishAddress;
+    private TransportAddress publishAddress;
 
     public ProtobufBoundTransportAddress(CodedInputStream in) throws IOException {
         int boundAddressLength = in.readInt32();
-        boundAddresses = new ProtobufTransportAddress[boundAddressLength];
+        boundAddresses = new TransportAddress[boundAddressLength];
         for (int i = 0; i < boundAddressLength; i++) {
-            boundAddresses[i] = new ProtobufTransportAddress(in);
+            boundAddresses[i] = new TransportAddress(in);
         }
-        publishAddress = new ProtobufTransportAddress(in);
+        publishAddress = new TransportAddress(in);
     }
 
-    public ProtobufBoundTransportAddress(ProtobufTransportAddress[] boundAddresses, ProtobufTransportAddress publishAddress) {
+    public ProtobufBoundTransportAddress(TransportAddress[] boundAddresses, TransportAddress publishAddress) {
         if (boundAddresses == null || boundAddresses.length < 1) {
             throw new IllegalArgumentException("at least one bound address must be provided");
         }
@@ -50,18 +50,18 @@ public class ProtobufBoundTransportAddress implements ProtobufWriteable {
         this.publishAddress = publishAddress;
     }
 
-    public ProtobufTransportAddress[] boundAddresses() {
+    public TransportAddress[] boundAddresses() {
         return boundAddresses;
     }
 
-    public ProtobufTransportAddress publishAddress() {
+    public TransportAddress publishAddress() {
         return publishAddress;
     }
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
         out.writeInt32NoTag(boundAddresses.length);
-        for (ProtobufTransportAddress address : boundAddresses) {
+        for (TransportAddress address : boundAddresses) {
             address.writeTo(out);
         }
         publishAddress.writeTo(out);
@@ -78,7 +78,7 @@ public class ProtobufBoundTransportAddress implements ProtobufWriteable {
         builder.append(publishAddressString);
         builder.append("}, bound_addresses ");
         boolean firstAdded = false;
-        for (ProtobufTransportAddress address : boundAddresses) {
+        for (TransportAddress address : boundAddresses) {
             if (firstAdded) {
                 builder.append(", ");
             } else {

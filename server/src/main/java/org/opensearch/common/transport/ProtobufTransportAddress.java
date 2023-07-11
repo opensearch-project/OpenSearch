@@ -25,7 +25,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 
-/**
+/** not used
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
 *
 * @opensearch.internal

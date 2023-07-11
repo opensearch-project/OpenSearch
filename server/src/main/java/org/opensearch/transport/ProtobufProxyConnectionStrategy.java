@@ -96,12 +96,12 @@ public class ProtobufProxyConnectionStrategy extends ProtobufRemoteConnectionStr
     private final String configuredServerName;
     private final Supplier<TransportAddress> address;
     private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
-    private final ProtobufConnectionManager.ConnectionValidator clusterNameValidator;
+    private final ConnectionManager.ConnectionValidator clusterNameValidator;
 
     ProtobufProxyConnectionStrategy(
         String clusterAlias,
-        ProtobufTransportService transportService,
-        ProtobufRemoteConnectionManager connectionManager,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
         Settings settings
     ) {
         this(
@@ -117,8 +117,8 @@ public class ProtobufProxyConnectionStrategy extends ProtobufRemoteConnectionStr
 
     ProtobufProxyConnectionStrategy(
         String clusterAlias,
-        ProtobufTransportService transportService,
-        ProtobufRemoteConnectionManager connectionManager,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
         Settings settings,
         int maxNumConnections,
         String configuredAddress
@@ -137,8 +137,8 @@ public class ProtobufProxyConnectionStrategy extends ProtobufRemoteConnectionStr
 
     ProtobufProxyConnectionStrategy(
         String clusterAlias,
-        ProtobufTransportService transportService,
-        ProtobufRemoteConnectionManager connectionManager,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
         Settings settings,
         int maxNumConnections,
         String configuredAddress,
@@ -158,8 +158,8 @@ public class ProtobufProxyConnectionStrategy extends ProtobufRemoteConnectionStr
 
     ProtobufProxyConnectionStrategy(
         String clusterAlias,
-        ProtobufTransportService transportService,
-        ProtobufRemoteConnectionManager connectionManager,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
         Settings settings,
         int maxNumConnections,
         String configuredAddress,

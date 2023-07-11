@@ -45,6 +45,8 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
+import com.google.protobuf.CodedInputStream;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.function.Function;
@@ -169,6 +171,18 @@ final class RemoteClusterConnection implements Closeable {
                         @Override
                         public String executor() {
                             return ThreadPool.Names.SAME;
+                        }
+
+                        @Override
+                        public ClusterStateResponse read(CodedInputStream in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
+                        }
+
+                        @Override
+                        public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                         }
                     }
                 );

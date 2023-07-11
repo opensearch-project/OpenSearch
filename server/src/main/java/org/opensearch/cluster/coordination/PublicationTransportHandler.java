@@ -48,12 +48,16 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BytesTransportRequest;
+import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -388,6 +392,18 @@ public class PublicationTransportHandler {
                     public String executor() {
                         return ThreadPool.Names.GENERIC;
                     }
+
+                    @Override
+                    public Empty read(CodedInputStream in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
+
+                    @Override
+                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
+                    }
                 }
             );
         }
@@ -458,6 +474,18 @@ public class PublicationTransportHandler {
                     @Override
                     public String executor() {
                         return ThreadPool.Names.GENERIC;
+                    }
+
+                    @Override
+                    public PublishWithJoinResponse read(CodedInputStream in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
+
+                    @Override
+                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                     }
                 };
                 transportService.sendRequest(destination, PUBLISH_STATE_ACTION_NAME, request, stateRequestOptions, responseHandler);

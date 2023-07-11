@@ -15,7 +15,7 @@ import org.opensearch.tasks.ProtobufTask;
 *
 * @opensearch.internal
 */
-public interface ProtobufTransportRequestHandler<T extends ProtobufTransportRequest> {
+public interface ProtobufTransportRequestHandler<T extends TransportRequest> {
 
-    void messageReceived(T request, ProtobufTransportChannel channel, ProtobufTask task) throws Exception;
+    void messageReceived(T request, TransportChannel channel, ProtobufTask task) throws Exception;
 }

@@ -18,9 +18,8 @@ import com.google.protobuf.CodedOutputStream;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
-import org.opensearch.common.transport.ProtobufBoundTransportAddress;
-import org.opensearch.common.transport.ProtobufTransportAddress;
-import org.opensearch.common.transport.ProtobufBoundTransportAddress;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ProtobufReportingService;
 
@@ -45,20 +44,20 @@ public class ProtobufTransportInfo implements ProtobufReportingService.ProtobufI
         false
     );
 
-    private final ProtobufBoundTransportAddress address;
-    private Map<String, ProtobufBoundTransportAddress> profileAddresses;
+    private final BoundTransportAddress address;
+    private Map<String, BoundTransportAddress> profileAddresses;
     private final boolean cnameInPublishAddress;
 
     public ProtobufTransportInfo(
-        ProtobufBoundTransportAddress address,
-        @Nullable Map<String, ProtobufBoundTransportAddress> profileAddresses
+        BoundTransportAddress address,
+        @Nullable Map<String, BoundTransportAddress> profileAddresses
     ) {
         this(address, profileAddresses, CNAME_IN_PUBLISH_ADDRESS);
     }
 
     public ProtobufTransportInfo(
-        ProtobufBoundTransportAddress address,
-        @Nullable Map<String, ProtobufBoundTransportAddress> profileAddresses,
+        BoundTransportAddress address,
+        @Nullable Map<String, BoundTransportAddress> profileAddresses,
         boolean cnameInPublishAddress
     ) {
         this.address = address;
@@ -67,13 +66,13 @@ public class ProtobufTransportInfo implements ProtobufReportingService.ProtobufI
     }
 
     public ProtobufTransportInfo(CodedInputStream in) throws IOException {
-        address = new ProtobufBoundTransportAddress(in);
+        address = new BoundTransportAddress(in);
         int size = in.readInt32();
         if (size > 0) {
             profileAddresses = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
-                ProtobufBoundTransportAddress value = new ProtobufBoundTransportAddress(in);
+                BoundTransportAddress value = new BoundTransportAddress(in);
                 profileAddresses.put(key, value);
             }
         }
@@ -89,7 +88,7 @@ public class ProtobufTransportInfo implements ProtobufReportingService.ProtobufI
             out.writeInt32NoTag(0);
         }
         if (profileAddresses != null && profileAddresses.size() > 0) {
-            for (Map.Entry<String, ProtobufBoundTransportAddress> entry : profileAddresses.entrySet()) {
+            for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
                 out.writeStringNoTag(entry.getKey());
                 entry.getValue().writeTo(out);
             }
@@ -103,7 +102,7 @@ public class ProtobufTransportInfo implements ProtobufReportingService.ProtobufI
         static final String PROFILES = "profiles";
     }
 
-    private String formatPublishAddressString(String propertyName, ProtobufTransportAddress publishAddress) {
+    private String formatPublishAddressString(String propertyName, TransportAddress publishAddress) {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (InetAddresses.isInetAddress(hostString) == false) {
@@ -122,19 +121,19 @@ public class ProtobufTransportInfo implements ProtobufReportingService.ProtobufI
         return publishAddressString;
     }
 
-    public ProtobufBoundTransportAddress address() {
+    public BoundTransportAddress address() {
         return address;
     }
 
-    public ProtobufBoundTransportAddress getAddress() {
+    public BoundTransportAddress getAddress() {
         return address();
     }
 
-    public Map<String, ProtobufBoundTransportAddress> getProfileAddresses() {
+    public Map<String, BoundTransportAddress> getProfileAddresses() {
         return profileAddresses();
     }
 
-    public Map<String, ProtobufBoundTransportAddress> profileAddresses() {
+    public Map<String, BoundTransportAddress> profileAddresses() {
         return profileAddresses;
     }
 
@@ -145,7 +144,7 @@ public class ProtobufTransportInfo implements ProtobufReportingService.ProtobufI
         builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString("transport.publish_address", address.publishAddress()));
         builder.startObject(Fields.PROFILES);
         if (profileAddresses != null && profileAddresses.size() > 0) {
-            for (Map.Entry<String, ProtobufBoundTransportAddress> entry : profileAddresses.entrySet()) {
+            for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
                 builder.startObject(entry.getKey());
                 builder.array(Fields.BOUND_ADDRESS, (Object[]) entry.getValue().boundAddresses());
                 String propertyName = "transport." + entry.getKey() + ".publish_address";

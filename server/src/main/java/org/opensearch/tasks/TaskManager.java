@@ -308,9 +308,9 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
-        ProtobufTask task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
+        ProtobufTask task = request.createProtobufTask(taskIdGenerator.incrementAndGet(), type, action, request.getProtobufParentTask(), headers);
         Objects.requireNonNull(task);
-        assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
+        assert task.getParentTaskId().equals(request.getProtobufParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
         }

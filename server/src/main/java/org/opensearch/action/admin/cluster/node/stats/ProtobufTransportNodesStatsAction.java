@@ -18,8 +18,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.node.ProtobufNodeService;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportRequest;
-import org.opensearch.transport.ProtobufTransportService;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,7 +42,7 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
     public ProtobufTransportNodesStatsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ProtobufNodeService nodeService,
         ProtobufActionFilters actionFilters
     ) {
@@ -112,7 +112,7 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
     *
     * @opensearch.internal
     */
-    public static class NodeStatsRequest extends ProtobufTransportRequest {
+    public static class NodeStatsRequest extends TransportRequest {
 
         ProtobufNodesStatsRequest request;
 

@@ -125,10 +125,10 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
         return enabled;
     }
 
-    private final ProtobufTransportService transportService;
+    private final TransportService transportService;
     private final Map<String, ProtobufRemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();
 
-    ProtobufRemoteClusterService(Settings settings, ProtobufTransportService transportService) {
+    ProtobufRemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
         this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.transportService = transportService;
@@ -185,7 +185,7 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
     *
     * @throws IllegalArgumentException if the remote cluster is unknown
     */
-    public Transport.ProtobufConnection getConnection(DiscoveryNode node, String cluster) {
+    public Transport.Connection getConnection(DiscoveryNode node, String cluster) {
         return getRemoteClusterConnection(cluster).getConnection(node);
     }
 
@@ -204,7 +204,7 @@ public final class ProtobufRemoteClusterService extends RemoteClusterAware imple
         return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
     }
 
-    public Transport.ProtobufConnection getConnection(String cluster) {
+    public Transport.Connection getConnection(String cluster) {
         return getRemoteClusterConnection(cluster).getConnection();
     }
 

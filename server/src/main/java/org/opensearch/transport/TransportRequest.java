@@ -34,8 +34,13 @@ package org.opensearch.transport;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.tasks.ProtobufTaskAwareRequest;
+import org.opensearch.tasks.ProtobufTaskId;
 import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.tasks.TaskId;
+
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 
@@ -44,7 +49,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
+public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest, ProtobufTaskAwareRequest {
     /**
      * Empty transport request
      *
@@ -58,6 +63,10 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
         public Empty(StreamInput in) throws IOException {
             super(in);
         }
+
+        public Empty(CodedInputStream in) throws IOException {
+            super(in);
+        }
     }
 
     /**
@@ -65,10 +74,19 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
      */
     private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
 
+    /**
+     * Parent of this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "no parent".
+    */
+    private ProtobufTaskId protobufParentTaskId = ProtobufTaskId.EMPTY_TASK_ID;
+
     public TransportRequest() {}
 
     public TransportRequest(StreamInput in) throws IOException {
         parentTaskId = TaskId.readFromStream(in);
+    }
+
+    public TransportRequest(CodedInputStream in) throws IOException {
+        protobufParentTaskId = ProtobufTaskId.readFromStream(in);
     }
 
     /**
@@ -80,6 +98,14 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     }
 
     /**
+     * Set a reference to task that created this request.
+    */
+    @Override
+    public void setProtobufParentTask(ProtobufTaskId taskId) {
+        this.protobufParentTaskId = taskId;
+    }
+
+    /**
      * Get a reference to the task that created this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "there is no parent".
      */
     @Override
@@ -87,8 +113,21 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
         return parentTaskId;
     }
 
+     /**
+     * Get a reference to the task that created this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "there is no parent".
+    */
+    @Override
+    public ProtobufTaskId getProtobufParentTask() {
+        return protobufParentTaskId;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         parentTaskId.writeTo(out);
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        protobufParentTaskId.writeTo(out);
     }
 }

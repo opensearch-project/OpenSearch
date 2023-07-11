@@ -122,6 +122,7 @@ public class ClusterConnectionManager implements ConnectionManager {
         ConnectionValidator connectionValidator,
         ActionListener<Void> listener
     ) throws ConnectTransportException {
+        System.out.println("Connecting to node");
         ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
         if (node == null) {
             listener.onFailure(new ConnectTransportException(null, "can't connect to a null node"));
@@ -201,6 +202,9 @@ public class ClusterConnectionManager implements ConnectionManager {
      */
     @Override
     public Transport.Connection getConnection(DiscoveryNode node) {
+        // System.out.println("ClusterConnectionManager.getConnection");
+        // System.out.println("node = " + node);
+        // System.out.println("connectedNodes = " + connectedNodes);
         Transport.Connection connection = connectedNodes.get(node);
         if (connection == null) {
             throw new NodeNotConnectedException(node, "Node not connected");

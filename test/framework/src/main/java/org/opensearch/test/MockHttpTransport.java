@@ -34,8 +34,8 @@ package org.opensearch.test;
 
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.ProtobufBoundTransportAddress;
-import org.opensearch.common.transport.ProtobufTransportAddress;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpServerTransport;
@@ -61,17 +61,17 @@ public class MockHttpTransport extends AbstractLifecycleComponent implements Htt
         new TransportAddress[] { DUMMY_TRANSPORT_ADDRESS },
         DUMMY_TRANSPORT_ADDRESS
     );
-    private static final ProtobufTransportAddress DUMMY_PROTOBUF_TRANSPORT_ADDRESS = new ProtobufTransportAddress(
-        ProtobufTransportAddress.META_ADDRESS,
-        0
-    );
-    private static final ProtobufBoundTransportAddress DUMMY_PROTOBUF_BOUND_ADDRESS = new ProtobufBoundTransportAddress(
-        new ProtobufTransportAddress[] { DUMMY_PROTOBUF_TRANSPORT_ADDRESS },
-        DUMMY_PROTOBUF_TRANSPORT_ADDRESS
-    );
+    // private static final TransportAddress DUMMY_PROTOBUF_TRANSPORT_ADDRESS = new TransportAddress(
+    //     TransportAddress.META_ADDRESS,
+    //     0
+    // );
+    // private static final BoundTransportAddress DUMMY_PROTOBUF_BOUND_ADDRESS = new BoundTransportAddress(
+    //     new TransportAddress[] { DUMMY_PROTOBUF_TRANSPORT_ADDRESS },
+    //     DUMMY_PROTOBUF_TRANSPORT_ADDRESS
+    // );
     private static final HttpInfo DUMMY_HTTP_INFO = new HttpInfo(DUMMY_BOUND_ADDRESS, 0);
     private static final HttpStats DUMMY_HTTP_STATS = new HttpStats(0, 0);
-    private static final ProtobufHttpInfo DUMMY_PROTOBUF_HTTP_INFO = new ProtobufHttpInfo(DUMMY_PROTOBUF_BOUND_ADDRESS, 0);
+    private static final ProtobufHttpInfo DUMMY_PROTOBUF_HTTP_INFO = new ProtobufHttpInfo(DUMMY_BOUND_ADDRESS, 0);
     private static final ProtobufHttpStats DUMMY_PROTOBUF_HTTP_STATS = new ProtobufHttpStats(0, 0);
 
     @Override

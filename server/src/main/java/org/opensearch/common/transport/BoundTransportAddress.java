@@ -32,10 +32,14 @@
 
 package org.opensearch.common.transport;
 
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.network.InetAddresses;
+
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 
@@ -46,7 +50,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class BoundTransportAddress implements Writeable {
+public class BoundTransportAddress implements Writeable, ProtobufWriteable {
 
     private TransportAddress[] boundAddresses;
 
@@ -60,6 +64,16 @@ public class BoundTransportAddress implements Writeable {
         }
         publishAddress = new TransportAddress(in);
     }
+
+    public BoundTransportAddress(CodedInputStream in) throws IOException {
+        int boundAddressLength = in.readInt32();
+        boundAddresses = new TransportAddress[boundAddressLength];
+        for (int i = 0; i < boundAddressLength; i++) {
+            boundAddresses[i] = new TransportAddress(in);
+        }
+        publishAddress = new TransportAddress(in);
+    }
+
 
     public BoundTransportAddress(TransportAddress[] boundAddresses, TransportAddress publishAddress) {
         if (boundAddresses == null || boundAddresses.length < 1) {
@@ -80,6 +94,15 @@ public class BoundTransportAddress implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(boundAddresses.length);
+        for (TransportAddress address : boundAddresses) {
+            address.writeTo(out);
+        }
+        publishAddress.writeTo(out);
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        out.writeInt32NoTag(boundAddresses.length);
         for (TransportAddress address : boundAddresses) {
             address.writeTo(out);
         }

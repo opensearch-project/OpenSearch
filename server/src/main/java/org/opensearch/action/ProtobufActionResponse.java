@@ -14,7 +14,7 @@
 package org.opensearch.action;
 
 import com.google.protobuf.CodedInputStream;
-import org.opensearch.transport.ProtobufTransportResponse;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -23,7 +23,7 @@ import java.io.IOException;
 *
 * @opensearch.api
 */
-public abstract class ProtobufActionResponse extends ProtobufTransportResponse {
+public abstract class ProtobufActionResponse extends TransportResponse {
 
     public ProtobufActionResponse() {}
 

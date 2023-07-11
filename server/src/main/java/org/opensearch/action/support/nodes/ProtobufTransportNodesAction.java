@@ -19,16 +19,18 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NodeShouldNotConnectException;
-import org.opensearch.transport.ProtobufTransportChannel;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportException;
 import org.opensearch.transport.ProtobufTransportException;
-import org.opensearch.transport.ProtobufTransportRequest;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.ProtobufTransportRequestHandler;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.ProtobufTransportResponseHandler;
-import org.opensearch.transport.ProtobufTransportService;
+import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,12 +48,12 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 public abstract class ProtobufTransportNodesAction<
     NodesRequest extends ProtobufBaseNodesRequest<NodesRequest>,
     NodesResponse extends ProtobufBaseNodesResponse,
-    NodeRequest extends ProtobufTransportRequest,
+    NodeRequest extends TransportRequest,
     NodeResponse extends ProtobufBaseNodeResponse> extends ProtobufHandledTransportAction<NodesRequest, NodesResponse> {
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
-    protected final ProtobufTransportService transportService;
+    protected final TransportService transportService;
     protected final Class<NodeResponse> nodeResponseClass;
     protected final String transportNodeAction;
 
@@ -73,7 +75,7 @@ public abstract class ProtobufTransportNodesAction<
         String actionName,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ProtobufActionFilters actionFilters,
         ProtobufWriteable.Reader<NodesRequest> request,
         ProtobufWriteable.Reader<NodeRequest> nodeRequest,
@@ -89,11 +91,11 @@ public abstract class ProtobufTransportNodesAction<
 
         this.transportNodeAction = actionName + "[n]";
         this.finalExecutor = finalExecutor;
-        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
+        transportService.registerRequestHandlerProtobuf(transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
     }
 
     /**
-     * Same as {@link #ProtobufTransportNodesAction(String, ThreadPool, ClusterService, ProtobufTransportService, ProtobufActionFilters, ProtobufWriteable.Reader,
+     * Same as {@link #ProtobufTransportNodesAction(String, ThreadPool, ClusterService, TransportService, ProtobufActionFilters, ProtobufWriteable.Reader,
     * ProtobufWriteable.Reader, String, String, Class)} but executes final response collection on the transport thread except for when the final
     * node response is received from the local node, in which case {@code nodeExecutor} is used.
     * This constructor should only be used for actions for which the creation of the final response is fast enough to be safely executed
@@ -103,7 +105,7 @@ public abstract class ProtobufTransportNodesAction<
         String actionName,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ProtobufActionFilters actionFilters,
         ProtobufWriteable.Reader<NodesRequest> request,
         ProtobufWriteable.Reader<NodeRequest> nodeRequest,
@@ -221,7 +223,9 @@ public abstract class ProtobufTransportNodesAction<
         }
 
         void start() {
+            System.out.println("ProtoTransportNodesAction.AsyncAction.start");
             final DiscoveryNode[] nodes = request.concreteNodes();
+            System.out.println("Nodes: " + nodes[0]);
             if (nodes.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
@@ -236,9 +240,9 @@ public abstract class ProtobufTransportNodesAction<
                 final DiscoveryNode node = nodes[i];
                 final String nodeId = node.getId();
                 try {
-                    ProtobufTransportRequest nodeRequest = newNodeRequest(request);
+                    TransportRequest nodeRequest = newNodeRequest(request);
                     if (task != null) {
-                        nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+                        nodeRequest.setProtobufParentTask(clusterService.localNode().getId(), task.getId());
                     }
 
                     transportService.sendRequest(
@@ -246,7 +250,7 @@ public abstract class ProtobufTransportNodesAction<
                         getTransportNodeAction(node),
                         nodeRequest,
                         builder.build(),
-                        new ProtobufTransportResponseHandler<NodeResponse>() {
+                        new TransportResponseHandler<NodeResponse>() {
                             @Override
                             public NodeResponse read(CodedInputStream in) throws IOException {
                                 return newNodeResponse(in);
@@ -254,17 +258,31 @@ public abstract class ProtobufTransportNodesAction<
 
                             @Override
                             public void handleResponse(NodeResponse response) {
+                                System.out.println("ProtoTransportNodesAction.AsyncAction.start.handleResponse");
                                 onOperation(idx, response);
                             }
 
                             @Override
-                            public void handleException(ProtobufTransportException exp) {
+                            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                                System.out.println("ProtoTransportNodesAction.AsyncAction.start.handleExceptionProtobuf");
                                 onFailure(idx, node.getId(), exp);
                             }
 
                             @Override
                             public String executor() {
                                 return ThreadPool.Names.SAME;
+                            }
+
+                            @Override
+                            public NodeResponse read(StreamInput in) throws IOException {
+                                // TODO Auto-generated method stub
+                                throw new UnsupportedOperationException("Unimplemented method 'read'");
+                            }
+
+                            @Override
+                            public void handleException(TransportException exp) {
+                                // TODO Auto-generated method stub
+                                throw new UnsupportedOperationException("Unimplemented method 'handleException'");
                             }
                         }
                     );
@@ -304,7 +322,7 @@ public abstract class ProtobufTransportNodesAction<
     class NodeTransportHandler implements ProtobufTransportRequestHandler<NodeRequest> {
 
         @Override
-        public void messageReceived(NodeRequest request, ProtobufTransportChannel channel, ProtobufTask task) throws Exception {
+        public void messageReceived(NodeRequest request, TransportChannel channel, ProtobufTask task) throws Exception {
             channel.sendResponse(nodeOperation(request, task));
         }
     }

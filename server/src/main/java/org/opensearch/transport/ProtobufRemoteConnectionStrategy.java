@@ -73,7 +73,7 @@ import java.util.stream.Stream;
 *
 * @opensearch.internal
 */
-public abstract class ProtobufRemoteConnectionStrategy implements ProtobufTransportConnectionListener, Closeable {
+public abstract class ProtobufRemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
     enum ProtobufConnectionStrategy {
         SNIFF(
@@ -151,14 +151,14 @@ public abstract class ProtobufRemoteConnectionStrategy implements ProtobufTransp
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
 
-    protected final ProtobufTransportService transportService;
-    protected final ProtobufRemoteConnectionManager connectionManager;
+    protected final TransportService transportService;
+    protected final RemoteConnectionManager connectionManager;
     protected final String clusterAlias;
 
     ProtobufRemoteConnectionStrategy(
         String clusterAlias,
-        ProtobufTransportService transportService,
-        ProtobufRemoteConnectionManager connectionManager,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
         Settings settings
     ) {
         this.clusterAlias = clusterAlias;
@@ -168,9 +168,9 @@ public abstract class ProtobufRemoteConnectionStrategy implements ProtobufTransp
         connectionManager.addListener(this);
     }
 
-    static ProtobufConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
+    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
         ProtobufConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        ProtobufConnectionProfile.Builder builder = new ProtobufConnectionProfile.Builder().setConnectTimeout(
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder().setConnectTimeout(
             TransportSettings.CONNECT_TIMEOUT.get(settings)
         )
             .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
@@ -189,8 +189,8 @@ public abstract class ProtobufRemoteConnectionStrategy implements ProtobufTransp
 
     static ProtobufRemoteConnectionStrategy buildStrategy(
         String clusterAlias,
-        ProtobufTransportService transportService,
-        ProtobufRemoteConnectionManager connectionManager,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
         Settings settings
     ) {
         ProtobufConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
@@ -347,11 +347,11 @@ public abstract class ProtobufRemoteConnectionStrategy implements ProtobufTransp
             TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias)
                 .get(newSettings);
 
-            ProtobufConnectionProfile oldProfile = connectionManager.getConnectionProfile();
-            ProtobufConnectionProfile.Builder builder = new ProtobufConnectionProfile.Builder(oldProfile);
+            ConnectionProfile oldProfile = connectionManager.getConnectionProfile();
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
             builder.setCompressionEnabled(compressionEnabled);
             builder.setPingInterval(pingSchedule);
-            ProtobufConnectionProfile newProfile = builder.build();
+            ConnectionProfile newProfile = builder.build();
             return connectionProfileChanged(oldProfile, newProfile) || strategyMustBeRebuilt(newSettings);
         }
     }
@@ -361,7 +361,7 @@ public abstract class ProtobufRemoteConnectionStrategy implements ProtobufTransp
     protected abstract ProtobufConnectionStrategy strategyType();
 
     @Override
-    public void onNodeDisconnected(DiscoveryNode node, Transport.ProtobufConnection connection) {
+    public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(
@@ -422,7 +422,7 @@ public abstract class ProtobufRemoteConnectionStrategy implements ProtobufTransp
         return result;
     }
 
-    private boolean connectionProfileChanged(ProtobufConnectionProfile oldProfile, ProtobufConnectionProfile newProfile) {
+    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
     }

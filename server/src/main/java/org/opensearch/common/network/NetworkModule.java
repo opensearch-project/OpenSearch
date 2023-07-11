@@ -58,8 +58,9 @@ import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportInterceptor;
-import org.opensearch.transport.ProtobufTransportRequest;
+import org.opensearch.transport.TransportInterceptor;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.ProtobufTransportRequestHandler;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -134,7 +135,7 @@ public final class NetworkModule {
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
     private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
-    private final List<ProtobufTransportInterceptor> protobufTransportInterceptors = new ArrayList<>();
+    private final List<TransportInterceptor> TransportInterceptors = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -296,6 +297,19 @@ public final class NetworkModule {
         }
 
         @Override
+        public <T extends TransportRequest> ProtobufTransportRequestHandler<T> interceptHandlerProtobuf(
+            String action,
+            String executor,
+            boolean forceExecution,
+            ProtobufTransportRequestHandler<T> actualHandler
+        ) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
+                actualHandler = interceptor.interceptHandlerProtobuf(action, executor, forceExecution, actualHandler);
+            }
+            return actualHandler;
+        }
+
+        @Override
         public AsyncSender interceptSender(AsyncSender sender) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
                 sender = interceptor.interceptSender(sender);
@@ -304,36 +318,36 @@ public final class NetworkModule {
         }
     }
 
-    /**
-    * Registers a new {@link TransportInterceptor}
-    */
-    private void registerProtobufTransportInterceptor(ProtobufTransportInterceptor interceptor) {
-        this.protobufTransportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
-    }
+    // /**
+    // * Registers a new {@link TransportInterceptor}
+    // */
+    // private void registerTransportInterceptor(TransportInterceptor interceptor) {
+    //     this.TransportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
+    // }
 
-    /**
-     * Returns a composite {@link ProtobufTransportInterceptor} containing all registered interceptors
-     * @see #registerProtobufTransportInterceptor(ProtobufTransportInterceptor)
-     */
-    public ProtobufTransportInterceptor getProtobufTransportInterceptor() {
-        return new ProtobufCompositeTransportInterceptor(this.protobufTransportInterceptors);
-    }
+    // /**
+    //  * Returns a composite {@link TransportInterceptor} containing all registered interceptors
+    //  * @see #registerTransportInterceptor(TransportInterceptor)
+    //  */
+    // public TransportInterceptor getTransportInterceptor() {
+    //     return new ProtobufCompositeTransportInterceptor(this.TransportInterceptors);
+    // }
 
-    static final class ProtobufCompositeTransportInterceptor implements ProtobufTransportInterceptor {
-        final List<ProtobufTransportInterceptor> transportInterceptors;
+    static final class ProtobufCompositeTransportInterceptor implements TransportInterceptor {
+        final List<TransportInterceptor> transportInterceptors;
 
-        private ProtobufCompositeTransportInterceptor(List<ProtobufTransportInterceptor> transportInterceptors) {
+        private ProtobufCompositeTransportInterceptor(List<TransportInterceptor> transportInterceptors) {
             this.transportInterceptors = new ArrayList<>(transportInterceptors);
         }
 
         @Override
-        public <T extends ProtobufTransportRequest> ProtobufTransportRequestHandler<T> interceptHandler(
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
             String action,
             String executor,
             boolean forceExecution,
-            ProtobufTransportRequestHandler<T> actualHandler
+            TransportRequestHandler<T> actualHandler
         ) {
-            for (ProtobufTransportInterceptor interceptor : this.transportInterceptors) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
                 actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler);
             }
             return actualHandler;
@@ -341,7 +355,7 @@ public final class NetworkModule {
 
         @Override
         public AsyncSender interceptSender(AsyncSender sender) {
-            for (ProtobufTransportInterceptor interceptor : this.transportInterceptors) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
                 sender = interceptor.interceptSender(sender);
             }
             return sender;

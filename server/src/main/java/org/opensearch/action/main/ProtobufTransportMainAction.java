@@ -20,7 +20,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.ProtobufTask;
-import org.opensearch.transport.ProtobufTransportService;
+import org.opensearch.transport.TransportService;
 
 /**
  * Performs the main action
@@ -35,7 +35,7 @@ public class ProtobufTransportMainAction extends ProtobufHandledTransportAction<
     @Inject
     public ProtobufTransportMainAction(
         Settings settings,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ProtobufActionFilters actionFilters,
         ClusterService clusterService
     ) {

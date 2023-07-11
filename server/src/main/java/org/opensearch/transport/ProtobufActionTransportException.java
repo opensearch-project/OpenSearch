@@ -13,7 +13,7 @@ import com.google.protobuf.CodedOutputStream;
 
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
-import org.opensearch.common.transport.ProtobufTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 
 import java.io.IOException;
 
@@ -24,24 +24,24 @@ import java.io.IOException;
 */
 public class ProtobufActionTransportException extends ProtobufTransportException {
 
-    private final ProtobufTransportAddress address;
+    private final TransportAddress address;
 
     private final String action;
 
     public ProtobufActionTransportException(CodedInputStream in) throws IOException {
         super(in);
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        address = protobufStreamInput.readOptionalWriteable(ProtobufTransportAddress::new);
+        address = protobufStreamInput.readOptionalWriteable(TransportAddress::new);
         action = protobufStreamInput.readOptionalString();
     }
 
-    public ProtobufActionTransportException(String name, ProtobufTransportAddress address, String action, Throwable cause) {
+    public ProtobufActionTransportException(String name, TransportAddress address, String action, Throwable cause) {
         super(buildMessage(name, address, action, null), cause);
         this.address = address;
         this.action = action;
     }
 
-    public ProtobufActionTransportException(String name, ProtobufTransportAddress address, String action, String msg, Throwable cause) {
+    public ProtobufActionTransportException(String name, TransportAddress address, String action, String msg, Throwable cause) {
         super(buildMessage(name, address, action, msg), cause);
         this.address = address;
         this.action = action;
@@ -58,7 +58,7 @@ public class ProtobufActionTransportException extends ProtobufTransportException
     /**
      * The target address to invoke the action on.
     */
-    public ProtobufTransportAddress address() {
+    public TransportAddress address() {
         return address;
     }
 
@@ -69,7 +69,7 @@ public class ProtobufActionTransportException extends ProtobufTransportException
         return action;
     }
 
-    private static String buildMessage(String name, ProtobufTransportAddress address, String action, String msg) {
+    private static String buildMessage(String name, TransportAddress address, String action, String msg) {
         StringBuilder sb = new StringBuilder();
         if (name != null) {
             sb.append('[').append(name).append(']');

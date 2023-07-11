@@ -295,7 +295,6 @@ import org.opensearch.action.update.UpdateAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.client.node.ProtobufNodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.metadata.ProtobufIndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.inject.AbstractModule;
@@ -506,7 +505,6 @@ public class ActionModule extends AbstractModule {
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final ProtobufIndexNameExpressionResolver protobufIndexNameExpressionResolver;
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
@@ -556,7 +554,6 @@ public class ActionModule extends AbstractModule {
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
-        this.protobufIndexNameExpressionResolver = null;
         this.protobufActionPlugins = new ArrayList<>();
         ;
         this.protobufActions = new HashMap<String, ProtobufActionPlugin.ActionHandler<?, ?>>();
@@ -598,7 +595,6 @@ public class ActionModule extends AbstractModule {
     public ActionModule(
         Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ProtobufIndexNameExpressionResolver protobufIndexNameExpressionResolver,
         IndexScopedSettings indexScopedSettings,
         ClusterSettings clusterSettings,
         SettingsFilter settingsFilter,
@@ -613,7 +609,6 @@ public class ActionModule extends AbstractModule {
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.protobufIndexNameExpressionResolver = protobufIndexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;

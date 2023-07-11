@@ -23,7 +23,7 @@ import java.io.IOException;
 *
 * @opensearch.internal
 */
-public class ProtobufBytesTransportRequest extends ProtobufTransportRequest {
+public class ProtobufBytesTransportRequest extends TransportRequest {
 
     BytesReference bytes;
     Version version;

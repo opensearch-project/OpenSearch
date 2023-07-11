@@ -164,6 +164,7 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
+        System.out.println("RemoteConnectionManager.addConnectedNode");
         ArrayList<DiscoveryNode> newConnections = new ArrayList<>(this.connectedNodes);
         newConnections.add(addedNode);
         this.connectedNodes = Collections.unmodifiableList(newConnections);
@@ -230,5 +231,12 @@ public class RemoteConnectionManager implements ConnectionManager {
         public Object getCacheKey() {
             return connection.getCacheKey();
         }
+
+        // @Override
+        // public void sendRequestProtobuf(long requestId, String action, TransportRequest request,
+        //         TransportRequestOptions options) throws IOException, TransportException {
+        //     // TODO Auto-generated method stub
+        //     throw new UnsupportedOperationException("Unimplemented method 'sendRequestProtobuf'");
+        // }
     }
 }

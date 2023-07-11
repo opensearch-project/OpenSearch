@@ -89,16 +89,22 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         List<NodeInfo> responses,
         List<FailedNodeException> failures
     ) {
+        System.out.println("Inside newResponse");
+        System.out.println("nodesInfoRequest: " + nodesInfoRequest);
+        System.out.println("responses: " + responses);
+        System.out.println("failures: " + failures);
         return new NodesInfoResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
     protected NodeInfoRequest newNodeRequest(NodesInfoRequest request) {
+        System.out.println("Inside newNodeRequest");
         return new NodeInfoRequest(request);
     }
 
     @Override
     protected NodeInfo newNodeResponse(StreamInput in) throws IOException {
+        System.out.println("Inside newNodeResponse with input stream");
         return new NodeInfo(in);
     }
 

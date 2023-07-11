@@ -16,7 +16,7 @@ package org.opensearch.action.support.nodes;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.transport.ProtobufTransportResponse;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -25,7 +25,7 @@ import java.io.IOException;
 *
 * @opensearch.internal
 */
-public abstract class ProtobufBaseNodeResponse extends ProtobufTransportResponse {
+public abstract class ProtobufBaseNodeResponse extends TransportResponse {
 
     private DiscoveryNode node;
 

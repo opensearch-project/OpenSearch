@@ -21,10 +21,13 @@ import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ActionNotFoundTransportException;
+import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.Map;
@@ -219,6 +222,18 @@ public class ExtensionTransportActionsHandler {
                 public String executor() {
                     return ThreadPool.Names.GENERIC;
                 }
+
+                @Override
+                public ExtensionActionResponse read(CodedInputStream in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
+
+                @Override
+                public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
+                }
             };
         try {
             transportService.sendRequest(
@@ -282,6 +297,18 @@ public class ExtensionTransportActionsHandler {
                 @Override
                 public String executor() {
                     return ThreadPool.Names.GENERIC;
+                }
+
+                @Override
+                public RemoteExtensionActionResponse read(CodedInputStream in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
+
+                @Override
+                public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                 }
             };
         try {

@@ -44,7 +44,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ProtobufRemoteTransportException;
 import org.opensearch.transport.ProtobufTransportException;
-import org.opensearch.transport.ProtobufTransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -61,7 +61,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
     private static final Logger logger = LogManager.getLogger(ProtobufTransportClusterManagerNodeAction.class);
 
     protected final ThreadPool threadPool;
-    protected final ProtobufTransportService transportService;
+    protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
@@ -69,7 +69,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
 
     protected ProtobufTransportClusterManagerNodeAction(
         String actionName,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ProtobufActionFilters actionFilters,
@@ -82,7 +82,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
     protected ProtobufTransportClusterManagerNodeAction(
         String actionName,
         boolean canTripCircuitBreaker,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ProtobufActionFilters actionFilters,
@@ -279,7 +279,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
                                 ProtobufTransportClusterManagerNodeAction.this::read
                             ) {
                                 @Override
-                                public void handleException(final ProtobufTransportException exp) {
+                                public void handleExceptionProtobuf(final ProtobufTransportException exp) {
                                     Throwable cause = exp.unwrapCause();
                                     if (cause instanceof ConnectTransportException
                                         || (exp instanceof ProtobufRemoteTransportException && cause instanceof NodeClosedException)) {

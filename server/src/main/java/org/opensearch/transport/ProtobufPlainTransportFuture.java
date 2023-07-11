@@ -11,6 +11,7 @@ package org.opensearch.transport;
 import com.google.protobuf.CodedInputStream;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.util.concurrent.BaseFuture;
 
 import java.io.IOException;
@@ -23,14 +24,14 @@ import java.util.concurrent.TimeoutException;
 *
 * @opensearch.internal
 */
-public class ProtobufPlainTransportFuture<V extends ProtobufTransportResponse> extends BaseFuture<V>
+public class ProtobufPlainTransportFuture<V extends TransportResponse> extends BaseFuture<V>
     implements
         TransportFuture<V>,
-        ProtobufTransportResponseHandler<V> {
+        TransportResponseHandler<V> {
 
-    private final ProtobufTransportResponseHandler<V> handler;
+    private final TransportResponseHandler<V> handler;
 
-    public ProtobufPlainTransportFuture(ProtobufTransportResponseHandler<V> handler) {
+    public ProtobufPlainTransportFuture(TransportResponseHandler<V> handler) {
         this.handler = handler;
     }
 
@@ -83,14 +84,14 @@ public class ProtobufPlainTransportFuture<V extends ProtobufTransportResponse> e
             handler.handleResponse(response);
             set(response);
         } catch (Exception e) {
-            handleException(new ProtobufTransportException(e));
+            handleExceptionProtobuf(new ProtobufTransportException(e));
         }
     }
 
     @Override
-    public void handleException(ProtobufTransportException exp) {
+    public void handleExceptionProtobuf(ProtobufTransportException exp) {
         try {
-            handler.handleException(exp);
+            handler.handleExceptionProtobuf(exp);
         } finally {
             setException(exp);
         }
@@ -99,5 +100,17 @@ public class ProtobufPlainTransportFuture<V extends ProtobufTransportResponse> e
     @Override
     public String toString() {
         return "future(" + handler.toString() + ")";
+    }
+
+    @Override
+    public V read(StreamInput in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
+    }
+
+    @Override
+    public void handleException(TransportException exp) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'handleException'");
     }
 }

@@ -143,7 +143,7 @@ import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.ProtobufBoundTransportAddress;
+import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -235,8 +235,8 @@ import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskResultsService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportInterceptor;
-import org.opensearch.transport.ProtobufTransportService;
+// import org.opensearch.transport.ProtobufTransportInterceptor;
+// import org.opensearch.transport.ProtobufTransportService;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -856,7 +856,7 @@ public class Node implements Closeable {
             ActionModule protobufActionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
-                clusterModule.getProtobufIndexNameExpressionResolver(),
+                // clusterModule.getProtobufIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(),
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),
@@ -918,15 +918,15 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings(),
                 taskHeaders
             );
-            final ProtobufTransportService protobufTransportService = newProtobufTransportService(
-                settings,
-                transport,
-                threadPool,
-                networkModule.getProtobufTransportInterceptor(),
-                protobufLocalNodeFactory,
-                settingsModule.getClusterSettings(),
-                taskHeaders
-            );
+            // final ProtobufTransportService protobufTransportService = newProtobufTransportService(
+            //     settings,
+            //     transport,
+            //     threadPool,
+            //     networkModule.getProtobufTransportInterceptor(),
+            //     protobufLocalNodeFactory,
+            //     settingsModule.getClusterSettings(),
+            //     taskHeaders
+            // );
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());
             transportService.getTaskManager().registerTaskResourceConsumer(taskConsumer);
             // if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
@@ -1088,7 +1088,7 @@ public class Node implements Closeable {
                 threadPool,
                 protobufMonitorService,
                 discoveryModule.getDiscovery(),
-                protobufTransportService,
+                transportService,
                 indicesService,
                 pluginsService,
                 circuitBreakerService,
@@ -1197,7 +1197,7 @@ public class Node implements Closeable {
                     .toInstance(new SearchPhaseController(namedWriteableRegistry, searchService::aggReduceContextBuilder));
                 b.bind(Transport.class).toInstance(transport);
                 b.bind(TransportService.class).toInstance(transportService);
-                b.bind(ProtobufTransportService.class).toInstance(protobufTransportService);
+                // b.bind(ProtobufTransportService.class).toInstance(protobufTransportService);
                 b.bind(NetworkService.class).toInstance(networkService);
                 b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService));
                 b.bind(MetadataIndexUpgradeService.class).toInstance(metadataIndexUpgradeService);
@@ -1280,7 +1280,7 @@ public class Node implements Closeable {
             protobufClient.initialize(
                 protobufDynamicActionRegistry,
                 () -> clusterService.localNode().getId(),
-                protobufTransportService.getRemoteClusterService(),
+                transportService.getRemoteClusterService(),
                 namedWriteableRegistry
             );
 
@@ -1311,17 +1311,17 @@ public class Node implements Closeable {
         return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
     }
 
-    protected ProtobufTransportService newProtobufTransportService(
-        Settings settings,
-        Transport transport,
-        ThreadPool threadPool,
-        ProtobufTransportInterceptor interceptor,
-        Function<ProtobufBoundTransportAddress, DiscoveryNode> localNodeFactory,
-        ClusterSettings clusterSettings,
-        Set<String> taskHeaders
-    ) {
-        return new ProtobufTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
-    }
+    // protected ProtobufTransportService newProtobufTransportService(
+    //     Settings settings,
+    //     Transport transport,
+    //     ThreadPool threadPool,
+    //     ProtobufTransportInterceptor interceptor,
+    //     Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+    //     ClusterSettings clusterSettings,
+    //     Set<String> taskHeaders
+    // ) {
+    //     return new ProtobufTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+    // }
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
         // Noop in production, overridden by tests
@@ -1393,24 +1393,24 @@ public class Node implements Closeable {
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
 
-        ProtobufTransportService protobufTransportService = injector.getInstance(ProtobufTransportService.class);
-        protobufTransportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
-        protobufTransportService.getTaskManager().setTaskCancellationService(new ProtobufTaskCancellationService(protobufTransportService));
+        // ProtobufTransportService protobufTransportService = injector.getInstance(ProtobufTransportService.class);
+        // protobufTransportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
+        // protobufTransportService.getTaskManager().setTaskCancellationService(new ProtobufTaskCancellationService(protobufTransportService));
 
         TaskResourceTrackingService taskResourceTrackingService = injector.getInstance(TaskResourceTrackingService.class);
         transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
-        protobufTransportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
+        // protobufTransportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
         runnableTaskListener.set(taskResourceTrackingService);
 
         transportService.start();
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
-        protobufTransportService.start();
-        protobufTransportService.setLocalNode(localNodeFactory.getNode());
+        // protobufTransportService.start();
+        // protobufTransportService.setLocalNode(localNodeFactory.getNode());
         assert localNodeFactory.getNode() != null;
-        assert protobufTransportService.getLocalNode().equals(localNodeFactory.getNode())
-            : "protobufTransportService has a different local node than the factory provided";
+        // assert protobufTransportService.getLocalNode().equals(localNodeFactory.getNode())
+        //     : "protobufTransportService has a different local node than the factory provided";
         injector.getInstance(PeerRecoverySourceService.class).start();
         injector.getInstance(SegmentReplicationSourceService.class).start();
 
@@ -1457,7 +1457,7 @@ public class Node implements Closeable {
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
-        protobufTransportService.acceptIncomingRequests();
+        // protobufTransportService.acceptIncomingRequests();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
@@ -1899,7 +1899,7 @@ public class Node implements Closeable {
         }
     }
 
-    private static class ProtobufLocalNodeFactory implements Function<ProtobufBoundTransportAddress, DiscoveryNode> {
+    private static class ProtobufLocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {
         private final SetOnce<DiscoveryNode> localNode = new SetOnce<>();
         private final String persistentNodeId;
         private final Settings settings;
@@ -1910,7 +1910,7 @@ public class Node implements Closeable {
         }
 
         @Override
-        public DiscoveryNode apply(ProtobufBoundTransportAddress boundTransportAddress) {
+        public DiscoveryNode apply(BoundTransportAddress boundTransportAddress) {
             localNode.set(
                 DiscoveryNode.createLocal(
                     settings,

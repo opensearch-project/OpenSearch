@@ -33,7 +33,7 @@ import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -48,7 +48,7 @@ public class ProtobufNodeService implements Closeable {
     private final Settings settings;
     private final ThreadPool threadPool;
     private final ProtobufMonitorService monitorService;
-    private final ProtobufTransportService transportService;
+    private final TransportService transportService;
     private final IndicesService indicesService;
     private final PluginsService pluginService;
     private final CircuitBreakerService circuitBreakerService;
@@ -71,7 +71,7 @@ public class ProtobufNodeService implements Closeable {
         ThreadPool threadPool,
         ProtobufMonitorService monitorService,
         Discovery discovery,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         IndicesService indicesService,
         PluginsService pluginService,
         CircuitBreakerService circuitBreakerService,
@@ -199,7 +199,7 @@ public class ProtobufNodeService implements Closeable {
             jvm ? monitorService.jvmService().stats() : null,
             threadPool ? this.threadPool.protobufStats() : null,
             fs ? monitorService.fsService().stats() : null,
-            transport ? transportService.stats() : null,
+            transport ? transportService.protobufStats() : null,
             http ? (httpServerTransport == null ? null : httpServerTransport.protobufStats()) : null,
             circuitBreaker ? circuitBreakerService.protobufStats() : null,
             script ? scriptService.protobufStats() : null,

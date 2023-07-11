@@ -35,6 +35,9 @@ package org.opensearch.transport;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 
 /**
@@ -59,6 +62,21 @@ public abstract class TransportResponse extends TransportMessage {
     }
 
     /**
+     * Constructs a new transport response with the data from the {@link StreamInput}. This is
+    * currently a no-op. However, this exists to allow extenders to call <code>super(in)</code>
+    * so that reading can mirror writing where we often call <code>super.writeTo(out)</code>.
+    */
+    public TransportResponse(CodedInputStream in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {}
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {}
+
+    /**
      * Empty transport response
      *
      * @opensearch.internal
@@ -73,5 +91,8 @@ public abstract class TransportResponse extends TransportMessage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public void writeTo(CodedOutputStream out) throws IOException {}
     }
 }

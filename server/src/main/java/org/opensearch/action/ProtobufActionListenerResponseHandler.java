@@ -10,10 +10,12 @@ package org.opensearch.action;
 
 import com.google.protobuf.CodedInputStream;
 import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportResponseHandler;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.ProtobufTransportException;
-import org.opensearch.transport.ProtobufTransportResponse;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,9 +26,9 @@ import java.util.Objects;
 *
 * @opensearch.api
 */
-public class ProtobufActionListenerResponseHandler<Response extends ProtobufTransportResponse>
+public class ProtobufActionListenerResponseHandler<Response extends TransportResponse>
     implements
-        ProtobufTransportResponseHandler<Response> {
+        TransportResponseHandler<Response> {
 
     private final ActionListener<? super Response> listener;
     private final ProtobufWriteable.Reader<Response> reader;
@@ -52,7 +54,7 @@ public class ProtobufActionListenerResponseHandler<Response extends ProtobufTran
     }
 
     @Override
-    public void handleException(ProtobufTransportException e) {
+    public void handleExceptionProtobuf(ProtobufTransportException e) {
         listener.onFailure(e);
     }
 
@@ -69,5 +71,16 @@ public class ProtobufActionListenerResponseHandler<Response extends ProtobufTran
     @Override
     public String toString() {
         return super.toString() + "/" + listener;
+    }
+
+    @Override
+    public Response read(StreamInput in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
+    }
+
+    @Override
+    public void handleException(TransportException exp) {
+        listener.onFailure(exp);
     }
 }

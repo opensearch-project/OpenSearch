@@ -46,6 +46,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NodeShouldNotConnectException;
+import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
@@ -53,6 +54,8 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -241,7 +244,9 @@ public abstract class TransportNodesAction<
         }
 
         void start() {
+            System.out.println("TransportNodesAction.AsyncAction.start");
             final DiscoveryNode[] nodes = request.concreteNodes();
+            System.out.println("Nodes: " + nodes[0]);
             if (nodes.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
@@ -285,6 +290,18 @@ public abstract class TransportNodesAction<
                             @Override
                             public String executor() {
                                 return ThreadPool.Names.SAME;
+                            }
+
+                            @Override
+                            public NodeResponse read(CodedInputStream in) throws IOException {
+                                // TODO Auto-generated method stub
+                                throw new UnsupportedOperationException("Unimplemented method 'read'");
+                            }
+
+                            @Override
+                            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                                // TODO Auto-generated method stub
+                                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                             }
                         }
                     );

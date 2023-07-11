@@ -24,8 +24,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.NetworkAddress;
-import org.opensearch.common.transport.ProtobufTransportAddress;
-import org.opensearch.common.transport.ProtobufTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.http.ProtobufHttpInfo;
 import org.opensearch.index.cache.query.ProtobufQueryCacheStats;
@@ -338,6 +338,11 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
         DiscoveryNodes nodes = state.getState().nodes();
         String clusterManagerId = nodes.getClusterManagerNodeId();
         Table table = getTableWithHeader(req);
+        System.out.println("Nodes: " + nodes);
+        System.out.println("clusterManagerId: " + clusterManagerId);
+        System.out.println("state: " + state);
+        System.out.println("nodesInfo: " + nodesInfo);
+        System.out.println("nodesStats: " + nodesStats);
 
         for (DiscoveryNode node : nodes) {
             ProtobufNodeInfo info = nodesInfo.getNodesMap().get(node.getId());
@@ -358,7 +363,7 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             table.addCell(node.getAddress().address().getPort());
             final ProtobufHttpInfo httpInfo = info == null ? null : info.getInfo(ProtobufHttpInfo.class);
             if (httpInfo != null) {
-                ProtobufTransportAddress transportAddress = httpInfo.getAddress().publishAddress();
+                TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
                 table.addCell(NetworkAddress.format(transportAddress.address()));
             } else {
                 table.addCell("-");

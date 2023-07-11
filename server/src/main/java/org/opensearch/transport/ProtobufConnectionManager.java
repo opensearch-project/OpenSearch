@@ -15,31 +15,31 @@ import java.io.Closeable;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
+/** not used
  * ProtobufTransport connection manager.
 *
 * @opensearch.internal
 */
 public interface ProtobufConnectionManager extends Closeable {
 
-    void addListener(ProtobufTransportConnectionListener listener);
+    void addListener(TransportConnectionListener listener);
 
-    void removeListener(ProtobufTransportConnectionListener listener);
+    void removeListener(TransportConnectionListener listener);
 
     void openConnection(
         DiscoveryNode node,
-        ProtobufConnectionProfile connectionProfile,
-        ActionListener<Transport.ProtobufConnection> listener
+        ConnectionProfile connectionProfile,
+        ActionListener<Transport.Connection> listener
     );
 
     void connectToNode(
         DiscoveryNode node,
-        ProtobufConnectionProfile connectionProfile,
+        ConnectionProfile connectionProfile,
         ConnectionValidator connectionValidator,
         ActionListener<Void> listener
     ) throws ConnectTransportException;
 
-    Transport.ProtobufConnection getConnection(DiscoveryNode node);
+    Transport.Connection getConnection(DiscoveryNode node);
 
     boolean nodeConnected(DiscoveryNode node);
 
@@ -54,7 +54,7 @@ public interface ProtobufConnectionManager extends Closeable {
 
     void closeNoBlock();
 
-    ProtobufConnectionProfile getConnectionProfile();
+    ConnectionProfile getConnectionProfile();
 
     /**
      * Validates a connection
@@ -63,7 +63,7 @@ public interface ProtobufConnectionManager extends Closeable {
     */
     @FunctionalInterface
     interface ConnectionValidator {
-        void validate(Transport.ProtobufConnection connection, ProtobufConnectionProfile profile, ActionListener<Void> listener);
+        void validate(Transport.Connection connection, ConnectionProfile profile, ActionListener<Void> listener);
     }
 
     /**
@@ -71,43 +71,43 @@ public interface ProtobufConnectionManager extends Closeable {
     *
     * @opensearch.internal
     */
-    final class DelegatingNodeConnectionListener implements ProtobufTransportConnectionListener {
+    final class DelegatingNodeConnectionListener implements TransportConnectionListener {
 
-        private final CopyOnWriteArrayList<ProtobufTransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
-        public void onNodeDisconnected(DiscoveryNode key, Transport.ProtobufConnection connection) {
-            for (ProtobufTransportConnectionListener listener : listeners) {
+        public void onNodeDisconnected(DiscoveryNode key, Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
                 listener.onNodeDisconnected(key, connection);
             }
         }
 
         @Override
-        public void onNodeConnected(DiscoveryNode node, Transport.ProtobufConnection connection) {
-            for (ProtobufTransportConnectionListener listener : listeners) {
+        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
                 listener.onNodeConnected(node, connection);
             }
         }
 
         @Override
-        public void onConnectionOpened(Transport.ProtobufConnection connection) {
-            for (ProtobufTransportConnectionListener listener : listeners) {
+        public void onConnectionOpened(Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
                 listener.onConnectionOpened(connection);
             }
         }
 
         @Override
-        public void onConnectionClosed(Transport.ProtobufConnection connection) {
-            for (ProtobufTransportConnectionListener listener : listeners) {
+        public void onConnectionClosed(Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
                 listener.onConnectionClosed(connection);
             }
         }
 
-        public void addListener(ProtobufTransportConnectionListener listener) {
+        public void addListener(TransportConnectionListener listener) {
             listeners.addIfAbsent(listener);
         }
 
-        public void removeListener(ProtobufTransportConnectionListener listener) {
+        public void removeListener(TransportConnectionListener listener) {
             listeners.remove(listener);
         }
     }

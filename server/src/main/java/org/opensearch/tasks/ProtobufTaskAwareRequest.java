@@ -22,32 +22,32 @@ public interface ProtobufTaskAwareRequest {
     /**
      * Set a reference to task that caused this task to be run.
     */
-    default void setParentTask(String parentTaskNode, long parentTaskId) {
-        setParentTask(new ProtobufTaskId(parentTaskNode, parentTaskId));
+    default void setProtobufParentTask(String parentTaskNode, long parentTaskId) {
+        setProtobufParentTask(new ProtobufTaskId(parentTaskNode, parentTaskId));
     }
 
     /**
      * Set a reference to task that created this request.
     */
-    void setParentTask(ProtobufTaskId taskId);
+    void setProtobufParentTask(ProtobufTaskId taskId);
 
     /**
      * Get a reference to the task that created this request. Implementers should default to
     * {@link ProtobufTaskId#EMPTY_TASK_ID}, meaning "there is no parent".
     */
-    ProtobufTaskId getParentTask();
+    ProtobufTaskId getProtobufParentTask();
 
     /**
      * Returns the task object that should be used to keep track of the processing of the request.
     */
-    default ProtobufTask createTask(long id, String type, String action, ProtobufTaskId parentTaskId, Map<String, String> headers) {
-        return new ProtobufTask(id, type, action, getDescription(), parentTaskId, headers);
+    default ProtobufTask createProtobufTask(long id, String type, String action, ProtobufTaskId parentTaskId, Map<String, String> headers) {
+        return new ProtobufTask(id, type, action, getTaskDescription(), parentTaskId, headers);
     }
 
     /**
      * Returns optional description of the request to be displayed by the task manager
     */
-    default String getDescription() {
+    default String getTaskDescription() {
         return "";
     }
 }

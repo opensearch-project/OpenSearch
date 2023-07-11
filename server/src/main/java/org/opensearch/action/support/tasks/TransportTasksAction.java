@@ -52,6 +52,7 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NodeShouldNotConnectException;
+import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
@@ -60,6 +61,8 @@ import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -315,6 +318,19 @@ public abstract class TransportTasksAction<
                                     @Override
                                     public String executor() {
                                         return ThreadPool.Names.SAME;
+                                    }
+
+                                    @Override
+                                    public TransportTasksAction<OperationTask, TasksRequest, TasksResponse, TaskResponse>.NodeTasksResponse read(
+                                            CodedInputStream in) throws IOException {
+                                        // TODO Auto-generated method stub
+                                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                                    }
+
+                                    @Override
+                                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                                        // TODO Auto-generated method stub
+                                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                                     }
                                 }
                             );

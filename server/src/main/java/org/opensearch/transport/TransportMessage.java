@@ -32,16 +32,19 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.transport.TransportAddress;
+
+import com.google.protobuf.CodedInputStream;
 
 /**
  * Message over the transport interface
  *
  * @opensearch.internal
  */
-public abstract class TransportMessage implements Writeable {
+public abstract class TransportMessage implements Writeable, ProtobufWriteable {
 
     private TransportAddress remoteAddress;
 
@@ -63,4 +66,10 @@ public abstract class TransportMessage implements Writeable {
      * currently a no-op
      */
     public TransportMessage(StreamInput in) {}
+
+     /**
+     * Constructs a new transport message with the data from the {@link CodedInputStream}. This is
+    * currently a no-op
+    */
+    public TransportMessage(CodedInputStream in) {}
 }

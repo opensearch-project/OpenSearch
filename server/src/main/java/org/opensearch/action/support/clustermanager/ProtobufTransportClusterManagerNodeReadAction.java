@@ -14,7 +14,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportService;
+import org.opensearch.transport.TransportService;
 
 /**
  * A base class for read operations that needs to be performed on the cluster-manager node.
@@ -28,7 +28,7 @@ public abstract class ProtobufTransportClusterManagerNodeReadAction<
 
     protected ProtobufTransportClusterManagerNodeReadAction(
         String actionName,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ProtobufActionFilters actionFilters,
@@ -41,7 +41,7 @@ public abstract class ProtobufTransportClusterManagerNodeReadAction<
     protected ProtobufTransportClusterManagerNodeReadAction(
         String actionName,
         boolean checkSizeLimit,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ProtobufActionFilters actionFilters,

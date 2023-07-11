@@ -29,7 +29,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -55,7 +55,7 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
 
     @Inject
     public ProtobufTransportClusterStateAction(
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ProtobufActionFilters actionFilters,

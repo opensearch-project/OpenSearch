@@ -9,24 +9,24 @@
 package org.opensearch.action.support;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.transport.ProtobufTransportChannel;
-import org.opensearch.transport.ProtobufTransportRequest;
-import org.opensearch.transport.ProtobufTransportResponse;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportResponse;
 
 /**
  * Listener for transport channel actions
 *
 * @opensearch.internal
 */
-public final class ProtobufChannelActionListener<Response extends ProtobufTransportResponse, Request extends ProtobufTransportRequest>
+public final class ProtobufChannelActionListener<Response extends TransportResponse, Request extends TransportRequest>
     implements
         ActionListener<Response> {
 
-    private final ProtobufTransportChannel channel;
+    private final TransportChannel channel;
     private final Request request;
     private final String actionName;
 
-    public ProtobufChannelActionListener(ProtobufTransportChannel channel, String actionName, Request request) {
+    public ProtobufChannelActionListener(TransportChannel channel, String actionName, Request request) {
         this.channel = channel;
         this.request = request;
         this.actionName = actionName;
@@ -43,6 +43,6 @@ public final class ProtobufChannelActionListener<Response extends ProtobufTransp
 
     @Override
     public void onFailure(Exception e) {
-        ProtobufTransportChannel.sendErrorResponse(channel, actionName, request, e);
+        TransportChannel.sendErrorResponse(channel, actionName, request, e);
     }
 }

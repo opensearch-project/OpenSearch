@@ -24,7 +24,7 @@ import java.io.IOException;
 *
 * @opensearch.internal
 */
-public final class ProtobufRequestHandlerRegistry<Request extends ProtobufTransportRequest> {
+public final class ProtobufRequestHandlerRegistry<Request extends TransportRequest> {
 
     private final String action;
     private final ProtobufTransportRequestHandler<Request> handler;
@@ -60,27 +60,27 @@ public final class ProtobufRequestHandlerRegistry<Request extends ProtobufTransp
         return requestReader.read(in);
     }
 
-    public void processMessageReceived(Request request, ProtobufTransportChannel channel) throws Exception {
+    public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
         final ProtobufTask task = taskManager.registerProtobuf(channel.getChannelType(), action, request);
         ThreadContext.StoredContext contextToRestore = taskManager.protobufTaskExecutionStarted(task);
 
         Releasable unregisterTask = () -> taskManager.unregisterProtobufTask(task);
         try {
-            if (channel instanceof ProtobufTcpTransportChannel && task instanceof ProtobufCancellableTask) {
+            if (channel instanceof TcpTransportChannel && task instanceof ProtobufCancellableTask) {
                 // if (request instanceof ShardSearchRequest) {
                 // // on receiving request, update the inbound network time to reflect time spent in transit over the network
                 // ((ShardSearchRequest) request).setInboundNetworkTime(
                 // Math.max(0, System.currentTimeMillis() - ((ShardSearchRequest) request).getInboundNetworkTime())
                 // );
                 // }
-                final TcpChannel tcpChannel = ((ProtobufTcpTransportChannel) channel).getChannel();
+                final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
                 final Releasable stopTracking = taskManager.startProtobufTrackingCancellableChannelTask(
                     tcpChannel,
                     (ProtobufCancellableTask) task
                 );
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
-            final ProtobufTaskTransportChannel taskTransportChannel = new ProtobufTaskTransportChannel(channel, unregisterTask);
+            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);
             handler.messageReceived(request, taskTransportChannel, task);
             unregisterTask = null;
         } finally {
@@ -110,7 +110,7 @@ public final class ProtobufRequestHandlerRegistry<Request extends ProtobufTransp
         return handler.toString();
     }
 
-    public static <R extends ProtobufTransportRequest> ProtobufRequestHandlerRegistry<R> replaceHandler(
+    public static <R extends TransportRequest> ProtobufRequestHandlerRegistry<R> replaceHandler(
         ProtobufRequestHandlerRegistry<R> registry,
         ProtobufTransportRequestHandler<R> handler
     ) {

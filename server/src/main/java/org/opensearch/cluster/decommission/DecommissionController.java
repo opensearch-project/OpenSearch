@@ -31,9 +31,12 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.http.HttpStats;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -256,6 +259,18 @@ public class DecommissionController {
                 @Override
                 public NodesStatsResponse read(StreamInput in) throws IOException {
                     return new NodesStatsResponse(in);
+                }
+
+                @Override
+                public NodesStatsResponse read(CodedInputStream in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
+
+                @Override
+                public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                 }
             }
         );

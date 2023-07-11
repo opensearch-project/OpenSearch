@@ -27,6 +27,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
@@ -130,8 +131,8 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
 
     ProtobufSniffConnectionStrategy(
         String clusterAlias,
-        ProtobufTransportService transportService,
-        ProtobufRemoteConnectionManager connectionManager,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
         Settings settings
     ) {
         this(
@@ -148,8 +149,8 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
 
     ProtobufSniffConnectionStrategy(
         String clusterAlias,
-        ProtobufTransportService transportService,
-        ProtobufRemoteConnectionManager connectionManager,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
         String proxyAddress,
         Settings settings,
         int maxNumRemoteConnections,
@@ -173,8 +174,8 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
 
     ProtobufSniffConnectionStrategy(
         String clusterAlias,
-        ProtobufTransportService transportService,
-        ProtobufRemoteConnectionManager connectionManager,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
         String proxyAddress,
         Settings settings,
         int maxNumRemoteConnections,
@@ -256,16 +257,16 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
 
             final DiscoveryNode seedNode = seedNodes.next().get();
             logger.trace("[{}] opening transient connection to seed node: [{}]", clusterAlias, seedNode);
-            final StepListener<Transport.ProtobufConnection> openConnectionStep = new StepListener<>();
+            final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
             try {
                 connectionManager.openConnection(seedNode, null, openConnectionStep);
             } catch (Exception e) {
                 onFailure.accept(e);
             }
 
-            final StepListener<ProtobufTransportService.HandshakeResponse> handshakeStep = new StepListener<>();
+            final StepListener<TransportService.HandshakeResponse> handshakeStep = new StepListener<>();
             openConnectionStep.whenComplete(connection -> {
-                ProtobufConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
+                ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
                 transportService.handshake(
                     connection,
                     connectionProfile.getHandshakeTimeout().millis(),
@@ -296,7 +297,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                     fullConnectionStep.onResponse(null);
                 }
             }, e -> {
-                final Transport.ProtobufConnection connection = openConnectionStep.result();
+                final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();
                 logger.debug(() -> new ParameterizedMessage("[{}] failed to handshake with seed node: [{}]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(connection);
@@ -305,11 +306,11 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
 
             fullConnectionStep.whenComplete(aVoid -> {
                 if (remoteClusterName.get() == null) {
-                    ProtobufTransportService.HandshakeResponse handshakeResponse = handshakeStep.result();
+                    TransportService.HandshakeResponse handshakeResponse = handshakeStep.result();
                     assert handshakeResponse.getClusterName().value() != null;
                     remoteClusterName.set(handshakeResponse.getClusterName());
                 }
-                final Transport.ProtobufConnection connection = openConnectionStep.result();
+                final Transport.Connection connection = openConnectionStep.result();
 
                 ProtobufClusterStateRequest request = new ProtobufClusterStateRequest();
                 request.clear();
@@ -319,8 +320,8 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                 // due to an already closed connection.
                 ThreadPool threadPool = transportService.getThreadPool();
                 ThreadContext threadContext = threadPool.getThreadContext();
-                ProtobufTransportService.ContextRestoreResponseHandler<ProtobufClusterStateResponse> responseHandler =
-                    new ProtobufTransportService.ContextRestoreResponseHandler<>(
+                TransportService.ContextRestoreResponseHandler<ProtobufClusterStateResponse> responseHandler =
+                    new TransportService.ContextRestoreResponseHandler<>(
                         threadContext.newRestorableContext(false),
                         new SniffClusterStateResponseHandler(connection, listener, seedNodes)
                     );
@@ -337,7 +338,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
                     );
                 }
             }, e -> {
-                final Transport.ProtobufConnection connection = openConnectionStep.result();
+                final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();
                 logger.debug(
                     () -> new ParameterizedMessage("[{}] failed to open managed connection to seed node: [{}]", clusterAlias, node),
@@ -352,14 +353,14 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
     }
 
     /* This class handles the _state response from the remote cluster when sniffing nodes to connect to */
-    private class SniffClusterStateResponseHandler implements ProtobufTransportResponseHandler<ProtobufClusterStateResponse> {
+    private class SniffClusterStateResponseHandler implements TransportResponseHandler<ProtobufClusterStateResponse> {
 
-        private final Transport.ProtobufConnection connection;
+        private final Transport.Connection connection;
         private final ActionListener<Void> listener;
         private final Iterator<Supplier<DiscoveryNode>> seedNodes;
 
         SniffClusterStateResponseHandler(
-            Transport.ProtobufConnection connection,
+            Transport.Connection connection,
             ActionListener<Void> listener,
             Iterator<Supplier<DiscoveryNode>> seedNodes
         ) {
@@ -435,7 +436,7 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
         }
 
         @Override
-        public void handleException(ProtobufTransportException exp) {
+        public void handleExceptionProtobuf(ProtobufTransportException exp) {
             logger.warn(new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), exp);
             try {
                 IOUtils.closeWhileHandlingException(connection);
@@ -448,6 +449,18 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
         @Override
         public String executor() {
             return ThreadPool.Names.MANAGEMENT;
+        }
+
+        @Override
+        public ProtobufClusterStateResponse read(StreamInput in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
+        }
+
+        @Override
+        public void handleException(TransportException exp) {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'handleException'");
         }
     }
 

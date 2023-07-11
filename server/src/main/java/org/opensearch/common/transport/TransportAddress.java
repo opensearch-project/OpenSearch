@@ -32,12 +32,17 @@
 
 package org.opensearch.common.transport;
 
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.core.xcontent.ToXContent.Params;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -49,7 +54,7 @@ import java.net.UnknownHostException;
  *
  * @opensearch.internal
  */
-public final class TransportAddress implements Writeable, ToXContentFragment {
+public final class TransportAddress implements Writeable, ProtobufWriteable, ToXContentFragment {
 
     /**
      * A <a href="https://en.wikipedia.org/wiki/0.0.0.0">non-routeable v4 meta transport address</a> that can be used for
@@ -104,6 +109,31 @@ public final class TransportAddress implements Writeable, ToXContentFragment {
         // these only make sense with respect to the local machine, and will only formulate
         // the address incorrectly remotely.
         out.writeInt(address.getPort());
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public TransportAddress(CodedInputStream in) throws IOException {
+        final int len = in.readRawByte();
+        final byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
+        in.readRawBytes(len);
+        String host = in.readString(); // the host string was serialized so we can ignore the passed in version
+        final InetAddress inetAddress = InetAddress.getByAddress(host, a);
+        int port = in.readInt32();
+        this.address = new InetSocketAddress(inetAddress, port);
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        byte[] bytes = address.getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
+        out.write((byte) bytes.length); // 1 byte
+        out.write(bytes, 0, bytes.length);
+        out.writeStringNoTag(address.getHostString());
+        // don't serialize scope ids over the network!!!!
+        // these only make sense with respect to the local machine, and will only formulate
+        // the address incorrectly remotely.
+        out.writeInt32NoTag(address.getPort());
     }
 
     /**

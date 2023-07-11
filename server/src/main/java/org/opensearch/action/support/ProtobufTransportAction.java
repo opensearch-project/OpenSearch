@@ -67,7 +67,7 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
         * task. That just seems like too many objects. Thus the two versions of
         * this method.
         */
-        final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
+        final Releasable unregisterChildNode = registerChildNode(request.getProtobufParentTask());
         final ProtobufTask task;
 
         try {
@@ -110,7 +110,7 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
     * {@link ProtobufTaskListener} which listens for the completion of the action.
     */
     public final ProtobufTask execute(Request request, ProtobufTaskListener<Response> listener) {
-        final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
+        final Releasable unregisterChildNode = registerChildNode(request.getProtobufParentTask());
         final ProtobufTask task;
         try {
             task = taskManager.registerProtobuf("transport", actionName, request);

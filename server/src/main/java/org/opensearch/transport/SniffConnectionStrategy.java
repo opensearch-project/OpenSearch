@@ -57,6 +57,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
+import com.google.protobuf.CodedInputStream;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
@@ -470,6 +472,18 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public String executor() {
             return ThreadPool.Names.MANAGEMENT;
+        }
+
+        @Override
+        public ClusterStateResponse read(CodedInputStream in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
+        }
+
+        @Override
+        public void handleExceptionProtobuf(ProtobufTransportException exp) {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
         }
     }
 

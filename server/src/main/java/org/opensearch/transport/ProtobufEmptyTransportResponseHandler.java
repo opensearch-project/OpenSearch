@@ -9,14 +9,19 @@
 package org.opensearch.transport;
 
 import com.google.protobuf.CodedInputStream;
+
+import java.io.IOException;
+
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportResponse.Empty;
 
 /**
  * Handler for empty transport response
 *
 * @opensearch.internal
 */
-public class ProtobufEmptyTransportResponseHandler implements ProtobufTransportResponseHandler<ProtobufTransportResponse.Empty> {
+public class ProtobufEmptyTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
 
     public static final ProtobufEmptyTransportResponseHandler INSTANCE_SAME = new ProtobufEmptyTransportResponseHandler(
         ThreadPool.Names.SAME
@@ -29,18 +34,30 @@ public class ProtobufEmptyTransportResponseHandler implements ProtobufTransportR
     }
 
     @Override
-    public ProtobufTransportResponse.Empty read(CodedInputStream in) {
-        return ProtobufTransportResponse.Empty.INSTANCE;
+    public TransportResponse.Empty read(CodedInputStream in) {
+        return TransportResponse.Empty.INSTANCE;
     }
 
     @Override
-    public void handleResponse(ProtobufTransportResponse.Empty response) {}
+    public void handleResponse(TransportResponse.Empty response) {}
 
     @Override
-    public void handleException(ProtobufTransportException exp) {}
+    public void handleExceptionProtobuf(ProtobufTransportException exp) {}
 
     @Override
     public String executor() {
         return executor;
+    }
+
+    @Override
+    public Empty read(StreamInput in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
+    }
+
+    @Override
+    public void handleException(TransportException exp) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'handleException'");
     }
 }

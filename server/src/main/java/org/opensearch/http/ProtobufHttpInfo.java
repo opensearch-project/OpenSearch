@@ -18,8 +18,8 @@ import com.google.protobuf.CodedOutputStream;
 
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
-import org.opensearch.common.transport.ProtobufBoundTransportAddress;
-import org.opensearch.common.transport.ProtobufTransportAddress;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ProtobufReportingService;
@@ -38,14 +38,14 @@ public class ProtobufHttpInfo implements ProtobufReportingService.ProtobufInfo {
     /** Deprecated property, just here for deprecation logging in 7.x. */
     private static final boolean CNAME_IN_PUBLISH_HOST = System.getProperty("opensearch.http.cname_in_publish_address") != null;
 
-    private final ProtobufBoundTransportAddress address;
+    private final BoundTransportAddress address;
     private final long maxContentLength;
 
     public ProtobufHttpInfo(CodedInputStream in) throws IOException {
-        this(new ProtobufBoundTransportAddress(in), in.readInt64());
+        this(new BoundTransportAddress(in), in.readInt64());
     }
 
-    public ProtobufHttpInfo(ProtobufBoundTransportAddress address, long maxContentLength) {
+    public ProtobufHttpInfo(BoundTransportAddress address, long maxContentLength) {
         this.address = address;
         this.maxContentLength = maxContentLength;
     }
@@ -56,11 +56,11 @@ public class ProtobufHttpInfo implements ProtobufReportingService.ProtobufInfo {
         out.writeInt64NoTag(maxContentLength);
     }
 
-    public ProtobufBoundTransportAddress address() {
+    public BoundTransportAddress address() {
         return address;
     }
 
-    public ProtobufBoundTransportAddress getAddress() {
+    public BoundTransportAddress getAddress() {
         return address();
     }
 
@@ -84,7 +84,7 @@ public class ProtobufHttpInfo implements ProtobufReportingService.ProtobufInfo {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.HTTP);
         builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
-        ProtobufTransportAddress publishAddress = address.publishAddress();
+        TransportAddress publishAddress = address.publishAddress();
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (CNAME_IN_PUBLISH_HOST) {

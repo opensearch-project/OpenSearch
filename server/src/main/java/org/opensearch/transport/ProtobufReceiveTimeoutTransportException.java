@@ -21,7 +21,7 @@ import java.io.IOException;
 public class ProtobufReceiveTimeoutTransportException extends ProtobufActionTransportException {
 
     public ProtobufReceiveTimeoutTransportException(DiscoveryNode node, String action, String msg) {
-        super(node.getName(), node.getProtobufAddress(), action, msg, null);
+        super(node.getName(), node.getAddress(), action, msg, null);
     }
 
     public ProtobufReceiveTimeoutTransportException(CodedInputStream in) throws IOException {

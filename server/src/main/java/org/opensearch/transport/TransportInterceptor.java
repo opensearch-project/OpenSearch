@@ -57,6 +57,21 @@ public interface TransportInterceptor {
     }
 
     /**
+     * This is called for each handler that is registered via
+    * {@link TransportService#registerRequestHandler(String, String, boolean, boolean, Reader, TransportRequestHandler)} or
+    * {@link TransportService#registerRequestHandler(String, String, Reader, TransportRequestHandler)}. The returned handler is
+    * used instead of the passed in handler. By default the provided handler is returned.
+    */
+    default <T extends TransportRequest> ProtobufTransportRequestHandler<T> interceptHandlerProtobuf(
+        String action,
+        String executor,
+        boolean forceExecution,
+        ProtobufTransportRequestHandler<T> actualHandler
+    ) {
+        return actualHandler;
+    }
+
+    /**
      * This is called up-front providing the actual low level {@link AsyncSender} that performs the low level send request.
      * The returned sender is used to send all requests that come in via
      * {@link TransportService#sendRequest(DiscoveryNode, String, TransportRequest, TransportResponseHandler)} or
@@ -80,4 +95,29 @@ public interface TransportInterceptor {
             TransportResponseHandler<T> handler
         );
     }
+
+    // /**
+    //  * This is called up-front providing the actual low level {@link AsyncSender} that performs the low level send request.
+    // * The returned sender is used to send all requests that come in via
+    // * {@link TransportService#sendRequestProtobuf(DiscoveryNode, String, TransportRequest, TransportResponseHandler)} or
+    // * {@link TransportService#sendRequestProtobuf(DiscoveryNode, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}.
+    // * This allows plugins to perform actions on each send request including modifying the request context etc.
+    // */
+    // default AsyncSenderProtobuf interceptSenderProotbuf(AsyncSenderProtobuf sender) {
+    //     return sender;
+    // }
+
+    // /**
+    //  * A simple interface to decorate
+    // * {@link #sendRequest(Transport.Connection, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}
+    // */
+    // interface AsyncSenderProtobuf {
+    //     <T extends TransportResponse> void sendRequest(
+    //         Transport.Connection connection,
+    //         String action,
+    //         TransportRequest request,
+    //         TransportRequestOptions options,
+    //         TransportResponseHandler<T> handler
+    //     );
+    // }
 }

@@ -22,7 +22,7 @@ import java.io.IOException;
 public class ProtobufSendRequestTransportException extends ProtobufActionTransportException implements OpenSearchWrapperException {
 
     public ProtobufSendRequestTransportException(DiscoveryNode node, String action, Throwable cause) {
-        super(node == null ? null : node.getName(), node == null ? null : node.getProtobufAddress(), action, cause);
+        super(node == null ? null : node.getName(), node == null ? null : node.getAddress(), action, cause);
     }
 
     public ProtobufSendRequestTransportException(CodedInputStream in) throws IOException {

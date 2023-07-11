@@ -57,8 +57,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.PortsRange;
-import org.opensearch.common.transport.ProtobufBoundTransportAddress;
-import org.opensearch.common.transport.ProtobufTransportAddress;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -138,7 +138,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
-    private final ConcurrentMap<String, ProtobufBoundTransportAddress> profileProtobufBoundAddresses = newConcurrentMap();
+    private final ConcurrentMap<String, BoundTransportAddress> profileProtobufBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
     private final Set<TcpChannel> acceptedChannels = ConcurrentCollections.newConcurrentSet();
 
@@ -146,7 +146,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     private volatile BoundTransportAddress boundAddress;
-    private volatile ProtobufBoundTransportAddress protobufBoundAddress;
+    private volatile BoundTransportAddress protobufBoundAddress;
 
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
@@ -154,7 +154,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final InboundHandler inboundHandler;
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final RequestHandlers requestHandlers = new RequestHandlers();
-    private final ProtobufResponseHandlers protobufResponseHandlers = new ProtobufResponseHandlers();
+    // private final ProtobufResponseHandlers protobufResponseHandlers = new ProtobufResponseHandlers();
     private final ProtobufRequestHandlers protobufRequestHandlers = new ProtobufRequestHandlers();
 
     private final AtomicLong outboundConnectionCount = new AtomicLong(); // also used as a correlation ID for open/close logs
@@ -323,6 +323,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             TcpChannel channel = channel(options.type());
             outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
         }
+
+        // @Override
+        // public void sendRequestProtobuf(long requestId, String action, TransportRequest request,
+        //         TransportRequestOptions options) throws IOException, TransportException {
+        //     // TODO Auto-generated method stub
+        //     throw new UnsupportedOperationException("Unimplemented method 'sendRequestProtobuf'");
+        // }
     }
 
     // This allows transport implementations to potentially override specific connection profiles. This
@@ -400,15 +407,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return unmodifiableMap(new HashMap<>(profileBoundAddresses));
     }
 
-    @Override
-    public ProtobufBoundTransportAddress boundProtobufAddress() {
-        return this.protobufBoundAddress;
-    }
+    // @Override
+    // public BoundTransportAddress boundProtobufAddress() {
+    //     return this.protobufBoundAddress;
+    // }
 
-    @Override
-    public Map<String, ProtobufBoundTransportAddress> profileProtobufBoundAddresses() {
-        return unmodifiableMap(new HashMap<>(profileProtobufBoundAddresses));
-    }
+    // @Override
+    // public Map<String, BoundTransportAddress> profileProtobufBoundAddresses() {
+    //     return unmodifiableMap(new HashMap<>(profileProtobufBoundAddresses));
+    // }
 
     @Override
     public List<String> getDefaultSeedAddresses() {
@@ -448,14 +455,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         final BoundTransportAddress boundTransportAddress = createBoundTransportAddress(profileSettings, boundAddresses);
-        final ProtobufBoundTransportAddress protobufBoundTransportAddress = createProtobufBoundTransportAddress(boundTransportAddress);
+        // final BoundTransportAddress protobufBoundTransportAddress = createProtobufBoundTransportAddress(boundTransportAddress);
 
         if (profileSettings.isDefaultProfile) {
             this.boundAddress = boundTransportAddress;
-            this.protobufBoundAddress = protobufBoundTransportAddress;
+            // this.protobufBoundAddress = protobufBoundTransportAddress;
         } else {
             profileBoundAddresses.put(profileSettings.profileName, boundTransportAddress);
-            profileProtobufBoundAddresses.put(profileSettings.profileName, protobufBoundTransportAddress);
+            // profileProtobufBoundAddresses.put(profileSettings.profileName, protobufBoundTransportAddress);
         }
     }
 
@@ -525,42 +532,42 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return new BoundTransportAddress(transportBoundAddresses, publishAddress);
     }
 
-    private ProtobufBoundTransportAddress createProtobufBoundTransportAddress(BoundTransportAddress boundTransportAddress) {
-        TransportAddress[] transportBoundAddresses = boundTransportAddress.boundAddresses();
-        TransportAddress publishAddress = boundTransportAddress.publishAddress();
-        ProtobufTransportAddress[] transportBoundAddressesProtobuf = new ProtobufTransportAddress[transportBoundAddresses.length];
-        for (int i = 0; i < transportBoundAddresses.length; i++) {
-            transportBoundAddressesProtobuf[i] = new ProtobufTransportAddress(transportBoundAddresses[i].address());
-        }
-        return new ProtobufBoundTransportAddress(transportBoundAddressesProtobuf, new ProtobufTransportAddress(publishAddress.address()));
-        // String[] boundAddressesHostStrings = new String[boundAddresses.size()];
-        // ProtobufTransportAddress[] transportBoundAddresses = new ProtobufTransportAddress[boundAddresses.size()];
-        // for (int i = 0; i < boundAddresses.size(); i++) {
-        // InetSocketAddress boundAddress = boundAddresses.get(i);
-        // boundAddressesHostStrings[i] = boundAddress.getHostString();
-        // transportBoundAddresses[i] = new ProtobufTransportAddress(boundAddress);
-        // }
+    // private BoundTransportAddress createProtobufBoundTransportAddress(BoundTransportAddress boundTransportAddress) {
+    //     TransportAddress[] transportBoundAddresses = boundTransportAddress.boundAddresses();
+    //     TransportAddress publishAddress = boundTransportAddress.publishAddress();
+    //     TransportAddress[] transportBoundAddressesProtobuf = new TransportAddress[transportBoundAddresses.length];
+    //     for (int i = 0; i < transportBoundAddresses.length; i++) {
+    //         transportBoundAddressesProtobuf[i] = new TransportAddress(transportBoundAddresses[i].address());
+    //     }
+    //     return new BoundTransportAddress(transportBoundAddressesProtobuf, new TransportAddress(publishAddress.address()));
+    //     // String[] boundAddressesHostStrings = new String[boundAddresses.size()];
+    //     // TransportAddress[] transportBoundAddresses = new TransportAddress[boundAddresses.size()];
+    //     // for (int i = 0; i < boundAddresses.size(); i++) {
+    //     // InetSocketAddress boundAddress = boundAddresses.get(i);
+    //     // boundAddressesHostStrings[i] = boundAddress.getHostString();
+    //     // transportBoundAddresses[i] = new TransportAddress(boundAddress);
+    //     // }
 
-        // List<String> publishHosts = profileSettings.publishHosts;
-        // if (profileSettings.isDefaultProfile == false && publishHosts.isEmpty()) {
-        // publishHosts = Arrays.asList(boundAddressesHostStrings);
-        // }
-        // if (publishHosts.isEmpty()) {
-        // publishHosts = NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings);
-        // }
+    //     // List<String> publishHosts = profileSettings.publishHosts;
+    //     // if (profileSettings.isDefaultProfile == false && publishHosts.isEmpty()) {
+    //     // publishHosts = Arrays.asList(boundAddressesHostStrings);
+    //     // }
+    //     // if (publishHosts.isEmpty()) {
+    //     // publishHosts = NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings);
+    //     // }
 
-        // final InetAddress publishInetAddress;
-        // try {
-        // publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts.toArray(Strings.EMPTY_ARRAY));
-        // } catch (Exception e) {
-        // throw new BindTransportException("Failed to resolve publish address", e);
-        // }
+    //     // final InetAddress publishInetAddress;
+    //     // try {
+    //     // publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts.toArray(Strings.EMPTY_ARRAY));
+    //     // } catch (Exception e) {
+    //     // throw new BindTransportException("Failed to resolve publish address", e);
+    //     // }
 
-        // final int publishPort = resolvePublishPort(profileSettings, boundAddresses, publishInetAddress);
-        // final ProtobufTransportAddress publishAddress = new ProtobufTransportAddress(new InetSocketAddress(publishInetAddress,
-        // publishPort));
-        // return new ProtobufBoundTransportAddress(transportBoundAddresses, publishAddress);
-    }
+    //     // final int publishPort = resolvePublishPort(profileSettings, boundAddresses, publishInetAddress);
+    //     // final TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress,
+    //     // publishPort));
+    //     // return new BoundTransportAddress(transportBoundAddresses, publishAddress);
+    // }
 
     // package private for tests
     static int resolvePublishPort(ProfileSettings profileSettings, List<InetSocketAddress> boundAddresses, InetAddress publishInetAddress) {
@@ -1072,23 +1079,23 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return requestHandlers;
     }
 
-    @Override
-    public void setMessageListener(ProtobufTransportMessageListener listener) {
-        outboundHandler.setProtobufMessageListener(listener);
-        inboundHandler.setProtobufMessageListener(listener);
-    }
+    // @Override
+    // public void setMessageListenerProtobuf(ProtobufTransportMessageListener listener) {
+    //     outboundHandler.setProtobufMessageListener(listener);
+    //     inboundHandler.setProtobufMessageListener(listener);
+    // }
 
-    @Override
-    public ProtobufTransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'addressesFromStringProtobuf'");
-    }
+    // @Override
+    // public TransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException {
+    //     // TODO Auto-generated method stub
+    //     throw new UnsupportedOperationException("Unimplemented method 'addressesFromStringProtobuf'");
+    // }
 
-    @Override
-    public void openProtobufConnection(DiscoveryNode node, ProtobufConnectionProfile profile, ActionListener<ProtobufConnection> listener) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'openProtobufConnection'");
-    }
+    // @Override
+    // public void openProtobufConnection(DiscoveryNode node, ProtobufConnectionProfile profile, ActionListener<Connection> listener) {
+    //     // TODO Auto-generated method stub
+    //     throw new UnsupportedOperationException("Unimplemented method 'openProtobufConnection'");
+    // }
 
     @Override
     public ProtobufTransportStats getProtobufStats() {
@@ -1096,10 +1103,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         throw new UnsupportedOperationException("Unimplemented method 'getProtobufStats'");
     }
 
-    @Override
-    public ProtobufResponseHandlers getProtobufResponseHandlers() {
-        return protobufResponseHandlers;
-    }
+    // @Override
+    // public ProtobufResponseHandlers getProtobufResponseHandlers() {
+    //     return protobufResponseHandlers;
+    // }
 
     @Override
     public ProtobufRequestHandlers getProtobufRequestHandlers() {

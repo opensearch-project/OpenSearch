@@ -56,9 +56,12 @@ import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -249,6 +252,18 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
                 @Override
                 public void handleException(TransportException exp) {
                     listener.onFailure(exp);
+                }
+
+                @Override
+                public ResyncReplicationResponse read(CodedInputStream in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
+
+                @Override
+                public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                 }
             }
         );

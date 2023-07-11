@@ -70,6 +70,7 @@ import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
@@ -77,6 +78,8 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -747,6 +750,18 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public RecoveryResponse read(StreamInput in) throws IOException {
             return new RecoveryResponse(in);
+        }
+
+        @Override
+        public RecoveryResponse read(CodedInputStream in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
+        }
+
+        @Override
+        public void handleExceptionProtobuf(ProtobufTransportException exp) {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
         }
     }
 }

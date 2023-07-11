@@ -12,6 +12,7 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -37,14 +38,14 @@ public final class ProtobufTransportActionProxy {
     */
     private static class ProxyRequestHandler<T extends ProxyRequest> implements ProtobufTransportRequestHandler<T> {
 
-        private final ProtobufTransportService service;
+        private final TransportService service;
         private final String action;
-        private final Function<ProtobufTransportRequest, ProtobufWriteable.Reader<? extends ProtobufTransportResponse>> responseFunction;
+        private final Function<TransportRequest, ProtobufWriteable.Reader<? extends TransportResponse>> responseFunction;
 
         ProxyRequestHandler(
-            ProtobufTransportService service,
+            TransportService service,
             String action,
-            Function<ProtobufTransportRequest, ProtobufWriteable.Reader<? extends ProtobufTransportResponse>> responseFunction
+            Function<TransportRequest, ProtobufWriteable.Reader<? extends TransportResponse>> responseFunction
         ) {
             this.service = service;
             this.action = action;
@@ -52,9 +53,9 @@ public final class ProtobufTransportActionProxy {
         }
 
         @Override
-        public void messageReceived(T request, ProtobufTransportChannel channel, ProtobufTask task) throws Exception {
+        public void messageReceived(T request, TransportChannel channel, ProtobufTask task) throws Exception {
             DiscoveryNode targetNode = request.targetNode;
-            ProtobufTransportRequest wrappedRequest = request.wrapped;
+            TransportRequest wrappedRequest = request.wrapped;
             service.sendRequest(
                 targetNode,
                 action,
@@ -69,12 +70,12 @@ public final class ProtobufTransportActionProxy {
     *
     * @opensearch.internal
     */
-    private static class ProxyResponseHandler<T extends ProtobufTransportResponse> implements ProtobufTransportResponseHandler<T> {
+    private static class ProxyResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
         private final ProtobufWriteable.Reader<T> reader;
-        private final ProtobufTransportChannel channel;
+        private final TransportChannel channel;
 
-        ProxyResponseHandler(ProtobufTransportChannel channel, ProtobufWriteable.Reader<T> reader) {
+        ProxyResponseHandler(TransportChannel channel, ProtobufWriteable.Reader<T> reader) {
             this.reader = reader;
             this.channel = channel;
         }
@@ -94,7 +95,7 @@ public final class ProtobufTransportActionProxy {
         }
 
         @Override
-        public void handleException(ProtobufTransportException exp) {
+        public void handleExceptionProtobuf(ProtobufTransportException exp) {
             try {
                 channel.sendResponse(exp);
             } catch (IOException e) {
@@ -106,6 +107,18 @@ public final class ProtobufTransportActionProxy {
         public String executor() {
             return ThreadPool.Names.SAME;
         }
+
+        @Override
+        public T read(StreamInput in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
+        }
+
+        @Override
+        public void handleException(TransportException exp) {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'handleException'");
+        }
     }
 
     /**
@@ -113,7 +126,7 @@ public final class ProtobufTransportActionProxy {
     *
     * @opensearch.internal
     */
-    static class ProxyRequest<T extends ProtobufTransportRequest> extends ProtobufTransportRequest {
+    static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;
 
@@ -141,12 +154,12 @@ public final class ProtobufTransportActionProxy {
     * response type changes based on the upcoming request (quite rare)
     */
     public static void registerProxyActionWithDynamicResponseType(
-        ProtobufTransportService service,
+        TransportService service,
         String action,
-        Function<ProtobufTransportRequest, ProtobufWriteable.Reader<? extends ProtobufTransportResponse>> responseFunction
+        Function<TransportRequest, ProtobufWriteable.Reader<? extends TransportResponse>> responseFunction
     ) {
-        ProtobufRequestHandlerRegistry<? extends ProtobufTransportRequest> requestHandler = service.getRequestHandler(action);
-        service.registerRequestHandler(
+        ProtobufRequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandlerProtobuf(action);
+        service.registerRequestHandlerProtobuf(
             getProxyAction(action),
             ThreadPool.Names.SAME,
             true,
@@ -161,12 +174,12 @@ public final class ProtobufTransportActionProxy {
     * response type is always the same (most of the cases).
     */
     public static void registerProxyAction(
-        ProtobufTransportService service,
+        TransportService service,
         String action,
-        ProtobufWriteable.Reader<? extends ProtobufTransportResponse> reader
+        ProtobufWriteable.Reader<? extends TransportResponse> reader
     ) {
-        ProtobufRequestHandlerRegistry<? extends ProtobufTransportRequest> requestHandler = service.getRequestHandler(action);
-        service.registerRequestHandler(
+        ProtobufRequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandlerProtobuf(action);
+        service.registerRequestHandlerProtobuf(
             getProxyAction(action),
             ThreadPool.Names.SAME,
             true,
@@ -188,14 +201,14 @@ public final class ProtobufTransportActionProxy {
     /**
      * Wraps the actual request in a proxy request object that encodes the target node.
     */
-    public static ProtobufTransportRequest wrapRequest(DiscoveryNode node, ProtobufTransportRequest request) {
+    public static TransportRequest wrapRequest(DiscoveryNode node, TransportRequest request) {
         return new ProxyRequest<>(request, node);
     }
 
     /**
      * Unwraps a proxy request and returns the original request
     */
-    public static ProtobufTransportRequest unwrapRequest(ProtobufTransportRequest request) {
+    public static TransportRequest unwrapRequest(TransportRequest request) {
         if (request instanceof ProxyRequest) {
             return ((ProxyRequest) request).wrapped;
         }
@@ -220,7 +233,7 @@ public final class ProtobufTransportActionProxy {
     /**
      * Returns <code>true</code> iff the given request is a proxy request
     */
-    public static boolean isProxyRequest(ProtobufTransportRequest request) {
+    public static boolean isProxyRequest(TransportRequest request) {
         return request instanceof ProxyRequest;
     }
 }

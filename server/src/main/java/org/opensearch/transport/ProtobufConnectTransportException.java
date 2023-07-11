@@ -38,7 +38,7 @@ public class ProtobufConnectTransportException extends ProtobufActionTransportEx
     }
 
     public ProtobufConnectTransportException(DiscoveryNode node, String msg, String action, Throwable cause) {
-        super(node == null ? null : node.getName(), node == null ? null : node.getProtobufAddress(), action, msg, cause);
+        super(node == null ? null : node.getName(), node == null ? null : node.getAddress(), action, msg, cause);
         this.node = node;
     }
 

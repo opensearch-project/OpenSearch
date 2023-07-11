@@ -18,8 +18,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.node.ProtobufNodeService;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportRequest;
-import org.opensearch.transport.ProtobufTransportService;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,7 +42,7 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
     public ProtobufTransportNodesInfoAction(
         ThreadPool threadPool,
         ClusterService clusterService,
-        ProtobufTransportService transportService,
+        TransportService transportService,
         ProtobufNodeService nodeService,
         ProtobufActionFilters actionFilters
     ) {
@@ -66,16 +66,22 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
         List<ProtobufNodeInfo> responses,
         List<ProtobufFailedNodeException> failures
     ) {
+        System.out.println("Inside newResponse");
+        System.out.println("nodesInfoRequest: " + nodesInfoRequest);
+        System.out.println("responses: " + responses);
+        System.out.println("failures: " + failures);
         return new ProtobufNodesInfoResponse(new ClusterName(clusterService.getClusterName().value()), responses, failures);
     }
 
     @Override
     protected NodeInfoRequest newNodeRequest(ProtobufNodesInfoRequest request) {
+        System.out.println("Inside newNodeRequest");
         return new NodeInfoRequest(request);
     }
 
     @Override
     protected ProtobufNodeInfo newNodeResponse(CodedInputStream in) throws IOException {
+        System.out.println("Inside newNodeResponse with input stream");
         return new ProtobufNodeInfo(in);
     }
 
@@ -105,7 +111,7 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
     *
     * @opensearch.internal
     */
-    public static class NodeInfoRequest extends ProtobufTransportRequest {
+    public static class NodeInfoRequest extends TransportRequest {
 
         ProtobufNodesInfoRequest request;
 

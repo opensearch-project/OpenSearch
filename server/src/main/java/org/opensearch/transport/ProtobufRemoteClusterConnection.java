@@ -16,6 +16,7 @@ import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -43,8 +44,8 @@ import java.util.function.Function;
 */
 final class ProtobufRemoteClusterConnection implements Closeable {
 
-    private final ProtobufTransportService transportService;
-    private final ProtobufRemoteConnectionManager remoteConnectionManager;
+    private final TransportService transportService;
+    private final RemoteConnectionManager remoteConnectionManager;
     private final ProtobufRemoteConnectionStrategy connectionStrategy;
     private final String clusterAlias;
     private final ThreadPool threadPool;
@@ -57,11 +58,11 @@ final class ProtobufRemoteClusterConnection implements Closeable {
     * @param clusterAlias the configured alias of the cluster to connect to
     * @param transportService the local nodes transport service
     */
-    ProtobufRemoteClusterConnection(Settings settings, String clusterAlias, ProtobufTransportService transportService) {
+    ProtobufRemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService) {
         this.transportService = transportService;
         this.clusterAlias = clusterAlias;
-        ProtobufConnectionProfile profile = ProtobufRemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings);
-        this.remoteConnectionManager = new ProtobufRemoteConnectionManager(
+        ConnectionProfile profile = ProtobufRemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings);
+        this.remoteConnectionManager = new RemoteConnectionManager(
             clusterAlias,
             createConnectionManager(profile, transportService)
         );
@@ -127,13 +128,13 @@ final class ProtobufRemoteClusterConnection implements Closeable {
                 request.clear();
                 request.nodes(true);
                 request.local(true); // run this on the node that gets the request it's as good as any other
-                Transport.ProtobufConnection connection = remoteConnectionManager.getAnyRemoteConnection();
+                Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
                 transportService.sendRequest(
                     connection,
                     ClusterStateAction.NAME,
                     request,
                     TransportRequestOptions.EMPTY,
-                    new ProtobufTransportResponseHandler<ProtobufClusterStateResponse>() {
+                    new TransportResponseHandler<ProtobufClusterStateResponse>() {
 
                         @Override
                         public ProtobufClusterStateResponse read(CodedInputStream in) throws IOException {
@@ -147,13 +148,25 @@ final class ProtobufRemoteClusterConnection implements Closeable {
                         }
 
                         @Override
-                        public void handleException(ProtobufTransportException exp) {
+                        public void handleExceptionProtobuf(ProtobufTransportException exp) {
                             contextPreservingActionListener.onFailure(exp);
                         }
 
                         @Override
                         public String executor() {
                             return ThreadPool.Names.SAME;
+                        }
+
+                        @Override
+                        public ProtobufClusterStateResponse read(StreamInput in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'handleException'");
                         }
                     }
                 );
@@ -175,11 +188,11 @@ final class ProtobufRemoteClusterConnection implements Closeable {
      * Returns a connection to the remote cluster, preferably a direct connection to the provided {@link DiscoveryNode}.
     * If such node is not connected, the returned connection will be a proxy connection that redirects to it.
     */
-    Transport.ProtobufConnection getConnection(DiscoveryNode remoteClusterNode) {
+    Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
         return remoteConnectionManager.getConnection(remoteClusterNode);
     }
 
-    Transport.ProtobufConnection getConnection() {
+    Transport.Connection getConnection() {
         return remoteConnectionManager.getAnyRemoteConnection();
     }
 
@@ -212,14 +225,14 @@ final class ProtobufRemoteClusterConnection implements Closeable {
         return remoteConnectionManager.size();
     }
 
-    private static ProtobufConnectionManager createConnectionManager(
-        ProtobufConnectionProfile connectionProfile,
-        ProtobufTransportService transportService
+    private static ConnectionManager createConnectionManager(
+        ConnectionProfile connectionProfile,
+        TransportService transportService
     ) {
-        return new ProtobufClusterConnectionManager(connectionProfile, transportService.transport);
+        return new ClusterConnectionManager(connectionProfile, transportService.transport);
     }
 
-    ProtobufConnectionManager getConnectionManager() {
+    ConnectionManager getConnectionManager() {
         return remoteConnectionManager;
     }
 

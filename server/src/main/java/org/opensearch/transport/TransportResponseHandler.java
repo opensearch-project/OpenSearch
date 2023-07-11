@@ -32,8 +32,11 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -43,11 +46,13 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T> {
+public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T>, ProtobufWriteable.Reader<T> {
 
     void handleResponse(T response);
 
     void handleException(TransportException exp);
+
+    void handleExceptionProtobuf(ProtobufTransportException exp);
 
     String executor();
 
@@ -72,6 +77,58 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
             @Override
             public Q read(StreamInput in) throws IOException {
                 return reader.read(in);
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
+            }
+
+            @Override
+            public Q read(CodedInputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+        };
+    }
+
+    default <Q extends TransportResponse> TransportResponseHandler<Q> wrapProtobuf(
+        Function<Q, T> converter,
+        ProtobufWriteable.Reader<Q> reader
+    ) {
+        final TransportResponseHandler<T> self = this;
+        return new TransportResponseHandler<Q>() {
+            @Override
+            public void handleResponse(Q response) {
+                self.handleResponse(converter.apply(response));
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                self.handleExceptionProtobuf(exp);
+            }
+
+            @Override
+            public String executor() {
+                return self.executor();
+            }
+
+            @Override
+            public Q read(CodedInputStream in) throws IOException {
+                return reader.read(in);
+            }
+
+            @Override
+            public Q read(StreamInput in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleException'");
             }
         };
     }
