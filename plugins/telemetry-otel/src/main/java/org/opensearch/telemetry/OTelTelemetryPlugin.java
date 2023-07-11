@@ -21,6 +21,7 @@ import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import org.opensearch.telemetry.tracing.exporter.SpanExporterFactory;
 
 /**
  * Telemetry plugin based on Otel
@@ -37,7 +38,7 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
         512,
         1,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.Final
     );
     /**
      * span exporter max queue size
@@ -47,16 +48,16 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
         2048,
         1,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.Final
     );
     /**
      * span exporter delay in seconds
      */
     public static final Setting<TimeValue> TRACER_EXPORTER_DELAY_SETTING = Setting.timeSetting(
         "telemetry.otel.tracer.exporter.delay",
-        TimeValue.timeValueSeconds(2),
+        TimeValue.timeValueSeconds(60),
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.Final
     );
 
     private final Settings settings;
@@ -71,7 +72,8 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(TRACER_EXPORTER_BATCH_SIZE_SETTING, TRACER_EXPORTER_DELAY_SETTING, TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING);
+        return Arrays.asList(TRACER_EXPORTER_BATCH_SIZE_SETTING, TRACER_EXPORTER_DELAY_SETTING, TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
+            SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_PROVIDE_CLASS_SETTING);
     }
 
     @Override
