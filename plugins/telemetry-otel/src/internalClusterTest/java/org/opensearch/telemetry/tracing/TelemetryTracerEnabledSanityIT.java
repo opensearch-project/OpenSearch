@@ -28,8 +28,8 @@ import java.util.Arrays;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, minNumDataNodes = 2)
-public class RTCTracingEnabledSanityIT extends OpenSearchIntegTestCase {
-    private static MockOpenTelemetrySpanExporter exporter = new MockOpenTelemetrySpanExporter();;
+public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
+    private static InMemorySpanExporter exporter = new InMemorySpanExporter();;
 
     static {
         OTelResourceProvider.get(

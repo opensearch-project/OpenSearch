@@ -20,11 +20,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.Assert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  * Writes the span to the list of MockSpanData, everytime a span is emitted.
  */
-public class MockOpenTelemetrySpanExporter implements SpanExporter {
-    private final Logger DEFAULT_LOGGER = LogManager.getLogger(MockOpenTelemetrySpanExporter.class);
+public class InMemorySpanExporter implements SpanExporter {
+    private final Logger DEFAULT_LOGGER = LogManager.getLogger(InMemorySpanExporter.class);
 
     private final AtomicBoolean isShutdown = new AtomicBoolean();
 
@@ -33,7 +36,7 @@ public class MockOpenTelemetrySpanExporter implements SpanExporter {
     /**
      * No-args constructor
      */
-    public MockOpenTelemetrySpanExporter() {}
+    public InMemorySpanExporter() {}
 
     @Override
     public CompletableResultCode export(Collection<SpanData> spans) {
@@ -60,9 +63,7 @@ public class MockOpenTelemetrySpanExporter implements SpanExporter {
 
     @Override
     public CompletableResultCode shutdown() {
-        if (!isShutdown.compareAndSet(false, true)) {
-            DEFAULT_LOGGER.info("Duplicate shutdown() calls.");
-        }
+        assertThat("Duplicate shutdown() calls.", isShutdown.compareAndSet(false, true), equalTo(true));
         return CompletableResultCode.ofSuccess();
     }
 

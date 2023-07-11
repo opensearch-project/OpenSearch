@@ -20,9 +20,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, supportsDedicatedMasters = false, minNumDataNodes = 2)
-public class RTCTracingDisabledSanityIT extends OpenSearchIntegTestCase {
+public class TelemetryTracerDisabledSanityIT extends OpenSearchIntegTestCase {
 
-    private static MockOpenTelemetrySpanExporter exporter = new MockOpenTelemetrySpanExporter();
+    private static InMemorySpanExporter exporter = new InMemorySpanExporter();
 
     static {
         OTelResourceProvider.get(
