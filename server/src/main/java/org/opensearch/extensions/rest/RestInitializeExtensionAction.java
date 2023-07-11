@@ -8,9 +8,21 @@
 
 package org.opensearch.extensions.rest;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import org.opensearch.Version;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
@@ -26,20 +38,6 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.transport.ConnectTransportException;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
-
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
@@ -65,19 +63,19 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String name = null;
-        String uniqueId = null;
-        String hostAddress = null;
-        String port = null;
-        String version = null;
-        String openSearchVersion = null;
-        String minimumCompatibleVersion = null;
-        List<ExtensionDependency> dependencies = new ArrayList<>();
+        String name;
+        String uniqueId;
+        String hostAddress;
+        String port;
+        String version;
+        String openSearchVersion;
+        String minimumCompatibleVersion;
+        List<ExtensionDependency> dependencies;
         List<Scope> scopes = new ArrayList<>();
 
         Set<String> additionalSettingsKeys = extensionsManager.getAdditionalSettings()
             .stream()
-            .map(s -> s.getKey())
+            .map(Setting::getKey)
             .collect(Collectors.toSet());
 
         Tuple<? extends MediaType, Map<String, Object>> unreadExtensionTuple = XContentHelper.convertToMap(
@@ -107,7 +105,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
             }
 
             // Parse extension dependencies
-            List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
+            List<ExtensionDependency> extensionDependencyList = new ArrayList<>();
             if (extensionMap.get("dependencies") != null) {
                 List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
                     (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
@@ -127,18 +125,16 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
                 }
             }
 
-            if (extensionMap.containsKey("scopes")) {
-                List<String> scopeStrings = (List<String>) extensionMap.get("scopes");
-                for (String scopeString : scopeStrings) {
-                    Scope scope = Scope.parseScopeFromString(scopeString);
-                    scopes.add(scope);
-                }
+            if (extensionMap.get("scopes") != null) {
+                scopes = new ArrayList<>((Collection<String>) extensionMap.get("scopes")).stream()
+                    .map(Scope::parseScopeFromString)
+                    .collect(Collectors.toList());
             }
 
             Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
                 .stream()
                 .filter(kv -> additionalSettingsKeys.contains(kv.getKey()))
-                .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             Settings.Builder output = Settings.builder();
             output.loadFromMap(additionalSettingsMap);
@@ -179,7 +175,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
                 return channel -> channel.sendResponse(
                     new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")
                 );
-            } else if (cause instanceof ConnectTransportException || cause instanceof RuntimeException) {
+            } else if (cause instanceof RuntimeException) {
                 return channel -> channel.sendResponse(
                     new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "Connection failed with the extension.")
                 );

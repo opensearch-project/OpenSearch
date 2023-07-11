@@ -336,19 +336,6 @@ public class ExtensionsManager {
         }
     }
 
-    /**
-     * Check if the matching extension id is allowed to perform the action
-     */
-    public boolean isExtensionAllowed(final String id, final String action) {
-        final Optional<Extension> extensionScopes = Optional.of(this.extensionSettingsMap).map(extensionMap -> extensionMap.get(id));
-
-        if (!extensionScopes.isPresent()) {
-            return false; // No extension was found, so it is not permitted
-        }
-
-        return extensionScopes.get().getScopes().stream().filter(action::equals).findFirst().isPresent();
-    }
-
     private void initializeExtension(DiscoveryExtensionNode extension) {
 
         final CompletableFuture<InitializeExtensionResponse> inProgressFuture = new CompletableFuture<>();

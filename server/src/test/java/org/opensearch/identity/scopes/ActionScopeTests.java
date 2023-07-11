@@ -57,7 +57,7 @@ public class ActionScopeTests extends OpenSearchTestCase {
         Set<Scope> allowedScopes = Set.of(ActionScope.READ);
 
         ApplicationAwareSubject appSubject = spy(
-            new ApplicationAwareSubject(applicationManager.getExtensionManager().getExtensionIdMap().get("uniqueid1"))
+            new ApplicationAwareSubject(extensionsManager.getExtensionIdMap().get("uniqueid1"), applicationManager)
         );
 
         assertEquals(appSubject.getScopes(), allowedScopes);
@@ -67,32 +67,32 @@ public class ActionScopeTests extends OpenSearchTestCase {
 
         Set<Scope> allowedScopes = Set.of(ActionScope.READ);
         ApplicationAwareSubject appSubject = spy(
-            new ApplicationAwareSubject(applicationManager.getExtensionManager().getExtensionIdMap().get("uniqueid1"))
+            new ApplicationAwareSubject(extensionsManager.getExtensionIdMap().get("uniqueid1"), applicationManager)
         );
         assertEquals(appSubject.getScopes(), allowedScopes);
 
-        assertTrue(ApplicationManager.getInstance().isAllowed(appSubject, new ArrayList<>(allowedScopes)));
+        assertTrue(appSubject.isAllowed(new ArrayList<>(allowedScopes)));
 
         ResizeAction resizeAction = ResizeAction.INSTANCE;
         ClusterStateAction clusterStateAction = ClusterStateAction.INSTANCE;
 
-        assertFalse(ApplicationManager.getInstance().isAllowed(appSubject, resizeAction.getAllowedScopes()));
-        assertFalse(ApplicationManager.getInstance().isAllowed(appSubject, clusterStateAction.getAllowedScopes()));
+        assertFalse(appSubject.isAllowed(resizeAction.getAllowedScopes()));
+        assertFalse(appSubject.isAllowed(clusterStateAction.getAllowedScopes()));
     }
 
     public void testCallActionShouldPass() {
 
         Set<Scope> allowedScopes = Set.of(ActionScope.READ);
         ApplicationAwareSubject appSubject = spy(
-            new ApplicationAwareSubject(applicationManager.getExtensionManager().getExtensionIdMap().get("uniqueid1"))
+            new ApplicationAwareSubject(extensionsManager.getExtensionIdMap().get("uniqueid1"), applicationManager)
         );
         assertEquals(appSubject.getScopes(), allowedScopes);
 
-        assertTrue(ApplicationManager.getInstance().isAllowed(appSubject, new ArrayList<>(allowedScopes)));
+        assertTrue(appSubject.isAllowed(new ArrayList<>(allowedScopes)));
 
         GetAction getAction = GetAction.INSTANCE;
         MultiGetAction multiGetAction = MultiGetAction.INSTANCE;
-        assertTrue(ApplicationManager.getInstance().isAllowed(appSubject, getAction.getAllowedScopes()));
-        assertTrue(ApplicationManager.getInstance().isAllowed(appSubject, multiGetAction.getAllowedScopes()));
+        assertTrue(appSubject.isAllowed(getAction.getAllowedScopes()));
+        assertTrue(appSubject.isAllowed(multiGetAction.getAllowedScopes()));
     }
 }

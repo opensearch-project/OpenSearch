@@ -11,10 +11,13 @@
 package org.opensearch.identity;
 
 import java.security.Principal;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.opensearch.cluster.ApplicationManager;
+import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.tokens.AuthToken;
 
@@ -30,21 +33,15 @@ import org.opensearch.identity.tokens.AuthToken;
 public class ApplicationAwareSubject implements Subject {
 
     private final Subject wrapped;
+    private final ApplicationManager applicationManager;
 
     /**
      * We wrap a basic Subject object to create an ApplicationAwareSubject -- this should come from the IdentityService
      * @param wrapped The Subject to be wrapped
      */
-    public ApplicationAwareSubject(final Subject wrapped) {
+    public ApplicationAwareSubject(final Subject wrapped, ApplicationManager applicationManager) {
         this.wrapped = wrapped;
-    }
-
-    /**
-     * Call to the ApplicationManager to confirm there is an associated application matching the wrapped subject's principal.
-     * @return There is an associated application known to the ApplicationManager (TRUE) or there is not (FALSE)
-     */
-    public boolean applicationExists() {
-        return (ApplicationManager.getInstance().associatedApplicationExists(wrapped.getPrincipal()));
+        this.applicationManager = applicationManager;
     }
 
     /**
@@ -53,7 +50,46 @@ public class ApplicationAwareSubject implements Subject {
      * @return A set of Strings representing the scopes associated with the wrapped subject's principal
      */
     public Set<Scope> getScopes() {
-        return ApplicationManager.getInstance().getScopes(wrapped.getPrincipal());
+        return applicationManager.getScopes(wrapped.getPrincipal());
+    }
+
+    /**
+     * Checks scopes of an application subject and determine if it is allowed to perform an operation based on the given scopes
+     * @param scopes The scopes to check against the subject
+     * @return true if allowed, false if none of the scopes are allowed.
+     */
+    public boolean isAllowed(final List<Scope> scopes) {
+
+        final Optional<Principal> optionalPrincipal = this.getApplication();
+
+        if (optionalPrincipal.isEmpty()) {
+            // If there is no application, actions are allowed by default
+
+            return true;
+        }
+
+        if (!applicationManager.applicationExists(this.getPrincipal())) {
+
+            return false;
+        }
+
+        final Set<Scope> scopesOfApplication = this.getScopes();
+
+        boolean isApplicationSuperUser = scopesOfApplication.contains(ApplicationScope.SUPER_USER_ACCESS);
+
+        if (isApplicationSuperUser) {
+
+            return true;
+        }
+
+        Set<Scope> intersection = new HashSet<>(scopesOfApplication);
+
+        // Retain only the elements present in the list
+        intersection.retainAll(scopes);
+
+        boolean isMatchingScopePresent = !intersection.isEmpty();
+
+        return isMatchingScopePresent;
     }
 
     // Passthroughs for wrapped subject

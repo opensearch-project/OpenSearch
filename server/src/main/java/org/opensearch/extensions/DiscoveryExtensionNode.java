@@ -27,14 +27,16 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.identity.Subject;
 import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.tokens.AuthToken;
 
 /**
  * Discover extensions running independently or in a separate process
  *
  * @opensearch.internal
  */
-public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment {
+public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment, Subject {
 
     private Version minimumCompatibleVersion;
     private List<ExtensionDependency> dependencies = Collections.emptyList();
@@ -128,6 +130,11 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return null;
+    }
+
+    @Override
+    public void authenticate(AuthToken token) {
+
     }
 
     @Override

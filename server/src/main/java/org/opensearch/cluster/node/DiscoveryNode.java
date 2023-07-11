@@ -32,6 +32,21 @@
 
 package org.opensearch.cluster.node;
 
+import java.io.IOException;
+import java.security.Principal;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
@@ -43,27 +58,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.Subject;
-import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.node.Node;
-
-import java.io.IOException;
-import java.security.Principal;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 /**
@@ -71,7 +66,7 @@ import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
  *
  * @opensearch.internal
  */
-public class DiscoveryNode implements Writeable, ToXContentFragment, Subject {
+public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
 
@@ -139,7 +134,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment, Subject {
     private final Map<String, String> attributes;
     private final Version version;
     private final SortedSet<DiscoveryNodeRole> roles;
-    private NamedPrincipal principal;
+    private Principal principal;
 
     /**
      * Creates a new {@link DiscoveryNode}
@@ -604,18 +599,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment, Subject {
         return roleMap.keySet();
     }
 
-    @Override
     public Principal getPrincipal() {
         return this.principal;
-    }
-
-    @Override
-    public void authenticate(AuthToken token) {
-        throw new UnsupportedOperationException("DiscoveryNodes cannot be authenticated at this time.");
-    }
-
-    @Override
-    public Optional<Principal> getApplication() {
-        return Optional.empty();
     }
 }

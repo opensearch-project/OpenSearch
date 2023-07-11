@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
@@ -47,7 +46,6 @@ import org.opensearch.action.RequestValidators;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.ActionFilter;
-import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
@@ -57,9 +55,9 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
+import org.opensearch.identity.scopes.ExtensionPointScope;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.plugins.ActionPlugin;
-import org.opensearch.identity.scopes.ExtensionPointScope;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
@@ -81,7 +79,7 @@ public class ScopeProtectedActionPlugin implements ActionPlugin, Subject {
     }
 
     private void throwIfNotAllowed() {
-        if (!ApplicationManager.getInstance().isAllowed(identity.getSubject(), List.of(ExtensionPointScope.ACTION))) {
+        if (!(identity.getSubject().isAllowed(List.of(ExtensionPointScope.ACTION)))) {
             throw new OpenSearchException(INVALID_EXTENSION_POINT_SCOPE_MESSAGE + ExtensionPointScope.ACTION.asPermissionString());
         }
     }
