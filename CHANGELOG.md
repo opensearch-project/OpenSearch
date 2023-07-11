@@ -68,6 +68,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `avro` from 1.11.1 to 1.11.2 ([#8404](https://github.com/opensearch-project/OpenSearch/pull/8404))
 - Bump `org.apache.maven:maven-model` from 3.9.2 to 3.9.3 ([#8403](https://github.com/opensearch-project/OpenSearch/pull/8403))
 - Bump `io.projectreactor.netty:reactor-netty` and `io.projectreactor.netty:reactor-netty-core` from 1.1.7 to 1.1.8 ([#8405](https://github.com/opensearch-project/OpenSearch/pull/8405))
+- Bump `com.google.cloud:google-cloud-core-http` from 2.17.0 to 2.21.0 ([#8586](https://github.com/opensearch-project/OpenSearch/pull/8586))
+- Bump `com.networknt:json-schema-validator` from 1.0.85 to 1.0.86 ([#8573](https://github.com/opensearch-project/OpenSearch/pull/8573))
 
 ### Changed
 - Replace jboss-annotations-api_1.2_spec with jakarta.annotation-api ([#7836](https://github.com/opensearch-project/OpenSearch/pull/7836))
