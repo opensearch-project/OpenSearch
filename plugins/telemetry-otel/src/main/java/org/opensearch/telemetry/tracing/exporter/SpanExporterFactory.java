@@ -21,6 +21,7 @@ public class SpanExporterFactory {
     /**
      * Span Exporter type setting.
      */
+    @SuppressWarnings("unchecked")
     public static final Setting<Class<SpanExporterProvider>> OTEL_TRACER_SPAN_EXPORTER_PROVIDE_CLASS_SETTING = new Setting<>(
         "telemetry.otel.tracer.span.exporter.provider.class",
         LoggingSpanExporterProvider.class.getName(),
