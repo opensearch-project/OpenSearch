@@ -46,6 +46,7 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 
@@ -213,12 +214,10 @@ final class TranslogHeader {
     /**
      * Writes this header with the latest format into the file channel
      */
-    void write(final FileChannel channel, boolean fsync) throws IOException {
+    void write(final OutputStream outputStream) throws IOException {
         // This output is intentionally not closed because closing it will close the FileChannel.
         @SuppressWarnings({ "IOResourceOpenedButNotSafelyClosed", "resource" })
-        final BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(
-            new OutputStreamStreamOutput(java.nio.channels.Channels.newOutputStream(channel))
-        );
+        final BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(new OutputStreamStreamOutput(outputStream));
         CodecUtil.writeHeader(new OutputStreamDataOutput(out), TRANSLOG_CODEC, CURRENT_VERSION);
         // Write uuid
         final BytesRef uuid = new BytesRef(translogUUID);
@@ -229,6 +228,11 @@ final class TranslogHeader {
         // Checksum header
         out.writeInt((int) out.getChecksum());
         out.flush();
+    }
+
+    void write(final FileChannel channel, boolean fsync) throws IOException {
+        OutputStream outputStream = java.nio.channels.Channels.newOutputStream(channel);
+        write(outputStream);
         if (fsync == true) {
             channel.force(true);
         }

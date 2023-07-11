@@ -6,13 +6,10 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.translog.checked;
+package org.opensearch.index.translog;
 
-import org.opensearch.common.io.Channels;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 
-import java.io.IOException;
-import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.CRC32;
@@ -28,21 +25,15 @@ public class TranslogCheckedContainer {
     private final Checksum checksum;
     private final AtomicLong contentLength;
     private final ReleasableLock updateLock = new ReleasableLock(new ReentrantLock());
-    private final String file;
 
     /**
-     * Creates TranslogCheckedContainer from provided channel.
+     * Create TranslogCheckedContainer from provided bytes
      *
-     * @param channel {@link FileChannel} to read from
-     * @param offset  offset of channel from which bytes are to be read.
-     * @param len     Length of bytes to be read.
+     * @param bytes The byte array to read from
      */
-    public TranslogCheckedContainer(FileChannel channel, int offset, int len, String file) throws IOException {
+    public TranslogCheckedContainer(byte[] bytes) {
         this.checksum = new CRC32();
         this.contentLength = new AtomicLong();
-        this.file = file;
-
-        byte[] bytes = Channels.readFromFileChannel(channel, offset, len);
         updateFromBytes(bytes, 0, bytes.length);
     }
 
