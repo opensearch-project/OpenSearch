@@ -47,7 +47,21 @@ public class SpanExporterFactoryTests extends OpenSearchTestCase {
                 "org.opensearch.telemetry.tracing.exporter.DummySpanExporter"
             )
             .build();
-        assertThrows(IllegalStateException.class, () -> spanExporterFactory.create(settings));
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> spanExporterFactory.create(settings));
+        assertEquals(
+            "SpanExporter instantiation failed for class [org.opensearch.telemetry.tracing.exporter.DummySpanExporter]",
+            exception.getMessage()
+        );
+    }
+
+    public void testSpanExporterNonSpanExporterClass() {
+        Settings settings = Settings.builder()
+            .put(OtelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(), "java.lang.String")
+            .build();
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> spanExporterFactory.create(settings));
+        assertEquals("SpanExporter instantiation failed for class [java.lang.String]", exception.getMessage());
+        assertTrue(exception.getCause() instanceof NoSuchMethodError);
+
     }
 
 }
