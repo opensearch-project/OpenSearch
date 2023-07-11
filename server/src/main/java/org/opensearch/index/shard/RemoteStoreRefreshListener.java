@@ -8,7 +8,6 @@
 
 package org.opensearch.index.shard;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
@@ -22,6 +21,7 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.engine.EngineException;
@@ -60,7 +60,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
  */
 public final class RemoteStoreRefreshListener implements ReferenceManager.RefreshListener {
 
-    private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
+    private final Logger logger;
 
     /**
      * The initial retry interval at which the retry job gets scheduled after a failure.
@@ -117,6 +117,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         SegmentReplicationCheckpointPublisher checkpointPublisher,
         RemoteRefreshSegmentTracker segmentTracker
     ) {
+        logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
@@ -155,7 +156,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 // Track upload failure
                 segmentTracker.addUploadBytesFailed(latestFileNameSizeOnLocalMap.get(file));
             }
-        }, remoteDirectory, storeDirectory, this::getChecksumOfLocalFile);
+        }, remoteDirectory, storeDirectory, this::getChecksumOfLocalFile, logger);
     }
 
     @Override
@@ -468,6 +469,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     private static class FileUploader {
 
+        private final Logger logger;
+
         private final UploadTracker uploadTracker;
 
         private final RemoteSegmentStoreDirectory remoteDirectory;
@@ -480,12 +483,14 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             UploadTracker uploadTracker,
             RemoteSegmentStoreDirectory remoteDirectory,
             Directory storeDirectory,
-            CheckedFunction<String, String, IOException> checksumProvider
+            CheckedFunction<String, String, IOException> checksumProvider,
+            Logger logger
         ) {
             this.uploadTracker = uploadTracker;
             this.remoteDirectory = remoteDirectory;
             this.storeDirectory = storeDirectory;
             this.checksumProvider = checksumProvider;
+            this.logger = logger;
         }
 
         /**

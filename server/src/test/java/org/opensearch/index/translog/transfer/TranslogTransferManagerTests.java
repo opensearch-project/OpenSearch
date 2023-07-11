@@ -17,6 +17,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
@@ -65,6 +66,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         primaryTerm = randomNonNegativeLong();
         generation = randomNonNegativeLong();
         shardId = mock(ShardId.class);
+        when(shardId.getIndex()).thenReturn(new Index("index", "indexUUid"));
         minTranslogGeneration = randomLongBetween(0, generation);
         remoteBaseTransferPath = new BlobPath().add("base_path");
         transferService = mock(TransferService.class);
