@@ -803,13 +803,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable performSegRep
     ) throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
-        //Force refreshes pending refresh listeners
+        // Force refreshes pending refresh listeners
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
-                //Prevents new refresh listeners to be registered while all permits are acquired
+                // Prevents new refresh listeners to be registered while all permits are acquired
                 forceRefreshes.close();
-                //Ensures all in-flight remote store operations drain, before we hand-off.
-                internalRefreshListeners.stream().filter(i -> i instanceof Closeable).map(i -> (Closeable)i).close();
+                // Ensures all in-flight remote store operations drain, before we hand-off.
+                internalRefreshListeners.stream().filter(i -> i instanceof Closeable).map(i -> (Closeable) i).close();
 
                 boolean syncTranslog = isRemoteTranslogEnabled() && Durability.ASYNC == indexSettings.getTranslogDurability();
                 // Since all the index permits are acquired at this point, the translog buffer will not change.
@@ -821,9 +821,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
                     : "in-flight operations in progress while moving shard state to relocated";
-                //Run a round of segrep while we are waiting for the permits. We need to evaluate if this needs to be put inside
-                //the permit to synchronise segments. However since indexing operations are stalled, we need to justify the cost
-                //of blocking segrep round, which for remote store enabled nodes will require operations to drain on the remote store.
+                // Run a round of segrep while we are waiting for the permits. We need to evaluate if this needs to be put inside
+                // the permit to synchronise segments. However since indexing operations are stalled, we need to justify the cost
+                // of blocking segrep round, which for remote store enabled nodes will require operations to drain on the remote store.
                 performSegRep.run();
 
                 /*
@@ -3670,19 +3670,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         internalRefreshListeners.add(new RefreshMetricUpdater(refreshMetric));
         if (isRemoteStoreEnabled()) {
-            internalRefreshListeners.add(new GatedDelegateRefreshListener(
-                new RemoteStoreRefreshListener(
-                    this,
-                    // Add the checkpoint publisher if the Segment Replciation via remote store is enabled.
-                    indexSettings.isSegRepWithRemoteEnabled() ? this.checkpointPublisher : SegmentReplicationCheckpointPublisher.EMPTY,
-                    remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId())
-                ), refreshListenerMetric)
+            internalRefreshListeners.add(
+                new GatedDelegateRefreshListener(
+                    new RemoteStoreRefreshListener(
+                        this,
+                        // Add the checkpoint publisher if the Segment Replciation via remote store is enabled.
+                        indexSettings.isSegRepWithRemoteEnabled() ? this.checkpointPublisher : SegmentReplicationCheckpointPublisher.EMPTY,
+                        remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId())
+                    ),
+                    refreshListenerMetric
+                )
             );
         }
 
         if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
-            internalRefreshListeners.add(new GatedDelegateRefreshListener(
-                new CheckpointRefreshListener(this, this.checkpointPublisher), null));
+            internalRefreshListeners.add(
+                new GatedDelegateRefreshListener(new CheckpointRefreshListener(this, this.checkpointPublisher), null)
+            );
         }
         /**
          * With segment replication enabled for primary relocation, recover replica shard initially as read only and

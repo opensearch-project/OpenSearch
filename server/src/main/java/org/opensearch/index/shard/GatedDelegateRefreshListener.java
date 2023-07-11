@@ -39,7 +39,7 @@ public class GatedDelegateRefreshListener implements ReferenceManager.RefreshLis
      */
     GatedDelegateRefreshListener(ReferenceManager.RefreshListener delegateListener, @Nullable MeanMetric refreshListenerMetrics) {
         this.delegateListener = delegateListener;
-        //TODO instrument metrics for listeners
+        // TODO instrument metrics for listeners
         this.refreshListenerMetrics = refreshListenerMetrics;
     }
 
@@ -79,7 +79,7 @@ public class GatedDelegateRefreshListener implements ReferenceManager.RefreshLis
                     // this should never happen, if it does something is deeply wrong
                     throw new TimeoutException("failed to obtain permit but operations are not delayed");
                 }
-            } catch(InterruptedException | TimeoutException e){
+            } catch (InterruptedException | TimeoutException e) {
                 throw new RuntimeException("Failed to handle delegate due to ", e);
             }
         }
