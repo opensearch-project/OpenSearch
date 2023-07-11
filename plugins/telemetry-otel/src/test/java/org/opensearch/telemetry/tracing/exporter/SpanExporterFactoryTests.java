@@ -11,6 +11,7 @@ package org.opensearch.telemetry.tracing.exporter;
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.OtelTelemetrySettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class SpanExporterFactoryTests extends OpenSearchTestCase {
@@ -26,7 +27,7 @@ public class SpanExporterFactoryTests extends OpenSearchTestCase {
     public void testSpanExporterLogging() {
         Settings settings = Settings.builder()
             .put(
-                SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
+                OtelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
                 "io.opentelemetry.exporter.logging.LoggingSpanExporter"
             )
             .build();
@@ -35,14 +36,14 @@ public class SpanExporterFactoryTests extends OpenSearchTestCase {
     }
 
     public void testSpanExporterInvalid() {
-        Settings settings = Settings.builder().put(SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(), "abc").build();
+        Settings settings = Settings.builder().put(OtelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(), "abc").build();
         assertThrows(IllegalArgumentException.class, () -> spanExporterFactory.create(settings));
     }
 
     public void testSpanExporterNoCreateFactoryMethod() {
         Settings settings = Settings.builder()
             .put(
-                SpanExporterFactory.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
+                OtelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
                 "org.opensearch.telemetry.tracing.exporter.DummySpanExporter"
             )
             .build();

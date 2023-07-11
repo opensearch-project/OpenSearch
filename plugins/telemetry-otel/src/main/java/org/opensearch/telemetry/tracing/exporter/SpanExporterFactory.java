@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.OtelTelemetrySettings;
 
 /**
  * Factory class to create the {@link SpanExporter} instance.
@@ -22,24 +23,6 @@ import org.opensearch.common.settings.Settings;
 public class SpanExporterFactory {
 
     private static final Logger logger = LogManager.getLogger(SpanExporterFactory.class);
-
-    /**
-     * Span Exporter type setting.
-     */
-    @SuppressWarnings("unchecked")
-    public static final Setting<Class<SpanExporter>> OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING = new Setting<>(
-        "telemetry.otel.tracer.span.exporter.class",
-        LoggingSpanExporter.class.getName(),
-        className -> {
-            try {
-                return (Class<SpanExporter>) Class.forName(className);
-            } catch (ClassNotFoundException e) {
-                throw new RuntimeException(e);
-            }
-        },
-        Setting.Property.NodeScope,
-        Setting.Property.Final
-    );
 
     /**
      * Base constructor.
@@ -56,7 +39,7 @@ public class SpanExporterFactory {
      * @return SpanExporter instance.
      */
     public SpanExporter create(Settings settings) {
-        Class<SpanExporter> spanExporterProviderClass = OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.get(settings);
+        Class<SpanExporter> spanExporterProviderClass = OtelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.get(settings);
         SpanExporter spanExporter = instantiateSpanExporter(spanExporterProviderClass);
         logger.info("Successfully instantiated the SpanExporter class {}", spanExporterProviderClass);
         return spanExporter;
