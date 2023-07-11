@@ -1538,7 +1538,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } catch (Exception e) {
                     assert false : e;
                     logger.warn(new ParameterizedMessage("[{}] Exception during single stale index delete", metadata.name()), e);
-                    listener.onFailure(e);
                 }
 
                 executeOneStaleIndexDelete(staleIndicesToDelete, remoteStoreLockManagerFactory, listener);

@@ -2236,6 +2236,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // when the repository currently have the flag disabled and we try to delete the shallow snapshots taken prior to disabling
             // the flag. This can be improved by having the info whether there ever were any shallow snapshot present in this repository
             // or not in RepositoryData.
+            // SEE https://github.com/opensearch-project/OpenSearch/issues/8610
             final boolean cleanupRemoteStoreLockFiles = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
             if (cleanupRemoteStoreLockFiles) {
                 repository.deleteSnapshotsAndReleaseLockFiles(

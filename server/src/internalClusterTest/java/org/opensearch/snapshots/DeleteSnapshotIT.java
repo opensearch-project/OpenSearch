@@ -139,6 +139,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     // Deleting multiple shallow copy snapshots as part of single delete call with both partial and full copy snapshot present in the repo
     // And then deleting multiple full copy snapshots as part of single delete call with both partial and shallow copy snapshots present in
     // the repo
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8610")
     public void testDeleteMultipleShallowCopySnapshotsCase2() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
@@ -227,6 +228,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     // Deleting subset of shallow and full copy snapshots as part of single delete call and then deleting all snapshots in the repo.
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8610")
     public void testDeleteMultipleShallowCopySnapshotsCase3() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
