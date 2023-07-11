@@ -449,7 +449,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             try (final ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.get(replicationId)) {
                 logger.error(() -> new ParameterizedMessage("Error during segment replication, {}", ref.get().description()), e);
             }
-            onGoingReplications.fail(replicationId, new ReplicationFailedException("Unexpected Error during replication"), false);
+            onGoingReplications.fail(replicationId, new ReplicationFailedException("Unexpected Error during replication", e), false);
         }
 
         @Override
@@ -466,7 +466,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             if (replicationRef == null) {
                 return;
             }
-            target = onGoingReplications.getTarget(replicationId);
+            target = replicationRef.get();
         }
         target.startReplication(new ActionListener<>() {
             @Override

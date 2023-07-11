@@ -26,6 +26,7 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.ForceSyncRequest;
@@ -500,6 +501,18 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         assertTrue(nestedException.getMessage().contains("dummy failure"));
     }
 
+    public void testForceSync_ShardDoesNotExist() {
+        ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, new ShardId("no", "", 0));
+        when(indicesService.getShardOrNull(forceSyncRequest.getShardId())).thenReturn(null);
+        transportService.submitRequest(
+            localNode,
+            SegmentReplicationTargetService.Actions.FORCE_SYNC,
+            forceSyncRequest,
+            TransportRequestOptions.builder().withTimeout(TRANSPORT_TIMEOUT).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME
+        ).txGet();
+    }
+
     public void testForceSegmentSyncHandlerWithFailure_AlreadyClosedException_swallowed() throws Exception {
         IndexShard spyReplicaShard = spy(replicaShard);
         ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, replicaShard.shardId());
@@ -517,5 +530,27 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             TransportRequestOptions.builder().withTimeout(TRANSPORT_TIMEOUT).build(),
             EmptyTransportResponseHandler.INSTANCE_SAME
         ).txGet();
+    }
+
+    public void testTargetCancelledBeforeStartInvoked() {
+        final SegmentReplicationTarget target = new SegmentReplicationTarget(
+            replicaShard,
+            mock(SegmentReplicationSource.class),
+            new SegmentReplicationTargetService.SegmentReplicationListener() {
+                @Override
+                public void onReplicationDone(SegmentReplicationState state) {
+                    Assert.fail();
+                }
+
+                @Override
+                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    // failures leave state object in last entered stage.
+                    assertEquals(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO, state.getStage());
+                    assertTrue(e.getCause() instanceof CancellableThreads.ExecutionCancelledException);
+                }
+            }
+        );
+        target.cancel("test");
+        sut.startReplication(target);
     }
 }
