@@ -166,7 +166,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     @Override
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
         if (oldRouting != null && indexShard.indexSettings().isSegRepEnabled() && oldRouting.primary() == false && newRouting.primary()) {
-            onGoingReplications.requestCancel(indexShard.shardId(), "Shard closing");
+            onGoingReplications.requestCancel(indexShard.shardId(), "Shard has been promoted to primary");
             latestReceivedCheckpoint.remove(indexShard.shardId());
         }
     }
