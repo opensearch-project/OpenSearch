@@ -63,8 +63,7 @@ public class VersionedCodecStreamWrapper<T> {
                     "Error while validating header/footer for [{}]. Total data length [{}]",
                     indexInput.toString(),
                     indexInput.length()
-                ),
-                cie
+                )
             );
             throw cie;
         }
