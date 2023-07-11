@@ -48,7 +48,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     private static final String INDEX_NAME = "remote-store-test-idx-1";
     private static final String INDEX_NAME_WILDCARD = "remote-store-test-*";
     private static final String INDEX_NAMES = "remote-store-test-1,remote-store-test-2,remote-store-test-index-1,remote-store-test-index-2";
-    private static final String INDEX_NAMES_WILDCARD = "remote-store-test-idx-*,remote-store-test-index-*";
+    private static final String INDEX_NAMES_WILDCARD = "remote-store-test-*,remote-store-test-index-*";
     private static final String TOTAL_OPERATIONS = "total-operations";
     private static final String REFRESHED_OR_FLUSHED_OPERATIONS = "refreshed-or-flushed-operations";
     private static final String MAX_SEQ_NO_TOTAL = "max-seq-no-total";
@@ -122,7 +122,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(statsGranularity));
-        IndexResponse response = indexSingleDoc();
+        IndexResponse response = INDEX_NAME.equals(indexName) ? indexSingleDoc() : indexSingleDoc(indexName);
         assertEquals(indexStats.get(maxSeqNoGranularity + "-shard-" + response.getShardId().id()) + 1, response.getSeqNo());
         refresh(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(statsGranularity) + 1);
