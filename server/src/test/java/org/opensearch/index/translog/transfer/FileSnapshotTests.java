@@ -28,15 +28,15 @@ public class FileSnapshotTests extends OpenSearchTestCase {
     public void testFileSnapshotPath() throws IOException {
         Path file = createTempFile();
         Files.writeString(file, "hello");
-        fileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12);
+        fileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12, null);
 
         assertFileSnapshotProperties(file);
 
-        try (FileSnapshot sameFileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12)) {
+        try (FileSnapshot sameFileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12, null)) {
             assertEquals(sameFileSnapshot, fileSnapshot);
         }
 
-        try (FileSnapshot sameFileDiffPTSnapshot = new FileSnapshot.TransferFileSnapshot(file, 34)) {
+        try (FileSnapshot sameFileDiffPTSnapshot = new FileSnapshot.TransferFileSnapshot(file, 34, null)) {
             assertNotEquals(sameFileDiffPTSnapshot, fileSnapshot);
         }
     }
