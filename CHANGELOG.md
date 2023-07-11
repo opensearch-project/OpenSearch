@@ -97,6 +97,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update ZSTD default compression level ([#8471](https://github.com/opensearch-project/OpenSearch/pull/8471))
 - Enabling compression levels for zstd and zstd_no_dict ([#8312](https://github.com/opensearch-project/OpenSearch/pull/8312))
 - Improved performance of parsing floating point numbers ([#8467](https://github.com/opensearch-project/OpenSearch/pull/8467))
+- [Search Pipelines] Pass pipeline creation context to processor factories ([#8164](https://github.com/opensearch-project/OpenSearch/pull/8164))
 - Move span actions to Scope ([#8411](https://github.com/opensearch-project/OpenSearch/pull/8411))
 - [Refactor] OpenSearchException streamables to a registry ([#7646](https://github.com/opensearch-project/OpenSearch/pull/7646))
 - [Refactor] Serverless common classes to libraries ([#8065](https://github.com/opensearch-project/OpenSearch/pull/8065))
