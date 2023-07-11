@@ -50,7 +50,7 @@ public class IdentityService {
     }
 
     /**
-     * Gets the current subject
+     * Gets the current Subject
      */
     public ApplicationAwareSubject getSubject() {
         return new ApplicationAwareSubject(identityPlugin.getSubject());

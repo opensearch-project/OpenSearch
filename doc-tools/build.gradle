@@ -2,8 +2,10 @@ plugins {
     id 'java'
 }
 
-group 'org.opensearch'
-version '1.0.0-SNAPSHOT'
+base {
+  group 'org.opensearch'
+  version '1.0.0-SNAPSHOT'
+}
 
 repositories {
     mavenCentral()

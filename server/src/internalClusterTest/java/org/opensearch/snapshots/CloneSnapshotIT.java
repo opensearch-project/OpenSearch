@@ -38,11 +38,16 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.snapshots.blobstore.IndexShardSnapshot;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.snapshots.mockstore.MockRepository;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
@@ -64,6 +69,7 @@ import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.nio.file.Path;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -151,6 +157,162 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final SnapshotIndexStatus status2 = status.get(1).getIndices().get(indexName);
         assertEquals(status1.getStats().getTotalFileCount(), status2.getStats().getTotalFileCount());
         assertEquals(status1.getStats().getTotalSize(), status2.getStats().getTotalSize());
+    }
+
+    public void testCloneShallowSnapshotIndex() throws Exception {
+        disableRepoConsistencyCheck("This test uses remote store repository");
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotRepoName = "snapshot-repo-name";
+        final Path snapshotRepoPath = randomRepoPath();
+        createRepository(snapshotRepoName, "fs", snapshotRepoPath);
+
+        final String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
+        final Path shallowSnapshotRepoPath = randomRepoPath();
+        createRepository(shallowSnapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(shallowSnapshotRepoPath));
+
+        final Path remoteStoreRepoPath = randomRepoPath();
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
+
+        final String indexName = "index-1";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+
+        final String remoteStoreEnabledIndexName = "remote-index-1";
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
+        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+
+        final String snapshot = "snapshot";
+        createFullSnapshot(snapshotRepoName, snapshot);
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 0);
+
+        indexRandomDocs(indexName, randomIntBetween(20, 100));
+
+        final String shallowSnapshot = "shallow-snapshot";
+        createFullSnapshot(shallowSnapshotRepoName, shallowSnapshot);
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 1);
+
+        if (randomBoolean()) {
+            assertAcked(admin().indices().prepareDelete(indexName));
+        }
+
+        final String sourceSnapshot = shallowSnapshot;
+        final String targetSnapshot = "target-snapshot";
+        assertAcked(startClone(shallowSnapshotRepoName, sourceSnapshot, targetSnapshot, indexName, remoteStoreEnabledIndexName).get());
+        logger.info("Lock files count: {}", getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length);
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 2);
+    }
+
+    public void testShallowCloneNameAvailability() throws Exception {
+        disableRepoConsistencyCheck("This test uses remote store repository");
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+
+        final String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
+        final Path shallowSnapshotRepoPath = randomRepoPath();
+        createRepository(shallowSnapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(shallowSnapshotRepoPath));
+
+        final Path remoteStoreRepoPath = randomRepoPath();
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
+
+        final String indexName = "index-1";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+
+        final String remoteStoreEnabledIndexName = "remote-index-1";
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
+        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+
+        final String shallowSnapshot1 = "snapshot1";
+        createFullSnapshot(shallowSnapshotRepoName, shallowSnapshot1);
+
+        final String shallowSnapshot2 = "snapshot2";
+        createFullSnapshot(shallowSnapshotRepoName, shallowSnapshot2);
+
+        ExecutionException ex = expectThrows(
+            ExecutionException.class,
+            () -> startClone(shallowSnapshotRepoName, shallowSnapshot1, shallowSnapshot2, indexName, remoteStoreEnabledIndexName).get()
+        );
+        assertThat(ex.getMessage(), containsString("snapshot with the same name already exists"));
+    }
+
+    public void testCloneAfterRepoShallowSettingEnabled() throws Exception {
+        disableRepoConsistencyCheck("This test uses remote store repository");
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotRepoName = "snapshot-repo-name";
+        final Path snapshotRepoPath = randomRepoPath();
+        createRepository(snapshotRepoName, "fs", snapshotRepoPath);
+
+        final Path remoteStoreRepoPath = randomRepoPath();
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
+
+        final String indexName = "index-1";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+
+        final String remoteStoreEnabledIndexName = "remote-index-1";
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
+        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+
+        final String snapshot = "snapshot";
+        createFullSnapshot(snapshotRepoName, snapshot);
+        assertEquals(getSnapshot(snapshotRepoName, snapshot).state(), SnapshotState.SUCCESS);
+
+        // Updating the snapshot repository flag to enable shallow snapshots
+        createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(snapshotRepoPath));
+        RepositoryMetadata updatedRepositoryMetadata = clusterAdmin().prepareGetRepositories(snapshotRepoName).get().repositories().get(0);
+        assertTrue(updatedRepositoryMetadata.settings().getAsBoolean(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), false));
+
+        final String targetSnapshot = "target-snapshot";
+        assertAcked(startClone(snapshotRepoName, snapshot, targetSnapshot, indexName, remoteStoreEnabledIndexName).get());
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 0);
+        assertEquals(getSnapshot(snapshotRepoName, targetSnapshot).isRemoteStoreIndexShallowCopyEnabled(), false);
+    }
+
+    public void testCloneAfterRepoShallowSettingDisabled() throws Exception {
+        disableRepoConsistencyCheck("This test uses remote store repository");
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotRepoName = "snapshot-repo-name";
+        final Path snapshotRepoPath = randomRepoPath();
+        createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(snapshotRepoPath));
+
+        final Path remoteStoreRepoPath = randomRepoPath();
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
+
+        final String indexName = "index-1";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+
+        final String remoteStoreEnabledIndexName = "remote-index-1";
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
+        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+
+        final String snapshot = "snapshot";
+        createFullSnapshot(snapshotRepoName, snapshot);
+        assertEquals(getSnapshot(snapshotRepoName, snapshot).state(), SnapshotState.SUCCESS);
+
+        // Updating the snapshot repository flag to enable shallow snapshots
+        createRepository(snapshotRepoName, "fs", snapshotRepoPath);
+        RepositoryMetadata updatedRepositoryMetadata = clusterAdmin().prepareGetRepositories(snapshotRepoName).get().repositories().get(0);
+        assertFalse(updatedRepositoryMetadata.settings().getAsBoolean(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), false));
+
+        final String targetSnapshot = "target-snapshot";
+        assertAcked(startClone(snapshotRepoName, snapshot, targetSnapshot, indexName, remoteStoreEnabledIndexName).get());
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 2);
+        assertEquals(getSnapshot(snapshotRepoName, targetSnapshot).isRemoteStoreIndexShallowCopyEnabled(), true);
     }
 
     public void testClonePreventsSnapshotDelete() throws Exception {
@@ -671,18 +833,14 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         RepositoryShardId repositoryShardId,
         SnapshotId snapshotId
     ) {
-        return PlainActionFuture.get(
-            f -> repository.threadPool()
-                .generic()
-                .execute(
-                    ActionRunnable.supply(
-                        f,
-                        () -> repository.loadShardSnapshot(
-                            repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
-                            snapshotId
-                        )
-                    )
-                )
-        );
+        return PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.supply(f, () -> {
+            IndexShardSnapshot indexShardSnapshot = repository.loadShardSnapshot(
+                repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
+                snapshotId
+            );
+            assert indexShardSnapshot instanceof BlobStoreIndexShardSnapshot
+                : "indexShardSnapshot should be an instance of BlobStoreIndexShardSnapshot";
+            return (BlobStoreIndexShardSnapshot) indexShardSnapshot;
+        })));
     }
 }

@@ -13,6 +13,8 @@ import org.opensearch.telemetry.tracing.Tracer;
 
 /**
  * No-op implementation of Tracer
+ *
+ * @opensearch.internal
  */
 public class NoopTracer implements Tracer {
 

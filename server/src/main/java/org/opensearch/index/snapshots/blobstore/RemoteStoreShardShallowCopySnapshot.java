@@ -13,6 +13,7 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
+public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, IndexShardSnapshot {
 
     private final String snapshot;
     private final String version;
@@ -407,5 +408,43 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         if (exceptionStr != null) {
             throw new IllegalArgumentException(exceptionStr);
         }
+    }
+
+    /**
+     * Creates a new instance which has a different name and zero incremental file counts but is identical to this instance in terms of the files
+     * it references.
+     *
+     * @param targetSnapshotName target snapshot name
+     * @param startTime          time the clone operation on the repository was started
+     * @param time               time it took to create the clone
+     */
+    public RemoteStoreShardShallowCopySnapshot asClone(String targetSnapshotName, long startTime, long time) {
+        return new RemoteStoreShardShallowCopySnapshot(
+            targetSnapshotName,
+            indexVersion,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            time,
+            totalFileCount,
+            totalSize,
+            indexUUID,
+            remoteStoreRepository,
+            repositoryBasePath,
+            fileNames
+        );
+    }
+
+    @Override
+    public IndexShardSnapshotStatus getIndexShardSnapshotStatus() {
+        return IndexShardSnapshotStatus.newDone(
+            startTime,
+            time,
+            incrementalFileCount(),
+            totalFileCount,
+            incrementalSize(),
+            totalSize,
+            null
+        ); // Not adding a real generation here as it doesn't matter to callers
     }
 }

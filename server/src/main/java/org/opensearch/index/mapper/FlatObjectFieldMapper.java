@@ -85,7 +85,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     public MappedFieldType keyedFieldType(String key) {
-        return new FlatObjectFieldType(this.name() + DOT_SYMBOL + key);
+        return new FlatObjectFieldType(this.name() + DOT_SYMBOL + key, this.name());
     }
 
     /**
@@ -186,6 +186,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         private final int ignoreAbove;
         private final String nullValue;
 
+        private final String mappedFieldTypeName;
+
         private KeywordFieldMapper.KeywordFieldType valueFieldType;
 
         private KeywordFieldMapper.KeywordFieldType valueAndPathFieldType;
@@ -195,10 +197,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
-        }
-
-        public FlatObjectFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
+            this.mappedFieldTypeName = null;
         }
 
         public FlatObjectFieldType(String name, FieldType fieldType) {
@@ -212,12 +211,28 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             );
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.mappedFieldTypeName = null;
         }
 
         public FlatObjectFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.mappedFieldTypeName = null;
+        }
+
+        public FlatObjectFieldType(String name, String mappedFieldTypeName) {
+            super(
+                name,
+                true,
+                false,
+                true,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
+                Collections.emptyMap()
+            );
+            this.ignoreAbove = Integer.MAX_VALUE;
+            this.nullValue = null;
+            this.mappedFieldTypeName = mappedFieldTypeName;
         }
 
         void setValueFieldType(KeywordFieldMapper.KeywordFieldType valueFieldType) {
@@ -356,28 +371,44 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
          * @return directedSubFieldName
          */
         public String directSubfield() {
-            if (name().contains(DOT_SYMBOL)) {
-                String[] dotPathList = name().split("\\.");
-                return dotPathList[0] + VALUE_AND_PATH_SUFFIX;
+            if (mappedFieldTypeName == null) {
+                return new StringBuilder().append(this.name()).append(VALUE_SUFFIX).toString();
             } else {
-                return this.valueFieldType.name();
+                return new StringBuilder().append(this.mappedFieldTypeName).append(VALUE_AND_PATH_SUFFIX).toString();
             }
         }
 
         /**
-         * If the search key is assigned with value,
-         * the dot path was used in search query, then
-         * rewrite the searchValueString as the format "dotpath=value",
+         * If the search key has mappedFieldTypeName as prefix,
+         * then the dot path was used in search query,
+         * then rewrite the searchValueString as the format "dotpath=value",
          * @return rewriteSearchValue
          */
         public String rewriteValue(String searchValueString) {
-            if (!name().contains(DOT_SYMBOL)) {
+            if (!hasMappedFieldTyeNameInQueryFieldName(name())) {
                 return searchValueString;
             } else {
                 String rewriteSearchValue = new StringBuilder().append(name()).append(EQUAL_SYMBOL).append(searchValueString).toString();
                 return rewriteSearchValue;
             }
 
+        }
+
+        private boolean hasMappedFieldTyeNameInQueryFieldName(String input) {
+            String prefix = this.mappedFieldTypeName;
+            if (prefix == null) {
+                return false;
+            }
+            if (!input.startsWith(prefix)) {
+                return false;
+            }
+            String rest = input.substring(prefix.length());
+
+            if (rest.isEmpty()) {
+                return false;
+            } else {
+                return true;
+            }
         }
 
         private String inputToString(Object inputValue) {
@@ -460,15 +491,15 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         /**
-         * if there is dot path. query the field name in flatObject parent field.
+         * if there is dot path. query the field name in flatObject parent field (mappedFieldTypeName).
          * else query in _field_names system field
          */
         @Override
         public Query existsQuery(QueryShardContext context) {
             String searchKey;
             String searchField;
-            if (name().contains(DOT_SYMBOL)) {
-                searchKey = name().split("\\.")[0];
+            if (hasMappedFieldTyeNameInQueryFieldName(name())) {
+                searchKey = this.mappedFieldTypeName;
                 searchField = name();
             } else {
                 searchKey = FieldNamesFieldMapper.NAME;
@@ -628,21 +659,18 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             }
 
             if (fieldType().hasDocValues()) {
-                if (context.doc().getField(fieldType().name()) == null || !context.doc().getFields(fieldType().name()).equals(field)) {
-                    if (fieldName.equals(fieldType().name())) {
-                        context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+                if (fieldName.equals(fieldType().name())) {
+                    context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+                }
+                if (valueType.equals(VALUE_SUFFIX)) {
+                    if (valueFieldMapper != null) {
+                        context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_SUFFIX, binaryValue));
                     }
-                    if (valueType.equals(VALUE_SUFFIX)) {
-                        if (valueFieldMapper != null) {
-                            context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_SUFFIX, binaryValue));
-                        }
+                }
+                if (valueType.equals(VALUE_AND_PATH_SUFFIX)) {
+                    if (valueAndPathFieldMapper != null) {
+                        context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_AND_PATH_SUFFIX, binaryValue));
                     }
-                    if (valueType.equals(VALUE_AND_PATH_SUFFIX)) {
-                        if (valueAndPathFieldMapper != null) {
-                            context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_AND_PATH_SUFFIX, binaryValue));
-                        }
-                    }
-
                 }
             }
 

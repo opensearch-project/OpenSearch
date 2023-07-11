@@ -72,6 +72,8 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
         for (LeafReaderContext ctx : standardDirectoryReader.leaves()) {
             subs.add(ctx.reader());
         }
+        // Segment_n here is ignored because it is either already committed on disk as part of previous commit point or
+        // does not yet exist on store (not yet committed)
         final Collection<String> files = currentInfos.files(false);
         DirectoryReader innerReader = StandardDirectoryReader.open(referenceToRefresh.directory(), currentInfos, subs, null);
         final DirectoryReader softDeletesDirectoryReaderWrapper = new SoftDeletesDirectoryReaderWrapper(
