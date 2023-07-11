@@ -61,6 +61,16 @@ public final class ByteUtils {
         assert l == 0;
     }
 
+    /** Convert long to a byte array in big-endian format */
+    public static byte[] toByteArrayBE(long l) {
+        byte[] result = new byte[8];
+        for (int i = 7; i >= 0; i--) {
+            result[i] = (byte) (l & 0xffL);
+            l >>= 8;
+        }
+        return result;
+    }
+
     /** Write a long in little-endian format. */
     public static long readLongLE(byte[] arr, int offset) {
         long l = arr[offset++] & 0xFFL;

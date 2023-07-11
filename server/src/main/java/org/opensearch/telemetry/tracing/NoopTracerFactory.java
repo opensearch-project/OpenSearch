@@ -14,6 +14,8 @@ import java.util.Optional;
 
 /**
  * No-op implementation of TracerFactory
+ *
+ * @opensearch.internal
  */
 public class NoopTracerFactory extends TracerFactory {
     public NoopTracerFactory() {

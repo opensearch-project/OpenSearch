@@ -10,8 +10,10 @@ package org.opensearch.telemetry.tracing;
 
 /**
  * Wrapper class to hold reference of Span
+ *
+ * @opensearch.internal
  */
-public class SpanReference {
+final class SpanReference {
 
     private Span span;
 
