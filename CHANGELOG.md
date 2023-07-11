@@ -40,9 +40,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.bouncycastle:bcprov-jdk15on` to `org.bouncycastle:bcprov-jdk15to18` version 1.75 ([#8247](https://github.com/opensearch-project/OpenSearch/pull/8247))
 - Bump `org.bouncycastle:bcmail-jdk15on` to `org.bouncycastle:bcmail-jdk15to18` version 1.75 ([#8247](https://github.com/opensearch-project/OpenSearch/pull/8247))
 - Bump `org.bouncycastle:bcpkix-jdk15on` to `org.bouncycastle:bcpkix-jdk15to18` version 1.75 ([#8247](https://github.com/opensearch-project/OpenSearch/pull/8247))
-- Bump `com.networknt:json-schema-validator` from 1.0.85 to 1.0.86 ([#8573](https://github.com/opensearch-project/OpenSearch/pull/8573))
-- Bump `com.google.cloud:google-cloud-core-http` from 2.17.0 to 2.21.0 ([#8586](https://github.com/opensearch-project/OpenSearch/pull/8586))
-
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -80,6 +77,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Replaces ZipInputStream with ZipFile to fix Zip Slip vulnerability ([#7230](https://github.com/opensearch-project/OpenSearch/pull/7230))
 - Add missing validation/parsing of SearchBackpressureMode of SearchBackpressureSettings ([#7541](https://github.com/opensearch-project/OpenSearch/pull/7541))
 - Adds log4j configuration for telemetry LogSpanExporter ([#8393](https://github.com/opensearch-project/OpenSearch/pull/8393))
+- Fix painless casting bug, which crashes the OpenSearch process ([#8315](https://github.com/opensearch-project/OpenSearch/pull/8315))
 
 ### Security
 
@@ -103,7 +101,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support transport action names when registering NamedRoutes ([#7957](https://github.com/opensearch-project/OpenSearch/pull/7957))
 - Create concept of persistent ThreadContext headers that are unstashable ([#8291]()https://github.com/opensearch-project/OpenSearch/pull/8291)
 - Enable Partial Flat Object ([#7997](https://github.com/opensearch-project/OpenSearch/pull/7997))
-- Introduce full support for Search Pipeline ([#8513](https://github.com/opensearch-project/OpenSearch/pull/8513))
+- Add jdk.incubator.vector module support for JDK 20+ ([#8601](https://github.com/opensearch-project/OpenSearch/pull/8601))
+- Introduce full support for Search Pipeline ([#8613](https://github.com/opensearch-project/OpenSearch/pull/8613))
 
 ### Dependencies
 - Bump `com.azure:azure-storage-common` from 12.21.0 to 12.21.1 (#7566, #7814)
@@ -140,7 +139,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.maven:maven-model` from 3.9.2 to 3.9.3 (#8403)
 - Bump `io.projectreactor.netty:reactor-netty` and `io.projectreactor.netty:reactor-netty-core` from 1.1.7 to 1.1.8 (#8405)
 - Bump `com.azure:azure-storage-blob` from 12.22.2 to 12.22.3 (#8572)
-- Bump `com.google.jimfs:jimfs` from 1.2 to 1.3.0 (#8577)
+- Bump `net.minidev:json-smart` from 2.4.11 to 2.5.0 ([#8576](https://github.com/opensearch-project/OpenSearch/pull/8576))
+- Bump `com.google.jimfs:jimfs` from 1.2 to 1.3.0 (#8577, #8571)
+- Bump `com.networknt:json-schema-validator` from 1.0.85 to 1.0.86 ([#8573](https://github.com/opensearch-project/OpenSearch/pull/8573))
+- Bump `com.google.cloud:google-cloud-core-http` from 2.17.0 to 2.21.0 ([#8586](https://github.com/opensearch-project/OpenSearch/pull/8586))
 
 ### Changed
 - Replace jboss-annotations-api_1.2_spec with jakarta.annotation-api ([#7836](https://github.com/opensearch-project/OpenSearch/pull/7836))
