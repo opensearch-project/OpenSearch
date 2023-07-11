@@ -46,9 +46,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
-    private static final String INDEX_NAME_WILDCARD = "remote-store-test-*";
-    private static final String INDEX_NAMES = "remote-store-test-1,remote-store-test-2,remote-store-test-index-1,remote-store-test-index-2";
-    private static final String INDEX_NAMES_WILDCARD = "remote-store-test-*,remote-store-test-index-*";
+    private static final String INDEX_NAMES = "test-remote-store-1,test-remote-store-2,remote-store-test-index-1,remote-store-test-index-2";
+    private static final String INDEX_NAMES_WILDCARD = "test-remote-store-*,remote-store-test-index-*";
     private static final String TOTAL_OPERATIONS = "total-operations";
     private static final String REFRESHED_OR_FLUSHED_OPERATIONS = "refreshed-or-flushed-operations";
     private static final String MAX_SEQ_NO_TOTAL = "max-seq-no-total";
