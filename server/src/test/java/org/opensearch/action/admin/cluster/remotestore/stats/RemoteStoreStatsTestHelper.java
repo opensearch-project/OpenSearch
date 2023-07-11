@@ -91,19 +91,19 @@ public class RemoteStoreStatsTestHelper {
                 (int) pressureTrackerStats.lastDownloadTimestampMs
             );
             assertEquals(
-                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_FILE_DOWNLOADS)).get(
+                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_FILES_DOWNLOADED)).get(
                     RemoteStoreStats.SubFields.STARTED
                 ),
                 (int) pressureTrackerStats.totalDownloadsStarted
             );
             assertEquals(
-                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_FILE_DOWNLOADS)).get(
+                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_FILES_DOWNLOADED)).get(
                     RemoteStoreStats.SubFields.SUCCEEDED
                 ),
                 (int) pressureTrackerStats.totalDownloadsSucceeded
             );
             assertEquals(
-                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_FILE_DOWNLOADS)).get(
+                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_FILES_DOWNLOADED)).get(
                     RemoteStoreStats.SubFields.FAILED
                 ),
                 (int) pressureTrackerStats.totalDownloadsFailed

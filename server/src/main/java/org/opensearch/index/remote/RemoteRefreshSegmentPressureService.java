@@ -78,9 +78,6 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
                 shardId,
                 pressureSettings.getUploadBytesMovingAverageWindowSize(),
                 pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-                pressureSettings.getUploadTimeMovingAverageWindowSize(),
-                pressureSettings.getUploadBytesMovingAverageWindowSize(),
-                pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
                 pressureSettings.getUploadTimeMovingAverageWindowSize()
             )
         );
@@ -135,18 +132,6 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
     void updateUploadTimeMsMovingAverageWindowSize(int updatedSize) {
         updateMovingAverageWindowSize(RemoteRefreshSegmentTracker::updateUploadTimeMsMovingAverageWindowSize, updatedSize);
-    }
-
-    void updateDownloadBytesMovingAverageWindowSize(int updatedSize) {
-        updateMovingAverageWindowSize(RemoteRefreshSegmentTracker::updateDownloadBytesPerSecMovingAverageWindowSize, updatedSize);
-    }
-
-    void updateDownloadBytesPerSecMovingAverageWindowSize(int updatedSize) {
-        updateMovingAverageWindowSize(RemoteRefreshSegmentTracker::updateDownloadBytesMovingAverageWindowSize, updatedSize);
-    }
-
-    void updateDownloadTimeMovingAverageWindowSize(int updatedSize) {
-        updateMovingAverageWindowSize(RemoteRefreshSegmentTracker::updateDownloadTimeMsMovingAverageWindowSize, updatedSize);
     }
 
     void updateMovingAverageWindowSize(BiConsumer<RemoteRefreshSegmentTracker, Integer> biConsumer, int updatedSize) {

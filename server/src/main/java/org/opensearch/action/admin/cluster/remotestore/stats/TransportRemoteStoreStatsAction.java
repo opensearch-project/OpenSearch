@@ -50,7 +50,6 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
 
     private final IndicesService indicesService;
 
-    private final ClusterService clusterService;
     private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
 
     @Inject
@@ -71,7 +70,6 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
             RemoteStoreStatsRequest::new,
             ThreadPool.Names.MANAGEMENT
         );
-        this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.remoteRefreshSegmentPressureService = remoteRefreshSegmentPressureService;
     }

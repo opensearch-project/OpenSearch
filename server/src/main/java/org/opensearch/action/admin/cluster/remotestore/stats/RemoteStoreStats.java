@@ -29,16 +29,16 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
 
     private final RemoteRefreshSegmentTracker.Stats remoteSegmentShardStats;
 
-    private final ShardRouting currentRouting;
+    private final ShardRouting shardRouting;
 
-    public RemoteStoreStats(RemoteRefreshSegmentTracker.Stats remoteSegmentUploadShardStats, ShardRouting currentRouting) {
+    public RemoteStoreStats(RemoteRefreshSegmentTracker.Stats remoteSegmentUploadShardStats, ShardRouting shardRouting) {
         this.remoteSegmentShardStats = remoteSegmentUploadShardStats;
-        this.currentRouting = currentRouting;
+        this.shardRouting = shardRouting;
     }
 
     public RemoteStoreStats(StreamInput in) throws IOException {
         this.remoteSegmentShardStats = in.readOptionalWriteable(RemoteRefreshSegmentTracker.Stats::new);
-        this.currentRouting = new ShardRouting(in);
+        this.shardRouting = new ShardRouting(in);
     }
 
     public RemoteRefreshSegmentTracker.Stats getStats() {
@@ -46,22 +46,22 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     }
 
     public ShardRouting getShardRouting() {
-        return currentRouting;
+        return shardRouting;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(Fields.ROUTING);
-        builder.field(RoutingFields.STATE, currentRouting.state());
-        builder.field(RoutingFields.PRIMARY, currentRouting.primary());
-        builder.field(RoutingFields.NODE_ID, currentRouting.currentNodeId());
+        builder.field(RoutingFields.STATE, shardRouting.state());
+        builder.field(RoutingFields.PRIMARY, shardRouting.primary());
+        builder.field(RoutingFields.NODE_ID, shardRouting.currentNodeId());
         builder.endObject();
         builder.startObject(Fields.SEGMENT);
-        if (!currentRouting.primary()) {
+        if (!shardRouting.primary()) {
             builder.startObject(SubFields.DOWNLOAD);
             builder.field(DownloadStatsFields.LAST_DOWNLOAD_TIMESTAMP, remoteSegmentShardStats.lastDownloadTimestampMs);
-            builder.startObject(DownloadStatsFields.TOTAL_FILE_DOWNLOADS)
+            builder.startObject(DownloadStatsFields.TOTAL_FILES_DOWNLOADED)
                 .field(SubFields.STARTED, remoteSegmentShardStats.totalDownloadsStarted)
                 .field(SubFields.SUCCEEDED, remoteSegmentShardStats.totalDownloadsSucceeded)
                 .field(SubFields.FAILED, remoteSegmentShardStats.totalDownloadsFailed);
@@ -86,7 +86,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             builder.startObject(SubFields.DOWNLOAD);
             builder.endObject();
         }
-        if (currentRouting.primary()) {
+        if (shardRouting.primary()) {
             builder.startObject(SubFields.UPLOAD)
                 .field(UploadStatsFields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentShardStats.localRefreshClockTimeMs)
                 .field(UploadStatsFields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentShardStats.remoteRefreshClockTimeMs)
@@ -135,7 +135,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(remoteSegmentShardStats);
-        currentRouting.writeTo(out);
+        shardRouting.writeTo(out);
     }
 
     static final class Fields {
@@ -154,8 +154,6 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
      * Fields for remote store stats response
      */
     static final class UploadStatsFields {
-        static final String SHARD_ID = "shard_id";
-
         /**
          * Lag in terms of bytes b/w local and remote store
          */
@@ -218,11 +216,34 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     }
 
     static final class DownloadStatsFields {
+        /**
+         * Last successful segment download timestamp in milliseconds
+         */
         static final String LAST_DOWNLOAD_TIMESTAMP = "last_download_timestamp";
-        static final String TOTAL_FILE_DOWNLOADS = "total_file_downloads";
+
+        /**
+         * Total number of segment files downloaded from the remote store for a specific shard
+         */
+        static final String TOTAL_FILES_DOWNLOADED = "total_file_downloads";
+
+        /**
+         * Total bytes of segment files downloaded from the remote store for a specific shard
+         */
         static final String TOTAL_FILE_DOWNLOADS_IN_BYTES = "total_file_downloads_in_bytes";
+
+        /**
+         * Size of each segment file downloaded from the remote store
+         */
         static final String DOWNLOAD_SIZE_IN_BYTES = "download_size_in_bytes";
+
+        /**
+         * Speed (in bytes/sec) for segment file downloads
+         */
         static final String DOWNLOAD_SPEED_IN_BYTES_PER_SEC = "download_speed_in_bytes_per_sec";
+
+        /**
+         * Time taken (in millis) for each segment file downloaded
+         */
         static final String DOWNLOAD_LATENCY_IN_MILLIS = "download_latency_in_millis";
     }
 
