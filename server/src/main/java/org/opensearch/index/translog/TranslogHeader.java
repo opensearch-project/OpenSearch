@@ -213,7 +213,7 @@ final class TranslogHeader {
     /**
      * Writes this header with the latest format into the file channel
      */
-    void write(final FileChannel channel) throws IOException {
+    void write(final FileChannel channel, boolean fsync) throws IOException {
         // This output is intentionally not closed because closing it will close the FileChannel.
         @SuppressWarnings({ "IOResourceOpenedButNotSafelyClosed", "resource" })
         final BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(
@@ -229,7 +229,9 @@ final class TranslogHeader {
         // Checksum header
         out.writeInt((int) out.getChecksum());
         out.flush();
-        channel.force(true);
+        if (fsync == true) {
+            channel.force(true);
+        }
         assert channel.position() == headerSizeInBytes : "Header is not fully written; header size ["
             + headerSizeInBytes
             + "], channel position ["

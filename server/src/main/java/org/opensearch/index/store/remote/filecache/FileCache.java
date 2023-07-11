@@ -49,6 +49,9 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
     private final CircuitBreaker circuitBreaker;
 
+    // TODO: Convert the constant into an integer setting
+    public static final int DATA_TO_FILE_CACHE_SIZE_RATIO = 5;
+
     public FileCache(SegmentedCache<Path, CachedIndexInput> cache, CircuitBreaker circuitBreaker) {
         this.theCache = cache;
         this.circuitBreaker = circuitBreaker;

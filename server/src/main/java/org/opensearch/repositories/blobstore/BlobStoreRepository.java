@@ -109,6 +109,7 @@ import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
+import org.opensearch.index.snapshots.blobstore.IndexShardSnapshot;
 import org.opensearch.index.snapshots.blobstore.RateLimitingInputStream;
 import org.opensearch.index.snapshots.blobstore.SlicedInputStream;
 import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
@@ -566,7 +567,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // We don't need to check if there exists a shallow snapshot with the same name as we have the check before starting the clone
             // operation ensuring that the snapshot name is available by checking the repository data. Also, the new clone snapshot would
             // have a different UUID and hence a new unique snap-N file will be created.
-            final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
+            IndexShardSnapshot indexShardSnapshot = loadShardSnapshot(shardContainer, source);
+            assert indexShardSnapshot instanceof BlobStoreIndexShardSnapshot
+                : "indexShardSnapshot should be an instance of BlobStoreIndexShardSnapshot";
+            final BlobStoreIndexShardSnapshot sourceMeta = (BlobStoreIndexShardSnapshot) indexShardSnapshot;
             logger.trace("[{}] [{}] writing shard snapshot file for clone", shardId, target);
             INDEX_SHARD_SNAPSHOT_FORMAT.write(
                 sourceMeta.asClone(target.getName(), startTime, threadPool.absoluteTimeInMillis() - startTime),
@@ -606,7 +610,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // We don't need to check if there exists a shallow/full copy snapshot with the same name as we have the check before starting
             // the clone operation ensuring that the snapshot name is available by checking the repository data. Also, the new clone shallow
             // snapshot would have a different UUID and hence a new unique shallow-snap-N file will be created.
-            RemoteStoreShardShallowCopySnapshot remStoreBasedShardMetadata = loadShallowCopyShardSnapshot(shardContainer, source);
+            IndexShardSnapshot indexShardSnapshot = loadShardSnapshot(shardContainer, source);
+            assert indexShardSnapshot instanceof RemoteStoreShardShallowCopySnapshot
+                : "indexShardSnapshot should be an instance of RemoteStoreShardShallowCopySnapshot";
+            RemoteStoreShardShallowCopySnapshot remStoreBasedShardMetadata = (RemoteStoreShardShallowCopySnapshot) indexShardSnapshot;
             String indexUUID = remStoreBasedShardMetadata.getIndexUUID();
             String remoteStoreRepository = remStoreBasedShardMetadata.getRemoteStoreRepository();
             RemoteStoreMetadataLockManager remoteStoreMetadataLockManger = remoteStoreLockManagerFactory.newLockManager(
@@ -2697,7 +2704,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         final BlobContainer container = shardContainer(indexId, snapshotShardId);
         executor.execute(ActionRunnable.wrap(restoreListener, l -> {
-            final BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
+            IndexShardSnapshot indexShardSnapshot = loadShardSnapshot(container, snapshotId);
+            assert indexShardSnapshot instanceof BlobStoreIndexShardSnapshot
+                : "indexShardSnapshot should be an instance of BlobStoreIndexShardSnapshot";
+            final BlobStoreIndexShardSnapshot snapshot = (BlobStoreIndexShardSnapshot) indexShardSnapshot;
             final SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), null);
             new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState) {
                 @Override
@@ -2846,21 +2856,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardId snapshotShardId
     ) {
         final BlobContainer container = shardContainer(indexId, snapshotShardId);
-        return loadShallowCopyShardSnapshot(container, snapshotId);
+        IndexShardSnapshot indexShardSnapshot = loadShardSnapshot(container, snapshotId);
+        assert indexShardSnapshot instanceof RemoteStoreShardShallowCopySnapshot
+            : "indexShardSnapshot should be an instance of RemoteStoreShardShallowCopySnapshot";
+        return (RemoteStoreShardShallowCopySnapshot) indexShardSnapshot;
     }
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
-        return IndexShardSnapshotStatus.newDone(
-            snapshot.startTime(),
-            snapshot.time(),
-            snapshot.incrementalFileCount(),
-            snapshot.totalFileCount(),
-            snapshot.incrementalSize(),
-            snapshot.totalSize(),
-            null
-        ); // Not adding a real generation here as it doesn't matter to callers
+        IndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
+        return snapshot.getIndexShardSnapshotStatus();
     }
 
     @Override
@@ -3020,31 +3025,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Loads information about remote store enabled shard snapshot for remote store interop enabled snapshots
-     */
-    public RemoteStoreShardShallowCopySnapshot loadShallowCopyShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
-        try {
-            return REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry);
-        } catch (NoSuchFileException ex) {
-            throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
-        } catch (IOException ex) {
-            throw new SnapshotException(
-                metadata.name(),
-                snapshotId,
-                "failed to read shard snapshot file for [" + shardContainer.path() + ']',
-                ex
-            );
-        }
-    }
-
-    /**
      * Loads information about shard snapshot
      */
-    public BlobStoreIndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
+    public IndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
         try {
-            return INDEX_SHARD_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry);
-        } catch (NoSuchFileException ex) {
-            throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
+            if (shardContainer.blobExists(INDEX_SHARD_SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()))) {
+                return INDEX_SHARD_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry);
+            } else if (shardContainer.blobExists(REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()))) {
+                return REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry);
+            } else {
+                throw new SnapshotMissingException(metadata.name(), snapshotId.getName());
+            }
         } catch (IOException ex) {
             throw new SnapshotException(
                 metadata.name(),

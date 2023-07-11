@@ -424,6 +424,9 @@ gradle.projectsEvaluated {
         if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
           task.jvmArgs += ["-Djava.security.manager=allow"]
         }
+        if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
+          task.jvmArgs += ["--add-modules=jdk.incubator.vector"]
+        }
       }
     }
 
