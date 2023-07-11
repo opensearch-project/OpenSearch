@@ -568,7 +568,7 @@ public class TransportService extends AbstractLifecycleComponent
      * @param listener the action listener to notify
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) {
-        System.out.println("TransportService.connectToNode");
+        // System.out.println("TransportService.connectToNode");
         if (isLocalNode(node)) {
             listener.onResponse(null);
             return;
@@ -1043,10 +1043,10 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         TransportResponseHandler<T> handler
     ) {
-        System.out.println("sendRequest");
-        System.out.println("node: " + node);
-        System.out.println("action: " + action);
-        System.out.println("request: " + request);
+        // System.out.println("sendRequest");
+        // System.out.println("node: " + node);
+        // System.out.println("action: " + action);
+        // System.out.println("request: " + request);
         final Transport.Connection connection;
         try {
             connection = getConnection(node);
@@ -1076,7 +1076,7 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportResponseHandler<T> handler
     ) {
         try {
-            System.out.println("sendRequest2");
+            // System.out.println("sendRequest2");
             logger.debug("Action: " + action);
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
@@ -1273,13 +1273,13 @@ public class TransportService extends AbstractLifecycleComponent
      * @throws NodeNotConnectedException if the given node is not connected
      */
     public Transport.Connection getConnection(DiscoveryNode node) {
-        System.out.println("transport service");
-        System.out.println("Getting connection for node " + node);
+        // System.out.println("transport service");
+        // System.out.println("Getting connection for node " + node);
         if (isLocalNode(node)) {
-            System.out.println("Is local node");
+            // System.out.println("Is local node");
             return localNodeConnection;
         } else {
-            System.out.println("Not local node");
+            // System.out.println("Not local node");
             return connectionManager.getConnection(node);
         }
     }
@@ -1411,49 +1411,99 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
+        // System.out.println("Sending local request");
+        // System.out.println("Request id: " + requestId);
+        // System.out.println("Action: " + action);
+        // System.out.println("Request: " + request);
         final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool);
         try {
             onRequestSent(localNode, requestId, action, request, options);
             onRequestReceived(requestId, action);
+            // System.out.println("Req canonical: " + request.getClass().getCanonicalName());
             final RequestHandlerRegistry reg = getRequestHandler(action);
+            final ProtobufRequestHandlerRegistry protobufRequestHandlerRegistry = getRequestHandlerProtobuf(action);
+            // if (request.getClass().getCanonicalName().contains("Protobuf")) {
+            //     protobufRequestHandlerRegistry = getRequestHandlerProtobuf(action);
+            // }   
+            // System.out.println("Request handler: " + reg);
+            // System.out.println("Protobuf request handler: " + protobufRequestHandlerRegistry);
             if (reg == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
-            final String executor = reg.getExecutor();
-            if (ThreadPool.Names.SAME.equals(executor)) {
-                // noinspection unchecked
-                reg.processMessageReceived(request, channel);
-            } else {
-                threadPool.executor(executor).execute(new AbstractRunnable() {
-                    @Override
-                    protected void doRun() throws Exception {
-                        // noinspection unchecked
-                        reg.processMessageReceived(request, channel);
-                    }
-
-                    @Override
-                    public boolean isForceExecution() {
-                        return reg.isForceExecution();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (Exception inner) {
-                            inner.addSuppressed(e);
-                            logger.warn(
-                                () -> new ParameterizedMessage("failed to notify channel of error message for action [{}]", action),
-                                inner
-                            );
+            if (request.getClass().getCanonicalName().contains("Protobuf")) {
+                final String executor = protobufRequestHandlerRegistry.getExecutor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    // noinspection unchecked
+                    protobufRequestHandlerRegistry.processMessageReceived(request, channel);
+                } else {
+                    threadPool.executor(executor).execute(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() throws Exception {
+                            // noinspection unchecked
+                            protobufRequestHandlerRegistry.processMessageReceived(request, channel);
                         }
-                    }
 
-                    @Override
-                    public String toString() {
-                        return "processing of [" + requestId + "][" + action + "]: " + request;
-                    }
-                });
+                        @Override
+                        public boolean isForceExecution() {
+                            return protobufRequestHandlerRegistry.isForceExecution();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            try {
+                                channel.sendResponse(e);
+                            } catch (Exception inner) {
+                                inner.addSuppressed(e);
+                                logger.warn(
+                                    () -> new ParameterizedMessage("failed to notify channel of error message for action [{}]", action),
+                                    inner
+                                );
+                            }
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "processing of [" + requestId + "][" + action + "]: " + request;
+                        }
+                    });
+                }
+            } else {
+                final String executor = reg.getExecutor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    // noinspection unchecked
+                    reg.processMessageReceived(request, channel);
+                } else {
+                    threadPool.executor(executor).execute(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() throws Exception {
+                            // noinspection unchecked
+                            reg.processMessageReceived(request, channel);
+                        }
+
+                        @Override
+                        public boolean isForceExecution() {
+                            return reg.isForceExecution();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            try {
+                                channel.sendResponse(e);
+                            } catch (Exception inner) {
+                                inner.addSuppressed(e);
+                                logger.warn(
+                                    () -> new ParameterizedMessage("failed to notify channel of error message for action [{}]", action),
+                                    inner
+                                );
+                            }
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "processing of [" + requestId + "][" + action + "]: " + request;
+                        }
+                    });
+                }
             }
 
         } catch (Exception e) {
