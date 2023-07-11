@@ -59,6 +59,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ReceiveTimeoutTransportException;
@@ -72,6 +73,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
@@ -110,6 +112,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
+    private volatile Map<String, FileCacheStats> nodeFileCacheStats;
     private volatile IndicesStatsSummary indicesStatsSummary;
     // null if this node is not currently the cluster-manager
     private final AtomicReference<RefreshAndRescheduleRunnable> refreshAndRescheduleRunnable = new AtomicReference<>();
@@ -122,6 +125,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
+        this.nodeFileCacheStats = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
@@ -208,7 +212,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             mostAvailableSpaceUsages,
             indicesStatsSummary.shardSizes,
             indicesStatsSummary.shardRoutingToDataPath,
-            indicesStatsSummary.reservedSpace
+            indicesStatsSummary.reservedSpace,
+            nodeFileCacheStats
         );
     }
 
@@ -221,6 +226,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
         nodesStatsRequest.clear();
         nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
+        nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FILE_CACHE_STATS.metricName());
         nodesStatsRequest.timeout(fetchTimeout);
         client.admin().cluster().nodesStats(nodesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;
@@ -264,6 +270,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 );
                 leastAvailableSpaceUsages = Collections.unmodifiableMap(leastAvailableUsagesBuilder);
                 mostAvailableSpaceUsages = Collections.unmodifiableMap(mostAvailableUsagesBuilder);
+
+                nodeFileCacheStats = Collections.unmodifiableMap(
+                    nodesStatsResponse.getNodes()
+                        .stream()
+                        .filter(nodeStats -> nodeStats.getNode().isSearchNode())
+                        .collect(Collectors.toMap(nodeStats -> nodeStats.getNode().getId(), NodeStats::getFileCacheStats))
+                );
             }
 
             @Override
