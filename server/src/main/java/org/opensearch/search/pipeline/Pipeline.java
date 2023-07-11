@@ -146,7 +146,6 @@ class Pipeline {
                                     + "] was ignored",
                                 e
                             );
-
                         } else {
                             throw e;
                         }
