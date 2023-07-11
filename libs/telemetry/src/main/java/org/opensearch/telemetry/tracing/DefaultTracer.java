@@ -16,9 +16,9 @@ import java.io.IOException;
  * The default tracer implementation. It handles tracing context propagation between spans by maintaining
  * current active span in its storage
  *
- *
+ *  @opensearch.internal
  */
-public class DefaultTracer implements Tracer {
+class DefaultTracer implements Tracer {
     static final String THREAD_NAME = "th_name";
 
     private final TracingTelemetry tracingTelemetry;

@@ -13,6 +13,8 @@ import java.util.function.BiConsumer;
 
 /**
  * Interface defining the tracing related context propagation
+ *
+ * @opensearch.internal
  */
 public interface TracingContextPropagator {
 
