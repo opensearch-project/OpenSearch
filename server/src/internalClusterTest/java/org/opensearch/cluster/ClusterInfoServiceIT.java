@@ -50,6 +50,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
@@ -192,6 +193,11 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
             logger.info("--> shard size: {}", size);
             assertThat("shard size is greater than 0", size, greaterThanOrEqualTo(0L));
         }
+
+        final Map<String, FileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
+        assertNotNull(nodeFileCacheStats);
+        assertThat("file cache is empty on non search nodes", nodeFileCacheStats.size(), Matchers.equalTo(0));
+
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getClusterManagerName());
         ClusterState state = clusterService.state();
         for (ShardRouting shard : state.routingTable().allShards()) {
@@ -206,6 +212,28 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
             assertEquals(indexShard.shardPath().getRootDataPath().toString(), dataPath);
 
             assertTrue(info.getReservedSpace(nodeId, dataPath).containsShardId(shard.shardId()));
+        }
+    }
+
+    public void testClusterInfoServiceCollectsFileCacheInformation() {
+        internalCluster().startNodes(1);
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(2);
+
+        InternalTestCluster internalTestCluster = internalCluster();
+        // Get the cluster info service on the cluster-manager node
+        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
+            ClusterInfoService.class,
+            internalTestCluster.getClusterManagerName()
+        );
+        infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
+        ClusterInfo info = infoService.refresh();
+        assertNotNull("info should not be null", info);
+        final Map<String, FileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
+        assertNotNull(nodeFileCacheStats);
+        assertThat("file cache is enabled on both search nodes", nodeFileCacheStats.size(), Matchers.equalTo(2));
+
+        for (FileCacheStats fileCacheStats : nodeFileCacheStats.values()) {
+            assertThat("file cache is non empty", fileCacheStats.getTotal().getBytes(), greaterThan(0L));
         }
     }
 

@@ -98,6 +98,8 @@ public abstract class SearchContext implements Releasable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
+    private volatile boolean searchTimedOut;
+
     protected SearchContext() {}
 
     public abstract void setTask(SearchShardTask task);
@@ -105,6 +107,14 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
+
+    public boolean isSearchTimedOut() {
+        return this.searchTimedOut;
+    }
+
+    public void setSearchTimedOut(boolean searchTimedOut) {
+        this.searchTimedOut = searchTimedOut;
+    }
 
     @Override
     public final void close() {

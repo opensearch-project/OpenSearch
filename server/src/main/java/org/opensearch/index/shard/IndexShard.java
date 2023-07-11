@@ -368,7 +368,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
         final Settings settings = indexSettings.getSettings();
-        this.codecService = new CodecService(mapperService, logger);
+        this.codecService = new CodecService(mapperService, indexSettings, logger);
         this.warmer = warmer;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
@@ -4589,7 +4589,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
         assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
         Repository repository = ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository();
-        RemoteFsTranslog.download(repository, shardId, getThreadPool(), shardPath().resolveTranslog());
+        RemoteFsTranslog.download(repository, shardId, getThreadPool(), shardPath().resolveTranslog(), logger);
     }
 
     /**

@@ -354,10 +354,10 @@ public class QueryPhase {
             searcher.search(query, queryCollector);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);
-        } catch (TimeExceededException e) {
+        }
+        if (searchContext.isSearchTimedOut()) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
-                // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);

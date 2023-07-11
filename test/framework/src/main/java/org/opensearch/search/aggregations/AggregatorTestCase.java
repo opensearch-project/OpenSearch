@@ -329,16 +329,17 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                 return false;
             }
         };
+        SearchContext searchContext = mock(SearchContext.class);
         ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
             indexSearcher.getIndexReader(),
             indexSearcher.getSimilarity(),
             queryCache,
             queryCachingPolicy,
             false,
-            null
+            null,
+            searchContext
         );
 
-        SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.numberOfShards()).thenReturn(1);
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
         when(searchContext.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));

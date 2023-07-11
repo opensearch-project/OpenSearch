@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add events correlation engine plugin ([#6854](https://github.com/opensearch-project/OpenSearch/issues/6854))
 - Add support for ignoring missing Javadoc on generated code using annotation ([#7604](https://github.com/opensearch-project/OpenSearch/pull/7604))
+- Add partial results support for concurrent segment search ([#8306](https://github.com/opensearch-project/OpenSearch/pull/8306))
 
 ### Dependencies
 - Bump `log4j-core` from 2.18.0 to 2.19.0
@@ -36,11 +37,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - OpenJDK Update (April 2023 Patch releases) ([#7344](https://github.com/opensearch-project/OpenSearch/pull/7344)
 - Bump `com.google.http-client:google-http-client:1.43.2` from 1.42.0 to 1.43.2 ([7928](https://github.com/opensearch-project/OpenSearch/pull/7928)))
 - Add Opentelemetry dependencies ([#7543](https://github.com/opensearch-project/OpenSearch/issues/7543))
-- Bump `org.bouncycastle:bcprov-jdk15on` to `org.bouncycastle:bcprov-jdk15to18` version 1.75 ([8247](https://github.com/opensearch-project/OpenSearch/pull/8247))
-- Bump `org.bouncycastle:bcmail-jdk15on` to `org.bouncycastle:bcmail-jdk15to18` version 1.75 ([8247](https://github.com/opensearch-project/OpenSearch/pull/8247))
-- Bump `org.bouncycastle:bcpkix-jdk15on` to `org.bouncycastle:bcpkix-jdk15to18` version 1.75 ([8247](https://github.com/opensearch-project/OpenSearch/pull/8247))
-
-
+- Bump `org.bouncycastle:bcprov-jdk15on` to `org.bouncycastle:bcprov-jdk15to18` version 1.75 ([#8247](https://github.com/opensearch-project/OpenSearch/pull/8247))
+- Bump `org.bouncycastle:bcmail-jdk15on` to `org.bouncycastle:bcmail-jdk15to18` version 1.75 ([#8247](https://github.com/opensearch-project/OpenSearch/pull/8247))
+- Bump `org.bouncycastle:bcpkix-jdk15on` to `org.bouncycastle:bcpkix-jdk15to18` version 1.75 ([#8247](https://github.com/opensearch-project/OpenSearch/pull/8247))
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -52,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Pass localNode info to all plugins on node start ([#7919](https://github.com/opensearch-project/OpenSearch/pull/7919))
 - Improved performance of parsing floating point numbers ([#7909](https://github.com/opensearch-project/OpenSearch/pull/7909))
 - Move span actions to Scope ([#8411](https://github.com/opensearch-project/OpenSearch/pull/8411))
+- Add wrapper tracer implementation
 
 ### Deprecated
 
@@ -78,6 +78,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Replaces ZipInputStream with ZipFile to fix Zip Slip vulnerability ([#7230](https://github.com/opensearch-project/OpenSearch/pull/7230))
 - Add missing validation/parsing of SearchBackpressureMode of SearchBackpressureSettings ([#7541](https://github.com/opensearch-project/OpenSearch/pull/7541))
 - Adds log4j configuration for telemetry LogSpanExporter ([#8393](https://github.com/opensearch-project/OpenSearch/pull/8393))
+- Fix painless casting bug, which crashes the OpenSearch process ([#8315](https://github.com/opensearch-project/OpenSearch/pull/8315))
 
 ### Security
 
@@ -101,10 +102,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support transport action names when registering NamedRoutes ([#7957](https://github.com/opensearch-project/OpenSearch/pull/7957))
 - Create concept of persistent ThreadContext headers that are unstashable ([#8291]()https://github.com/opensearch-project/OpenSearch/pull/8291)
 - Enable Partial Flat Object ([#7997](https://github.com/opensearch-project/OpenSearch/pull/7997))
+- Add jdk.incubator.vector module support for JDK 20+ ([#8601](https://github.com/opensearch-project/OpenSearch/pull/8601))
 
 ### Dependencies
 - Bump `com.azure:azure-storage-common` from 12.21.0 to 12.21.1 (#7566, #7814)
-- Bump `com.google.guava:guava` from 30.1.1-jre to 32.0.0-jre (#7565, #7811, #7807, #7808)
+- Bump `com.google.guava:guava` from 30.1.1-jre to 32.1.1-jre (#7565, #7811, #7807, #7808, #8402, #8400, #8401, #8581)
 - Bump `net.minidev:json-smart` from 2.4.10 to 2.4.11 (#7660, #7812)
 - Bump `org.gradle.test-retry` from 1.5.2 to 1.5.3 (#7810)
 - Bump `com.diffplug.spotless` from 6.17.0 to 6.18.0 (#7896)
@@ -124,7 +126,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `io.projectreactor:reactor-core` from 3.4.18 to 3.5.6 in /plugins/repository-azure ([#8016](https://github.com/opensearch-project/OpenSearch/pull/8016))
 - Bump `spock-core` from 2.1-groovy-3.0 to 2.3-groovy-3.0 ([#8122](https://github.com/opensearch-project/OpenSearch/pull/8122))
 - Bump `com.networknt:json-schema-validator` from 1.0.83 to 1.0.84 (#8141)
-- Bump `com.netflix.nebula:gradle-info-plugin` from 12.1.3 to 12.1.4 (#8139)
+- Bump `com.netflix.nebula:gradle-info-plugin` from 12.1.3 to 12.1.5 (#8139, #8568)
 - Bump `commons-io:commons-io` from 2.12.0 to 2.13.0 in /plugins/discovery-azure-classic ([#8140](https://github.com/opensearch-project/OpenSearch/pull/8140))
 - Bump `mockito` from 5.2.0 to 5.4.0 ([#8181](https://github.com/opensearch-project/OpenSearch/pull/8181))
 - Bump `netty` from 4.1.93.Final to 4.1.94.Final ([#8191](https://github.com/opensearch-project/OpenSearch/pull/8191))
@@ -136,6 +138,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update Apache HttpCore/ HttpClient and Apache HttpCore5 / HttpClient5 dependencies ([#8434](https://github.com/opensearch-project/OpenSearch/pull/8434))
 - Bump `org.apache.maven:maven-model` from 3.9.2 to 3.9.3 (#8403)
 - Bump `io.projectreactor.netty:reactor-netty` and `io.projectreactor.netty:reactor-netty-core` from 1.1.7 to 1.1.8 (#8405)
+- Bump `com.azure:azure-storage-blob` from 12.22.2 to 12.22.3 (#8572)
+- Bump `net.minidev:json-smart` from 2.4.11 to 2.5.0 ([#8576](https://github.com/opensearch-project/OpenSearch/pull/8576))
+- Bump `com.google.jimfs:jimfs` from 1.2 to 1.3.0 (#8577, #8571)
+- Bump `com.networknt:json-schema-validator` from 1.0.85 to 1.0.86 ([#8573](https://github.com/opensearch-project/OpenSearch/pull/8573))
+- Bump `com.google.cloud:google-cloud-core-http` from 2.17.0 to 2.21.0 ([#8586](https://github.com/opensearch-project/OpenSearch/pull/8586))
 
 ### Changed
 - Replace jboss-annotations-api_1.2_spec with jakarta.annotation-api ([#7836](https://github.com/opensearch-project/OpenSearch/pull/7836))
@@ -155,7 +162,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Move ZSTD compression codecs out of the sandbox ([#7908](https://github.com/opensearch-project/OpenSearch/pull/7908))
 - Update ZSTD default compression level ([#8471](https://github.com/opensearch-project/OpenSearch/pull/8471))
 - [Search Pipelines] Pass pipeline creation context to processor factories ([#8164](https://github.com/opensearch-project/OpenSearch/pull/8164))
-
+- Enabling compression levels for zstd and zstd_no_dict ([#8312](https://github.com/opensearch-project/OpenSearch/pull/8312))
+- Optimize Metadata build() to skip redundant computations as part of ClusterState build ([#7853](https://github.com/opensearch-project/OpenSearch/pull/7853))
+- Add safeguard limits for file cache during node level allocation ([#8208](https://github.com/opensearch-project/OpenSearch/pull/8208))
+- Move span actions to Scope ([#8411](https://github.com/opensearch-project/OpenSearch/pull/8411))
+- Add wrapper tracer implementation ([#8565](https://github.com/opensearch-project/OpenSearch/pull/8565))
 
 ### Deprecated
 
@@ -170,6 +181,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix mapping char_filter when mapping a hashtag ([#7591](https://github.com/opensearch-project/OpenSearch/pull/7591))
 - Fix NPE in multiterms aggregations involving empty buckets ([#7318](https://github.com/opensearch-project/OpenSearch/pull/7318))
 - Precise system clock time in MasterService debug logs ([#7902](https://github.com/opensearch-project/OpenSearch/pull/7902))
+- Improve indexing performance for flat_object type ([#7855](https://github.com/opensearch-project/OpenSearch/pull/7855))
 
 ### Security
 

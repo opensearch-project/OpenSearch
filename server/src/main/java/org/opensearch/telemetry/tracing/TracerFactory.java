@@ -21,7 +21,7 @@ import java.util.Optional;
 
 /**
  * TracerManager represents a single global class that is used to access tracers.
- *
+ * <p>
  * The Tracer singleton object can be retrieved using tracerManager.getTracer(). The TracerManager object
  * is created during class initialization and cannot subsequently be changed.
  */
@@ -30,21 +30,20 @@ public class TracerFactory implements Closeable {
     private static final Logger logger = LogManager.getLogger(TracerFactory.class);
 
     private final TelemetrySettings telemetrySettings;
-    private final Tracer defaultTracer;
+    private final Tracer tracer;
 
     public TracerFactory(TelemetrySettings telemetrySettings, Optional<Telemetry> telemetry, ThreadContext threadContext) {
         this.telemetrySettings = telemetrySettings;
-        this.defaultTracer = telemetry.map(Telemetry::getTracingTelemetry)
-            .map(tracingTelemetry -> createDefaultTracer(tracingTelemetry, threadContext))
-            .orElse(NoopTracer.INSTANCE);
+        this.tracer = tracer(telemetry, threadContext);
     }
 
     /**
      * Returns the tracer instance
+     *
      * @return tracer instance
      */
     public Tracer getTracer() {
-        return telemetrySettings.isTracingEnabled() ? defaultTracer : NoopTracer.INSTANCE;
+        return tracer;
     }
 
     /**
@@ -53,10 +52,17 @@ public class TracerFactory implements Closeable {
     @Override
     public void close() {
         try {
-            defaultTracer.close();
+            tracer.close();
         } catch (IOException e) {
             logger.warn("Error closing tracer", e);
         }
+    }
+
+    private Tracer tracer(Optional<Telemetry> telemetry, ThreadContext threadContext) {
+        return telemetry.map(Telemetry::getTracingTelemetry)
+            .map(tracingTelemetry -> createDefaultTracer(tracingTelemetry, threadContext))
+            .map(defaultTracer -> createWrappedTracer(defaultTracer))
+            .orElse(NoopTracer.INSTANCE);
     }
 
     private Tracer createDefaultTracer(TracingTelemetry tracingTelemetry, ThreadContext threadContext) {
@@ -65,6 +71,10 @@ public class TracerFactory implements Closeable {
             tracingTelemetry
         );
         return new DefaultTracer(tracingTelemetry, tracerContextStorage);
+    }
+
+    private Tracer createWrappedTracer(Tracer defaultTracer) {
+        return new WrappedTracer(telemetrySettings, defaultTracer);
     }
 
 }
