@@ -146,6 +146,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.jimfs:jimfs` from 1.2 to 1.3.0 (#8577, #8571)
 - Bump `com.networknt:json-schema-validator` from 1.0.85 to 1.0.86 ([#8573](https://github.com/opensearch-project/OpenSearch/pull/8573))
 - Bump `com.google.cloud:google-cloud-core-http` from 2.17.0 to 2.21.0 ([#8586](https://github.com/opensearch-project/OpenSearch/pull/8586))
+- Bump `com.google.jimfs:jimfs` from 1.2 to 1.3.0 ([#8585](https://github.com/opensearch-project/OpenSearch/pull/8585))
 - Bump `org.apache.logging.log4j:log4j-core` from 2.17.1 to 2.20.0 ([#8307](https://github.com/opensearch-project/OpenSearch/pull/8307))
 
 ### Changed
