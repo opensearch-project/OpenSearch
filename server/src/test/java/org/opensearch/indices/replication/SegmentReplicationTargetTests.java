@@ -27,6 +27,7 @@ import org.apache.lucene.util.Version;
 import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -373,8 +374,9 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                assert (e instanceof ReplicationFailedException);
-                assert (e.getMessage().contains("different segment files"));
+                assertTrue(e instanceof OpenSearchCorruptionException);
+                assertTrue(e.getMessage().contains("has local copies of segments that differ from the primary"));
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
