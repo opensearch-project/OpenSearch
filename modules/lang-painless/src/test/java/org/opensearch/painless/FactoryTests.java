@@ -360,6 +360,14 @@ public class FactoryTests extends ScriptTestCase {
         assertEquals(iae.getMessage(), "not a statement: result not used from addition operation [+]");
     }
 
+    public void testDefToVoidReturnThrowsException() {
+        ClassCastException exception = expectScriptThrows(
+            ClassCastException.class,
+            () -> getEngine().compile("def_return_in_void", "def x=1;return x;", VoidReturnTestScript.CONTEXT, Collections.emptyMap())
+        );
+        assertEquals(exception.getMessage(), "Cannot cast from [def] to [void].");
+    }
+
     public abstract static class FactoryTestConverterScript {
         private final Map<String, Object> params;
 
