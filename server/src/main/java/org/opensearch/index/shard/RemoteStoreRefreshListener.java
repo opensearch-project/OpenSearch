@@ -294,7 +294,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         } catch (Throwable t) {
             logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
         }
-        updateFinalUploadStatusInSegmentTracker(shouldRetry.get() == false, bytesBeforeUpload, startTimeInNS);
+        updateFinalStatusInSegmentTracker(shouldRetry.get() == false, bytesBeforeUpload, startTimeInNS);
         afterSegmentsSync(isRetry, shouldRetry.get());
     }
 
@@ -508,7 +508,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         segmentTracker.setLatestLocalFileNameLengthMap(latestFileNameSizeOnLocalMap);
     }
 
-    private void updateFinalUploadStatusInSegmentTracker(boolean uploadStatus, long bytesBeforeUpload, long startTimeInNS) {
+    private void updateFinalStatusInSegmentTracker(boolean uploadStatus, long bytesBeforeUpload, long startTimeInNS) {
         if (uploadStatus) {
             long bytesUploaded = segmentTracker.getUploadBytesSucceeded() - bytesBeforeUpload;
             long timeTakenInMS = (System.nanoTime() - startTimeInNS) / 1_000_000L;
