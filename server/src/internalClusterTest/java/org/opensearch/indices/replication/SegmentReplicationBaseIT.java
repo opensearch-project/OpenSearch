@@ -19,6 +19,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
@@ -197,6 +198,11 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         return indexService.getShard(shardId.get());
     }
 
+    protected boolean segmentReplicationWithRemoteEnabled() {
+        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue()
+            && "true".equalsIgnoreCase(featureFlagSettings().get(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL));
+    }
+
     protected Releasable blockReplication(List<String> nodes, CountDownLatch latch) {
         CountDownLatch pauseReplicationLatch = new CountDownLatch(nodes.size());
         for (String node : nodes) {
@@ -206,7 +212,11 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                 node
             ));
             mockTargetTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT)) {
+                String actionToWaitFor = SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES;
+                if (segmentReplicationWithRemoteEnabled()) {
+                    actionToWaitFor = SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT;
+                }
+                if (action.equals(actionToWaitFor)) {
                     try {
                         latch.countDown();
                         pauseReplicationLatch.await();
