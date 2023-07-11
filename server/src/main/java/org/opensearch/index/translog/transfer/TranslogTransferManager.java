@@ -17,6 +17,7 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -119,14 +120,16 @@ public class TranslogTransferManager {
                 }),
                 latch
             );
+            Map<Long, BlobPath> blobPathMap = new HashMap<>();
             toUpload.forEach(
-                fileSnapshot -> transferService.uploadBlobAsync(
-                    ThreadPool.Names.TRANSLOG_TRANSFER,
-                    fileSnapshot,
-                    remoteDataTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
-                    latchedActionListener
+                fileSnapshot -> blobPathMap.put(
+                    fileSnapshot.getPrimaryTerm(),
+                    remoteDataTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm()))
                 )
             );
+
+            transferService.uploadBlobs(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH);
+
             try {
                 if (latch.await(TRANSFER_TIMEOUT_IN_MILLIS, TimeUnit.MILLISECONDS) == false) {
                     Exception ex = new TimeoutException("Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete");
@@ -139,7 +142,7 @@ public class TranslogTransferManager {
                 throw ex;
             }
             if (exceptionList.isEmpty()) {
-                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadataTransferPath);
+                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadataTransferPath, WritePriority.HIGH);
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             } else {

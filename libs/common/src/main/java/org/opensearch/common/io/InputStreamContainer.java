@@ -19,6 +19,7 @@ public class InputStreamContainer {
 
     private final InputStream inputStream;
     private final long contentLength;
+    private final long offset;
 
     /**
      * Construct a new stream object
@@ -26,9 +27,10 @@ public class InputStreamContainer {
      * @param inputStream   The input stream that is to be encapsulated
      * @param contentLength The total content length that is to be read from the stream
      */
-    public InputStreamContainer(InputStream inputStream, long contentLength) {
+    public InputStreamContainer(InputStream inputStream, long contentLength, long offset) {
         this.inputStream = inputStream;
         this.contentLength = contentLength;
+        this.offset = offset;
     }
 
     /**
@@ -43,5 +45,12 @@ public class InputStreamContainer {
      */
     public long getContentLength() {
         return contentLength;
+    }
+
+    /**
+     * @return offset of the source content.
+     */
+    public long getOffset() {
+        return offset;
     }
 }
