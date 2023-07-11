@@ -24,6 +24,11 @@ import org.opensearch.telemetry.tracing.exporter.SpanExporterFactory;
 public class OtelTelemetrySettings {
 
     /**
+     * Base Constructor.
+     */
+    public OtelTelemetrySettings() {}
+
+    /**
      * span exporter batch size
      */
     public static final Setting<Integer> TRACER_EXPORTER_BATCH_SIZE_SETTING = Setting.intSetting(

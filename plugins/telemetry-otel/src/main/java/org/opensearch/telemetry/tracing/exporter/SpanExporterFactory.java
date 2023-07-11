@@ -55,8 +55,9 @@ public class SpanExporterFactory {
             return AccessController.doPrivileged((PrivilegedExceptionAction<SpanExporter>) () -> {
                 try {
                     return (SpanExporter) MethodHandles.publicLookup()
-                        .findStatic(spanExporterProviderClass, "create", MethodType.methodType(SpanExporter.class))
-                        .invoke();
+                        .findStatic(spanExporterProviderClass, "create", MethodType.methodType(spanExporterProviderClass))
+                        .asType(MethodType.methodType(SpanExporter.class))
+                        .invokeExact();
                 } catch (Throwable e) {
                     if (e.getCause() instanceof NoSuchMethodException) {
                         throw new IllegalStateException("No create factory method exist in [" + spanExporterProviderClass.getName() + "]");
