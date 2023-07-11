@@ -15,13 +15,12 @@ import org.opensearch.common.settings.Settings;
 /**
  * Provides the instance of {@link io.opentelemetry.exporter.logging.LoggingSpanExporter}
  */
-public class LoggingSpanExporterProvider implements SpanExporterProvider{
+public class LoggingSpanExporterProvider implements SpanExporterProvider {
 
     /**
      * Base Constructor.
      */
-    public LoggingSpanExporterProvider() {
-    }
+    public LoggingSpanExporterProvider() {}
 
     @Override
     public SpanExporter create(Settings settings) {

@@ -8,8 +8,6 @@
 
 package org.opensearch.telemetry.tracing.exporter;
 
-import io.opentelemetry.exporter.logging.LoggingSpanExporter;
-import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import java.lang.reflect.Constructor;
 import org.opensearch.common.settings.Setting;
@@ -70,7 +68,7 @@ public class SpanExporterFactory {
         }
         try {
             return (SpanExporterProvider) constructor.newInstance();
-        }catch(Exception e){
+        } catch (Exception e) {
             throw new IllegalStateException("failed to load span exporter provider class [" + spanExporterProviderClass.getName() + "]", e);
         }
     }

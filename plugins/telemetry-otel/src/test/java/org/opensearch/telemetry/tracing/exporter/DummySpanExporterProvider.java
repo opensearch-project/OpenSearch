@@ -14,7 +14,7 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 import java.util.Collection;
 import org.opensearch.common.settings.Settings;
 
-public class DummySpanExporterProvider implements SpanExporterProvider{
+public class DummySpanExporterProvider implements SpanExporterProvider {
 
     public DummySpanExporterProvider(String abc) {
 
