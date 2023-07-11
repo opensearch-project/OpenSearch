@@ -425,6 +425,13 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         return settings;
     }
 
+    protected Settings.Builder snapshotRepoSettingsForShallowCopy() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", randomRepoPath());
+        settings.put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE);
+        return settings;
+    }
+
     protected static Settings.Builder indexSettingsNoReplicas(int shards) {
         return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
     }
