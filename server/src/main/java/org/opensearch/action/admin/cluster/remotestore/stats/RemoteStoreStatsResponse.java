@@ -93,7 +93,7 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
     }
 
     static final class Fields {
-        static final String SHARDS = "routing";
+        static final String SHARDS = "shards";
         static final String INDICES = "indices";
     }
 }

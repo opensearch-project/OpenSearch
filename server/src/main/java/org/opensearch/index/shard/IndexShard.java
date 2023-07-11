@@ -4778,14 +4778,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     skippedSegments.add(file);
                 }
                 if (targetRemoteDirectory != null) {
-                    targetRemoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
+
                 }
-                if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                    assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
-                    segmentNFile = file;
-                }
+
             }
             beforeSegmentDownload(downloadStatsTracker, segmentsToDownload.size(), totalSizeOfSegmentsToDownload);
+            // Copying segments files to local store directory from remote store directory (Shard Recovery)
             for (String file : segmentsToDownload) {
                 long startTimeInMs = System.currentTimeMillis();
                 try {
@@ -4795,6 +4793,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     afterSegmentDownloadCompleted(downloadStatsTracker, uploadedSegments.get(file).getLength(), startTimeInMs);
                 } catch (IOException e) {
                     afterSegmentDownloadFailed(downloadStatsTracker, uploadedSegments.get(file).getLength());
+                }
+            }
+            // Copying segment files over to target remote directory from local store directory (Snapshot)
+            for (String file : uploadedSegments.keySet()) {
+                if (targetRemoteDirectory != null) {
+                    targetRemoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
+                }
+                if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                    assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
+                    segmentNFile = file;
                 }
             }
         } finally {
