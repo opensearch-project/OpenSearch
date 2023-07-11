@@ -38,7 +38,10 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        oTelTracerModulePlugin = new OTelTelemetryPlugin(Settings.builder().build());
+        // TRACER_EXPORTER_DELAY_SETTING should always be less than 10 seconds because
+        // io.opentelemetry.sdk.OpenTelemetrySdk.close waits only for 10 seconds for shutdown to complete.
+        Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
+        oTelTracerModulePlugin = new OTelTelemetryPlugin(settings);
         telemetry = oTelTracerModulePlugin.getTelemetry(null);
         tracingTelemetry = telemetry.get().getTracingTelemetry();
     }
