@@ -233,7 +233,7 @@ final public class Checkpoint {
         }
     }
 
-    private static byte[] createCheckpointBytes(Path checkpointFile, Checkpoint checkpoint) throws IOException {
+    public static byte[] createCheckpointBytes(Path checkpointFile, Checkpoint checkpoint) throws IOException {
         final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(V4_FILE_SIZE) {
             @Override
             public synchronized byte[] toByteArray() {
