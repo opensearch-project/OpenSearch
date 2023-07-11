@@ -9,6 +9,7 @@
 package org.opensearch.common.blobstore.transfer;
 
 import org.junit.Before;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.UUID;
 
 public class RemoteTransferContainerTests extends OpenSearchTestCase {
 
@@ -138,6 +140,45 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
     public void testTypeOfProvidedStreamsAllCases() throws IOException {
         testTypeOfProvidedStreams(true);
         testTypeOfProvidedStreams(false);
+    }
+
+    public void testCreateWriteContextAllCases() throws IOException {
+        testCreateWriteContext(true);
+        testCreateWriteContext(false);
+    }
+
+    private void testCreateWriteContext(boolean doRemoteDataIntegrityCheck) throws IOException {
+        String remoteFileName = testFile.getFileName().toString() + UUID.randomUUID();
+        Long expectedChecksum = randomLong();
+        try (
+            RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                testFile.getFileName().toString(),
+                remoteFileName,
+                TEST_FILE_SIZE_BYTES,
+                true,
+                WritePriority.HIGH,
+                new RemoteTransferContainer.OffsetRangeInputStreamSupplier() {
+                    @Override
+                    public OffsetRangeInputStream get(long size, long position) throws IOException {
+                        return new OffsetRangeFileInputStream(testFile, size, position);
+                    }
+                },
+                expectedChecksum,
+                doRemoteDataIntegrityCheck
+            )
+        ) {
+            WriteContext writeContext = remoteTransferContainer.createWriteContext();
+            assertEquals(remoteFileName, writeContext.getFileName());
+            assertTrue(writeContext.isFailIfAlreadyExists());
+            assertEquals(TEST_FILE_SIZE_BYTES, writeContext.getFileSize());
+            assertEquals(WritePriority.HIGH, writeContext.getWritePriority());
+            assertEquals(doRemoteDataIntegrityCheck, writeContext.doRemoteDataIntegrityCheck());
+            if (doRemoteDataIntegrityCheck) {
+                assertEquals(expectedChecksum, writeContext.getExpectedChecksum());
+            } else {
+                assertNull(writeContext.getExpectedChecksum());
+            }
+        }
     }
 
     private void testTypeOfProvidedStreams(boolean isRemoteDataIntegritySupported) throws IOException {

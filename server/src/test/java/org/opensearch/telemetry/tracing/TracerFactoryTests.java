@@ -36,19 +36,20 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         tracerFactory.close();
     }
 
-    public void testGetTracerWithTracingDisabledReturnsNoopTracer() {
+    public void testGetTracerWithUnavailableTracingTelemetryReturnsNoopTracer() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
-        tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), new ThreadContext(Settings.EMPTY));
+        tracerFactory = new TracerFactory(telemetrySettings, Optional.empty(), new ThreadContext(Settings.EMPTY));
 
         Tracer tracer = tracerFactory.getTracer();
+
         assertTrue(tracer instanceof NoopTracer);
         assertTrue(tracer.startSpan("foo") == SpanScope.NO_OP);
     }
 
-    public void testGetTracerWithTracingEnabledReturnsDefaultTracer() {
+    public void testGetTracerWithAvailableTracingTelemetryReturnsWrappedTracer() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
@@ -56,7 +57,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), new ThreadContext(Settings.EMPTY));
 
         Tracer tracer = tracerFactory.getTracer();
-        assertTrue(tracer instanceof DefaultTracer);
+        assertTrue(tracer instanceof WrappedTracer);
 
     }
 
