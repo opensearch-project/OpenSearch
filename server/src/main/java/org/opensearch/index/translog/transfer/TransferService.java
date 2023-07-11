@@ -34,7 +34,7 @@ public interface TransferService {
      * @param remotePath the remote path where upload should be made
      * @param listener the callback to be invoked once upload completes successfully/fails
      */
-    void uploadBlobByThreadPool(
+    void uploadBlob(
         String threadPoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remotePath,

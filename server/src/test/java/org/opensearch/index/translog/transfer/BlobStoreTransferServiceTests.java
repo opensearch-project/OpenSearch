@@ -80,7 +80,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         );
         CountDownLatch latch = new CountDownLatch(1);
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
-        transferService.uploadBlobByThreadPool(
+        transferService.uploadBlob(
             ThreadPool.Names.TRANSLOG_TRANSFER,
             transferFileSnapshot,
             repository.basePath(),

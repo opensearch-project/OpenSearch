@@ -54,7 +54,7 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadBlobByThreadPool(
+    public void uploadBlob(
         String threadPoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remoteTransferPath,
@@ -93,7 +93,7 @@ public class BlobStoreTransferService implements TransferService {
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
             if (!(blobStore.blobContainer(blobPath) instanceof VerifyingMultiStreamBlobContainer)) {
-                uploadBlobByThreadPool(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
+                uploadBlob(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
             } else {
                 uploadBlob(fileSnapshot, listener, blobPath, writePriority);
             }
