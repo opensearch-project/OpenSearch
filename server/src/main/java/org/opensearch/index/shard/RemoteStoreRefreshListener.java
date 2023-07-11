@@ -293,10 +293,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             }
         } catch (Throwable t) {
             logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
-        } finally {
-            // Update the segment tracker with the final upload status as seen at the end
-            updateFinalUploadStatusInSegmentTracker(shouldRetry.get() == false, bytesBeforeUpload, startTimeInNS);
         }
+        updateFinalUploadStatusInSegmentTracker(shouldRetry.get() == false, bytesBeforeUpload, startTimeInNS);
         afterSegmentsSync(isRetry, shouldRetry.get());
     }
 
