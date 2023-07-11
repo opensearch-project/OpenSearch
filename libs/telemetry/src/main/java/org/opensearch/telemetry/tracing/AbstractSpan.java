@@ -10,6 +10,8 @@ package org.opensearch.telemetry.tracing;
 
 /**
  * Base span
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractSpan implements Span {
 
