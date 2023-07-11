@@ -13,6 +13,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.After;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -47,6 +48,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8638")
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private IndexShard indexShard;
     private ClusterService clusterService;
