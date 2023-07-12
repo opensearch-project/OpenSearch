@@ -604,6 +604,28 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         }
     }
 
+    public void testUploadMetadataMissingSegment() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        IndexOutput indexOutput = mock(IndexOutput.class);
+
+        String generation = RemoteStoreUtils.invertLong(segmentInfos.getGeneration());
+        String primaryTerm = RemoteStoreUtils.invertLong(12);
+        when(storeDirectory.createOutput(startsWith("metadata__" + primaryTerm + "__" + generation), eq(IOContext.DEFAULT))).thenReturn(
+            indexOutput
+        );
+
+        Collection<String> segmentFiles = List.of("_123.si");
+        assertThrows(
+            NoSuchFileException.class,
+            () -> remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, segmentInfos, storeDirectory, 12L, 34L)
+        );
+        verify(indexOutput).close();
+        verify(storeDirectory).deleteFile(startsWith("metadata__" + primaryTerm + "__" + generation));
+    }
+
     public void testNoMetadataHeaderCorruptIndexException() throws IOException {
         List<String> metadataFiles = List.of(metadataFilename);
         when(
