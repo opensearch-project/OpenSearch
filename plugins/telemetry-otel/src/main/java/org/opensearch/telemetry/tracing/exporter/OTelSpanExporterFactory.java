@@ -23,14 +23,14 @@ import org.opensearch.telemetry.OTelTelemetrySettings;
 /**
  * Factory class to create the {@link SpanExporter} instance.
  */
-public class SpanExporterFactory {
+public class OTelSpanExporterFactory {
 
-    private static final Logger logger = LogManager.getLogger(SpanExporterFactory.class);
+    private static final Logger logger = LogManager.getLogger(OTelSpanExporterFactory.class);
 
     /**
      * Base constructor.
      */
-    private SpanExporterFactory() {
+    private OTelSpanExporterFactory() {
 
     }
 

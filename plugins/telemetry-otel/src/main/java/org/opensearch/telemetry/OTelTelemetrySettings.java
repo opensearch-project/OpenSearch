@@ -16,7 +16,7 @@ import java.security.PrivilegedExceptionAction;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.telemetry.tracing.exporter.SpanExporterFactory;
+import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 
 /**
  * OTel specific telemetry settings.
@@ -71,7 +71,7 @@ public final class OTelTelemetrySettings {
 
             try {
                 return AccessController.doPrivileged((PrivilegedExceptionAction<Class<SpanExporter>>) () -> {
-                    final ClassLoader loader = SpanExporterFactory.class.getClassLoader();
+                    final ClassLoader loader = OTelSpanExporterFactory.class.getClassLoader();
                     return (Class<SpanExporter>) loader.loadClass(className);
                 });
             } catch (PrivilegedActionException ex) {
