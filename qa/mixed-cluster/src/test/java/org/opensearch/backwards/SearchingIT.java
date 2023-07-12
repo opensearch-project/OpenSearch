@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class SearchingIT extends OpenSearchRestTestCase {
     public void testMultiGet() throws Exception {

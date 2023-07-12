@@ -36,7 +36,7 @@ import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.opensearch.client.Response;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;

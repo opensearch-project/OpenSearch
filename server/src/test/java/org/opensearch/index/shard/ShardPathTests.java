@@ -33,9 +33,10 @@ package org.opensearch.index.shard;
 
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.WriteStateException;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

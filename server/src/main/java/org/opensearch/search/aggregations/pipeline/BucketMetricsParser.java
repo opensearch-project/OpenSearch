@@ -33,7 +33,7 @@
 package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 

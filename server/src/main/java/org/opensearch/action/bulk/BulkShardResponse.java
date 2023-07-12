@@ -37,9 +37,9 @@ import org.opensearch.Version;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.support.WriteResponse;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 

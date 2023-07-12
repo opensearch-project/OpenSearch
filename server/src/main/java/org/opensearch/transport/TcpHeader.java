@@ -34,7 +34,7 @@ package org.opensearch.transport;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 

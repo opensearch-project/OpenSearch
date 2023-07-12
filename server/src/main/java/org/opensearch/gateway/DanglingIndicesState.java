@@ -45,7 +45,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;

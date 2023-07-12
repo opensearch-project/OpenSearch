@@ -48,7 +48,7 @@ import org.opensearch.client.cluster.RemoteInfoResponse;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedRunnable;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.XContentBuilder;

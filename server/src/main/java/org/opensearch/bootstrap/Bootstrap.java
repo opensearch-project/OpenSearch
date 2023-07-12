@@ -53,7 +53,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.IfConfig;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
-import org.opensearch.common.settings.SecureString;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.util.io.IOUtils;

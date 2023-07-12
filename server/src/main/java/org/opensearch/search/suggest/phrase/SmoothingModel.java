@@ -32,8 +32,8 @@
 
 package org.opensearch.search.suggest.phrase;
 
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;

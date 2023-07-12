@@ -34,9 +34,9 @@ package org.opensearch;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.logging.LoggerMessageFormat;
@@ -45,9 +45,9 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,8 +62,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 
 import static java.util.Collections.singletonMap;
 
@@ -112,24 +112,24 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
     static {
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.index.snapshots.IndexShardSnapshotFailedException.class,
-                org.opensearch.index.snapshots.IndexShardSnapshotFailedException::new,
+                org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException.class,
+                org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException::new,
                 0,
                 UNKNOWN_VERSION_ADDED
             )
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.common.ParsingException.class,
-                org.opensearch.common.ParsingException::new,
+                org.opensearch.core.common.ParsingException.class,
+                org.opensearch.core.common.ParsingException::new,
                 40,
                 UNKNOWN_VERSION_ADDED
             )
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.common.io.stream.NotSerializableExceptionWrapper.class,
-                org.opensearch.common.io.stream.NotSerializableExceptionWrapper::new,
+                org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper.class,
+                org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper::new,
                 62,
                 UNKNOWN_VERSION_ADDED
             )

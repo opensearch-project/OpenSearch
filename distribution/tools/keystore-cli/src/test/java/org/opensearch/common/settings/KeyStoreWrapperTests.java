@@ -40,6 +40,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
