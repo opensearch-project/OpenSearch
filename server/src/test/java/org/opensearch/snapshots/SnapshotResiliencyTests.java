@@ -705,7 +705,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             final String index = indexList[i];
             continueOrDie(
                 createRepoAndIndex(repoName, index, shards),
-                createIndexResponse -> client().admin()
+                createSnapshotResponse -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(repoName, snapshot)
                     .setWaitForCompletion(true)
@@ -733,13 +733,12 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         GetSnapshotsRequest repoSnapshotRequest = new GetSnapshotsRequest().repository(repoName)
             .snapshots(snapshotsList)
             .ignoreUnavailable(true);
-        if (getSnapshotsAction instanceof TransportGetSnapshotsAction) {
-            TransportGetSnapshotsAction transportGetSnapshotsAction = (TransportGetSnapshotsAction) getSnapshotsAction;
-            transportGetSnapshotsAction.execute(null, repoSnapshotRequest, ActionListener.wrap(repoSnapshotResponse -> {
-                assertNotNull("snapshots should be set as we are checking the current snapshot", repoSnapshotResponse.getSnapshots());
-                assertThat(repoSnapshotResponse.getSnapshots(), hasSize(2));
-            }, exception -> { throw new AssertionError(exception); }));
-        }
+
+        TransportGetSnapshotsAction transportGetSnapshotsAction = (TransportGetSnapshotsAction) getSnapshotsAction;
+        transportGetSnapshotsAction.execute(null, repoSnapshotRequest, ActionListener.wrap(repoSnapshotResponse -> {
+            assertNotNull("Snapshot list should be registered", repoSnapshotResponse.getSnapshots());
+            assertThat(repoSnapshotResponse.getSnapshots(), hasSize(2));
+        }, exception -> { throw new AssertionError(exception); }));
     }
 
     public void testTransportGetCurrentSnapshotOnly() {
@@ -779,13 +778,12 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         GetSnapshotsRequest repoSnapshotRequest = new GetSnapshotsRequest().repository(repoName)
             .snapshots(snapshotsList)
             .ignoreUnavailable(true);
-        if (getSnapshotsAction instanceof TransportGetSnapshotsAction) {
-            TransportGetSnapshotsAction transportGetSnapshotsAction = (TransportGetSnapshotsAction) getSnapshotsAction;
-            transportGetSnapshotsAction.execute(null, repoSnapshotRequest, ActionListener.wrap(repoSnapshotResponse -> {
-                assertNotNull("snapshots should be set as we are checking the current snapshot", repoSnapshotResponse.getSnapshots());
-                assertThat(repoSnapshotResponse.getSnapshots(), hasSize(0));
-            }, exception -> { throw new AssertionError(exception); }));
-        }
+        
+        TransportGetSnapshotsAction transportGetSnapshotsAction = (TransportGetSnapshotsAction) getSnapshotsAction;
+        transportGetSnapshotsAction.execute(null, repoSnapshotRequest, ActionListener.wrap(repoSnapshotResponse -> {
+            assertNotNull("Empty Snapshot info should be registered for current snapshots", repoSnapshotResponse.getSnapshots());
+            assertThat(repoSnapshotResponse.getSnapshots(), hasSize(0));
+        }, exception -> { throw new AssertionError(exception); }));
     }
 
     public void testBulkSnapshotDeleteWithAbort() {
