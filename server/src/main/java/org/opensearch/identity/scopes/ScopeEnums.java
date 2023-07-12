@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.scopes;
 
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -30,7 +31,10 @@ public class ScopeEnums {
         ALL;
 
         public static ScopeArea fromString(String value) {
-            return ScopeArea.valueOf(value.toUpperCase(Locale.ROOT));
+            if (Arrays.stream(ScopeArea.values()).map(ScopeArea::toString).anyMatch(val -> val.equals(value))) {
+                return ScopeArea.valueOf(value.toUpperCase(Locale.ROOT));
+            }
+            throw new RuntimeException("Unknown ScopeArea: " + value);
         }
     }
 
@@ -43,7 +47,10 @@ public class ScopeEnums {
         EXTENSION_POINT;
 
         public static ScopeNamespace fromString(String value) {
-            return ScopeNamespace.valueOf(value.toUpperCase(Locale.ROOT));
+            if (Arrays.stream(ScopeNamespace.values()).map(ScopeNamespace::toString).anyMatch(val -> val.equals(value))) {
+                return ScopeNamespace.valueOf(value.toUpperCase(Locale.ROOT));
+            }
+            throw new RuntimeException("Unknown ScopeNamespace: " + value);
         }
     }
 }

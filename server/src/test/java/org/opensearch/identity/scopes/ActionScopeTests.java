@@ -52,6 +52,40 @@ public class ActionScopeTests extends OpenSearchTestCase {
         applicationManager.register(extensionsManager);
     }
 
+    public void testApplicationAwareSubject() {
+        ApplicationAwareSubject appSubject1 = new ApplicationAwareSubject(
+            extensionsManager.getExtensionIdMap().get("uniqueid1"),
+            applicationManager
+        );
+        ApplicationAwareSubject appSubject2 = new ApplicationAwareSubject(
+            extensionsManager.getExtensionIdMap().get("uniqueid1"),
+            applicationManager
+        );
+
+        assertTrue(appSubject1.getScopes().contains(ActionScope.READ));
+        assertTrue(appSubject1.equals(appSubject2));
+        assertEquals(appSubject1, appSubject1); // Code coverage...
+
+    }
+
+    public void testScopes() {
+        assertEquals(ActionScope.ALL.asPermissionString(), "ACTION.CLUSTER.ALL");
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> Scope.parseScopeFromString("INVALID"));
+        assertTrue(ex.getMessage().contains("Invalid scope format"));
+        RuntimeException ex2 = assertThrows(RuntimeException.class, () -> Scope.parseScopeFromString("ACTION.CLUSTER.INVALID"));
+        assertTrue(ex2.getMessage().contains("Failed to find scope"));
+        RuntimeException ex3 = assertThrows(RuntimeException.class, () -> Scope.parseScopeFromString("APPLICATION.CLUSTER.INVALID"));
+        assertTrue(ex3.getMessage().contains("Failed to find scope"));
+        RuntimeException ex4 = assertThrows(RuntimeException.class, () -> Scope.parseScopeFromString("EXTENSION_POINT.CLUSTER.INVALID"));
+        assertTrue(ex4.getMessage().contains("Failed to find scope"));
+        RuntimeException ex5 = assertThrows(RuntimeException.class, () -> Scope.parseScopeFromString("NAMESPACE.CLUSTER.ACTION"));
+        assertTrue(ex5.getMessage(), ex5.getMessage().contains("Unknown ScopeNamespace"));
+        RuntimeException ex6 = assertThrows(RuntimeException.class, () -> Scope.parseScopeFromString("ACTION.INVALID.ACTION"));
+        assertTrue(ex6.getMessage(), ex6.getMessage().contains("Unknown ScopeArea"));
+        assertEquals(ScopeEnums.ScopeArea.fromString("APPLICATION"), ScopeEnums.ScopeArea.APPLICATION);
+        assertEquals(ScopeEnums.ScopeNamespace.fromString("APPLICATION"), ScopeEnums.ScopeNamespace.APPLICATION);
+    }
+
     public void testAssignActionScopes() {
 
         Set<Scope> allowedScopes = Set.of(ActionScope.READ);
