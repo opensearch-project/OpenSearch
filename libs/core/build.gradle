@@ -32,7 +32,9 @@ import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.publish'
 
-archivesBaseName = 'opensearch-core'
+base {
+  archivesBaseName = 'opensearch-core'
+}
 
 // we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
 if (!isEclipse) {

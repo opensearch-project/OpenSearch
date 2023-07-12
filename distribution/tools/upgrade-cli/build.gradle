@@ -9,7 +9,9 @@
 
 apply plugin: 'opensearch.build'
 
-archivesBaseName = 'opensearch-upgrade-cli'
+base {
+  archivesBaseName = 'opensearch-upgrade-cli'
+}
 
 dependencies {
   compileOnly project(":server")
