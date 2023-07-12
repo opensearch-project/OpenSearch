@@ -299,6 +299,7 @@ public class ExtensionsManager {
             new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
             new HashMap<String, String>(),
             Version.fromString(extension.getOpensearchVersion()),
+            extension.getDistinguishedName(),
             Version.fromString(extension.getMinimumCompatibleVersion()),
             extension.getDependencies()
         );

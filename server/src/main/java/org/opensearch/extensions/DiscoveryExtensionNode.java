@@ -32,9 +32,27 @@ import java.util.Map;
  */
 public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment {
 
+    private String distinguishedNames;
     private Version minimumCompatibleVersion;
     private List<ExtensionDependency> dependencies = Collections.emptyList();
     private List<String> implementedInterfaces = Collections.emptyList();
+
+    public DiscoveryExtensionNode(
+        String name,
+        String id,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Version version,
+        String distinguishedNames,
+        Version minimumCompatibleVersion,
+        List<ExtensionDependency> dependencies
+    ) {
+        super(name, id, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
+        this.distinguishedNames = distinguishedNames;
+        this.minimumCompatibleVersion = minimumCompatibleVersion;
+        this.dependencies = dependencies;
+        validate();
+    }
 
     public DiscoveryExtensionNode(
         String name,
@@ -55,6 +73,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVersion(minimumCompatibleVersion);
+        out.writeString(distinguishedNames);
         out.writeVInt(dependencies.size());
         for (ExtensionDependency dependency : dependencies) {
             dependency.writeTo(out);
@@ -70,11 +89,20 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     public DiscoveryExtensionNode(final StreamInput in) throws IOException {
         super(in);
         minimumCompatibleVersion = in.readVersion();
+        distinguishedNames = in.readString();
         int size = in.readVInt();
         dependencies = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             dependencies.add(new ExtensionDependency(in));
         }
+    }
+
+    public String getDistinguishedNames() {
+        return distinguishedNames;
+    }
+
+    public void setDistinguishedNames(String distinguishedNames) {
+        this.distinguishedNames = distinguishedNames;
     }
 
     public List<ExtensionDependency> getDependencies() {

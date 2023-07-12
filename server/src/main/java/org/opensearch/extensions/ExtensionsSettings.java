@@ -43,6 +43,7 @@ public class ExtensionsSettings {
         private String version;
         private String opensearchVersion;
         private String minimumCompatibleVersion;
+        private String distinguishedName;
         private List<ExtensionDependency> dependencies = Collections.emptyList();
         private ExtensionScopedSettings additionalSettings;
 
@@ -54,6 +55,7 @@ public class ExtensionsSettings {
             String version,
             String opensearchVersion,
             String minimumCompatibleVersion,
+            String distinguishedName,
             List<ExtensionDependency> dependencies,
             ExtensionScopedSettings additionalSettings
         ) {
@@ -64,6 +66,7 @@ public class ExtensionsSettings {
             this.version = version;
             this.opensearchVersion = opensearchVersion;
             this.minimumCompatibleVersion = minimumCompatibleVersion;
+            this.distinguishedName = distinguishedName;
             this.dependencies = dependencies;
             this.additionalSettings = additionalSettings;
         }
@@ -126,6 +129,10 @@ public class ExtensionsSettings {
             this.opensearchVersion = opensearchVersion;
         }
 
+        public String getDistinguishedName() {
+            return distinguishedName;
+        }
+
         public List<ExtensionDependency> getDependencies() {
             return dependencies;
         }
@@ -158,6 +165,8 @@ public class ExtensionsSettings {
                 + opensearchVersion
                 + ", minimumCompatibleVersion="
                 + minimumCompatibleVersion
+                + ", distinguishedNames="
+                + distinguishedName
                 + "]";
         }
 

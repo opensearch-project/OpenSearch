@@ -216,6 +216,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "0.0.7",
             "3.0.0",
             "3.0.0",
+            "CN=extension-01,OU=SECURITY,O=OPENSEARCH,L=BROOKLYN,ST=NEW YORK,C=US",
             Collections.emptyList(),
             extensionScopedSettings
         );
@@ -227,6 +228,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "0.0.7",
             "2.0.0",
             "2.0.0",
+            "CN=extension-02,OU=SECURITY,O=OPENSEARCH,L=BROOKLYN,ST=NEW YORK,C=US",
             List.of(dependentExtension),
             extensionScopedSettings
         );
@@ -287,6 +289,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "0.0.7",
             "3.0.0",
             "3.0.0",
+            "CN=extension-01,OU=SECURITY,O=OPENSEARCH,L=BROOKLYN,ST=NEW YORK,C=US",
             Collections.emptyList(),
             null
         );
@@ -298,6 +301,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "0.0.7",
             "3.0.0",
             "3.0.0",
+            "CN=extension-01,OU=SECURITY,O=OPENSEARCH,L=BROOKLYN,ST=NEW YORK,C=US",
             null,
             null
         );
@@ -339,7 +343,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testMissingRequiredFieldsWhileLoadingExtension() throws Exception {
 
-        Extension firstExtension = new Extension("firstExtension", "uniqueid1", "127.0.0.0", "9300", "0.0.7", "3.0.0", "", null, null);
+        Extension firstExtension = new Extension("firstExtension", "uniqueid1", "127.0.0.0", "9300", "0.0.7", "3.0.0", "", null, null,null);
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
 
         IOException exception = expectThrows(IOException.class, () -> extensionsManager.loadExtension(firstExtension));
@@ -809,6 +813,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "0.0.7",
             "3.0.0",
             "3.99.0",
+            "CN=extension-01,OU=SECURITY,O=OPENSEARCH,L=BROOKLYN,ST=NEW YORK,C=US",
             List.of(),
             null
         );
@@ -837,6 +842,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "0.0.7",
             "3.0.0",
             "3.0.0",
+            "CN=extension-01,OU=SECURITY,O=OPENSEARCH,L=BROOKLYN,ST=NEW YORK,C=US",
             List.of(),
             extensionScopedSettings
         );
@@ -875,6 +881,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "0.0.7",
             "2.0.0",
             "2.0.0",
+            "CN=extension-01,OU=SECURITY,O=OPENSEARCH,L=BROOKLYN,ST=NEW YORK,C=US",
             List.of(),
             extensionScopedSettings
         );

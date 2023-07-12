@@ -48,6 +48,7 @@ import java.util.List;
  */
 public class InitializeExtensionResponse extends TransportResponse {
     private String name;
+    private String distinguishedNames;
     private List<String> implementedInterfaces;
 
     public InitializeExtensionResponse(String name, List<String> implementedInterfaces) {
@@ -72,6 +73,14 @@ public class InitializeExtensionResponse extends TransportResponse {
 
     public String getName() {
         return this.name;
+    }
+
+    public String getDistinguishedNames() {
+        return distinguishedNames;
+    }
+
+    public void setDistinguishedNames(String distinguishedNames) {
+        this.distinguishedNames = distinguishedNames;
     }
 
     /**
