@@ -197,9 +197,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
         long bytesBeforeUpload = segmentTracker.getUploadBytesSucceeded(), startTimeInNS = System.nanoTime();
+        final AtomicBoolean shouldRetry = new AtomicBoolean(true);
 
         try {
-
             if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
                 this.primaryTerm = indexShard.getOperationPrimaryTerm();
                 this.remoteDirectory.init();
@@ -252,7 +252,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         ActionListener<Void> segmentUploadsCompletedListener = new LatchedActionListener<>(new ActionListener<>() {
                             @Override
                             public void onResponse(Void unused) {
-                                boolean shouldRetry = true;
                                 try {
                                     // Start metadata file upload
                                     uploadMetadata(localSegmentsPostRefresh, segmentInfos);
@@ -266,27 +265,18 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                     );
                                     // At this point since we have uploaded new segments, segment infos and segment metadata file,
                                     // along with marking minSeqNoToKeep, upload has succeeded completely.
-                                    shouldRetry = false;
+                                    shouldRetry.set(false);
                                 } catch (Exception e) {
                                     // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
                                     // in the next refresh. This should not affect durability of the indexed data after remote trans-log
                                     // integration.
                                     logger.warn("Exception in post new segment upload actions", e);
-                                } finally {
-                                    doComplete(shouldRetry);
                                 }
                             }
 
                             @Override
                             public void onFailure(Exception e) {
                                 logger.warn("Exception while uploading new segments to the remote segment store", e);
-                                doComplete(true);
-                            }
-
-                            private void doComplete(boolean shouldRetry) {
-                                // Update the segment tracker with the final upload status as seen at the end
-                                updateFinalUploadStatusInSegmentTracker(shouldRetry == false, bytesBeforeUpload, startTimeInNS);
-                                afterSegmentsSync(isRetry, shouldRetry);
                             }
                         }, latch);
 
@@ -305,6 +295,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         } catch (Throwable t) {
             logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
         }
+        updateFinalStatusInSegmentTracker(shouldRetry.get() == false, bytesBeforeUpload, startTimeInNS);
+        afterSegmentsSync(isRetry, shouldRetry.get());
     }
 
     /**
@@ -517,7 +509,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         segmentTracker.setLatestLocalFileNameLengthMap(latestFileNameSizeOnLocalMap);
     }
 
-    private void updateFinalUploadStatusInSegmentTracker(boolean uploadStatus, long bytesBeforeUpload, long startTimeInNS) {
+    private void updateFinalStatusInSegmentTracker(boolean uploadStatus, long bytesBeforeUpload, long startTimeInNS) {
         if (uploadStatus) {
             long bytesUploaded = segmentTracker.getUploadBytesSucceeded() - bytesBeforeUpload;
             long timeTakenInMS = (System.nanoTime() - startTimeInNS) / 1_000_000L;
