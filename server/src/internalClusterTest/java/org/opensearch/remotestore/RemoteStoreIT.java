@@ -590,6 +590,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         verifyRemoteStoreCleanup(true);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8658")
     public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
         internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
@@ -614,6 +615,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8658")
     public void testStaleCommitDeletionWithoutInvokeFlush() throws Exception {
         internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
