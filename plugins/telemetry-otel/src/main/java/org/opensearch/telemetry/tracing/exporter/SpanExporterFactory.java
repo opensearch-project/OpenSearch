@@ -18,7 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.telemetry.OtelTelemetrySettings;
+import org.opensearch.telemetry.OTelTelemetrySettings;
 
 /**
  * Factory class to create the {@link SpanExporter} instance.
@@ -30,25 +30,25 @@ public class SpanExporterFactory {
     /**
      * Base constructor.
      */
-    public SpanExporterFactory() {
+    private SpanExporterFactory() {
 
     }
 
     /**
      * Creates the {@link SpanExporter} instances based on the OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING value.
-     * As of now, it expects the SpanExporter implemetations to have create factory method to instantiate the
+     * As of now, it expects the SpanExporter implementations to have a create factory method to instantiate the
      * SpanExporter.
      * @param settings settings.
      * @return SpanExporter instance.
      */
-    public SpanExporter create(Settings settings) {
-        Class<SpanExporter> spanExporterProviderClass = OtelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.get(settings);
+    public static SpanExporter create(Settings settings) {
+        Class<SpanExporter> spanExporterProviderClass = OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.get(settings);
         SpanExporter spanExporter = instantiateSpanExporter(spanExporterProviderClass);
         logger.info("Successfully instantiated the SpanExporter class {}", spanExporterProviderClass);
         return spanExporter;
     }
 
-    private SpanExporter instantiateSpanExporter(Class<SpanExporter> spanExporterProviderClass) {
+    private static SpanExporter instantiateSpanExporter(Class<SpanExporter> spanExporterProviderClass) {
         try {
             // Check we ourselves are not being called by unprivileged code.
             SpecialPermission.check();

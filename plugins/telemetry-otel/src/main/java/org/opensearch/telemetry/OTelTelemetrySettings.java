@@ -19,14 +19,14 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.telemetry.tracing.exporter.SpanExporterFactory;
 
 /**
- * Otel specific telemetry settings.
+ * OTel specific telemetry settings.
  */
-public final class OtelTelemetrySettings {
+public final class OTelTelemetrySettings {
 
     /**
      * Base Constructor.
      */
-    private OtelTelemetrySettings() {}
+    private OTelTelemetrySettings() {}
 
     /**
      * span exporter batch size
