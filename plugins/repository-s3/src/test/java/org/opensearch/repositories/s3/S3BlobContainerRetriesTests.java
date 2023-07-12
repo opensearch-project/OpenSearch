@@ -48,7 +48,6 @@ import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.hash.MessageDigests;
 import org.opensearch.common.io.InputStreamContainer;
@@ -71,11 +70,6 @@ import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.io.SdkDigestInputStream;
 import software.amazon.awssdk.utils.internal.Base16;
-import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
-import org.opensearch.repositories.s3.async.AsyncUploadUtils;
-import org.opensearch.repositories.s3.async.TransferNIOGroup;
-import org.opensearch.repositories.blobstore.ZeroInputStream;
-import org.opensearch.repositories.blobstore.ZeroInputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -226,8 +220,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader()
                 ),
-                    asyncExecutorContainer,
-                    asyncExecutorContainer
+                asyncExecutorContainer,
+                asyncExecutorContainer
             )
         ) {
             @Override
