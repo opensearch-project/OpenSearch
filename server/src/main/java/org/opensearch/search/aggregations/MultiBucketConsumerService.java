@@ -33,12 +33,12 @@ package org.opensearch.search.aggregations;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 
 import java.io.IOException;

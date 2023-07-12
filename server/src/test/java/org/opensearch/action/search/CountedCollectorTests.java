@@ -34,7 +34,7 @@ package org.opensearch.action.search;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.dfs.DfsSearchResult;

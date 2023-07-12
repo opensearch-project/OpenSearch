@@ -21,7 +21,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.indices.replication.SegmentReplicationBaseIT;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 

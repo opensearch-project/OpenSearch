@@ -32,7 +32,7 @@
 
 package org.opensearch.action;
 
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
 

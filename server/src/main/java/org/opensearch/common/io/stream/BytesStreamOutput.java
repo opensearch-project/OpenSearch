@@ -35,11 +35,13 @@ package org.opensearch.common.io.stream;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.ByteArray;
+import org.opensearch.core.common.util.ByteArray;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.io.stream.BytesStream;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
@@ -189,8 +191,8 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     /**
-     * Returns the number of bytes used by the underlying {@link org.opensearch.common.util.ByteArray}
-     * @see org.opensearch.common.util.ByteArray#ramBytesUsed()
+     * Returns the number of bytes used by the underlying {@link ByteArray}
+     * @see ByteArray#ramBytesUsed()
      */
     public long ramBytesUsed() {
         return bytes.ramBytesUsed();
