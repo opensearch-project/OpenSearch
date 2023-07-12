@@ -56,6 +56,7 @@ public class NRTReplicationEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final WriteOnlyTranslogManager translogManager;
+    private final boolean shouldCommit;
 
     private volatile long lastReceivedGen = SequenceNumbers.NO_OPS_PERFORMED;
 
@@ -113,6 +114,7 @@ public class NRTReplicationEngine extends Engine {
                 engineConfig.getPrimaryModeSupplier()
             );
             this.translogManager = translogManagerRef;
+            this.shouldCommit = engineConfig.getIndexSettings().isRemoteStoreEnabled() == false;
         } catch (IOException e) {
             IOUtils.closeWhileHandlingException(store::decRef, readerManager, translogManagerRef);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -138,17 +140,12 @@ public class NRTReplicationEngine extends Engine {
             ensureOpen();
             final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
             final long incomingGeneration = infos.getGeneration();
-            boolean remoteStoreEnabled = engineConfig.getIndexSettings().isRemoteStoreEnabled();
-            readerManager.updateSegments(infos, remoteStoreEnabled);
+            readerManager.updateSegments(infos);
 
             // Commit and roll the translog when we receive a different generation than what was last received.
             // lower/higher gens are possible from a new primary that was just elected.
             if (incomingGeneration != lastReceivedGen) {
-                if (remoteStoreEnabled == false) {
-                    commitSegmentInfos();
-                } else {
-                    this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                }
+                commitSegmentInfos();
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
             }
@@ -168,7 +165,9 @@ public class NRTReplicationEngine extends Engine {
      * @throws IOException - When there is an IO error committing the SegmentInfos.
      */
     private void commitSegmentInfos(SegmentInfos infos) throws IOException {
-        store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
+        if (shouldCommit) {
+            store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
+        }
         this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         translogManager.syncTranslog();
     }
@@ -389,7 +388,7 @@ public class NRTReplicationEngine extends Engine {
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 // if remote store is enabled, all segments durably persisted
-                if (engineConfig.getIndexSettings().isRemoteStoreEnabled() == false) {
+                if (shouldCommit) {
                     final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
                     /*
                      This is a workaround solution which decreases the chances of conflict on replica nodes when same file is copied
@@ -399,6 +398,9 @@ public class NRTReplicationEngine extends Engine {
                     latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
                     latestSegmentInfos.changed();
                     commitSegmentInfos(latestSegmentInfos);
+                } else {
+                    store.directory().sync(List.of(store.directory().listAll()));
+                    store.directory().syncMetaData();
                 }
                 IOUtils.close(readerManager, translogManager, store::decRef);
             } catch (Exception e) {

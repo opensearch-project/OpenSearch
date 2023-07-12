@@ -52,8 +52,6 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, "true")
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build()
     );
 
@@ -61,7 +59,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
             final SegmentInfos latestSegmentInfos = nrtEngine.getLatestSegmentInfos();
             final SegmentInfos lastCommittedSegmentInfos = nrtEngine.getLastCommittedSegmentInfos();
@@ -85,7 +83,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
             List<Engine.Operation> operations = generateHistoryOnReplica(
                 between(1, 500),
@@ -126,7 +124,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
             // assume we start at the same gen.
             assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
@@ -161,7 +159,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // When remote store is enabled, we don't commit on replicas since all segments are durably persisted in the store
             nrtEngine.updateSegments(engine.getLatestSegmentInfos());
             assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
-            assertEquals(3, nrtEngine.getLatestSegmentInfos().getGeneration());
+            assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
         }
     }
 
@@ -171,7 +169,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
             nrtEngine.getLatestSegmentInfos().changed();
             nrtEngine.getLatestSegmentInfos().changed();
@@ -198,7 +196,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
             CountDownLatch latch = new CountDownLatch(1);
             Thread commitThread = new Thread(() -> {
@@ -231,7 +229,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
             assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
@@ -255,7 +253,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
             assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
@@ -277,7 +275,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings);
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore);
         ) {
             List<Engine.Operation> operations = generateHistoryOnReplica(
                 between(1, 100),
@@ -313,7 +311,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
         try (
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, defaultSettings)
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
             List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean())
                 .stream()
@@ -364,5 +362,9 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             store.associateIndexWithNewTranslog(translogUuid);
         }
         return new NRTReplicationEngine(replicaConfig);
+    }
+
+    private NRTReplicationEngine buildNrtReplicaEngine(AtomicLong globalCheckpoint, Store store) throws IOException {
+        return buildNrtReplicaEngine(globalCheckpoint, store, defaultSettings);
     }
 }

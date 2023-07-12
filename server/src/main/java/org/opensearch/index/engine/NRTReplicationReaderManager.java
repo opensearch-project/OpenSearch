@@ -96,15 +96,12 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
      * Update this reader's segments and refresh.
      *
      * @param infos {@link SegmentInfos} infos
-     * @param remoteStoreEnabled true if remote store is enabled
      * @throws IOException - When Refresh fails with an IOException.
      */
-    public synchronized void updateSegments(SegmentInfos infos, boolean remoteStoreEnabled) throws IOException {
+    public synchronized void updateSegments(SegmentInfos infos) throws IOException {
         // roll over the currentInfo's generation, this ensures the on-disk gen
-        // is always increased (in the case remote store is not enabled)
-        if (remoteStoreEnabled == false) {
-            infos.updateGeneration(currentInfos);
-        }
+        // is always increased.
+        infos.updateGeneration(currentInfos);
         currentInfos = infos;
         maybeRefresh();
     }
