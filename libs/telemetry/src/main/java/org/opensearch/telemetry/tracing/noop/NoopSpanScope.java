@@ -12,6 +12,8 @@ import org.opensearch.telemetry.tracing.SpanScope;
 
 /**
  * No-op implementation of SpanScope
+ *
+ * @opensearch.internal
  */
 public final class NoopSpanScope implements SpanScope {
 

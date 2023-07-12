@@ -18,6 +18,8 @@ import java.util.Optional;
 
 /**
  * Core's ThreadContext based TracerContextStorage implementation
+ *
+ * @opensearch.internal
  */
 public class ThreadContextBasedTracerContextStorage implements TracerContextStorage<String, Span>, ThreadContextStatePropagator {
 

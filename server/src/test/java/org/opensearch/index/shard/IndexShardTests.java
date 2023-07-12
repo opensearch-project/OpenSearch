@@ -2692,6 +2692,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRelocatedForRemoteTranslogBackedIndexWithAsyncDurability() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
@@ -4815,6 +4816,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testTranslogFactoryForRemoteTranslogBackedPrimaryShard() throws IOException {
         Settings primarySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)

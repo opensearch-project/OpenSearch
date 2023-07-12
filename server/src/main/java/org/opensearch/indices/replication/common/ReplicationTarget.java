@@ -173,6 +173,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     public void fail(ReplicationFailedException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {
             try {
+                logger.debug("marking target " + description() + " as failed", e);
                 notifyListener(e, sendShardFailure);
             } finally {
                 try {
