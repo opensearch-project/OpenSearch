@@ -537,7 +537,7 @@ public class Node implements Closeable {
             }
             client = new NodeClient(settings, threadPool);
 
-            final IdentityService identityService = new IdentityService(settings, identityPlugins, threadPool);
+            final IdentityService identityService = new IdentityService(settings, identityPlugins, client);
             identityService.getApplicationManager().registerPluginsAndModules();
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
