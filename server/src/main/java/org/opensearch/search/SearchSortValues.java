@@ -40,7 +40,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.search.SearchHit.Fields;
 
 import java.io.IOException;

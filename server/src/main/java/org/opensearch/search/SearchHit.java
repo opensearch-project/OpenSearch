@@ -82,8 +82,8 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.lucene.Lucene.readExplanation;
 import static org.opensearch.common.lucene.Lucene.writeExplanation;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 

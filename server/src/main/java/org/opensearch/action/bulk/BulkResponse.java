@@ -47,9 +47,9 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.throwUnknownToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.throwUnknownField;
+import static org.opensearch.core.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * A response of a bulk execution. Holding a response for each item responding (in order) of the

@@ -56,7 +56,7 @@ import java.util.Objects;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Cluster Index Health Information

@@ -58,7 +58,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Response used for actions that index many documents using a scroll request.

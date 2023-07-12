@@ -49,7 +49,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 
 import static java.util.Collections.singletonMap;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * REST response in bytes

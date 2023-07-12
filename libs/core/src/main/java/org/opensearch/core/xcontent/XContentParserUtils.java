@@ -30,15 +30,12 @@
  * GitHub history for details.
  */
 
-package org.opensearch.core.common.xcontent;
+package org.opensearch.core.xcontent;
 
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
-import org.opensearch.core.xcontent.XContentLocation;
 
 import java.io.IOException;
 import java.util.Locale;

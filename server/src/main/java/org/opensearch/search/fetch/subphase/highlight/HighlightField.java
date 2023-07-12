@@ -47,7 +47,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A field highlighted with its highlighted fragments.

@@ -62,8 +62,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 
 import static java.util.Collections.singletonMap;
 

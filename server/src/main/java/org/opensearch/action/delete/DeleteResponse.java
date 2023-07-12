@@ -40,7 +40,7 @@ import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * The response of the delete action.

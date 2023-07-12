@@ -38,7 +38,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 
 import java.util.List;
 import java.util.Objects;

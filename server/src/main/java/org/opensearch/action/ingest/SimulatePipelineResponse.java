@@ -49,7 +49,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * transport response for simulating a pipeline

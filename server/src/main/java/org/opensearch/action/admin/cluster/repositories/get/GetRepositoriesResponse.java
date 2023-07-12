@@ -45,7 +45,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Get repositories response

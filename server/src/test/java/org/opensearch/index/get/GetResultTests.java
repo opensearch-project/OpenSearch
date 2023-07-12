@@ -62,7 +62,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.index.get.DocumentFieldTests.randomDocumentField;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;

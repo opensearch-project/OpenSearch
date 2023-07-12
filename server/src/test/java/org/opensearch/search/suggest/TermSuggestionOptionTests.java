@@ -43,7 +43,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 

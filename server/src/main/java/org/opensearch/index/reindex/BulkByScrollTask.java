@@ -68,7 +68,7 @@ import java.util.concurrent.TimeUnit;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
 /**

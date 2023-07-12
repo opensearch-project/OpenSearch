@@ -48,7 +48,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Response obtained from the get aliases API.
