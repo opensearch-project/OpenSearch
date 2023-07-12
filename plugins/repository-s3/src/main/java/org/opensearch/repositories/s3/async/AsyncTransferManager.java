@@ -347,7 +347,7 @@ public final class AsyncTransferManager {
             .build();
 
         SocketAccess.doPrivileged(() -> s3AsyncClient.deleteObject(deleteObjectRequest)).exceptionally(throwable -> {
-            log.warn("Failed to delete uploaded object", throwable);
+            log.error(() -> new ParameterizedMessage("Failed to delete uploaded object of key {}", uploadRequest.getKey()), throwable);
             return null;
         });
     }

@@ -289,9 +289,6 @@ final class S3ClientSettings {
     /** The connnection acquisition timeout for the s3 async client */
     final int connectionAcquisitionTimeoutMillis;
 
-    /** The max number of requests pending to acquire connection for the s3 async client */
-    final int maxPendingConnectionAcquires;
-
     /** The number of retries to use for the s3 client. */
     final int maxRetries;
 
@@ -321,7 +318,6 @@ final class S3ClientSettings {
         int connectionTTLMillis,
         int maxConnections,
         int connectionAcquisitionTimeoutMillis,
-        int maxPendingConnectionAcquires,
         int maxRetries,
         boolean throttleRetries,
         boolean pathStyleAccess,
@@ -340,7 +336,6 @@ final class S3ClientSettings {
         this.connectionTTLMillis = connectionTTLMillis;
         this.maxConnections = maxConnections;
         this.connectionAcquisitionTimeoutMillis = connectionAcquisitionTimeoutMillis;
-        this.maxPendingConnectionAcquires = maxPendingConnectionAcquires;
         this.maxRetries = maxRetries;
         this.throttleRetries = throttleRetries;
         this.pathStyleAccess = pathStyleAccess;
@@ -390,9 +385,6 @@ final class S3ClientSettings {
             ).millis()
         );
         final int newMaxConnections = Math.toIntExact(getRepoSettingOrDefault(MAX_CONNECTIONS_SETTING, normalizedSettings, maxConnections));
-        final int newMaxPendingConnectionAcquires = Math.toIntExact(
-            getRepoSettingOrDefault(MAX_PENDING_CONNECTION_ACQUIRES, normalizedSettings, maxPendingConnectionAcquires)
-        );
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
@@ -419,7 +411,6 @@ final class S3ClientSettings {
             && newConnectionTTLMillis == connectionTTLMillis
             && newMaxConnections == maxConnections
             && newConnectionAcquisitionTimeoutMillis == connectionAcquisitionTimeoutMillis
-            && newMaxPendingConnectionAcquires == maxPendingConnectionAcquires
             && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
             && Objects.equals(credentials, newCredentials)
@@ -442,7 +433,6 @@ final class S3ClientSettings {
             newConnectionTTLMillis,
             newMaxConnections,
             newConnectionAcquisitionTimeoutMillis,
-            newMaxPendingConnectionAcquires,
             newMaxRetries,
             newThrottleRetries,
             newPathStyleAccess,
@@ -573,7 +563,6 @@ final class S3ClientSettings {
             Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_TTL_SETTING).millis()),
             Math.toIntExact(getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING)),
             Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_ACQUISITION_TIMEOUT).millis()),
-            Math.toIntExact(getConfigValue(settings, clientName, MAX_PENDING_CONNECTION_ACQUIRES)),
             getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
             getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
             getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
@@ -648,7 +637,6 @@ final class S3ClientSettings {
             && connectionTTLMillis == that.connectionTTLMillis
             && maxConnections == that.maxConnections
             && connectionAcquisitionTimeoutMillis == that.connectionAcquisitionTimeoutMillis
-            && maxPendingConnectionAcquires == that.maxPendingConnectionAcquires
             && maxRetries == that.maxRetries
             && throttleRetries == that.throttleRetries
             && Objects.equals(credentials, that.credentials)
@@ -674,7 +662,6 @@ final class S3ClientSettings {
             connectionTTLMillis,
             maxConnections,
             connectionAcquisitionTimeoutMillis,
-            maxPendingConnectionAcquires,
             maxRetries,
             throttleRetries,
             disableChunkedEncoding,

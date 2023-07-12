@@ -8,6 +8,8 @@
 
 package org.opensearch.repositories.s3;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.concurrent.RefCountedReleasable;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
@@ -20,6 +22,8 @@ import java.io.IOException;
  */
 public class AmazonAsyncS3Reference extends RefCountedReleasable<AmazonAsyncS3WithCredentials> {
 
+    private static final Logger logger = LogManager.getLogger(AmazonAsyncS3Reference.class);
+
     AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials client) {
         super("AWS_S3_CLIENT", client, () -> {
             client.client().close();
@@ -29,7 +33,7 @@ public class AmazonAsyncS3Reference extends RefCountedReleasable<AmazonAsyncS3Wi
                 try {
                     ((Closeable) credentials).close();
                 } catch (IOException e) {
-                    /* Do nothing here */
+                    logger.error("Exception while closing AwsCredentialsProvider", e);
                 }
             }
         });
