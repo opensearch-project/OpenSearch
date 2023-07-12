@@ -8,6 +8,7 @@
 
 package org.opensearch.plugins;
 
+import java.security.Principal;
 import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
@@ -39,4 +40,9 @@ public interface IdentityPlugin {
      * Should never return null
      */
     public ApplicationManager getApplicationManager();
+
+    /**
+     * Sets the Principal to be used for resolving requests
+     */
+    public void setIdentityContext(Principal principal);
 }

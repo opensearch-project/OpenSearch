@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.noop;
 
+import java.security.Principal;
 import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
@@ -45,4 +46,9 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     public ApplicationManager getApplicationManager() {
         return new ApplicationManager(buildNoopExtensionsManager(), null, new NoopServiceAccountManager());
     }
+
+    @Override
+    public void setIdentityContext(Principal principal  ){
+    };
+
 }

@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.shiro;
 
+import java.security.Principal;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.SecurityUtils;
@@ -30,6 +31,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     private final Settings settings;
     private final ShiroTokenManager authTokenHandler;
     private final ApplicationManager applicationManager;
+    private Principal identityContext = null;
 
     /**
      * Create a new instance of the Shiro Identity Plugin
@@ -67,5 +69,19 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     @Override
     public ApplicationManager getApplicationManager() {
         return this.applicationManager;
+    }
+
+    /**
+     * Uses the provided principal as a reference for permission resolution and audit logging
+     *
+     * @param principal The principal to be used
+     */
+    @Override
+    public void setIdentityContext(Principal principal) {
+        identityContext = principal;
+    }
+
+    public Principal getIdentityContext() {
+        return this.identityContext;
     }
 }
