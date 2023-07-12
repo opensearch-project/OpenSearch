@@ -85,7 +85,7 @@
 "Test set invalid search backpressure mode":
 
   - skip:
-      version: "- 2.9.99"
+      version: "- 2.99.99"
       reason: "Parsing and validation of SearchBackpressureMode does not exist in versions < 3.0"
 
   - do:
