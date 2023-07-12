@@ -56,6 +56,7 @@ import org.opensearch.repositories.blobstore.AbstractBlobContainerRetriesTestCas
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.io.SdkDigestInputStream;
 import software.amazon.awssdk.utils.internal.Base16;
+import org.opensearch.repositories.blobstore.ZeroInputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
