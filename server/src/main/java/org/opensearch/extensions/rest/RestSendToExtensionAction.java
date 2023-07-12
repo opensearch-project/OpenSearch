@@ -33,9 +33,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
@@ -90,43 +90,33 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
         List<Route> restActionsAsRoutes = new ArrayList<>();
         for (String restAction : restActionsRequest.getRestActions()) {
-
-            // TODO Find a better way to parse these to avoid code-smells
-
-            String name;
-            Set<String> actionNames = new HashSet<>();
+            Optional<String> name = Optional.empty();
             String[] parts = restAction.split(" ");
-            if (parts.length < 3) {
-                throw new IllegalArgumentException("REST action must contain at least a REST method, a route and a unique name");
+            if (parts.length < 2) {
+                throw new IllegalArgumentException("REST action must contain at least a REST method and route");
             }
             try {
                 method = RestRequest.Method.valueOf(parts[0].trim());
                 path = pathPrefix + parts[1].trim();
-                name = parts[2].trim();
-
-                // comma-separated action names
-                if (parts.length > 3) {
-                    String[] actions = parts[3].split(",");
-                    for (String action : actions) {
-                        String trimmed = action.trim();
-                        if (!trimmed.isEmpty()) {
-                            actionNames.add(trimmed);
-                        }
-                    }
+                if (parts.length > 2) {
+                    name = Optional.of(parts[2].trim());
                 }
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
             }
-            logger.info("Registering: " + method + " " + path + " " + name);
-
-            // All extension routes being registered must have a unique name associated with them
-            NamedRoute nr = new NamedRoute.Builder().method(method).path(path).uniqueName(name).legacyActionNames(actionNames).build();
-            restActionsAsRoutes.add(nr);
-            dynamicActionRegistry.registerDynamicRoute(nr, this);
+            logger.info("Registering: " + method + " " + path);
+            if (name.isPresent()) {
+                NamedRoute nr = new NamedRoute(method, path, name.get());
+                restActionsAsRoutes.add(nr);
+                dynamicActionRegistry.registerDynamicRoute(nr, this);
+            } else {
+                Route r = new Route(method, path);
+                restActionsAsRoutes.add(r);
+                dynamicActionRegistry.registerDynamicRoute(r, this);
+            }
         }
         this.routes = unmodifiableList(restActionsAsRoutes);
 
-        // TODO: Modify {@link NamedRoute} to support deprecated route registration
         List<DeprecatedRoute> restActionsAsDeprecatedRoutes = new ArrayList<>();
         // Iterate in pairs of route / deprecation message
         List<String> deprecatedActions = restActionsRequest.getDeprecatedRestActions();

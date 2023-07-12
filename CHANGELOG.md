@@ -29,7 +29,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Search pipelines] Add Global Ignore_failure options for Processors ([#8373](https://github.com/opensearch-project/OpenSearch/pull/8373))
 - Enable Partial Flat Object ([#7997](https://github.com/opensearch-project/OpenSearch/pull/7997))
 - Add partial results support for concurrent segment search ([#8306](https://github.com/opensearch-project/OpenSearch/pull/8306))
-- Support transport action names when registering NamedRoutes ([#7957](https://github.com/opensearch-project/OpenSearch/pull/7957))
 - Introduce full support for Search Pipeline ([#8613](https://github.com/opensearch-project/OpenSearch/pull/8613))
 
 ### Dependencies
