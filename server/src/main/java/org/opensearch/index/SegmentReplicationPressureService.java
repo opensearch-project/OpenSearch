@@ -272,7 +272,7 @@ public class SegmentReplicationPressureService implements Closeable {
 
         @Override
         protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
+            return ThreadPool.Names.SEGMENT_REPLICATION;
         }
 
         @Override

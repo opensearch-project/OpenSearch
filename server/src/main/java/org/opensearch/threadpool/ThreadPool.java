@@ -113,6 +113,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String TRANSLOG_SYNC = "translog_sync";
         public static final String REMOTE_PURGE = "remote_purge";
         public static final String REMOTE_REFRESH = "remote_refresh";
+
+        public static final String SEGMENT_REPLICATION = "segment_replication";
         public static final String INDEX_SEARCHER = "index_searcher";
     }
 
@@ -182,6 +184,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.TRANSLOG_SYNC, ThreadPoolType.FIXED);
         map.put(Names.REMOTE_PURGE, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_REFRESH, ThreadPoolType.SCALING);
+        map.put(Names.SEGMENT_REPLICATION, ThreadPoolType.SCALING);
         if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
             map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
         }
@@ -266,6 +269,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(
             Names.REMOTE_REFRESH,
             new ScalingExecutorBuilder(Names.REMOTE_REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
+        );
+        builders.put(
+            Names.SEGMENT_REPLICATION,
+            new ScalingExecutorBuilder(Names.SEGMENT_REPLICATION, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
         );
         if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
             builders.put(

@@ -81,19 +81,19 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         this.ongoingSegmentReplications = ongoingSegmentReplications;
         transportService.registerRequestHandler(
             Actions.GET_CHECKPOINT_INFO,
-            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.SEGMENT_REPLICATION,
             CheckpointInfoRequest::new,
             new CheckpointInfoRequestHandler()
         );
         transportService.registerRequestHandler(
             Actions.GET_SEGMENT_FILES,
-            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.SEGMENT_REPLICATION,
             GetSegmentFilesRequest::new,
             new GetSegmentFilesRequestHandler()
         );
         transportService.registerRequestHandler(
             Actions.UPDATE_VISIBLE_CHECKPOINT,
-            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.SEGMENT_REPLICATION,
             UpdateVisibleCheckpointRequest::new,
             new UpdateVisibleCheckpointRequestHandler()
         );
