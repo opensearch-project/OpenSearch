@@ -82,6 +82,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
+    private final Map<String, List<String>> SERVER_VERSION_HEADER = Map.of(SERVER_VERSION, List.of(SERVER_VERSION_VALUE));
 
     @Nullable
     private final HttpTracer tracerLog;
@@ -153,7 +154,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
 
-            addCustomHeaders(httpResponse, Map.of(SERVER_VERSION, List.of(SERVER_VERSION_VALUE)));
+            addCustomHeaders(httpResponse, SERVER_VERSION_HEADER);
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
