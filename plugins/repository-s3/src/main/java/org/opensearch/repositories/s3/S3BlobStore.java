@@ -42,7 +42,7 @@ import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.unit.ByteSizeValue;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.StorageClass;
-import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 
 import java.io.IOException;
@@ -72,8 +72,8 @@ class S3BlobStore implements BlobStore {
     private final StatsMetricPublisher statsMetricPublisher = new StatsMetricPublisher();
 
     private final AsyncTransferManager asyncTransferManager;
-    private final AsyncExecutorBuilder priorityExecutorBuilder;
-    private final AsyncExecutorBuilder normalExecutorBuilder;
+    private final AsyncExecutorContainer priorityExecutorBuilder;
+    private final AsyncExecutorContainer normalExecutorBuilder;
     private final boolean multipartUploadEnabled;
 
     S3BlobStore(
@@ -87,8 +87,8 @@ class S3BlobStore implements BlobStore {
         String storageClass,
         RepositoryMetadata repositoryMetadata,
         AsyncTransferManager asyncTransferManager,
-        AsyncExecutorBuilder priorityExecutorBuilder,
-        AsyncExecutorBuilder normalExecutorBuilder
+        AsyncExecutorContainer priorityExecutorBuilder,
+        AsyncExecutorContainer normalExecutorBuilder
     ) {
         this.service = service;
         this.s3AsyncService = s3AsyncService;

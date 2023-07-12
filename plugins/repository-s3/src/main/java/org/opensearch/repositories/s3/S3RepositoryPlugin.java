@@ -49,7 +49,7 @@ import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.script.ScriptService;
@@ -83,8 +83,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     private final Path configPath;
 
-    private AsyncExecutorBuilder priorityExecutorBuilder;
-    private AsyncExecutorBuilder normalExecutorBuilder;
+    private AsyncExecutorContainer priorityExecutorBuilder;
+    private AsyncExecutorContainer normalExecutorBuilder;
 
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
@@ -146,12 +146,12 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     ) {
         int priorityEventLoopThreads = priorityPoolCount(clusterService.getSettings());
         int normalEventLoopThreads = normalPoolCount(clusterService.getSettings());
-        this.priorityExecutorBuilder = new AsyncExecutorBuilder(
+        this.priorityExecutorBuilder = new AsyncExecutorContainer(
             threadPool.executor(PRIORITY_FUTURE_COMPLETION),
             threadPool.executor(PRIORITY_STREAM_READER),
             new AsyncTransferEventLoopGroup(priorityEventLoopThreads)
         );
-        this.normalExecutorBuilder = new AsyncExecutorBuilder(
+        this.normalExecutorBuilder = new AsyncExecutorContainer(
             threadPool.executor(FUTURE_COMPLETION),
             threadPool.executor(STREAM_READER),
             new AsyncTransferEventLoopGroup(normalEventLoopThreads)

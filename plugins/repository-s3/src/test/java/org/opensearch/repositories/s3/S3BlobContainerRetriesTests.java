@@ -65,7 +65,7 @@ import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.opensearch.repositories.blobstore.ZeroInputStream;
-import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -203,7 +203,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build()
         );
 
-        AsyncExecutorBuilder asyncExecutorBuilder = new AsyncExecutorBuilder(
+        AsyncExecutorContainer asyncExecutorContainer = new AsyncExecutorContainer(
             futureCompletionService,
             streamReaderService,
             transferNIOGroup
@@ -223,11 +223,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 repositoryMetadata,
                 new AsyncTransferManager(
                     S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
-                    asyncExecutorBuilder.getStreamReader(),
-                    asyncExecutorBuilder.getStreamReader()
+                    asyncExecutorContainer.getStreamReader(),
+                    asyncExecutorContainer.getStreamReader()
                 ),
-                asyncExecutorBuilder,
-                asyncExecutorBuilder
+                    asyncExecutorContainer,
+                    asyncExecutorContainer
             )
         ) {
             @Override

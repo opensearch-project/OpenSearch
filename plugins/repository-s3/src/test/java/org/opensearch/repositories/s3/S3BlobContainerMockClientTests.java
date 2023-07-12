@@ -26,7 +26,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.test.OpenSearchTestCase;
@@ -263,8 +263,8 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         @Override
         public AmazonAsyncS3Reference client(
             RepositoryMetadata repositoryMetadata,
-            AsyncExecutorBuilder priorityExecutorBuilder,
-            AsyncExecutorBuilder normalExecutorBuilder
+            AsyncExecutorContainer priorityExecutorBuilder,
+            AsyncExecutorContainer normalExecutorBuilder
         ) {
             return new AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials.create(asyncClient, asyncClient, null));
         }
@@ -370,7 +370,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build()
         );
 
-        AsyncExecutorBuilder asyncExecutorBuilder = new AsyncExecutorBuilder(
+        AsyncExecutorContainer asyncExecutorContainer = new AsyncExecutorContainer(
             futureCompletionService,
             streamReaderService,
             transferNIOGroup
@@ -388,11 +388,11 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             repositoryMetadata,
             new AsyncTransferManager(
                 S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
-                asyncExecutorBuilder.getStreamReader(),
-                asyncExecutorBuilder.getStreamReader()
+                asyncExecutorContainer.getStreamReader(),
+                asyncExecutorContainer.getStreamReader()
             ),
-            asyncExecutorBuilder,
-            asyncExecutorBuilder
+            asyncExecutorContainer,
+            asyncExecutorContainer
         );
     }
 
