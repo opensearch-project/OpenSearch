@@ -109,7 +109,7 @@ public class IndexingIT extends AbstractRollingTestCase {
             Request segrepStatsRequest = new Request("GET", "/_cat/segments/" + index + "?s=shard,segment,primaryOrReplica");
             segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count");
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
-            logger.info("--> _cat/segments response\n {}", EntityUtils.toString(segrepStatsResponse.getEntity()));
+            logger.info("--> _cat/segments response\n {}", EntityUtils.toString(client().performRequest(segrepStatsRequest).getEntity()));
             List<String> responseList = Streams.readAllLines(segrepStatsResponse.getEntity().getContent());
             for (int segmentsIndex=0; segmentsIndex < responseList.size();) {
                 String[] primaryRow = responseList.get(segmentsIndex++).split(" +");
