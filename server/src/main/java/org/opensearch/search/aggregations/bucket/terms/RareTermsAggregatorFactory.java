@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -250,7 +251,10 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 double precision,
                 CardinalityUpperBound cardinality
             ) throws IOException {
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                IndexSettings indexSettings = context.getQueryShardContext().getIndexSettings();
+                final IncludeExclude.StringFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToStringFilter(format, indexSettings);
                 return new StringRareTermsAggregator(
                     name,
                     factories,

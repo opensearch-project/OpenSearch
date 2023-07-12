@@ -42,7 +42,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.AggregationExecutionException;
@@ -116,7 +115,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testBadIncludeExclude() throws IOException {
-        IncludeExclude includeExclude = new IncludeExclude(new RegExp("foo"), null);
+        IncludeExclude includeExclude = new IncludeExclude("foo", null);
 
         // Numerics don't support any regex include/exclude, so should fail no matter what we do
 
