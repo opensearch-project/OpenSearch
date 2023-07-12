@@ -17,7 +17,7 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
-import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -102,8 +102,8 @@ class S3AsyncService implements Closeable {
      */
     public AmazonAsyncS3Reference client(
         RepositoryMetadata repositoryMetadata,
-        AsyncExecutorBuilder priorityExecutorBuilder,
-        AsyncExecutorBuilder normalExecutorBuilder
+        AsyncExecutorContainer priorityExecutorBuilder,
+        AsyncExecutorContainer normalExecutorBuilder
     ) {
         final S3ClientSettings clientSettings = settings(repositoryMetadata);
         {
@@ -164,8 +164,8 @@ class S3AsyncService implements Closeable {
     // proxy for testing
     synchronized AmazonAsyncS3WithCredentials buildClient(
         final S3ClientSettings clientSettings,
-        AsyncExecutorBuilder priorityExecutorBuilder,
-        AsyncExecutorBuilder normalExecutorBuilder
+        AsyncExecutorContainer priorityExecutorBuilder,
+        AsyncExecutorContainer normalExecutorBuilder
     ) {
         setDefaultAwsProfilePath();
         final S3AsyncClientBuilder builder = S3AsyncClient.builder();

@@ -13,7 +13,7 @@ import java.util.concurrent.ExecutorService;
 /**
  * An encapsulation for the {@link AsyncTransferEventLoopGroup}, and the stream reader and future completion executor services
  */
-public class AsyncExecutorBuilder {
+public class AsyncExecutorContainer {
 
     private final ExecutorService futureCompletionExecutor;
     private final ExecutorService streamReader;
@@ -26,7 +26,7 @@ public class AsyncExecutorBuilder {
      * @param streamReader An {@link ExecutorService} to read streams for upload
      * @param asyncTransferEventLoopGroup A {@link AsyncTransferEventLoopGroup} which encapsulates the netty {@link io.netty.channel.EventLoopGroup} for async uploads
      */
-    public AsyncExecutorBuilder(
+    public AsyncExecutorContainer(
         ExecutorService futureCompletionExecutor,
         ExecutorService streamReader,
         AsyncTransferEventLoopGroup asyncTransferEventLoopGroup
