@@ -5,6 +5,7 @@
 
 package org.opensearch.identity;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -55,5 +56,17 @@ public class IdentityService {
      */
     public TokenManager getTokenManager() {
         return identityPlugin.getTokenManager();
+    }
+
+    /**
+     * Identifies the Subject associated with a request
+     */
+    public Subject identifyRequester(final Principal principal){
+
+        return identityPlugin.identifyRequester(principal);
+    }
+
+    public Principal toPrincipal(String principal) {
+        return identityPlugin.toPrincipal(principal);
     }
 }

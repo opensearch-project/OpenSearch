@@ -8,6 +8,7 @@
 
 package org.opensearch.plugins;
 
+import java.security.Principal;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 
@@ -31,4 +32,14 @@ public interface IdentityPlugin {
      * Should never return null
      */
     public TokenManager getTokenManager();
+
+    /**
+     * Identifies the Subject associated with a request
+     */
+    public Subject identifyRequester(final Principal principal);
+
+    /**
+     * Creates a standardized principal concept for an Identity Plugin
+     */
+    public Principal toPrincipal(String principal);
 }

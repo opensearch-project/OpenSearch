@@ -8,6 +8,8 @@
 
 package org.opensearch.identity.tokens;
 
+import org.opensearch.identity.Subject;
+
 /**
  * This interface defines the expected methods of a token manager
  */
@@ -19,4 +21,11 @@ public interface TokenManager {
      * @return A new auth token
      */
     public AuthToken issueToken(String audience);
+
+    /**
+     * Authenticates a provided authToken
+     * @param authToken: The authToken to authenticate
+     * @return The authenticated subject
+     */
+    public Subject authenticateToken(AuthToken authToken);
 }

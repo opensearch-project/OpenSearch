@@ -32,7 +32,6 @@ import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
@@ -244,11 +243,14 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
         try {
             // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
+
             final String extensionTokenProcessor = "placeholder_token_processor";
 
-            final String requestIssuerIdentity = "placeholder_request_issuer_identity";
+            // Authenticate the token
+            // identityService.getTokenManager().authenticateToken();
 
-            AuthToken token = identityService.getTokenManager().issueToken(extensionTokenProcessor);
+            // Resolve a principal to identify the token type required
+            // Subject requester = identityService.identifyRequester(identityService.toPrincipal(discoveryExtensionNode.getId()));
 
             Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);
 
@@ -265,7 +267,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     filteredHeaders,
                     contentType,
                     content,
-                    requestIssuerIdentity,
+                    identityService.getTokenManager().issueToken(discoveryExtensionNode.getId()).toString(),
                     httpVersion
                 ),
                 restExecuteOnExtensionResponseHandler

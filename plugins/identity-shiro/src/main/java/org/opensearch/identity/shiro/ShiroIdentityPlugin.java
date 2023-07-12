@@ -8,15 +8,17 @@
 
 package org.opensearch.identity.shiro;
 
-import org.opensearch.identity.Subject;
+import java.security.Principal;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.identity.tokens.TokenManager;
-import org.opensearch.plugins.IdentityPlugin;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.plugins.Plugin;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.mgt.SecurityManager;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.TokenManager;
+import org.opensearch.plugins.IdentityPlugin;
+import org.opensearch.plugins.Plugin;
 
 /**
  * Identity implementation with Shiro
@@ -28,6 +30,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
 
     private final Settings settings;
     private final ShiroTokenManager authTokenHandler;
+    private List<ShiroSubject> shiroSubjectList = List.of();
 
     /**
      * Create a new instance of the Shiro Identity Plugin
@@ -49,7 +52,9 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
      */
     @Override
     public Subject getSubject() {
-        return new ShiroSubject(authTokenHandler, SecurityUtils.getSubject());
+        ShiroSubject newShiroSubject = new ShiroSubject(authTokenHandler, SecurityUtils.getSubject());
+        shiroSubjectList.add(newShiroSubject);
+        return newShiroSubject;
     }
 
     /**
@@ -60,5 +65,15 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     @Override
     public TokenManager getTokenManager() {
         return this.authTokenHandler;
+    }
+
+    @Override
+    public Subject identifyRequester(Principal principal) {
+        for (ShiroSubject shiroSubject : shiroSubjectList) {
+            if (shiroSubject.getPrincipal().equals(principal)) {
+                return shiroSubject;
+            }
+        };
+        return null;
     }
 }
