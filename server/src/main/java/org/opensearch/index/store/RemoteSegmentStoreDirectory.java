@@ -619,20 +619,20 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                         }
                     }
 
-                Map<String, String> uploadedSegments = new HashMap<>();
-                for (String file : segmentFiles) {
-                    if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                        UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
-                        if (segmentToLuceneVersion.containsKey(metadata.originalFilename)) {
-                            metadata.setWrittenBy(segmentToLuceneVersion.get(metadata.originalFilename));
-                        } else if (metadata.originalFilename.equals(segmentInfosSnapshot.getSegmentsFileName())) {
-                            metadata.setWrittenBy(segmentInfosSnapshot.getCommitLuceneVersion());
-                        } else {
-                            throw new CorruptIndexException(
-                                "Lucene version is missing for segment file " + metadata.originalFilename,
-                                metadata.originalFilename
-                            );
-                        }
+                    Map<String, String> uploadedSegments = new HashMap<>();
+                    for (String file : segmentFiles) {
+                        if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                            UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
+                            if (segmentToLuceneVersion.containsKey(metadata.originalFilename)) {
+                                metadata.setWrittenBy(segmentToLuceneVersion.get(metadata.originalFilename));
+                            } else if (metadata.originalFilename.equals(segmentInfosSnapshot.getSegmentsFileName())) {
+                                metadata.setWrittenBy(segmentInfosSnapshot.getCommitLuceneVersion());
+                            } else {
+                                throw new CorruptIndexException(
+                                    "Lucene version is missing for segment file " + metadata.originalFilename,
+                                    metadata.originalFilename
+                                );
+                            }
 
                             uploadedSegments.put(file, metadata.toString());
                         } else {
