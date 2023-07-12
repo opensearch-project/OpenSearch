@@ -6,9 +6,7 @@
  * compatible open source license.
  */
 
-grant {
-    permission java.lang.RuntimePermission "getClassLoader";
-    permission java.lang.RuntimePermission "accessDeclaredMembers";
-};
-
-
+/**
+ * This package contains classes needed for telemetry.
+ */
+package org.opensearch.telemetry.tracing.exporter;
