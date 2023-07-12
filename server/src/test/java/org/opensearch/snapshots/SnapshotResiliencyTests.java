@@ -757,7 +757,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
-            createIndexResponse -> client().admin()
+            createSnapshotResponse -> client().admin()
                 .cluster()
                 .prepareCreateSnapshot(repoName, snapshotName)
                 .setWaitForCompletion(true)
