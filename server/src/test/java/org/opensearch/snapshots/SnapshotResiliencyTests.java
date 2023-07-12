@@ -778,7 +778,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         GetSnapshotsRequest repoSnapshotRequest = new GetSnapshotsRequest().repository(repoName)
             .snapshots(snapshotsList)
             .ignoreUnavailable(true);
-        
+
         TransportGetSnapshotsAction transportGetSnapshotsAction = (TransportGetSnapshotsAction) getSnapshotsAction;
         transportGetSnapshotsAction.execute(null, repoSnapshotRequest, ActionListener.wrap(repoSnapshotResponse -> {
             assertNotNull("Empty Snapshot info should be registered for current snapshots", repoSnapshotResponse.getSnapshots());

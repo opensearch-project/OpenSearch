@@ -82,7 +82,7 @@ public class ScriptRequestProcessorTests extends OpenSearchTestCase {
     }
 
     public void testScriptingWithoutPrecompiledScriptFactory() throws Exception {
-        ScriptRequestProcessor processor = new ScriptRequestProcessor(randomAlphaOfLength(10), null, script, null, scriptService);
+        ScriptRequestProcessor processor = new ScriptRequestProcessor(randomAlphaOfLength(10), null, false, script, null, scriptService);
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(createSearchSourceBuilder());
 
@@ -92,7 +92,14 @@ public class ScriptRequestProcessorTests extends OpenSearchTestCase {
     }
 
     public void testScriptingWithPrecompiledIngestScript() throws Exception {
-        ScriptRequestProcessor processor = new ScriptRequestProcessor(randomAlphaOfLength(10), null, script, searchScript, scriptService);
+        ScriptRequestProcessor processor = new ScriptRequestProcessor(
+            randomAlphaOfLength(10),
+            null,
+            false,
+            script,
+            searchScript,
+            scriptService
+        );
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(createSearchSourceBuilder());
 

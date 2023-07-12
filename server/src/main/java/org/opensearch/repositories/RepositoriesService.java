@@ -63,6 +63,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -625,6 +626,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     + Version.V_2_9_0
                     + ". Minimum node version in cluster is: "
                     + minVersionInCluster
+            );
+        }
+        if (REMOTE_STORE_INDEX_SHALLOW_COPY.get(repositoryMetadataSettings) && !FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
+            throw new RepositoryException(
+                repositoryName,
+                "setting " + REMOTE_STORE_INDEX_SHALLOW_COPY.getKey() + " cannot be enabled, as remote store feature is not enabled."
             );
         }
     }

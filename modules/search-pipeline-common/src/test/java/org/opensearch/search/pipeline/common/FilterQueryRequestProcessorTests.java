@@ -23,7 +23,7 @@ public class FilterQueryRequestProcessorTests extends AbstractBuilderTestCase {
 
     public void testFilterQuery() throws Exception {
         QueryBuilder filterQuery = new TermQueryBuilder("field", "value");
-        FilterQueryRequestProcessor filterQueryRequestProcessor = new FilterQueryRequestProcessor(null, null, filterQuery);
+        FilterQueryRequestProcessor filterQueryRequestProcessor = new FilterQueryRequestProcessor(null, null, false, filterQuery);
         QueryBuilder incomingQuery = new TermQueryBuilder("text", "foo");
         SearchSourceBuilder source = new SearchSourceBuilder().query(incomingQuery);
         SearchRequest request = new SearchRequest().source(source);
@@ -39,13 +39,13 @@ public class FilterQueryRequestProcessorTests extends AbstractBuilderTestCase {
     public void testFactory() throws Exception {
         FilterQueryRequestProcessor.Factory factory = new FilterQueryRequestProcessor.Factory(this.xContentRegistry());
         Map<String, Object> configMap = new HashMap<>(Map.of("query", Map.of("term", Map.of("field", "value"))));
-        FilterQueryRequestProcessor processor = factory.create(Collections.emptyMap(), null, null, configMap, null);
+        FilterQueryRequestProcessor processor = factory.create(Collections.emptyMap(), null, null, false, configMap, null);
         assertEquals(new TermQueryBuilder("field", "value"), processor.filterQuery);
 
         // Missing "query" parameter:
         expectThrows(
             IllegalArgumentException.class,
-            () -> factory.create(Collections.emptyMap(), null, null, Collections.emptyMap(), null)
+            () -> factory.create(Collections.emptyMap(), null, null, false, Collections.emptyMap(), null)
         );
     }
 }
