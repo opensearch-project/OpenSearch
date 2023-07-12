@@ -17,7 +17,6 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.extensions.ExtensionDependency;
 import org.opensearch.extensions.ExtensionScopedSettings;
 import org.opensearch.extensions.ExtensionsManager;
@@ -40,7 +39,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-import static org.opensearch.core.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
