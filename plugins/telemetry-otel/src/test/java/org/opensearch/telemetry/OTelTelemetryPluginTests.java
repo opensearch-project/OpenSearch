@@ -64,7 +64,7 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
     }
 
     @After
-    public void cleaup() {
+    public void cleanup() {
         tracingTelemetry.close();
     }
 }

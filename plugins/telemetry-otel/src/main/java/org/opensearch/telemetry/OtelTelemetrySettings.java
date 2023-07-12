@@ -21,12 +21,12 @@ import org.opensearch.telemetry.tracing.exporter.SpanExporterFactory;
 /**
  * Otel specific telemetry settings.
  */
-public class OtelTelemetrySettings {
+public final class OtelTelemetrySettings {
 
     /**
      * Base Constructor.
      */
-    public OtelTelemetrySettings() {}
+    private OtelTelemetrySettings() {}
 
     /**
      * span exporter batch size
