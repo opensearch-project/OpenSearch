@@ -11,6 +11,7 @@ package org.opensearch.index.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.action.ActionListener;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class CheckpointRefreshListener implements ReferenceManager.RefreshListener {
+public class CheckpointRefreshListener extends GatedRefreshListener {
 
     protected static Logger logger = LogManager.getLogger(CheckpointRefreshListener.class);
 
@@ -39,12 +40,16 @@ public class CheckpointRefreshListener implements ReferenceManager.RefreshListen
     }
 
     @Override
-    public void afterRefresh(boolean didRefresh) throws IOException {
-        if (didRefresh
-            && shard.state() == IndexShardState.STARTED
-            && shard.getReplicationTracker().isPrimaryMode()
-            && !shard.indexSettings.isSegRepWithRemoteEnabled()) {
-            publisher.publish(shard, shard.getLatestReplicationCheckpoint());
+    protected void afterRefresh(boolean didRefresh, ActionListener<Void> actionListener) {
+        try {
+            if (didRefresh
+                && shard.state() == IndexShardState.STARTED
+                && shard.getReplicationTracker().isPrimaryMode()
+                && !shard.indexSettings.isSegRepWithRemoteEnabled()) {
+                publisher.publish(shard, shard.getLatestReplicationCheckpoint());
+            }
+        } finally {
+            actionListener.onResponse(null);
         }
     }
 }
