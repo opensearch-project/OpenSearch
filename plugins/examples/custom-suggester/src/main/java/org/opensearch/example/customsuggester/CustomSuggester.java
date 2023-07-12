@@ -34,7 +34,7 @@ package org.opensearch.example.customsuggester;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.Suggester;
 

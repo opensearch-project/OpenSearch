@@ -38,7 +38,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 

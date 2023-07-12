@@ -33,8 +33,8 @@
 package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 
 import java.io.IOException;

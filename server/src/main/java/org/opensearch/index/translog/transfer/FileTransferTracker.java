@@ -8,7 +8,7 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 

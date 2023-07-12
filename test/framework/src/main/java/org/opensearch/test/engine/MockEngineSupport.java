@@ -45,7 +45,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.Closeable;

@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;

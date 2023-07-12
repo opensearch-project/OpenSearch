@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.lease.Releasable;

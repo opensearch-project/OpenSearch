@@ -33,7 +33,7 @@ package org.opensearch.snapshots;
 
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.UUIDs;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 

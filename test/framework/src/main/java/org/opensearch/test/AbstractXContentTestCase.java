@@ -35,7 +35,7 @@ package org.opensearch.test;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;

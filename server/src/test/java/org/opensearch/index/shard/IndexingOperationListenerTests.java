@@ -32,7 +32,8 @@
 package org.opensearch.index.shard;
 
 import org.apache.lucene.index.Term;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineTests;
 import org.opensearch.index.mapper.ParsedDocument;

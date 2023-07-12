@@ -34,7 +34,7 @@ package org.opensearch.snapshots;
 
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.Nullable;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.repositories.ShardGenerations;

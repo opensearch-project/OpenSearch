@@ -34,6 +34,7 @@ package org.opensearch.common.xcontent;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.NamedObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;

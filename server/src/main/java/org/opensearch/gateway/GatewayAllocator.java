@@ -52,7 +52,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 
 import java.util.Collections;
