@@ -32,15 +32,19 @@
 
 package org.opensearch.rest;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.opensearch.client.node.NodeClient;
-
-import org.opensearch.cluster.ApplicationManager;
-import org.opensearch.core.common.bytes.BytesReference;
-
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -48,13 +52,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.usage.UsageService;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
-
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -109,7 +106,7 @@ public class RestHttpResponseHeadersTests extends OpenSearchTestCase {
 
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
-        final IdentityService identityService = new IdentityService(new ApplicationManager(), settings, List.of());
+        final IdentityService identityService = new IdentityService(new ExtensionsManager(Set.of()), settings, List.of());
         RestController restController = new RestController(
             Collections.emptySet(),
             null,

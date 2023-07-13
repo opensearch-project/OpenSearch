@@ -82,7 +82,6 @@ import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
@@ -115,10 +114,7 @@ import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.ModulesBuilder;
-
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lease.Releasables;
-
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.NodeAndClusterIdStateListener;
@@ -143,6 +139,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
@@ -377,7 +374,6 @@ public class Node implements Closeable {
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
     private final ExtensionsManager extensionsManager;
-    private final ApplicationManager applicationManager;
     private final IdentityService identityService;
     private final NodeClient client;
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
@@ -407,7 +403,6 @@ public class Node implements Closeable {
     ) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
-        applicationManager = new ApplicationManager();
         try {
             Settings tmpSettings = Settings.builder()
                 .put(initialEnvironment.settings())
@@ -493,8 +488,7 @@ public class Node implements Closeable {
                 this.extensionsManager = new NoopExtensionsManager();
             }
 
-            this.applicationManager.register(extensionsManager);
-            this.identityService = new IdentityService(applicationManager, settings, identityPlugins);
+            this.identityService = new IdentityService(extensionsManager, settings, identityPlugins);
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -1086,7 +1080,6 @@ public class Node implements Closeable {
                 b.bind(NodeClient.class).toInstance(client);
                 b.bind(Environment.class).toInstance(this.environment);
                 b.bind(ExtensionsManager.class).toInstance(this.extensionsManager);
-                b.bind(ApplicationManager.class).toInstance(this.applicationManager);
                 b.bind(ThreadPool.class).toInstance(threadPool);
                 b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
                 b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
@@ -1187,7 +1180,8 @@ public class Node implements Closeable {
                 dynamicActionRegistry,
                 () -> clusterService.localNode().getId(),
                 transportService.getRemoteClusterService(),
-                namedWriteableRegistry
+                namedWriteableRegistry,
+                identityService
             );
             this.namedWriteableRegistry = namedWriteableRegistry;
 

@@ -10,8 +10,8 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
-import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
@@ -26,13 +26,11 @@ public class IdentityService {
 
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
-    private final ApplicationManager applicationManager;
+    private final ExtensionsManager extensionsManager;
 
-    private static IdentityService instance = null;
-
-    public IdentityService(ApplicationManager applicationManager, final Settings settings, final List<IdentityPlugin> identityPlugins) {
+    public IdentityService(ExtensionsManager extensionsManager, final Settings settings, final List<IdentityPlugin> identityPlugins) {
         this.settings = settings;
-        this.applicationManager = applicationManager;
+        this.extensionsManager = extensionsManager;
 
         if (identityPlugins.size() == 0) {
             log.debug("Identity plugins size is 0");
@@ -46,14 +44,13 @@ public class IdentityService {
                     + identityPlugins.stream().map(Object::getClass).map(Class::getName).collect(Collectors.joining(","))
             );
         }
-        IdentityService.instance = this;
     }
 
     /**
      * Gets the current Subject
      */
     public ApplicationAwareSubject getSubject() {
-        return new ApplicationAwareSubject(identityPlugin.getSubject(), applicationManager);
+        return new ApplicationAwareSubject(identityPlugin.getSubject(), extensionsManager);
     }
 
     /**
@@ -61,12 +58,5 @@ public class IdentityService {
      */
     public TokenManager getTokenManager() {
         return identityPlugin.getTokenManager();
-    }
-
-    public static IdentityService getInstance() {
-        if (instance == null) {
-            new IdentityService(new ApplicationManager(), Settings.EMPTY, List.of());
-        }
-        return instance;
     }
 }

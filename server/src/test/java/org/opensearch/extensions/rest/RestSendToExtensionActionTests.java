@@ -26,16 +26,15 @@ import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.action.ExtensionAction;
@@ -106,6 +105,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         SettingsModule settingsModule = new SettingsModule(settings);
         UsageService usageService = new UsageService();
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
         actionModule = new ActionModule(
             settingsModule.getSettings(),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
@@ -118,8 +118,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(new ApplicationManager(), Settings.EMPTY, new ArrayList<>()),
-            new ExtensionsManager(Set.of())
+            new IdentityService(extensionsManager, Settings.EMPTY, new ArrayList<>()),
+            extensionsManager
         );
         dynamicActionRegistry = actionModule.getDynamicActionRegistry();
     }

@@ -32,13 +32,16 @@
 
 package org.opensearch.action;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
 import org.opensearch.action.main.MainAction;
 import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
@@ -51,7 +54,6 @@ import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
-
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -64,12 +66,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Set;
-import java.util.function.Supplier;
-
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasEntry;
@@ -142,7 +138,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(new ApplicationManager(), Settings.EMPTY, new ArrayList<>()),
+            new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, new ArrayList<>()),
             new ExtensionsManager(Set.of())
         );
         actionModule.initRestHandlers(null);

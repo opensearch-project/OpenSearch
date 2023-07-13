@@ -18,15 +18,20 @@ import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.indices.shrink.ResizeAction;
 import org.opensearch.action.get.GetAction;
 import org.opensearch.action.get.MultiGetAction;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings;
 import org.opensearch.identity.ApplicationAwareSubject;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.plugins.wrappers.ScopeProtectedActionPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import static org.mockito.Mockito.spy;
 
-public class ActionScopeTests extends OpenSearchTestCase {
+public class ExtensionPointScopeTests extends OpenSearchTestCase {
 
     private ExtensionsManager extensionsManager;
+    private ScopeProtectedActionPlugin scopeProtectedActionPlugin;
+    IdentityService identityService;
 
     ExtensionsSettings.Extension expectedExtensionNode = new ExtensionsSettings.Extension(
         "firstExtension",
@@ -46,7 +51,7 @@ public class ActionScopeTests extends OpenSearchTestCase {
 
         extensionsManager = new ExtensionsManager(Set.of());
         extensionsManager.loadExtension(expectedExtensionNode);
-
+        identityService = new IdentityService(extensionsManager, Settings.EMPTY, List.of());
     }
 
     public void testApplicationAwareSubject() {

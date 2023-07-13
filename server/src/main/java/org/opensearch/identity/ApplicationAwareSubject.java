@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import org.opensearch.cluster.ApplicationManager;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.tokens.AuthToken;
@@ -33,15 +33,15 @@ import org.opensearch.identity.tokens.AuthToken;
 public class ApplicationAwareSubject implements Subject {
 
     private final Subject wrapped;
-    private final ApplicationManager applicationManager;
+    private final ExtensionsManager extensionsManager;
 
     /**
      * We wrap a basic Subject object to create an ApplicationAwareSubject -- this should come from the IdentityService
      * @param wrapped The Subject to be wrapped
      */
-    public ApplicationAwareSubject(final Subject wrapped, ApplicationManager applicationManager) {
+    public ApplicationAwareSubject(final Subject wrapped, ExtensionsManager extensionsManager) {
         this.wrapped = wrapped;
-        this.applicationManager = applicationManager;
+        this.extensionsManager = extensionsManager;
     }
 
     /**
@@ -50,7 +50,7 @@ public class ApplicationAwareSubject implements Subject {
      * @return A set of Strings representing the scopes associated with the wrapped subject's principal
      */
     public Set<Scope> getScopes() {
-        return applicationManager.getScopes(wrapped.getPrincipal());
+        return extensionsManager.getScopes(wrapped.getPrincipal());
     }
 
     /**
@@ -68,7 +68,7 @@ public class ApplicationAwareSubject implements Subject {
             return true;
         }
 
-        if (!applicationManager.applicationExists(this.getPrincipal())) {
+        if (!extensionsManager.applicationExists(this.getPrincipal())) {
 
             return false;
         }

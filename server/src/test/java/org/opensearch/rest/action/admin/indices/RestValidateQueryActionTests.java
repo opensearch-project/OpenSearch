@@ -31,22 +31,28 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.ApplicationManager;
-
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestController;
@@ -59,14 +65,6 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
@@ -78,7 +76,16 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static IdentityService identityService = new IdentityService(new ApplicationManager(), Settings.EMPTY, List.of());
+    private static IdentityService identityService;
+
+    static {
+        try {
+            identityService = new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, List.of());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static RestController controller = new RestController(
         emptySet(),
         null,
@@ -112,7 +119,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
         dynamicActionRegistry.registerUnmodifiableActionMap(actions);
-        client.initialize(dynamicActionRegistry, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
+        client.initialize(dynamicActionRegistry, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()), identityService);
         controller.registerHandler(action);
     }
 

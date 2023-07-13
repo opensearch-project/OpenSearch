@@ -44,8 +44,8 @@ import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.Client;
 import org.opensearch.client.support.AbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
@@ -67,6 +67,7 @@ public class NodeClient extends AbstractClient {
     private Supplier<String> localNodeId;
     private RemoteClusterService remoteClusterService;
     private NamedWriteableRegistry namedWriteableRegistry;
+    private IdentityService identityService;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
@@ -76,12 +77,14 @@ public class NodeClient extends AbstractClient {
         DynamicActionRegistry actionRegistry,
         Supplier<String> localNodeId,
         RemoteClusterService remoteClusterService,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        IdentityService identityService
     ) {
         this.actionRegistry = actionRegistry;
         this.localNodeId = localNodeId;
         this.remoteClusterService = remoteClusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.identityService = identityService;
     }
 
     @Override
@@ -139,7 +142,7 @@ public class NodeClient extends AbstractClient {
     private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
         ActionType<Response> action
     ) {
-        if (!(IdentityService.getInstance().getSubject().isAllowed(action.getAllowedScopes()))) {
+        if (!(identityService.getSubject().isAllowed(action.getAllowedScopes()))) {
             final String scopeList = action.getAllowedScopes().stream().map(Object::toString).collect(Collectors.joining(","));
             logger.debug("Request did not have any of the required scopes, " + scopeList);
             throw new OpenSearchSecurityException("Unauthorized, at least one of these scopes is required, " + scopeList);

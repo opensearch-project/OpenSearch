@@ -32,38 +32,6 @@
 
 package org.opensearch.rest;
 
-import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.ApplicationManager;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.yaml.YamlXContent;
-import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.http.HttpInfo;
-import org.opensearch.http.HttpRequest;
-import org.opensearch.http.HttpResponse;
-import org.opensearch.http.HttpServerTransport;
-import org.opensearch.http.HttpStats;
-import org.opensearch.identity.IdentityService;
-import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
-import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.client.NoOpNodeClient;
-import org.opensearch.test.rest.FakeRestRequest;
-import org.opensearch.usage.UsageService;
-import org.junit.After;
-import org.junit.Before;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -76,13 +44,43 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
+import org.junit.After;
+import org.junit.Before;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.http.HttpInfo;
+import org.opensearch.http.HttpRequest;
+import org.opensearch.http.HttpResponse;
+import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.HttpStats;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.client.NoOpNodeClient;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.usage.UsageService;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -99,7 +97,7 @@ public class RestControllerTests extends OpenSearchTestCase {
     private NodeClient client;
 
     @Before
-    public void setup() {
+    public void setup() throws IOException {
         circuitBreakerService = new HierarchyCircuitBreakerService(
             Settings.builder()
                 .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), BREAKER_LIMIT)
@@ -113,7 +111,7 @@ public class RestControllerTests extends OpenSearchTestCase {
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        identityService = new IdentityService(new ApplicationManager(), Settings.EMPTY, List.of());
+        identityService = new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, List.of());
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());

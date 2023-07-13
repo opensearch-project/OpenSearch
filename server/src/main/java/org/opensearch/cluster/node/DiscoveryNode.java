@@ -58,6 +58,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.identity.NamedPrincipal;
+import org.opensearch.identity.NodePrincipal;
 import org.opensearch.node.Node;
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
@@ -177,7 +178,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Version version
     ) {
         this("", id, address, attributes, roles, version);
-        this.principal = new NamedPrincipal(id);
+        this.principal = new NodePrincipal(this);
     }
 
     /**

@@ -32,6 +32,8 @@
 
 package org.opensearch.test.client;
 
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
@@ -40,16 +42,14 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
-
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 /**
  * Client that always response with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)},
@@ -88,7 +88,8 @@ public class NoOpNodeClient extends NodeClient {
         DynamicActionRegistry dynamicActionRegistry,
         Supplier<String> localNodeId,
         RemoteClusterService remoteClusterService,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        IdentityService identityService
     ) {
         throw new UnsupportedOperationException("cannot initialize " + this.getClass().getSimpleName());
     }

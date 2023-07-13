@@ -17,14 +17,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.opensearch.Application;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.identity.Subject;
@@ -36,7 +37,7 @@ import org.opensearch.identity.tokens.AuthToken;
  *
  * @opensearch.internal
  */
-public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment, Subject {
+public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment, Subject, Application {
 
     private Version minimumCompatibleVersion;
     private List<ExtensionDependency> dependencies = Collections.emptyList();

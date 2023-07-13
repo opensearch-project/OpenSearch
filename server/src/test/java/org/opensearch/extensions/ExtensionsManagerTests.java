@@ -27,10 +27,7 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.ClusterSettingsResponse;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -50,10 +47,10 @@ import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.EnvironmentSettingsResponse;
+import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
-import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.ExtensionAwarePlugin;
@@ -148,7 +145,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new NodeClient(Settings.EMPTY, threadPool),
             new NoneCircuitBreakerService(),
             new UsageService(),
-            new IdentityService(new ApplicationManager(), Settings.EMPTY, List.of())
+            new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, List.of())
         );
         when(actionModule.getDynamicActionRegistry()).thenReturn(mock(DynamicActionRegistry.class));
         when(actionModule.getRestController()).thenReturn(restController);

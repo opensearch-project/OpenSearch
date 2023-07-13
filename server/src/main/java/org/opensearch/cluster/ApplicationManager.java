@@ -8,11 +8,8 @@
 
 package org.opensearch.cluster;
 
-import java.security.Principal;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.opensearch.extensions.ExtensionsManager;
-import org.opensearch.identity.scopes.Scope;
 
 /**
  * The ApplicationManager class handles the processing and resolution of multiple types of applications. Using the class, OpenSearch can
@@ -39,20 +36,4 @@ public class ApplicationManager {
         }
     }
 
-    public Set<Scope> getScopes(Principal principal) {
-        if (this.extensionManager != null) {
-            if (this.extensionManager.get().getExtensionIdMap().containsKey(principal.getName())) {
-                return extensionManager.get().getExtensionIdMap().get(principal.getName()).getScopes();
-            }
-        }
-        return Set.of();
-    }
-
-    /** Checks whether there is an application associated with the given principal or not
-     * @param principal The principal for the application you are trying to find
-     * @return Whether the application exists (TRUE) or not (FALSE)
-     * */
-    public boolean applicationExists(Principal principal) {
-        return (this.extensionManager.get().getExtensionIdMap().containsKey(principal.getName()));
-    }
 }
