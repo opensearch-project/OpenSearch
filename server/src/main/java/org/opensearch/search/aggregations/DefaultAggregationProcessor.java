@@ -24,10 +24,14 @@ import java.util.List;
  */
 public class DefaultAggregationProcessor implements AggregationProcessor {
 
+    private final BucketCollectorProcessor bucketCollectorProcessor = new BucketCollectorProcessor();
+
     @Override
     public void preProcess(SearchContext context) {
         try {
             if (context.aggregations() != null) {
+                // update the bucket collector process as there is aggregation in the request
+                context.setBucketCollectorProcessor(bucketCollectorProcessor);
                 if (context.aggregations().factories().hasNonGlobalAggregator()) {
                     context.queryCollectorManagers()
                         .put(NonGlobalAggCollectorManager.class, new NonGlobalAggCollectorManagerWithSingleCollector(context));

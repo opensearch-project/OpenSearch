@@ -115,6 +115,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix painless casting bug, which crashes the OpenSearch process ([#8315](https://github.com/opensearch-project/OpenSearch/pull/8315))
 - Optimize Metadata build() to skip redundant computations as part of ClusterState build ([#7853](https://github.com/opensearch-project/OpenSearch/pull/7853))
 - Make Span exporter configurable ([#8620](https://github.com/opensearch-project/OpenSearch/issues/8620))
+- Perform aggregation postCollection in ContextIndexSearcher after searching leaves ([#8303](https://github.com/opensearch-project/OpenSearch/pull/8303))
 
 ### Deprecated
 
