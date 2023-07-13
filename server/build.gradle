@@ -105,9 +105,10 @@ dependencies {
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
+    testImplementation project(path: ':modules:reindex')
 
 
-  compileOnly project(':libs:opensearch-plugin-classloader')
+    compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
   // lucene
