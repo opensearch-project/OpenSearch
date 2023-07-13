@@ -14,7 +14,6 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -63,7 +62,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
  *
  * @opensearch.internal
  */
-public final class RemoteStoreRefreshListener implements ReferenceManager.RefreshListener {
+public final class RemoteStoreRefreshListener extends GatedRefreshListener {
 
     private final Logger logger;
 
@@ -180,11 +179,15 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
             updateLocalRefreshTimeAndSeqNo();
             try {
-                indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
+                indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegmentsSafe(false)).get();
             } catch (InterruptedException | ExecutionException e) {
                 logger.info("Exception occurred while scheduling syncSegments", e);
             }
         }
+    }
+
+    private void syncSegmentsSafe(boolean isRetry) {
+        getPermitWrappedTask(() -> syncSegments(isRetry)).run();
     }
 
     private synchronized void syncSegments(boolean isRetry) {
@@ -372,7 +375,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         // refresh not occurring until write happens.
         if (shouldRetry && indexShard.state() != IndexShardState.CLOSED && retryScheduled.compareAndSet(false, true)) {
             scheduledCancellableRetry = indexShard.getThreadPool()
-                .schedule(() -> this.syncSegments(true), backoffDelayIterator.next(), ThreadPool.Names.REMOTE_REFRESH);
+                .schedule(() -> syncSegmentsSafe(true), backoffDelayIterator.next(), ThreadPool.Names.REMOTE_REFRESH);
         }
     }
 
