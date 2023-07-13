@@ -25,6 +25,7 @@ import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
@@ -43,12 +44,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
@@ -58,7 +58,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.search.SearchService;
@@ -79,6 +79,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -270,6 +271,59 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(initialDocCount, primary, replica);
         verifyStoreContent();
+    }
+
+    public void testScrollWithConcurrentIndexAndSearch() throws Exception {
+        assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
+        final String primary = internalCluster().startDataOnlyNode();
+        final String replica = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
+        final List<ActionFuture<SearchResponse>> pendingSearchResponse = new ArrayList<>();
+        final int searchCount = randomIntBetween(10, 20);
+        final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
+
+        for (int i = 0; i < searchCount; i++) {
+            pendingIndexResponses.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId(Integer.toString(i))
+                    .setRefreshPolicy(refreshPolicy)
+                    .setSource("field", "value" + i)
+                    .execute()
+            );
+            flush(INDEX_NAME);
+            forceMerge();
+        }
+
+        final SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .setIndices(INDEX_NAME)
+            .setRequestCache(false)
+            .setScroll(TimeValue.timeValueDays(1))
+            .setSize(10)
+            .get();
+
+        for (int i = searchCount; i < searchCount * 2; i++) {
+            pendingIndexResponses.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId(Integer.toString(i))
+                    .setRefreshPolicy(refreshPolicy)
+                    .setSource("field", "value" + i)
+                    .execute()
+            );
+        }
+        flush(INDEX_NAME);
+        forceMerge();
+        client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+
+        assertBusy(() -> {
+            client().admin().indices().prepareRefresh().execute().actionGet();
+            assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
+            assertTrue(pendingSearchResponse.stream().allMatch(ActionFuture::isDone));
+        }, 1, TimeUnit.MINUTES);
+        verifyStoreContent();
+        waitForSearchableDocs(INDEX_NAME, 2 * searchCount, List.of(primary, replica));
     }
 
     public void testMultipleShards() throws Exception {
@@ -733,6 +787,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             // start another replica.
             dataNodes.add(internalCluster().startDataOnlyNode());
             ensureGreen(INDEX_NAME);
+            waitForSearchableDocs(initialDocCount, dataNodes);
 
             // index another doc and refresh - without this the new replica won't catch up.
             String docId = String.valueOf(initialDocCount + 1);
@@ -800,6 +855,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     public void testPressureServiceStats() throws Exception {
         final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
         final String replicaNode = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
 
@@ -1266,10 +1322,5 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(2, nodes);
-    }
-
-    private boolean segmentReplicationWithRemoteEnabled() {
-        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue()
-            && "true".equalsIgnoreCase(featureFlagSettings().get(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL));
     }
 }

@@ -8,15 +8,17 @@
 
 package org.opensearch.search.pipeline;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.SearchPhaseResult;
 
 import java.util.Collections;
@@ -32,6 +34,9 @@ class Pipeline {
     public static final String REQUEST_PROCESSORS_KEY = "request_processors";
     public static final String RESPONSE_PROCESSORS_KEY = "response_processors";
     public static final String PHASE_PROCESSORS_KEY = "phase_results_processors";
+
+    private static final Logger logger = LogManager.getLogger(Pipeline.class);
+
     private final String id;
     private final String description;
     private final Integer version;
@@ -132,7 +137,18 @@ class Pipeline {
                         request = processor.processRequest(request);
                     } catch (Exception e) {
                         onRequestProcessorFailed(processor);
-                        throw e;
+                        if (processor.isIgnoreFailure()) {
+                            logger.warn(
+                                "The exception from request processor ["
+                                    + processor.getType()
+                                    + "] in the search pipeline ["
+                                    + id
+                                    + "] was ignored",
+                                e
+                            );
+                        } else {
+                            throw e;
+                        }
                     } finally {
                         long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                         afterRequestProcessor(processor, took);
@@ -161,7 +177,18 @@ class Pipeline {
                         response = processor.processResponse(request, response);
                     } catch (Exception e) {
                         onResponseProcessorFailed(processor);
-                        throw e;
+                        if (processor.isIgnoreFailure()) {
+                            logger.warn(
+                                "The exception from response processor ["
+                                    + processor.getType()
+                                    + "] in the search pipeline ["
+                                    + id
+                                    + "] was ignored",
+                                e
+                            );
+                        } else {
+                            throw e;
+                        }
                     } finally {
                         long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                         afterResponseProcessor(processor, took);
@@ -184,12 +211,27 @@ class Pipeline {
         String currentPhase,
         String nextPhase
     ) throws SearchPipelineProcessingException {
-
         try {
             for (SearchPhaseResultsProcessor searchPhaseResultsProcessor : searchPhaseResultsProcessors) {
                 if (currentPhase.equals(searchPhaseResultsProcessor.getBeforePhase().getName())
                     && nextPhase.equals(searchPhaseResultsProcessor.getAfterPhase().getName())) {
-                    searchPhaseResultsProcessor.process(searchPhaseResult, context);
+                    try {
+                        searchPhaseResultsProcessor.process(searchPhaseResult, context);
+                    } catch (Exception e) {
+                        if (searchPhaseResultsProcessor.isIgnoreFailure()) {
+                            logger.warn(
+                                "The exception from search phase results processor ["
+                                    + searchPhaseResultsProcessor.getType()
+                                    + "] in the search pipeline ["
+                                    + id
+                                    + "] was ignored",
+                                e
+                            );
+                        } else {
+                            throw e;
+                        }
+                    }
+
                 }
             }
         } catch (RuntimeException e) {

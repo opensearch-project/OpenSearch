@@ -73,7 +73,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;

@@ -11,7 +11,7 @@ package org.opensearch.index.store.exception;
 import org.apache.lucene.index.CorruptIndexException;
 
 /**
- * Exception is raised when combination to two crc checksums fail.
+ * Exception is raised when combination of two CRC checksums fail.
  *
  * @opensearch.internal
  */

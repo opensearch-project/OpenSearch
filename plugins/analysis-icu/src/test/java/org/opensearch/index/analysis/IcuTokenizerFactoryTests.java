@@ -37,7 +37,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 

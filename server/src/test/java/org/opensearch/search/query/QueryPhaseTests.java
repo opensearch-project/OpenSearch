@@ -1204,25 +1204,35 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     private static ContextIndexSearcher newContextSearcher(IndexReader reader, ExecutorService executor) throws IOException {
+        SearchContext searchContext = mock(SearchContext.class);
+        IndexShard indexShard = mock(IndexShard.class);
+        when(searchContext.indexShard()).thenReturn(indexShard);
+        when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
         return new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            executor
+            executor,
+            searchContext
         );
     }
 
     private static ContextIndexSearcher newEarlyTerminationContextSearcher(IndexReader reader, int size, ExecutorService executor)
         throws IOException {
+        SearchContext searchContext = mock(SearchContext.class);
+        IndexShard indexShard = mock(IndexShard.class);
+        when(searchContext.indexShard()).thenReturn(indexShard);
+        when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
         return new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            executor
+            executor,
+            searchContext
         ) {
 
             @Override

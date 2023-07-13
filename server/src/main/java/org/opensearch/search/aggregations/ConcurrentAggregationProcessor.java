@@ -28,12 +28,16 @@ import java.util.Collections;
  * avoid the increase in aggregation result sets returned by each shard to coordinator where final reduce happens for results received from
  * all the shards
  */
-public class ConcurrentAggregationProcessor extends DefaultAggregationProcessor {
+public class ConcurrentAggregationProcessor implements AggregationProcessor {
+
+    private final BucketCollectorProcessor bucketCollectorProcessor = new BucketCollectorProcessor();
 
     @Override
     public void preProcess(SearchContext context) {
         try {
             if (context.aggregations() != null) {
+                // update the bucket collector process as there is aggregation in the request
+                context.setBucketCollectorProcessor(bucketCollectorProcessor);
                 if (context.aggregations().factories().hasNonGlobalAggregator()) {
                     context.queryCollectorManagers().put(NonGlobalAggCollectorManager.class, new NonGlobalAggCollectorManager(context));
                 }

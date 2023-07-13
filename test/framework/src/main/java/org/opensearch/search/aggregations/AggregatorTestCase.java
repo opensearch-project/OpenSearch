@@ -64,7 +64,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
@@ -75,7 +75,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -108,7 +108,7 @@ import org.opensearch.index.mapper.RangeType;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
@@ -329,16 +329,17 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                 return false;
             }
         };
+        SearchContext searchContext = mock(SearchContext.class);
         ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
             indexSearcher.getIndexReader(),
             indexSearcher.getSimilarity(),
             queryCache,
             queryCachingPolicy,
             false,
-            null
+            null,
+            searchContext
         );
 
-        SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.numberOfShards()).thenReturn(1);
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
         when(searchContext.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
@@ -348,6 +349,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.indexShard()).thenReturn(indexShard);
         when(searchContext.aggregations()).thenReturn(new SearchContextAggregations(AggregatorFactories.EMPTY, bucketConsumer));
         when(searchContext.query()).thenReturn(query);
+        when(searchContext.bucketCollectorProcessor()).thenReturn(new BucketCollectorProcessor());
         /*
          * Always use the circuit breaking big arrays instance so that the CircuitBreakerService
          * we're passed gets a chance to break.

@@ -33,7 +33,7 @@
 package org.opensearch.common.util;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.common.bytes.PagedBytesReference;
+import org.opensearch.core.common.bytes.PagedBytesReference;
 import org.opensearch.common.recycler.AbstractRecyclerC;
 import org.opensearch.common.recycler.Recycler;
 import org.opensearch.common.settings.Setting;

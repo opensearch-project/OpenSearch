@@ -36,14 +36,14 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoryOperation;
 import org.opensearch.repositories.RepositoryShardId;
@@ -167,7 +167,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             version,
             source,
             Map.of(),
-            false // TODO: need to pull this value from the original snapshot, use whatever we set during snapshot create.
+            false // initialising to false, will be updated in startCloning method of SnapshotsService while updating entry with
+                  // clone jobs
         );
     }
 
@@ -449,6 +450,26 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 version,
                 source,
                 updatedClones,
+                remoteStoreIndexShallowCopy
+            );
+        }
+
+        public Entry withRemoteStoreIndexShallowCopy(final boolean remoteStoreIndexShallowCopy) {
+            return new Entry(
+                snapshot,
+                includeGlobalState,
+                partial,
+                state,
+                indices,
+                dataStreams,
+                startTime,
+                repositoryStateId,
+                shards,
+                failure,
+                userMetadata,
+                version,
+                source,
+                clones,
                 remoteStoreIndexShallowCopy
             );
         }

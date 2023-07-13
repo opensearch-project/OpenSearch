@@ -33,14 +33,14 @@
 package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.search.SearchHit.Fields;
 
 import java.io.IOException;

@@ -33,8 +33,8 @@
 package org.opensearch.action;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;

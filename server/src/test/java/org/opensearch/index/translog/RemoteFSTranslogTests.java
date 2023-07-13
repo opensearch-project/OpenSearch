@@ -26,7 +26,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -44,7 +44,7 @@ import org.opensearch.index.engine.MissingHistoryOperationsException;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -182,6 +182,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             // only randomize between nog age retention and a long one, so failures will have a chance of reproducing
             .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomBoolean() ? "-1ms" : "1h")
             .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomIntBetween(-1, 2048) + "b")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .build();
         return getTranslogConfig(path, settings);
@@ -570,7 +571,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertEquals(1, translog.readers.size());
         }
         assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
-        assertBusy(() -> assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
+        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
         int moreDocs = randomIntBetween(3, 10);
         logger.info("numDocs={} moreDocs={}", numDocs, moreDocs);
         for (int i = numDocs; i < numDocs + moreDocs; i++) {
@@ -579,7 +580,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         translog.trimUnreferencedReaders();
         assertEquals(1 + moreDocs, translog.readers.size());
         assertBusy(() -> assertEquals(2 + 2L * moreDocs, translog.allUploaded().size()));
-        assertBusy(() -> assertEquals(1 + moreDocs, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
+        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
 
         int totalDocs = numDocs + moreDocs;
         translog.setMinSeqNoToKeep(totalDocs - 1);
@@ -592,7 +593,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         );
         translog.setMinSeqNoToKeep(totalDocs);
         translog.trimUnreferencedReaders();
-        assertBusy(() -> assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
+        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
 
         // Change primary term and test the deletion of older primaries
         String translogUUID = translog.translogUUID;
@@ -607,10 +608,6 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         long oldPrimaryTerm = primaryTerm.get();
         long newPrimaryTerm = primaryTerm.incrementAndGet();
 
-        // Check all metadata files corresponds to old primary term
-        Set<String> mdFileNames = blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR));
-        assertTrue(mdFileNames.stream().allMatch(name -> name.startsWith(String.valueOf(oldPrimaryTerm).concat("__"))));
-
         // Creating RemoteFsTranslog with the same location
         Translog newTranslog = create(translogDir, repository, translogUUID);
         int newPrimaryTermDocs = randomIntBetween(5, 10);
@@ -620,10 +617,6 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             newTranslog.setMinSeqNoToKeep(i);
             newTranslog.trimUnreferencedReaders();
         }
-
-        // Check that all metadata files are belonging now to the new primary
-        mdFileNames = blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR));
-        assertTrue(mdFileNames.stream().allMatch(name -> name.startsWith(String.valueOf(newPrimaryTerm).concat("__"))));
 
         try {
             newTranslog.close();
@@ -1266,6 +1259,95 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
 
             // Sequence numbers are marked as persisted after sync
             assertThat(persistedSeqNos, contains(1L, 2L, 3L, 4L, 5L));
+        }
+    }
+
+    public void testTranslogWriterFsyncDisabledInRemoteFsTranslog() throws IOException {
+        Path tempDir = createTempDir();
+        final TranslogConfig temp = getTranslogConfig(tempDir);
+        final TranslogConfig config = new TranslogConfig(
+            temp.getShardId(),
+            temp.getTranslogPath(),
+            temp.getIndexSettings(),
+            temp.getBigArrays(),
+            new ByteSizeValue(1, ByteSizeUnit.KB)
+        );
+
+        final Set<Long> persistedSeqNos = new HashSet<>();
+        final AtomicInteger translogFsyncCalls = new AtomicInteger();
+        final AtomicInteger checkpointFsyncCalls = new AtomicInteger();
+
+        final ChannelFactory channelFactory = (file, openOption) -> {
+            FileChannel delegate = FileChannel.open(file, openOption);
+            boolean success = false;
+            try {
+                // don't do partial writes for checkpoints we rely on the fact that the bytes are written as an atomic operation
+                final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp");
+
+                final FileChannel channel;
+                if (isCkpFile) {
+                    channel = new FilterFileChannel(delegate) {
+                        @Override
+                        public void force(boolean metaData) throws IOException {
+                            checkpointFsyncCalls.incrementAndGet();
+                        }
+                    };
+                } else {
+                    channel = new FilterFileChannel(delegate) {
+
+                        @Override
+                        public void force(boolean metaData) throws IOException {
+                            translogFsyncCalls.incrementAndGet();
+                        }
+                    };
+                }
+                success = true;
+                return channel;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(delegate);
+                }
+            }
+        };
+
+        String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            channelFactory,
+            primaryTerm.get()
+        );
+
+        try (
+            Translog translog = new RemoteFsTranslog(
+                config,
+                translogUUID,
+                new DefaultTranslogDeletionPolicy(-1, -1, 0),
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                primaryTerm::get,
+                persistedSeqNos::add,
+                repository,
+                threadPool,
+                () -> Boolean.TRUE
+            ) {
+                @Override
+                ChannelFactory getChannelFactory() {
+                    return channelFactory;
+                }
+            }
+        ) {
+            TranslogWriter writer = translog.getCurrent();
+            byte[] bytes = new byte[256];
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 3);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 4);
+            writer.sync();
+            // Fsync is still enabled during empty translog creation.
+            assertEquals(2, checkpointFsyncCalls.get());
+            assertEquals(1, translogFsyncCalls.get());
+            // Sequence numbers are marked as persisted after sync
+            assertThat(persistedSeqNos, contains(1L, 2L, 3L, 4L));
         }
     }
 

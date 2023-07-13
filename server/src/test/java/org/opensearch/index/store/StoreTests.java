@@ -69,22 +69,22 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
-import org.opensearch.common.io.stream.OutputStreamStreamOutput;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.ShardLock;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.test.DummyShardLock;
@@ -100,6 +100,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -108,6 +109,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.anyOf;
@@ -1191,8 +1194,12 @@ public class StoreTests extends OpenSearchTestCase {
         }
         assertFalse(additionalSegments.isEmpty());
 
+        Collection<String> filesToConsiderForCleanUp = Stream.of(store.readLastCommittedSegmentsInfo().files(true), additionalSegments)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toList());
+
         // clean up everything not in the latest commit point.
-        store.cleanupAndPreserveLatestCommitPoint("test", store.readLastCommittedSegmentsInfo());
+        store.cleanupAndPreserveLatestCommitPoint(filesToConsiderForCleanUp, "test");
 
         // we want to ensure commitMetadata files are preserved after calling cleanup
         for (String existingFile : store.directory().listAll()) {

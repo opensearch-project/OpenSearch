@@ -39,7 +39,7 @@ import org.apache.http.client.utils.URLEncodedUtils;
 import org.opensearch.Version;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;

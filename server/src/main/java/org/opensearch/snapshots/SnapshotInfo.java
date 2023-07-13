@@ -32,23 +32,23 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.Version;
-import org.opensearch.action.ShardOperationFailedException;
+import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.repositories.IndexId;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -532,6 +532,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return includeGlobalState;
     }
 
+    @Nullable
     public Boolean isRemoteStoreIndexShallowCopyEnabled() {
         return remoteStoreIndexShallowCopy;
     }

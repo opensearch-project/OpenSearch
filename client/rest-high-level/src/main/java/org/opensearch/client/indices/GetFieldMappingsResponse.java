@@ -33,7 +33,7 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.core.ParseField;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -49,7 +49,7 @@ import java.util.Objects;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /** Response object for {@link GetFieldMappingsRequest} API */
 public class GetFieldMappingsResponse {

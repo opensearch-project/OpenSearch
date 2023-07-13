@@ -42,7 +42,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.fielddata.AbstractBinaryDocValues;
 import org.opensearch.index.fielddata.AbstractNumericDocValues;
 import org.opensearch.index.fielddata.AbstractSortedDocValues;

@@ -70,7 +70,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.component.LifecycleListener;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
@@ -91,7 +91,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.http.HttpServerTransport;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
@@ -102,7 +102,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -1524,11 +1524,13 @@ public final class InternalTestCluster extends TestCluster {
                         }
                         assertThat(replicaShardRouting + " seq_no_stats mismatch", seqNoStats, equalTo(primarySeqNoStats));
                         // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
-                        assertThat(
-                            replicaShardRouting + " global checkpoint syncs mismatch",
-                            seqNoStats.getGlobalCheckpoint(),
-                            equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId()))
-                        );
+                        if (primaryShard.isRemoteTranslogEnabled() == false) {
+                            assertThat(
+                                replicaShardRouting + " global checkpoint syncs mismatch",
+                                seqNoStats.getGlobalCheckpoint(),
+                                equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId()))
+                            );
+                        }
                     }
                 }
             }
@@ -2153,6 +2155,10 @@ public final class InternalTestCluster extends TestCluster {
             set.add(iterator.next());
         }
         return set;
+    }
+
+    public Set<String> getDataNodeNames() {
+        return allDataNodesButN(0);
     }
 
     /**

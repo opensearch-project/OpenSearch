@@ -46,7 +46,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;

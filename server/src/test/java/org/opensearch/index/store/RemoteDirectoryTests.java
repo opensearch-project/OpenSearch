@@ -12,6 +12,8 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.junit.Before;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
@@ -23,15 +25,19 @@ import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doAnswer;
 
 public class RemoteDirectoryTests extends OpenSearchTestCase {
     private BlobContainer blobContainer;
@@ -146,6 +152,54 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
         assertThrows(IOException.class, () -> remoteDirectory.fileLength("segment_1"));
     }
 
+    public void testListFilesByPrefixInLexicographicOrder() throws IOException {
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            latchedActionListener.onResponse(List.of(new PlainBlobMetadata("metadata_1", 1)));
+            return null;
+        }).when(blobContainer)
+            .listBlobsByPrefixInSortedOrder(
+                eq("metadata"),
+                eq(1),
+                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
+                any(ActionListener.class)
+            );
+
+        assertEquals(List.of("metadata_1"), remoteDirectory.listFilesByPrefixInLexicographicOrder("metadata", 1));
+    }
+
+    public void testListFilesByPrefixInLexicographicOrderEmpty() throws IOException {
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            latchedActionListener.onResponse(List.of());
+            return null;
+        }).when(blobContainer)
+            .listBlobsByPrefixInSortedOrder(
+                eq("metadata"),
+                eq(1),
+                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
+                any(ActionListener.class)
+            );
+
+        assertEquals(List.of(), remoteDirectory.listFilesByPrefixInLexicographicOrder("metadata", 1));
+    }
+
+    public void testListFilesByPrefixInLexicographicOrderException() {
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            latchedActionListener.onFailure(new IOException("Error"));
+            return null;
+        }).when(blobContainer)
+            .listBlobsByPrefixInSortedOrder(
+                eq("metadata"),
+                eq(1),
+                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
+                any(ActionListener.class)
+            );
+
+        assertThrows(IOException.class, () -> remoteDirectory.listFilesByPrefixInLexicographicOrder("metadata", 1));
+    }
+
     public void testGetPendingDeletions() {
         assertThrows(UnsupportedOperationException.class, () -> remoteDirectory.getPendingDeletions());
     }
@@ -165,5 +219,4 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
     public void testObtainLock() {
         assertThrows(UnsupportedOperationException.class, () -> remoteDirectory.obtainLock("segment_1"));
     }
-
 }

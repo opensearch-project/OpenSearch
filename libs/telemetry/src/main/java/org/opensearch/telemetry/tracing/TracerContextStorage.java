@@ -12,6 +12,8 @@ package org.opensearch.telemetry.tracing;
  * Storage interface used for storing tracing context
  * @param <K> key type
  * @param <V> value type
+ *
+ * @opensearch.internal
  */
 public interface TracerContextStorage<K, V> {
     /**

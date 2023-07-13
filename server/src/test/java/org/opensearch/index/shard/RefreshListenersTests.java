@@ -42,8 +42,8 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.settings.Settings;
@@ -53,7 +53,8 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Engine;
@@ -155,7 +156,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             .mergePolicy(newMergePolicy())
             .analyzer(iwc.getAnalyzer())
             .similarity(iwc.getSimilarity())
-            .codecService(new CodecService(null, logger))
+            .codecService(new CodecService(null, indexSettings, logger))
             .eventListener(eventListener)
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())

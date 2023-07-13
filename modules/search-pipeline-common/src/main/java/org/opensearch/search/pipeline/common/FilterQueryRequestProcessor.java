@@ -9,18 +9,19 @@
 package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 
 import java.io.InputStream;
@@ -53,12 +54,13 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
     /**
      * Constructor that takes a filter query.
      *
-     * @param tag         processor tag
-     * @param description processor description
+     * @param tag            processor tag
+     * @param description    processor description
+     * @param ignoreFailure  option to ignore failure
      * @param filterQuery the query that will be added as a filter to incoming queries
      */
-    public FilterQueryRequestProcessor(String tag, String description, QueryBuilder filterQuery) {
-        super(tag, description);
+    FilterQueryRequestProcessor(String tag, String description, boolean ignoreFailure, QueryBuilder filterQuery) {
+        super(tag, description, ignoreFailure);
         this.filterQuery = filterQuery;
     }
 
@@ -89,8 +91,8 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
     }
 
     static class Factory implements Processor.Factory<SearchRequestProcessor> {
+        private static final String QUERY_KEY = "query";
         private final NamedXContentRegistry namedXContentRegistry;
-        public static final ParseField QUERY_FIELD = new ParseField("query");
 
         Factory(NamedXContentRegistry namedXContentRegistry) {
             this.namedXContentRegistry = namedXContentRegistry;
@@ -101,30 +103,22 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
             Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            boolean ignoreFailure,
+            Map<String, Object> config,
+            PipelineContext pipelineContext
         ) throws Exception {
+            Map<String, Object> query = ConfigurationUtils.readOptionalMap(TYPE, tag, config, QUERY_KEY);
+            if (query == null) {
+                throw new IllegalArgumentException("Did not specify the " + QUERY_KEY + " property in processor of type " + TYPE);
+            }
             try (
-                XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
+                XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(query);
                 InputStream stream = BytesReference.bytes(builder).streamInput();
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
             ) {
-                XContentParser.Token token = parser.nextToken();
-                assert token == XContentParser.Token.START_OBJECT;
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            return new FilterQueryRequestProcessor(tag, description, parseInnerQueryBuilder(parser));
-                        }
-                    }
-                }
+                return new FilterQueryRequestProcessor(tag, description, ignoreFailure, parseInnerQueryBuilder(parser));
             }
-            throw new IllegalArgumentException(
-                "Did not specify the " + QUERY_FIELD.getPreferredName() + " property in processor of type " + TYPE
-            );
         }
     }
 }

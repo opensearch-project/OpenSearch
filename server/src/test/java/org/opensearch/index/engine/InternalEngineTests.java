@@ -99,8 +99,8 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
@@ -139,7 +139,7 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
@@ -3226,7 +3226,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = new CodecService(null, logger);
+        CodecService codecService = new CodecService(null, engine.config().getIndexSettings(), logger);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -3696,7 +3696,7 @@ public class InternalEngineTests extends EngineTestCase {
             .mergePolicy(newMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger))
             .eventListener(config.getEventListener())
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
@@ -3738,7 +3738,7 @@ public class InternalEngineTests extends EngineTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -7384,7 +7384,7 @@ public class InternalEngineTests extends EngineTestCase {
                 .mergePolicy(config.getMergePolicy())
                 .analyzer(config.getAnalyzer())
                 .similarity(config.getSimilarity())
-                .codecService(new CodecService(null, logger))
+                .codecService(new CodecService(null, config.getIndexSettings(), logger))
                 .eventListener(config.getEventListener())
                 .queryCache(config.getQueryCache())
                 .queryCachingPolicy(config.getQueryCachingPolicy())

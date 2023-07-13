@@ -83,11 +83,11 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -453,6 +453,12 @@ public class RestoreService implements ClusterStateApplier {
                                 final boolean isRemoteStoreShallowCopy = Boolean.TRUE.equals(
                                     snapshotInfo.isRemoteStoreIndexShallowCopyEnabled()
                                 ) && metadata.index(index).getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
+                                if (isSearchableSnapshot && isRemoteStoreShallowCopy) {
+                                    throw new SnapshotRestoreException(
+                                        snapshot,
+                                        "Shallow copy snapshot cannot be restored as searchable snapshot."
+                                    );
+                                }
                                 if (isRemoteStoreShallowCopy && !currentState.getNodes().getMinNodeVersion().onOrAfter(Version.V_2_9_0)) {
                                     throw new SnapshotRestoreException(
                                         snapshot,
