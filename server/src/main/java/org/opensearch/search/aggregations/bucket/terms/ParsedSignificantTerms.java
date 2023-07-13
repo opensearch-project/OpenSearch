@@ -39,7 +39,7 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;

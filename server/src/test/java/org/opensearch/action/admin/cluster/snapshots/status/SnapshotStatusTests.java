@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.snapshots.status;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.test.AbstractXContentTestCase;

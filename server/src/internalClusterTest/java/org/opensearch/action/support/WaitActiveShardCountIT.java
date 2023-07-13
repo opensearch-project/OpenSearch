@@ -40,7 +40,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;

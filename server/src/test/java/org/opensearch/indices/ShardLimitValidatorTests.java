@@ -44,7 +44,7 @@ import org.opensearch.cluster.shards.ShardCounts;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;

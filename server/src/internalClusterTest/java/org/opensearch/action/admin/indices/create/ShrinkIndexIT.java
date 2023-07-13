@@ -68,7 +68,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.query.TermsQueryBuilder;

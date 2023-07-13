@@ -34,11 +34,11 @@ package org.opensearch.search;
 
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.text.Text;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.text.Text;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;

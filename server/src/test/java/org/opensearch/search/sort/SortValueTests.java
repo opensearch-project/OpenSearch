@@ -33,7 +33,7 @@
 package org.opensearch.search.sort;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContentFragment;

@@ -36,7 +36,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.util.ObjectArray;
 import org.opensearch.common.lease.Releasables;

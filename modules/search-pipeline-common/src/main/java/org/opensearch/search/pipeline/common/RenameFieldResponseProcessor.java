@@ -10,7 +10,7 @@ package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.xcontent.XContentHelper;

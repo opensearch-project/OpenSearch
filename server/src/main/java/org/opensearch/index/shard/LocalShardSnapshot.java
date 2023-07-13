@@ -41,7 +41,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.store.Store;
 

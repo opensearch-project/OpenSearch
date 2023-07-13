@@ -37,7 +37,7 @@ import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettings
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.settings.SecureString;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -46,7 +46,7 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequestFilter;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestBuilderListener;
 

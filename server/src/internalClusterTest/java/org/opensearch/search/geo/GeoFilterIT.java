@@ -48,7 +48,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.geo.builders.CoordinatesBuilder;

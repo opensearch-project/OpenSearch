@@ -15,7 +15,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.util.Arrays;
 import java.util.List;

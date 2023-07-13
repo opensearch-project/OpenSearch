@@ -50,7 +50,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.MockSecureSettings;

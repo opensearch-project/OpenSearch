@@ -14,8 +14,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchShardIterator;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.SearchShardTarget;
 
 import java.util.List;

@@ -35,11 +35,11 @@ package org.opensearch.indices.recovery;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
-import org.opensearch.common.io.stream.OutputStreamStreamOutput;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.test.OpenSearchTestCase;
 

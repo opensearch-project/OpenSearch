@@ -32,7 +32,7 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Arrays;

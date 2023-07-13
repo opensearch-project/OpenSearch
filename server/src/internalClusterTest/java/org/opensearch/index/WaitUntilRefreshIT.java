@@ -44,7 +44,7 @@ import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;

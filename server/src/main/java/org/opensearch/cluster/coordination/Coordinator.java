@@ -63,7 +63,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;

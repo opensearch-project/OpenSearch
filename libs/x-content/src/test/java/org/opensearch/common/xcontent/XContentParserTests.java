@@ -38,7 +38,7 @@ import com.fasterxml.jackson.dataformat.yaml.JacksonYAMLParseException;
 
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;

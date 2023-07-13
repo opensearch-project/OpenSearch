@@ -99,7 +99,7 @@ import org.opensearch.index.reindex.ReindexRequest;
 import org.opensearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.plugins.spi.NamedXContentProvider;
 import org.opensearch.rest.BytesRestResponse;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
 import org.opensearch.script.mustache.MultiSearchTemplateResponse;
 import org.opensearch.script.mustache.SearchTemplateRequest;

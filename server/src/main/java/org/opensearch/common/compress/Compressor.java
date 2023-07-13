@@ -32,7 +32,7 @@
 
 package org.opensearch.common.compress;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;

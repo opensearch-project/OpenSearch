@@ -31,7 +31,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;

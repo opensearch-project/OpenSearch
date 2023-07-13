@@ -57,7 +57,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.mockito.ArgumentCaptor;
