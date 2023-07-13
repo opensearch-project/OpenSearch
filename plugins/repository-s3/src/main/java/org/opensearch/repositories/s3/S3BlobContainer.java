@@ -39,11 +39,15 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
@@ -72,6 +76,8 @@ import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 import org.opensearch.core.common.Strings;
+import org.opensearch.repositories.s3.async.UploadRequest;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -82,6 +88,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -90,12 +97,13 @@ import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
 import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
 import static org.opensearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 
-class S3BlobContainer extends AbstractBlobContainer {
+class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStreamBlobContainer {
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
 
     /**
      * Maximum number of deletes in a {@link DeleteObjectsRequest}.
+     *
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
      */
     private static final int MAX_BULK_DELETES = 1000;
@@ -164,6 +172,42 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
             return null;
         });
+    }
+
+    @Override
+    public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
+        UploadRequest uploadRequest = new UploadRequest(
+            blobStore.bucket(),
+            buildKey(writeContext.getFileName()),
+            writeContext.getFileSize(),
+            writeContext.getWritePriority(),
+            writeContext.getUploadFinalizer(),
+            writeContext.doRemoteDataIntegrityCheck(),
+            writeContext.getExpectedChecksum()
+        );
+        try {
+            long partSize = blobStore.getAsyncTransferManager().calculateOptimalPartSize(writeContext.getFileSize());
+            StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamProvider(partSize));
+            try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
+
+                S3AsyncClient s3AsyncClient = writeContext.getWritePriority() == WritePriority.HIGH
+                    ? amazonS3Reference.get().priorityClient()
+                    : amazonS3Reference.get().client();
+                CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
+                    .uploadObject(s3AsyncClient, uploadRequest, streamContext);
+                completableFuture.whenComplete((response, throwable) -> {
+                    if (throwable == null) {
+                        completionListener.onResponse(response);
+                    } else {
+                        Exception ex = throwable instanceof Error ? new Exception(throwable) : (Exception) throwable;
+                        completionListener.onFailure(ex);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            logger.info("exception error from blob container for file {}", writeContext.getFileName());
+            throw new IOException(e);
+        }
     }
 
     // package private for testing
