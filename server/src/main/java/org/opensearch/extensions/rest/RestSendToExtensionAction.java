@@ -242,15 +242,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         };
 
         try {
-            // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
-
-            final String extensionTokenProcessor = "placeholder_token_processor";
-
-            // Authenticate the token
-            // identityService.getTokenManager().authenticateToken();
-
-            // Resolve a principal to identify the token type required
-            // Subject requester = identityService.identifyRequester(identityService.toPrincipal(discoveryExtensionNode.getId()));
 
             Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);
 

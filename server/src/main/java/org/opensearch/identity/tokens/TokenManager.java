@@ -16,7 +16,9 @@ import org.opensearch.identity.Subject;
 public interface TokenManager {
 
     /**
-     * Create a new auth token
+     * Create a new auth token.
+     * If the audience is an application ? serviceAccountToken : OnBehalfOf token
+     *
      * @param audience: The audience for the token
      * @return A new auth token
      */
