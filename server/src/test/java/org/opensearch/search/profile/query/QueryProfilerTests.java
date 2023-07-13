@@ -120,6 +120,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         SearchContext searchContext = mock(SearchContext.class);
         IndexShard indexShard = mock(IndexShard.class);
         when(searchContext.indexShard()).thenReturn(indexShard);
+        when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
         searcher = new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
