@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add events correlation engine plugin ([#6854](https://github.com/opensearch-project/OpenSearch/issues/6854))
 - Add support for ignoring missing Javadoc on generated code using annotation ([#7604](https://github.com/opensearch-project/OpenSearch/pull/7604))
 - Add partial results support for concurrent segment search ([#8306](https://github.com/opensearch-project/OpenSearch/pull/8306))
+- Pass OnBehalfOfToken in RestSendToExtensionAction ([#8679](https://github.com/opensearch-project/OpenSearch/pull/8679))
 
 ### Dependencies
 - Bump `log4j-core` from 2.18.0 to 2.19.0
