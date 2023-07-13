@@ -38,10 +38,6 @@ import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestStatus;
-
-import org.opensearch.transport.ConnectTransportException;
-
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
