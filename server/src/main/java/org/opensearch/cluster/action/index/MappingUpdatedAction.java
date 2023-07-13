@@ -49,7 +49,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.Mapping;
 
 import java.util.concurrent.Semaphore;

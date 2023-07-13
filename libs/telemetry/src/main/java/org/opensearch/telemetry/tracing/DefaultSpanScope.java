@@ -12,8 +12,10 @@ import java.util.function.Consumer;
 
 /**
  * Default implementation of Scope
+ *
+ * @opensearch.internal
  */
-public class DefaultSpanScope implements SpanScope {
+final class DefaultSpanScope implements SpanScope {
 
     private final Span span;
 

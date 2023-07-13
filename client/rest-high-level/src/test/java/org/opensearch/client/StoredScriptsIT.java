@@ -37,9 +37,9 @@ import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptReque
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.Script;
 import org.opensearch.script.StoredScriptSource;
 

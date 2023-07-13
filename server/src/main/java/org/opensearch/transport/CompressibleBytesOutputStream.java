@@ -33,11 +33,11 @@
 package org.opensearch.transport;
 
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.io.stream.BytesStream;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.BytesStream;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.io.OutputStream;

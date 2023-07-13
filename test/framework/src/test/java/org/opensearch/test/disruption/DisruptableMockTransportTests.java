@@ -37,7 +37,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.node.Node;

@@ -32,7 +32,7 @@
 
 package org.opensearch.search.suggest.completion;
 
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.test.OpenSearchTestCase;
 

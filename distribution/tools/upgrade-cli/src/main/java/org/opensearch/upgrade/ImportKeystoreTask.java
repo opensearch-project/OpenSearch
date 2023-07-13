@@ -12,7 +12,7 @@ import org.opensearch.cli.Terminal;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.KeystoreWrapperUtil;
-import org.opensearch.common.settings.SecureString;
+import org.opensearch.core.common.settings.SecureString;
 
 import java.io.InputStream;
 

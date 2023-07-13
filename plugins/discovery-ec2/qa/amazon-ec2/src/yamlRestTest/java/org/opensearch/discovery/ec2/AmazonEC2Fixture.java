@@ -40,7 +40,7 @@ import org.apache.http.client.utils.URLEncodedUtils;
 
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.fixture.AbstractHttpFixture;
 
 import javax.xml.XMLConstants;

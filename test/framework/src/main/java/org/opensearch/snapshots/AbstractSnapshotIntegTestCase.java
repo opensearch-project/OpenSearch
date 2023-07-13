@@ -53,11 +53,11 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -422,6 +422,13 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         if (rarely()) {
             settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
         }
+        return settings;
+    }
+
+    protected Settings.Builder snapshotRepoSettingsForShallowCopy() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", randomRepoPath());
+        settings.put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE);
         return settings;
     }
 

@@ -35,7 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;

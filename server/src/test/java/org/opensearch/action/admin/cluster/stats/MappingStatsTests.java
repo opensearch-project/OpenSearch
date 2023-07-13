@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
-import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;

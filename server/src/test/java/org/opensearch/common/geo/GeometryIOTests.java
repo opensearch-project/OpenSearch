@@ -34,9 +34,9 @@ package org.opensearch.common.geo;
 
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
 import org.opensearch.geometry.ShapeType;

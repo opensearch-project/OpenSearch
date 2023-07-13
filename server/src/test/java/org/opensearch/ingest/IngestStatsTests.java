@@ -34,8 +34,8 @@ package org.opensearch.ingest;
 
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.metrics.OperationStats;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

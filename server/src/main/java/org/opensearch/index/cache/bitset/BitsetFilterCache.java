@@ -65,7 +65,7 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.threadpool.ThreadPool;
 

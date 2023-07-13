@@ -32,7 +32,7 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 /**
  * A class that represents a stale shard copy.

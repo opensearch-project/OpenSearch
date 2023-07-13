@@ -32,6 +32,17 @@
 
 package hdfs;
 
+import java.io.File;
+import java.lang.management.ManagementFactory;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
@@ -45,18 +56,6 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.MiniDFSNNTopology;
 import org.apache.hadoop.hdfs.server.namenode.ha.HATestUtil;
 import org.apache.hadoop.security.UserGroupInformation;
-
-import java.io.File;
-import java.lang.management.ManagementFactory;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * MiniHDFS test fixture. There is a CLI tool, but here we can
@@ -74,7 +73,6 @@ public class MiniHDFS {
         }
         boolean secure = args.length == 3;
 
-        // configure Paths
         Path baseDir = Paths.get(args[0]);
         // hadoop-home/, so logs will not complain
         if (System.getenv("HADOOP_HOME") == null) {

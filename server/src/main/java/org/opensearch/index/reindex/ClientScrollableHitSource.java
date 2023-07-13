@@ -45,7 +45,7 @@ import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.client.Client;
 import org.opensearch.client.ParentTaskAssigningClient;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;

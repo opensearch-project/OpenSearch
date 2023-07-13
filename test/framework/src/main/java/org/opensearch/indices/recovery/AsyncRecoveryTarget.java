@@ -34,8 +34,8 @@ package org.opensearch.indices.recovery;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.ActionListener;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.IndexShard;

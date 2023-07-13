@@ -25,7 +25,7 @@ import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;

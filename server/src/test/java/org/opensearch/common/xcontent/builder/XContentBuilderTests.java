@@ -34,8 +34,8 @@ package org.opensearch.common.xcontent.builder;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;

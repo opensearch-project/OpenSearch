@@ -29,12 +29,12 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.core.common.Strings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import org.opensearch.discovery.InitializeExtensionRequest;
 import org.opensearch.discovery.InitializeExtensionResponse;

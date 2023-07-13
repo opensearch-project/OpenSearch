@@ -40,15 +40,15 @@ import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.index.reindex.BulkByScrollTask.Status;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +58,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Response used for actions that index many documents using a scroll request.

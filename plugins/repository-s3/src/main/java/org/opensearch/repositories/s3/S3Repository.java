@@ -34,7 +34,6 @@ package org.opensearch.repositories.s3;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
@@ -45,7 +44,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.SecureSetting;
-import org.opensearch.common.settings.SecureString;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
@@ -57,6 +56,8 @@ import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.threadpool.Scheduler;
@@ -103,6 +104,11 @@ class S3Repository extends MeteredBlobStoreRepository {
         ByteSizeUnit.BYTES
     );
 
+    private static final ByteSizeValue DEFAULT_MULTIPART_UPLOAD_MINIMUM_PART_SIZE = new ByteSizeValue(
+        ByteSizeUnit.MB.toBytes(16),
+        ByteSizeUnit.BYTES
+    );
+
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
 
     /**
@@ -144,6 +150,26 @@ class S3Repository extends MeteredBlobStoreRepository {
         DEFAULT_BUFFER_SIZE,
         MIN_PART_SIZE_USING_MULTIPART,
         MAX_PART_SIZE_USING_MULTIPART
+    );
+
+    /**
+     * Minimum part size for parallel multipart uploads
+     */
+    static final Setting<ByteSizeValue> PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING = Setting.byteSizeSetting(
+        "parallel_multipart_upload.minimum_part_size",
+        DEFAULT_MULTIPART_UPLOAD_MINIMUM_PART_SIZE,
+        MIN_PART_SIZE_USING_MULTIPART,
+        MAX_PART_SIZE_USING_MULTIPART,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * This setting controls whether parallel multipart uploads will be used when calling S3 or not
+     */
+    public static Setting<Boolean> PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING = Setting.boolSetting(
+        "parallel_multipart_upload.enabled",
+        true,
+        Setting.Property.NodeScope
     );
 
     /**
@@ -193,6 +219,12 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final RepositoryMetadata repositoryMetadata;
 
+    private final AsyncTransferManager asyncUploadUtils;
+    private final S3AsyncService s3AsyncService;
+    private final boolean multipartUploadEnabled;
+    private final AsyncExecutorContainer priorityExecutorBuilder;
+    private final AsyncExecutorContainer normalExecutorBuilder;
+
     /**
      * Constructs an s3 backed repository
      */
@@ -201,7 +233,12 @@ class S3Repository extends MeteredBlobStoreRepository {
         final NamedXContentRegistry namedXContentRegistry,
         final S3Service service,
         final ClusterService clusterService,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final AsyncTransferManager asyncUploadUtils,
+        final AsyncExecutorContainer priorityExecutorBuilder,
+        final AsyncExecutorContainer normalExecutorBuilder,
+        final S3AsyncService s3AsyncService,
+        final boolean multipartUploadEnabled
     ) {
         super(
             metadata,
@@ -212,8 +249,13 @@ class S3Repository extends MeteredBlobStoreRepository {
             buildLocation(metadata)
         );
         this.service = service;
+        this.s3AsyncService = s3AsyncService;
+        this.multipartUploadEnabled = multipartUploadEnabled;
 
         this.repositoryMetadata = metadata;
+        this.asyncUploadUtils = asyncUploadUtils;
+        this.priorityExecutorBuilder = priorityExecutorBuilder;
+        this.normalExecutorBuilder = normalExecutorBuilder;
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
@@ -314,7 +356,20 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, repositoryMetadata);
+        return new S3BlobStore(
+            service,
+            s3AsyncService,
+            multipartUploadEnabled,
+            bucket,
+            serverSideEncryption,
+            bufferSize,
+            cannedACL,
+            storageClass,
+            repositoryMetadata,
+            asyncUploadUtils,
+            priorityExecutorBuilder,
+            normalExecutorBuilder
+        );
     }
 
     // only use for testing

@@ -40,7 +40,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;

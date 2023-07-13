@@ -51,7 +51,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryCleanupResult;
@@ -93,6 +94,8 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
 
     private final SnapshotsService snapshotsService;
 
+    private final RemoteStoreLockManagerFactory remoteStoreLockManagerFactory;
+
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
@@ -119,6 +122,7 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         );
         this.repositoriesService = repositoriesService;
         this.snapshotsService = snapshotsService;
+        this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(() -> repositoriesService);
         // We add a state applier that will remove any dangling repository cleanup actions on cluster-manager failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.
@@ -267,6 +271,7 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
                                     l -> blobStoreRepository.cleanup(
                                         repositoryStateId,
                                         snapshotsService.minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null),
+                                        remoteStoreLockManagerFactory,
                                         ActionListener.wrap(result -> after(null, result), e -> after(e, null))
                                     )
                                 )

@@ -54,7 +54,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.discovery.Discovery;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;

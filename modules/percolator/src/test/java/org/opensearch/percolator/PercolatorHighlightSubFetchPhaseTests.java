@@ -38,7 +38,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.RandomScoreFunction;
 import org.opensearch.search.fetch.FetchContext;

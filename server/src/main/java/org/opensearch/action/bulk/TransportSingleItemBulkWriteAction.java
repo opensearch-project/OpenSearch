@@ -41,7 +41,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.WriteResponse;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 

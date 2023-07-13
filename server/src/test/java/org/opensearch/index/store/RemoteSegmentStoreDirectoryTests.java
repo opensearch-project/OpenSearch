@@ -23,14 +23,18 @@ import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexShard;
@@ -48,6 +52,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 
 import static org.mockito.Mockito.mock;
@@ -68,6 +76,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     private RemoteStoreMetadataLockManager mdLockManager;
 
     private RemoteSegmentStoreDirectory remoteSegmentStoreDirectory;
+    private TestUploadListener testUploadTracker;
     private IndexShard indexShard;
     private SegmentInfos segmentInfos;
     private ThreadPool threadPool;
@@ -89,6 +98,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             mdLockManager,
             threadPool
         );
+        testUploadTracker = new TestUploadListener();
 
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build();
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
@@ -499,6 +509,82 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
         remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT);
         assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+
+        storeDirectory.close();
+    }
+
+    public void testCopyFilesFromMultipart() throws Exception {
+        String filename = "_100.si";
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = LuceneTestCase.newDirectory();
+        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
+        indexOutput.writeString("Hello World!");
+        CodecUtil.writeFooter(indexOutput);
+        indexOutput.close();
+        storeDirectory.sync(List.of(filename));
+
+        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+
+        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
+        Mockito.doAnswer(invocation -> {
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onResponse(null);
+            return null;
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<Void> completionListener = new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        };
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener);
+        assertTrue(latch.await(5000, TimeUnit.SECONDS));
+        assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+        storeDirectory.close();
+    }
+
+    public void testCopyFilesFromMultipartIOException() throws Exception {
+        String filename = "_100.si";
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = LuceneTestCase.newDirectory();
+        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
+        indexOutput.writeString("Hello World!");
+        CodecUtil.writeFooter(indexOutput);
+        indexOutput.close();
+        storeDirectory.sync(List.of(filename));
+
+        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+
+        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
+        Mockito.doAnswer(invocation -> {
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onFailure(new Exception("Test exception"));
+            return null;
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<Void> completionListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                latch.countDown();
+            }
+        };
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener);
+        assertTrue(latch.await(5000, TimeUnit.SECONDS));
+        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
         storeDirectory.close();
     }

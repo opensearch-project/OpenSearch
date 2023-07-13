@@ -75,7 +75,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.NestedSortBuilder;

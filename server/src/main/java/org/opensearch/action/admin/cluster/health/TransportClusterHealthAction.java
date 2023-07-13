@@ -58,7 +58,7 @@ import org.opensearch.cluster.routing.WeightedRoutingUtils;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.core.common.Strings;

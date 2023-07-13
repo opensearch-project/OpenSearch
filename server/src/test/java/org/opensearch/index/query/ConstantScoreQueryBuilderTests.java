@@ -35,7 +35,7 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

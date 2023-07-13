@@ -32,10 +32,10 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;

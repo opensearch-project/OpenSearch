@@ -68,7 +68,11 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(defaultSettings.endpoint, is(emptyString()));
         assertThat(defaultSettings.protocol, is(Protocol.HTTPS));
         assertThat(defaultSettings.proxySettings, is(ProxySettings.NO_PROXY_SETTINGS));
-        assertThat(defaultSettings.readTimeoutMillis, is(50_000));
+        assertThat(defaultSettings.readTimeoutMillis, is(50 * 1000));
+        assertThat(defaultSettings.requestTimeoutMillis, is(120 * 1000));
+        assertThat(defaultSettings.connectionTimeoutMillis, is(10 * 1000));
+        assertThat(defaultSettings.connectionTTLMillis, is(5 * 1000));
+        assertThat(defaultSettings.maxConnections, is(100));
         assertThat(defaultSettings.maxRetries, is(3));
         assertThat(defaultSettings.throttleRetries, is(true));
     }

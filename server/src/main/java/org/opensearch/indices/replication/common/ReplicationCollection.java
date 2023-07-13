@@ -40,7 +40,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -68,6 +68,26 @@ public class ReplicationCollection<T extends ReplicationTarget> {
     public ReplicationCollection(Logger logger, ThreadPool threadPool) {
         this.logger = logger;
         this.threadPool = threadPool;
+    }
+
+    /**
+     * Starts a new target event for a given shard, fails the given target if this shard is already replicating.
+     * @param target ReplicationTarget to start
+     * @param activityTimeout timeout for entire replication event
+     * @return The replication id
+     */
+    public long startSafe(T target, TimeValue activityTimeout) {
+        synchronized (onGoingTargetEvents) {
+            final boolean isPresent = onGoingTargetEvents.values()
+                .stream()
+                .map(ReplicationTarget::shardId)
+                .anyMatch(t -> t.equals(target.shardId()));
+            if (isPresent) {
+                throw new ReplicationFailedException("Shard " + target.shardId() + " is already replicating");
+            } else {
+                return start(target, activityTimeout);
+            }
+        }
     }
 
     /**
@@ -232,6 +252,22 @@ public class ReplicationCollection<T extends ReplicationTarget> {
             cancelled = true;
         }
         return cancelled;
+    }
+
+    /**
+     * Trigger cancel on the target but do not remove it from the collection.
+     * This is intended to be called to ensure replication events are removed from the collection
+     * only when the target has closed.
+     *
+     * @param shardId {@link ShardId} shard events to cancel
+     * @param reason {@link String} reason for cancellation
+     */
+    public void requestCancel(ShardId shardId, String reason) {
+        for (T value : onGoingTargetEvents.values()) {
+            if (value.shardId().equals(shardId)) {
+                value.cancel(reason);
+            }
+        }
     }
 
     /**
