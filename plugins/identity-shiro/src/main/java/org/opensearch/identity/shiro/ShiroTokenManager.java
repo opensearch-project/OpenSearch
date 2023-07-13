@@ -88,7 +88,6 @@ class ShiroTokenManager implements TokenManager {
         return new ShiroSubject(this, SecurityUtils.getSubject());
     }
 
-
     public boolean validateToken(AuthToken token) {
         if (token instanceof BasicAuthToken) {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) token;

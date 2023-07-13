@@ -250,7 +250,9 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     filteredHeaders,
                     contentType,
                     content,
-                    identityService.getTokenManager().issueOnBehalfOfToken(List.of(discoveryExtensionNode.getId(), identityService.getSubject().toString())).toString(),
+                    identityService.getTokenManager()
+                        .issueOnBehalfOfToken(List.of(discoveryExtensionNode.getId(), identityService.getSubject().toString()))
+                        .toString(),
                     httpVersion
                 ),
                 restExecuteOnExtensionResponseHandler

@@ -73,7 +73,8 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
             if (shiroSubject.getPrincipal().equals(principal)) {
                 return shiroSubject;
             }
-        };
+        }
+        ;
         return null;
     }
 }
