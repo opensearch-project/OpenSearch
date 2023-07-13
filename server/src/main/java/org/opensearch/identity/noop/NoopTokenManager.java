@@ -8,7 +8,7 @@
 
 package org.opensearch.identity.noop;
 
-import java.util.List;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.identity.IdentityService;
@@ -28,7 +28,7 @@ public class NoopTokenManager implements TokenManager {
      * @return a new Noop Token
      */
     @Override
-    public AuthToken issueOnBehalfOfToken(List<String> claims) {
+    public AuthToken issueOnBehalfOfToken(Map<String, Object> claims) {
         return new AuthToken() {
         };
     }

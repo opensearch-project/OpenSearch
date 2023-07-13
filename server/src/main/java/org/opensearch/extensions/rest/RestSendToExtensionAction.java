@@ -251,7 +251,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     contentType,
                     content,
                     identityService.getTokenManager()
-                        .issueOnBehalfOfToken(List.of(discoveryExtensionNode.getId(), identityService.getSubject().toString()))
+                        .issueOnBehalfOfToken(Map.of("aud", discoveryExtensionNode.getId()))
                         .toString(),
                     httpVersion
                 ),

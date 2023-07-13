@@ -57,10 +57,10 @@ class ShiroTokenManager implements TokenManager {
     }
 
     @Override
-    public AuthToken issueOnBehalfOfToken(List<String> claims) {
+    public AuthToken issueOnBehalfOfToken(Map<String, Object> claims) {
 
         String password = generatePassword();
-        final byte[] rawEncoded = Base64.getEncoder().encode((claims.get(0) + ":" + password).getBytes(UTF_8));
+        final byte[] rawEncoded = Base64.getEncoder().encode((claims.get("aud") + ":" + password).getBytes(UTF_8));
         final String usernamePassword = new String(rawEncoded, UTF_8);
         final String header = "Basic " + usernamePassword;
         BasicAuthToken token = new BasicAuthToken(header);

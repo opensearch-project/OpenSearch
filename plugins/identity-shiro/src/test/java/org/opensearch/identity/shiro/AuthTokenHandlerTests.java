@@ -8,8 +8,8 @@
 
 package org.opensearch.identity.shiro;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
@@ -144,9 +144,8 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
     }
 
     public void testIssueOnBehalfOfTokenFromClaims() {
-        List<String> claims = new ArrayList<>();
-        claims.add("audience");
-        claims.add("roles");
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("aud", "test");
         BasicAuthToken authToken = (BasicAuthToken) shiroAuthTokenHandler.issueOnBehalfOfToken(claims);
         assertTrue(authToken instanceof BasicAuthToken);
         UsernamePasswordToken translatedToken = (UsernamePasswordToken) shiroAuthTokenHandler.translateAuthToken(authToken).get();
@@ -154,5 +153,4 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         assertTrue(shiroAuthTokenHandler.getShiroTokenPasswordMap().containsKey(authToken));
         assertEquals(shiroAuthTokenHandler.getShiroTokenPasswordMap().get(authToken), new String(translatedToken.getPassword()));
     }
-
 }
