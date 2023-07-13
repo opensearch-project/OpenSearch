@@ -14,7 +14,6 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -37,7 +36,6 @@ import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
-import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -52,7 +50,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -63,7 +60,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
  *
  * @opensearch.internal
  */
-public final class RemoteStoreRefreshListener implements ReferenceManager.RefreshListener {
+public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshListener {
 
     private final Logger logger;
 
@@ -106,8 +103,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     private volatile Iterator<TimeValue> backoffDelayIterator;
 
-    private volatile Scheduler.ScheduledCancellable scheduledCancellableRetry;
-
     /**
      * Keeps track of segment files and their size in bytes which are part of the most recent refresh.
      */
@@ -122,6 +117,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         SegmentReplicationCheckpointPublisher checkpointPublisher,
         RemoteRefreshSegmentTracker segmentTracker
     ) {
+        super(indexShard.getThreadPool());
         logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
@@ -174,22 +170,27 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      * @param didRefresh true if the refresh opened a new reference
      */
     @Override
-    public void afterRefresh(boolean didRefresh) {
+    protected boolean performAfterRefresh(boolean didRefresh) {
+        AtomicBoolean shouldRetry = new AtomicBoolean(true);
         if (this.primaryTerm != indexShard.getOperationPrimaryTerm()
             || didRefresh
             || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
             updateLocalRefreshTimeAndSeqNo();
             try {
-                indexShard.getThreadPool().executor(ThreadPool.Names.REMOTE_REFRESH).submit(() -> syncSegments(false)).get();
+                indexShard.getThreadPool()
+                    .executor(ThreadPool.Names.REMOTE_REFRESH)
+                    .submit(() -> shouldRetry.set(syncSegments(false)))
+                    .get();
             } catch (InterruptedException | ExecutionException e) {
                 logger.info("Exception occurred while scheduling syncSegments", e);
             }
         }
+        return shouldRetry.get();
     }
 
-    private synchronized void syncSegments(boolean isRetry) {
+    private synchronized boolean syncSegments(boolean isRetry) {
         if (indexShard.getReplicationTracker().isPrimaryMode() == false) {
-            return;
+            return false;
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
         indexShard.onCheckpointPublished(checkpoint);
@@ -296,7 +297,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
         }
         updateFinalStatusInSegmentTracker(shouldRetry.get() == false, bytesBeforeUpload, startTimeInNS);
-        afterSegmentsSync(isRetry, shouldRetry.get());
+        afterSegmentsSync(isRetry);
+        // If there are failures in uploading segments, then we should retry as search idle can lead to
+        // refresh not occurring until write happens.
+        return shouldRetry.get() && indexShard.state() != IndexShardState.CLOSED && retryScheduled.compareAndSet(false, true);
     }
 
     /**
@@ -333,26 +337,12 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         updateRemoteRefreshTimeAndSeqNo(refreshTimeMs, refreshClockTimeMs, refreshSeqNo);
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
-        // Cancel the scheduled cancellable retry if possible and set it to null
-        cancelAndResetScheduledCancellableRetry();
+        // Setting retryScheduled to false so that new retries can be scheduled on future failures.
+        retryScheduled.set(false);
         // Set the minimum sequence number for keeping translog
         indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
-    }
-
-    /**
-     * Cancels the scheduled retry if there is one scheduled, and it has not started yet. Clears the reference as the
-     * schedule retry has been cancelled, or it was null in the first place, or it is running/ran already.
-     */
-    private void cancelAndResetScheduledCancellableRetry() {
-        if (scheduledCancellableRetry != null && scheduledCancellableRetry.getDelay(TimeUnit.NANOSECONDS) > 0) {
-            scheduledCancellableRetry.cancel();
-            // Since we are cancelling the retry attempt as an internal/external refresh happened already before the retry job could be
-            // started and the current run successfully uploaded the segments.
-            retryScheduled.set(false);
-        }
-        scheduledCancellableRetry = null;
     }
 
     /**
@@ -362,18 +352,26 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         backoffDelayIterator = EXPONENTIAL_BACKOFF_POLICY.iterator();
     }
 
-    private void afterSegmentsSync(boolean isRetry, boolean shouldRetry) {
+    private void afterSegmentsSync(boolean isRetry) {
         // If this was a retry attempt, then we set the retryScheduled to false so that the next retry (if needed) can be scheduled
         if (isRetry) {
             retryScheduled.set(false);
         }
+    }
 
-        // If there are failures in uploading segments, then we should retry as search idle can lead to
-        // refresh not occurring until write happens.
-        if (shouldRetry && indexShard.state() != IndexShardState.CLOSED && retryScheduled.compareAndSet(false, true)) {
-            scheduledCancellableRetry = indexShard.getThreadPool()
-                .schedule(() -> this.syncSegments(true), backoffDelayIterator.next(), ThreadPool.Names.REMOTE_REFRESH);
-        }
+    @Override
+    protected TimeValue getNextRetryInterval() {
+        return backoffDelayIterator.next();
+    }
+
+    @Override
+    protected boolean doRetry() {
+        return syncSegments(true);
+    }
+
+    @Override
+    protected String getRetryThreadPoolName() {
+        return ThreadPool.Names.REMOTE_REFRESH;
     }
 
     private boolean isRefreshAfterCommit() throws IOException {
