@@ -8,7 +8,7 @@
 
 package org.opensearch;
 
-import org.opensearch.index.snapshots.IndexShardSnapshotException;
+import org.opensearch.core.index.snapshots.IndexShardSnapshotException;
 
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;

@@ -41,8 +41,10 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ApplicationManager;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.identity.IdentityService;

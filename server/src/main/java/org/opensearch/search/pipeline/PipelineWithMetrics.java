@@ -9,8 +9,8 @@
 package org.opensearch.search.pipeline;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.metrics.OperationMetrics;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.ingest.ConfigurationUtils;
 
 import java.util.ArrayList;

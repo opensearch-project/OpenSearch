@@ -115,8 +115,10 @@ import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.ModulesBuilder;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lease.Releasables;
+
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.NodeAndClusterIdStateListener;

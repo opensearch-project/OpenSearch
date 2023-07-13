@@ -35,10 +35,12 @@ package org.opensearch.action;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.scopes.ActionScope;
 import org.opensearch.identity.scopes.Scope;
+
 import org.opensearch.transport.TransportRequestOptions;
 
 /**
@@ -68,7 +70,7 @@ public class ActionType<Response extends ActionResponse> {
     }
 
     /**
-     * Get a reader that can create a new instance of the class from a {@link org.opensearch.common.io.stream.StreamInput}
+     * Get a reader that can create a new instance of the class from a {@link StreamInput}
      */
     public Writeable.Reader<Response> getResponseReader() {
         return responseReader;

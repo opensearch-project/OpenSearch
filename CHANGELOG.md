@@ -51,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Pass localNode info to all plugins on node start ([#7919](https://github.com/opensearch-project/OpenSearch/pull/7919))
 - Improved performance of parsing floating point numbers ([#7909](https://github.com/opensearch-project/OpenSearch/pull/7909))
 - Move span actions to Scope ([#8411](https://github.com/opensearch-project/OpenSearch/pull/8411))
+- Make Span exporter configurable ([#8620](https://github.com/opensearch-project/OpenSearch/issues/8620))
 - Add wrapper tracer implementation
 
 ### Deprecated
@@ -96,6 +97,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Introduce Application Scopes ([#7850]https://github.com/opensearch-project/OpenSearch/pull/7850)
 - Make remote cluster connection setup in async ([#8038](https://github.com/opensearch-project/OpenSearch/pull/8038))
 - Add API to initialize extensions ([#8029]()https://github.com/opensearch-project/OpenSearch/pull/8029)
+- Start replication checkpointTimers on primary before segments upload to remote store. ([#8221]()https://github.com/opensearch-project/OpenSearch/pull/8221)
 - Add distributed tracing framework ([#7543](https://github.com/opensearch-project/OpenSearch/issues/7543))
 - Enable Point based optimization for custom comparators ([#8168](https://github.com/opensearch-project/OpenSearch/pull/8168))
 - [Extensions] Support extension additional settings with extension REST initialization ([#8414](https://github.com/opensearch-project/OpenSearch/pull/8414))
@@ -105,6 +107,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Search pipelines] Add Global Ignore_failure options for Processors ([#8373](https://github.com/opensearch-project/OpenSearch/pull/8373))
 - Enable Partial Flat Object ([#7997](https://github.com/opensearch-project/OpenSearch/pull/7997))
 - Add jdk.incubator.vector module support for JDK 20+ ([#8601](https://github.com/opensearch-project/OpenSearch/pull/8601))
+- Introduce full support for Search Pipeline ([#8613](https://github.com/opensearch-project/OpenSearch/pull/8613))
 
 
 ### Dependencies
@@ -142,10 +145,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.maven:maven-model` from 3.9.2 to 3.9.3 (#8403)
 - Bump `io.projectreactor.netty:reactor-netty` and `io.projectreactor.netty:reactor-netty-core` from 1.1.7 to 1.1.8 (#8405)
 - Bump `com.azure:azure-storage-blob` from 12.22.2 to 12.22.3 (#8572)
-- Bump `net.minidev:json-smart` from 2.4.11 to 2.5.0 ([#8576](https://github.com/opensearch-project/OpenSearch/pull/8576))
+- Bump `net.minidev:json-smart` from 2.4.11 to 2.5.0 (#8575, #8576)
 - Bump `com.google.jimfs:jimfs` from 1.2 to 1.3.0 (#8577, #8571)
 - Bump `com.networknt:json-schema-validator` from 1.0.85 to 1.0.86 ([#8573](https://github.com/opensearch-project/OpenSearch/pull/8573))
 - Bump `com.google.cloud:google-cloud-core-http` from 2.17.0 to 2.21.0 ([#8586](https://github.com/opensearch-project/OpenSearch/pull/8586))
+- Bump `com.google.jimfs:jimfs` from 1.2 to 1.3.0 ([#8585](https://github.com/opensearch-project/OpenSearch/pull/8585))
 - Bump `org.apache.logging.log4j:log4j-core` from 2.17.1 to 2.20.0 ([#8307](https://github.com/opensearch-project/OpenSearch/pull/8307))
 
 ### Changed

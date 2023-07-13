@@ -35,7 +35,7 @@ package org.opensearch.test.rest.yaml.section;
 import org.opensearch.Version;
 import org.opensearch.client.Node;
 import org.opensearch.client.NodeSelector;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;

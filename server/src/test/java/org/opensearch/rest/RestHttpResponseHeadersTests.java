@@ -33,11 +33,14 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
+
 import org.opensearch.cluster.ApplicationManager;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
+
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;

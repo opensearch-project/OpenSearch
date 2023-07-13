@@ -35,10 +35,13 @@ package org.opensearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.BytesStream;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
+import org.opensearch.core.common.io.stream.BytesStream;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.ByteArray;
+import org.opensearch.core.common.util.ByteArray;
 import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
