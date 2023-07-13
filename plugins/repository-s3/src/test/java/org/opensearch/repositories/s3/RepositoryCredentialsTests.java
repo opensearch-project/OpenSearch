@@ -291,7 +291,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     public static final class ProxyS3RepositoryPlugin extends S3RepositoryPlugin {
 
         public ProxyS3RepositoryPlugin(Settings settings, Path configPath) {
-            super(settings, configPath, new ProxyS3Service(configPath));
+            super(settings, configPath, new ProxyS3Service(configPath), new S3AsyncService(configPath));
         }
 
         @Override
@@ -301,7 +301,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
+            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, false) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads
