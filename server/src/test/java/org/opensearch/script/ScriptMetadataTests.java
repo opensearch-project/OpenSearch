@@ -32,9 +32,9 @@
 package org.opensearch.script;
 
 import org.opensearch.cluster.DiffableUtils;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;

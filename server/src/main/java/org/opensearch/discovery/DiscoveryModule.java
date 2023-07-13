@@ -43,7 +43,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.Randomness;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;

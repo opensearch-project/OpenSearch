@@ -34,8 +34,8 @@ package org.opensearch.action.admin.indices.dangling.find;
 
 import java.io.IOException;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
 
 /**

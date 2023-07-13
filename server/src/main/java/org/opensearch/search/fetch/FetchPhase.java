@@ -48,7 +48,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.lucene.search.Queries;
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;

@@ -16,7 +16,7 @@ import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 
 /**
- * Identity and access control for OpenSearch.
+ * Identity and access control for OpenSearch
  *
  * @opensearch.experimental
  * */

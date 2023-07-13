@@ -48,10 +48,10 @@ import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -40,6 +40,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.common.util.BigArray;
+import org.opensearch.core.common.util.ByteArray;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Collection;

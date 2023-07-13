@@ -12,6 +12,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -49,9 +50,13 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
     public void testUploadBlob() throws IOException {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            testFile,
+            randomNonNegativeLong(),
+            null
+        );
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
-        transferService.uploadBlob(transferFileSnapshot, repository.basePath());
+        transferService.uploadBlob(transferFileSnapshot, repository.basePath(), WritePriority.HIGH);
     }
 
     public void testUploadBlobFromByteArray() throws IOException {
@@ -61,17 +66,21 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
             1
         );
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
-        transferService.uploadBlob(transferFileSnapshot, repository.basePath());
+        transferService.uploadBlob(transferFileSnapshot, repository.basePath(), WritePriority.NORMAL);
     }
 
     public void testUploadBlobAsync() throws IOException, InterruptedException {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
         AtomicBoolean succeeded = new AtomicBoolean(false);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+            testFile,
+            randomNonNegativeLong(),
+            null
+        );
         CountDownLatch latch = new CountDownLatch(1);
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
-        transferService.uploadBlobAsync(
+        transferService.uploadBlob(
             ThreadPool.Names.TRANSLOG_TRANSFER,
             transferFileSnapshot,
             repository.basePath(),
@@ -87,7 +96,8 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
                 public void onFailure(Exception e) {
                     throw new AssertionError("Failed to perform uploadBlobAsync", e);
                 }
-            }, latch)
+            }, latch),
+            WritePriority.HIGH
         );
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         assertTrue(succeeded.get());

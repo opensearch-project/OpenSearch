@@ -33,10 +33,10 @@
 package org.opensearch.search;
 
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SearchPlugin.SearchExtSpec;

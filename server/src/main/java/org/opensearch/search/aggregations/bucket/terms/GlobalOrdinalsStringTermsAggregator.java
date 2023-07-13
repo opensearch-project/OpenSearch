@@ -40,7 +40,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.LongHash;
 import org.opensearch.common.lease.Releasable;

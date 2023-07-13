@@ -38,7 +38,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -48,8 +48,8 @@ import java.util.Set;
 
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.HEAD;
-import static org.opensearch.rest.RestStatus.NOT_FOUND;
-import static org.opensearch.rest.RestStatus.OK;
+import static org.opensearch.core.rest.RestStatus.NOT_FOUND;
+import static org.opensearch.core.rest.RestStatus.OK;
 
 /**
  * Transport action to get composable index template

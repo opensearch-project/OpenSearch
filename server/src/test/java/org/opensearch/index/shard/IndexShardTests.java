@@ -77,11 +77,11 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -92,6 +92,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.NodeEnvironment;
@@ -2692,6 +2693,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRelocatedForRemoteTranslogBackedIndexWithAsyncDurability() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
@@ -4815,6 +4817,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testTranslogFactoryForRemoteTranslogBackedPrimaryShard() throws IOException {
         Settings primarySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)

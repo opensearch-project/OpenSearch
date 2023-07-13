@@ -32,7 +32,7 @@
 
 package org.opensearch.env;
 
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.util.concurrent.atomic.AtomicBoolean;

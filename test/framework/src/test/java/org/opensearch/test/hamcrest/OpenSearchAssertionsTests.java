@@ -32,12 +32,12 @@
 
 package org.opensearch.test.hamcrest;
 
-import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;

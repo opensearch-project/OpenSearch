@@ -35,7 +35,7 @@ package org.opensearch.common.lucene;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.opensearch.core.Assertions;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardUtils;
 
 import java.io.IOException;

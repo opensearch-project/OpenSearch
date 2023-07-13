@@ -44,12 +44,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
@@ -59,7 +58,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.search.SearchService;
@@ -1323,10 +1322,5 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(2, nodes);
-    }
-
-    private boolean segmentReplicationWithRemoteEnabled() {
-        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue()
-            && "true".equalsIgnoreCase(featureFlagSettings().get(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL));
     }
 }

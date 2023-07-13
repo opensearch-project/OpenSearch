@@ -35,7 +35,7 @@ package org.opensearch.index.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;

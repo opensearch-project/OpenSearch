@@ -40,11 +40,11 @@ import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAll
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;

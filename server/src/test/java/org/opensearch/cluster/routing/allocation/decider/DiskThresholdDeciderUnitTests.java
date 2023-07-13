@@ -56,8 +56,8 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Collections;
 import java.util.HashMap;

@@ -8,8 +8,8 @@
 
 package org.opensearch.search.backpressure.trackers;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;

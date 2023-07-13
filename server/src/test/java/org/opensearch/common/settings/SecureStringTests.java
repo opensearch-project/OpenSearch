@@ -32,6 +32,7 @@
 
 package org.opensearch.common.settings;
 
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;

@@ -35,7 +35,7 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractQueryTestCase;
 

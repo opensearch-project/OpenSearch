@@ -31,7 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket.nested;
 
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 

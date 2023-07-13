@@ -34,9 +34,9 @@ package org.opensearch.search.profile.query;
 
 import org.opensearch.Version;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -48,7 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Public interface and serialization container for profiled timings of the

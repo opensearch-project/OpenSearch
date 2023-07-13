@@ -44,7 +44,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.plugins.Plugin;

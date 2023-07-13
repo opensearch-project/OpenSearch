@@ -38,11 +38,11 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.index.VersionType;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Locale;

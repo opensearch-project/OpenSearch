@@ -17,7 +17,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -120,11 +120,7 @@ class OngoingSegmentReplications {
                     removeCopyState(sourceHandler.getCopyState());
                 }
             });
-            if (request.getFilesToFetch().isEmpty()) {
-                wrappedListener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
-            } else {
-                handler.sendFiles(request, wrappedListener);
-            }
+            handler.sendFiles(request, wrappedListener);
         } else {
             listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
         }

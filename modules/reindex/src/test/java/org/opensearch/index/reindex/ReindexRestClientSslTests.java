@@ -40,7 +40,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.RestClient;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.ssl.PemKeyConfig;

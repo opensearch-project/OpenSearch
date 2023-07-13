@@ -38,7 +38,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.gateway.GatewayService;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -55,7 +55,7 @@ import org.opensearch.index.fielddata.AbstractFieldDataTestCase;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.MultiValueMode;
 
 import java.io.IOException;

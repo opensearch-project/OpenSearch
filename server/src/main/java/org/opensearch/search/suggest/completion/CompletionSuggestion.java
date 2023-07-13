@@ -35,10 +35,10 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -57,7 +57,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.search.SearchHit.unknownMetaFieldConsumer;
 import static org.opensearch.search.suggest.Suggest.COMPARATOR;
 

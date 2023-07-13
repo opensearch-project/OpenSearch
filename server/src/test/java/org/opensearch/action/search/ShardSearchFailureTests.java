@@ -34,13 +34,13 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
