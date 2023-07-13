@@ -53,6 +53,11 @@ public class RemoteRefreshSegmentTracker {
     private volatile long localRefreshClockTimeMs;
 
     /**
+     * Time in milliseconds for the last successful segment download
+     */
+    private volatile long lastDownloadTimestampMs;
+
+    /**
      * Sequence number of the most recent remote refresh.
      */
     private volatile long remoteRefreshSeqNo;
@@ -82,6 +87,8 @@ public class RemoteRefreshSegmentTracker {
      */
     private volatile long lastSuccessfulRemoteRefreshBytes;
 
+    private volatile long lastSuccessfulSegmentDownloadBytes;
+
     /**
      * Cumulative sum of size in bytes of segment files for which upload has started during remote refresh.
      */
@@ -98,6 +105,21 @@ public class RemoteRefreshSegmentTracker {
     private volatile long uploadBytesSucceeded;
 
     /**
+     * Cumulative sum of size in bytes of segment files for which download has started.
+     */
+    private volatile long downloadBytesStarted;
+
+    /**
+     * Cumulative sum of size in bytes of segment files for which download has failed.
+     */
+    private volatile long downloadBytesFailed;
+
+    /**
+     * Cumulative sum of size in bytes of segment files for which download has succeeded.
+     */
+    private volatile long downloadBytesSucceeded;
+
+    /**
      * Cumulative sum of count of remote refreshes that have started.
      */
     private volatile long totalUploadsStarted;
@@ -111,6 +133,21 @@ public class RemoteRefreshSegmentTracker {
      * Cumulative sum of count of remote refreshes that have succeeded.
      */
     private volatile long totalUploadsSucceeded;
+
+    /**
+     * Cumulative sum of count of segment file downloads that have started.
+     */
+    private volatile long totalDownloadsStarted;
+
+    /**
+     * Cumulative sum of count of segment file downloads that have succeeded.
+     */
+    private volatile long totalDownloadsSucceeded;
+
+    /**
+     * Cumulative sum of count of segment file downloads that have failed.
+     */
+    private volatile long totalDownloadsFailed;
 
     /**
      * Cumulative sum of rejection counts for this shard.
@@ -154,6 +191,12 @@ public class RemoteRefreshSegmentTracker {
     private final Object uploadBytesMutex = new Object();
 
     /**
+     * Provides moving average over the last N total size in bytes of segment files downloaded from the remote store.
+     * N is window size. Wrapped with {@code AtomicReference} for dynamic changes in window size.
+     */
+    private final AtomicReference<MovingAverage> downloadBytesMovingAverageReference;
+
+    /**
      * Provides moving average over the last N upload speed (in bytes/s) of segment files uploaded as part of remote refresh.
      * N is window size. Wrapped with {@code AtomicReference} for dynamic changes in window size.
      */
@@ -162,12 +205,26 @@ public class RemoteRefreshSegmentTracker {
     private final Object uploadBytesPerSecMutex = new Object();
 
     /**
-     * Provides moving average over the last N overall upload time (in nanos) as part of remote refresh.N is window size.
+     * Provides moving average over the last N upload speed (in bytes/s) of segment files downloaded from the remote store.
+     * N is window size. Wrapped with {@code AtomicReference} for dynamic changes in window size.
+     */
+    private final AtomicReference<MovingAverage> downloadBytesPerSecMovingAverageReference;
+
+    /**
+     * Provides moving average over the last N overall upload time (in millis) as part of remote refresh.N is window size.
      * Wrapped with {@code AtomicReference} for dynamic changes in window size.
      */
     private final AtomicReference<MovingAverage> uploadTimeMsMovingAverageReference;
 
     private final Object uploadTimeMsMutex = new Object();
+
+    /**
+     * Provides moving average over the last N overall download time (in millis) of segments downloaded from the remote store.
+     * Wrapped with {@code AtomicReference} for dynamic changes in window size.
+     */
+    private final AtomicReference<MovingAverage> downloadTimeMovingAverageReference;
+
+    private final int SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE = 20;
 
     public RemoteRefreshSegmentTracker(
         ShardId shardId,
@@ -186,7 +243,9 @@ public class RemoteRefreshSegmentTracker {
         uploadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesMovingAverageWindowSize));
         uploadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesPerSecMovingAverageWindowSize));
         uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
-
+        downloadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE));
+        downloadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE));
+        downloadTimeMovingAverageReference = new AtomicReference<>(new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE));
         latestLocalFileNameLengthMap = new HashMap<>();
     }
 
@@ -216,6 +275,10 @@ public class RemoteRefreshSegmentTracker {
         return localRefreshClockTimeMs;
     }
 
+    public long getLastDownloadTimestampMs() {
+        return lastDownloadTimestampMs;
+    }
+
     public void updateLocalRefreshTimeMs(long localRefreshTimeMs) {
         assert localRefreshTimeMs >= this.localRefreshTimeMs : "newLocalRefreshTimeMs="
             + localRefreshTimeMs
@@ -228,6 +291,10 @@ public class RemoteRefreshSegmentTracker {
 
     public void updateLocalRefreshClockTimeMs(long localRefreshClockTimeMs) {
         this.localRefreshClockTimeMs = localRefreshClockTimeMs;
+    }
+
+    public void updateLastDownloadTimestampMs(long downloadTimestampInMs) {
+        this.lastDownloadTimestampMs = downloadTimestampInMs;
     }
 
     long getRemoteRefreshSeqNo() {
@@ -310,8 +377,36 @@ public class RemoteRefreshSegmentTracker {
         uploadBytesSucceeded += size;
     }
 
+    public long getDownloadBytesStarted() {
+        return downloadBytesStarted;
+    }
+
+    public void addDownloadBytesStarted(long size) {
+        downloadBytesStarted += size;
+    }
+
+    public long getDownloadBytesFailed() {
+        return downloadBytesFailed;
+    }
+
+    public void addDownloadBytesFailed(long size) {
+        downloadBytesFailed += size;
+    }
+
+    public long getDownloadBytesSucceeded() {
+        return downloadBytesSucceeded;
+    }
+
+    public void addDownloadBytesSucceeded(long size) {
+        downloadBytesSucceeded += size;
+    }
+
     public long getInflightUploadBytes() {
         return uploadBytesStarted - uploadBytesFailed - uploadBytesSucceeded;
+    }
+
+    public long getInflightDownloadBytes() {
+        return downloadBytesStarted - downloadBytesFailed - downloadBytesSucceeded;
     }
 
     public long getTotalUploadsStarted() {
@@ -342,6 +437,34 @@ public class RemoteRefreshSegmentTracker {
 
     public long getInflightUploads() {
         return totalUploadsStarted - totalUploadsFailed - totalUploadsSucceeded;
+    }
+
+    public long getTotalDownloadsStarted() {
+        return totalDownloadsStarted;
+    }
+
+    public void incrementTotalDownloadsStarted() {
+        totalDownloadsStarted += 1;
+    }
+
+    public long getTotalDownloadsFailed() {
+        return totalDownloadsFailed;
+    }
+
+    public void incrementTotalDownloadsFailed() {
+        totalDownloadsFailed += 1;
+    }
+
+    public long getTotalDownloadsSucceeded() {
+        return totalDownloadsSucceeded;
+    }
+
+    public void incrementTotalDownloadsSucceeded() {
+        totalDownloadsSucceeded += 1;
+    }
+
+    public long getInflightDownloads() {
+        return totalDownloadsStarted - totalDownloadsFailed - totalDownloadsSucceeded;
     }
 
     public long getRejectionCount() {
@@ -422,6 +545,19 @@ public class RemoteRefreshSegmentTracker {
         }
     }
 
+    boolean isDownloadBytesAverageReady() {
+        return downloadBytesMovingAverageReference.get().isReady();
+    }
+
+    double getDownloadBytesAverage() {
+        return downloadBytesMovingAverageReference.get().getAverage();
+    }
+
+    public void addDownloadBytes(long size) {
+        lastSuccessfulSegmentDownloadBytes = size;
+        this.downloadBytesMovingAverageReference.get().record(size);
+    }
+
     boolean isUploadBytesPerSecAverageReady() {
         return uploadBytesPerSecMovingAverageReference.get().isReady();
     }
@@ -434,6 +570,18 @@ public class RemoteRefreshSegmentTracker {
         synchronized (uploadBytesPerSecMutex) {
             this.uploadBytesPerSecMovingAverageReference.get().record(bytesPerSec);
         }
+    }
+
+    boolean isDownloadBytesPerSecAverageReady() {
+        return downloadBytesPerSecMovingAverageReference.get().isReady();
+    }
+
+    double getDownloadBytesPerSecAverage() {
+        return downloadBytesPerSecMovingAverageReference.get().getAverage();
+    }
+
+    public void addDownloadBytesPerSec(long bytesPerSec) {
+        this.downloadBytesPerSecMovingAverageReference.get().record(bytesPerSec);
     }
 
     /**
@@ -472,26 +620,49 @@ public class RemoteRefreshSegmentTracker {
         }
     }
 
+    boolean isDownloadTimeAverageReady() {
+        return downloadTimeMovingAverageReference.get().isReady();
+    }
+
+    double getDownloadTimeAverage() {
+        return downloadTimeMovingAverageReference.get().getAverage();
+    }
+
+    public void addDownloadTime(long timeMs) {
+        this.downloadTimeMovingAverageReference.get().record(timeMs);
+    }
+
     public RemoteRefreshSegmentTracker.Stats stats() {
         return new RemoteRefreshSegmentTracker.Stats(
             shardId,
             localRefreshClockTimeMs,
             remoteRefreshClockTimeMs,
             timeMsLag,
+            lastDownloadTimestampMs,
             localRefreshSeqNo,
             remoteRefreshSeqNo,
             uploadBytesStarted,
             uploadBytesSucceeded,
             uploadBytesFailed,
+            downloadBytesStarted,
+            downloadBytesSucceeded,
+            downloadBytesFailed,
             totalUploadsStarted,
             totalUploadsSucceeded,
             totalUploadsFailed,
+            totalDownloadsStarted,
+            totalDownloadsSucceeded,
+            totalDownloadsFailed,
             rejectionCount.get(),
             failures.length(),
             lastSuccessfulRemoteRefreshBytes,
             uploadBytesMovingAverageReference.get().getAverage(),
             uploadBytesPerSecMovingAverageReference.get().getAverage(),
             uploadTimeMsMovingAverageReference.get().getAverage(),
+            lastSuccessfulSegmentDownloadBytes,
+            downloadBytesMovingAverageReference.get().getAverage(),
+            downloadBytesPerSecMovingAverageReference.get().getAverage(),
+            downloadTimeMovingAverageReference.get().getAverage(),
             getBytesLag()
         );
     }
@@ -507,20 +678,31 @@ public class RemoteRefreshSegmentTracker {
         public final long localRefreshClockTimeMs;
         public final long remoteRefreshClockTimeMs;
         public final long refreshTimeLagMs;
+        public final long lastDownloadTimestampMs;
         public final long localRefreshNumber;
         public final long remoteRefreshNumber;
         public final long uploadBytesStarted;
         public final long uploadBytesFailed;
         public final long uploadBytesSucceeded;
+        public final long downloadBytesStarted;
+        public final long downloadBytesFailed;
+        public final long downloadBytesSucceeded;
         public final long totalUploadsStarted;
         public final long totalUploadsFailed;
         public final long totalUploadsSucceeded;
+        public final long totalDownloadsStarted;
+        public final long totalDownloadsFailed;
+        public final long totalDownloadsSucceeded;
         public final long rejectionCount;
         public final long consecutiveFailuresCount;
         public final long lastSuccessfulRemoteRefreshBytes;
         public final double uploadBytesMovingAverage;
         public final double uploadBytesPerSecMovingAverage;
         public final double uploadTimeMovingAverage;
+        public final long lastSuccessfulSegmentDownloadBytes;
+        public final double downloadBytesMovingAverage;
+        public final double downloadBytesPerSecMovingAverage;
+        public final double downloadTimeMovingAverage;
         public final long bytesLag;
 
         public Stats(
@@ -528,40 +710,62 @@ public class RemoteRefreshSegmentTracker {
             long localRefreshClockTimeMs,
             long remoteRefreshClockTimeMs,
             long refreshTimeLagMs,
+            long lastDownloadTimestampMs,
             long localRefreshNumber,
             long remoteRefreshNumber,
             long uploadBytesStarted,
             long uploadBytesSucceeded,
             long uploadBytesFailed,
+            long downloadBytesStarted,
+            long downloadBytesSucceeded,
+            long downloadBytesFailed,
             long totalUploadsStarted,
             long totalUploadsSucceeded,
             long totalUploadsFailed,
+            long totalDownloadsStarted,
+            long totalDownloadsSucceeded,
+            long totalDownloadsFailed,
             long rejectionCount,
             long consecutiveFailuresCount,
             long lastSuccessfulRemoteRefreshBytes,
             double uploadBytesMovingAverage,
             double uploadBytesPerSecMovingAverage,
             double uploadTimeMovingAverage,
+            long lastSuccessfulSegmentDownloadBytes,
+            double downloadBytesMovingAverage,
+            double downloadBytesPerSecMovingAverage,
+            double downloadTimeMovingAverage,
             long bytesLag
         ) {
             this.shardId = shardId;
             this.localRefreshClockTimeMs = localRefreshClockTimeMs;
             this.remoteRefreshClockTimeMs = remoteRefreshClockTimeMs;
             this.refreshTimeLagMs = refreshTimeLagMs;
+            this.lastDownloadTimestampMs = lastDownloadTimestampMs;
             this.localRefreshNumber = localRefreshNumber;
             this.remoteRefreshNumber = remoteRefreshNumber;
             this.uploadBytesStarted = uploadBytesStarted;
             this.uploadBytesFailed = uploadBytesFailed;
             this.uploadBytesSucceeded = uploadBytesSucceeded;
+            this.downloadBytesStarted = downloadBytesStarted;
+            this.downloadBytesFailed = downloadBytesFailed;
+            this.downloadBytesSucceeded = downloadBytesSucceeded;
             this.totalUploadsStarted = totalUploadsStarted;
             this.totalUploadsFailed = totalUploadsFailed;
             this.totalUploadsSucceeded = totalUploadsSucceeded;
+            this.totalDownloadsStarted = totalDownloadsStarted;
+            this.totalDownloadsFailed = totalDownloadsFailed;
+            this.totalDownloadsSucceeded = totalDownloadsSucceeded;
             this.rejectionCount = rejectionCount;
             this.consecutiveFailuresCount = consecutiveFailuresCount;
             this.lastSuccessfulRemoteRefreshBytes = lastSuccessfulRemoteRefreshBytes;
             this.uploadBytesMovingAverage = uploadBytesMovingAverage;
             this.uploadBytesPerSecMovingAverage = uploadBytesPerSecMovingAverage;
             this.uploadTimeMovingAverage = uploadTimeMovingAverage;
+            this.lastSuccessfulSegmentDownloadBytes = lastSuccessfulSegmentDownloadBytes;
+            this.downloadBytesMovingAverage = downloadBytesMovingAverage;
+            this.downloadBytesPerSecMovingAverage = downloadBytesPerSecMovingAverage;
+            this.downloadTimeMovingAverage = downloadTimeMovingAverage;
             this.bytesLag = bytesLag;
         }
 
@@ -586,6 +790,17 @@ public class RemoteRefreshSegmentTracker {
                 this.uploadBytesPerSecMovingAverage = in.readDouble();
                 this.uploadTimeMovingAverage = in.readDouble();
                 this.bytesLag = in.readLong();
+                this.lastDownloadTimestampMs = in.readLong();
+                this.downloadBytesStarted = in.readLong();
+                this.downloadBytesFailed = in.readLong();
+                this.downloadBytesSucceeded = in.readLong();
+                this.totalDownloadsStarted = in.readLong();
+                this.totalDownloadsFailed = in.readLong();
+                this.totalDownloadsSucceeded = in.readLong();
+                this.lastSuccessfulSegmentDownloadBytes = in.readLong();
+                this.downloadBytesMovingAverage = in.readDouble();
+                this.downloadBytesPerSecMovingAverage = in.readDouble();
+                this.downloadTimeMovingAverage = in.readDouble();
             } catch (IOException e) {
                 throw e;
             }
@@ -612,7 +827,17 @@ public class RemoteRefreshSegmentTracker {
             out.writeDouble(uploadBytesPerSecMovingAverage);
             out.writeDouble(uploadTimeMovingAverage);
             out.writeLong(bytesLag);
+            out.writeLong(lastDownloadTimestampMs);
+            out.writeLong(downloadBytesStarted);
+            out.writeLong(downloadBytesFailed);
+            out.writeLong(downloadBytesSucceeded);
+            out.writeLong(totalDownloadsStarted);
+            out.writeLong(totalDownloadsFailed);
+            out.writeLong(totalDownloadsSucceeded);
+            out.writeLong(lastSuccessfulSegmentDownloadBytes);
+            out.writeDouble(downloadBytesMovingAverage);
+            out.writeDouble(downloadBytesPerSecMovingAverage);
+            out.writeDouble(downloadTimeMovingAverage);
         }
     }
-
 }

@@ -103,6 +103,12 @@ public class RemoteRefreshSegmentPressureSettings {
 
     private volatile int uploadTimeMovingAverageWindowSize;
 
+    private volatile int downloadBytesMovingAverageWindowSize;
+
+    private volatile int downloadBytesPerSecMovingAverageWindowSize;
+
+    private volatile int downloadTimeMovingAverageWindowSize;
+
     public RemoteRefreshSegmentPressureSettings(
         ClusterService clusterService,
         Settings settings,

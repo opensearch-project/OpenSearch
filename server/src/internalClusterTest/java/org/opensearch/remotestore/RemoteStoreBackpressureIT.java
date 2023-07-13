@@ -119,7 +119,7 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
         String shardId = "0";
         RemoteStoreStatsResponse response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, shardId).get();
         final String indexShardId = String.format(Locale.ROOT, "[%s][%s]", INDEX_NAME, shardId);
-        List<RemoteStoreStats> matches = Arrays.stream(response.getShards())
+        List<RemoteStoreStats> matches = Arrays.stream(response.getRemoteStoreStats())
             .filter(stat -> indexShardId.equals(stat.getStats().shardId.toString()))
             .collect(Collectors.toList());
         assertEquals(1, matches.size());
