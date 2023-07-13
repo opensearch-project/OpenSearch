@@ -96,7 +96,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
         .build();
-  
+
     private DiscoveryExtensionNode extensionNode;
 
     @Before
