@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.shiro;
 
-import java.security.Principal;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -65,16 +64,5 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     @Override
     public TokenManager getTokenManager() {
         return this.authTokenHandler;
-    }
-
-    @Override
-    public Subject identifyRequester(Principal principal) {
-        for (ShiroSubject shiroSubject : shiroSubjectList) {
-            if (shiroSubject.getPrincipal().equals(principal)) {
-                return shiroSubject;
-            }
-        }
-        ;
-        return null;
     }
 }

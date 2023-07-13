@@ -8,11 +8,12 @@
 
 package org.opensearch.identity.shiro;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.junit.Before;
-import org.opensearch.identity.noop.NoopTokenManager;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.BearerAuthToken;
@@ -31,12 +32,10 @@ import static org.hamcrest.Matchers.notNullValue;
 public class AuthTokenHandlerTests extends OpenSearchTestCase {
 
     private ShiroTokenManager shiroAuthTokenHandler;
-    private NoopTokenManager noopTokenManager;
 
     @Before
     public void testSetup() {
         shiroAuthTokenHandler = new ShiroTokenManager();
-        noopTokenManager = new NoopTokenManager();
     }
 
     public void testShouldExtractBasicAuthTokenSuccessfully() {
@@ -142,6 +141,18 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
 
         PasswordValidator validator = new PasswordValidator(lengthRule, characteristicsRule);
         validator.validate(data);
+    }
+
+    public void testIssueOnBehalfOfTokenFromClaims() {
+        List<String> claims = new ArrayList<>();
+        claims.add("audience");
+        claims.add("roles");
+        BasicAuthToken authToken = (BasicAuthToken) shiroAuthTokenHandler.issueOnBehalfOfToken(claims);
+        assertTrue(authToken instanceof BasicAuthToken);
+        UsernamePasswordToken translatedToken = (UsernamePasswordToken) shiroAuthTokenHandler.translateAuthToken(authToken).get();
+        assertEquals(authToken.getPassword(), new String(translatedToken.getPassword()));
+        assertTrue(shiroAuthTokenHandler.getShiroTokenPasswordMap().containsKey(authToken));
+        assertEquals(shiroAuthTokenHandler.getShiroTokenPasswordMap().get(authToken), new String(translatedToken.getPassword()));
     }
 
 }

@@ -8,10 +8,9 @@
 
 package org.opensearch.identity.noop;
 
-import java.security.Principal;
+import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
-import org.opensearch.identity.Subject;
 
 /**
  * Implementation of identity plugin that does not enforce authentication or authorization
@@ -38,15 +37,5 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     @Override
     public TokenManager getTokenManager() {
         return new NoopTokenManager();
-    }
-
-    @Override
-    public Subject identifyRequester(Principal principal) {
-        return new NoopSubject();
-    }
-
-    @Override
-    public Principal toPrincipal(String principal) {
-        return null;
     }
 }

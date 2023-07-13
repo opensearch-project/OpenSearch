@@ -93,7 +93,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     private MockNioTransport transport;
     private IdentityService identityService;
     private Path extensionDir;
-  
+
     private final ThreadPool threadPool = new TestThreadPool(ExtensionsManagerTests.class.getSimpleName());
     private final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
