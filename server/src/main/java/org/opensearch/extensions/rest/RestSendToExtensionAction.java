@@ -53,6 +53,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
     private static final Logger logger = LogManager.getLogger(RestSendToExtensionAction.class);
+
     // To replace with user identity see https://github.com/opensearch-project/OpenSearch/pull/4247
     private static final Principal DEFAULT_PRINCIPAL = new Principal() {
         @Override
