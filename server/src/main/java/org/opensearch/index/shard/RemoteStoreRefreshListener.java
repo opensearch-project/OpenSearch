@@ -184,6 +184,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             } catch (InterruptedException | ExecutionException e) {
                 logger.info("Exception occurred while scheduling syncSegments", e);
             }
+        } else {
+            shouldRetry.set(false);
         }
         return shouldRetry.get();
     }
