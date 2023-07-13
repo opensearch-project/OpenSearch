@@ -20,10 +20,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
-import org.apache.shiro.authz.UnauthenticatedException;
 import org.opensearch.common.Randomness;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
+import org.opensearch.identity.noop.NoopSubject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.TokenManager;
@@ -71,16 +71,7 @@ class ShiroTokenManager implements TokenManager {
 
     @Override
     public Subject authenticateToken(AuthToken authToken) {
-        Optional<AuthenticationToken> translatedToken = null;
-        if (authToken instanceof BasicAuthToken) {
-            if (shiroTokenPasswordMap.containsKey(authToken)) {
-                translatedToken = translateAuthToken(authToken);
-            } else {
-                throw new UnauthenticatedException("Invalid token");
-            }
-        }
-        SecurityUtils.getSubject().login(translatedToken.get());
-        return new ShiroSubject(this, SecurityUtils.getSubject());
+        return new NoopSubject();
     }
 
     public boolean validateToken(AuthToken token) {
