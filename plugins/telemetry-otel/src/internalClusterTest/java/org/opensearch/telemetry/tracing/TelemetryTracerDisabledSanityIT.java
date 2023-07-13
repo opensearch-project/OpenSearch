@@ -12,7 +12,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
-import org.opensearch.telemetry.OtelTelemetrySettings;
+import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -26,7 +26,7 @@ public class TelemetryTracerDisabledSanityIT extends OpenSearchIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(
-                OtelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
+                OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
                 "org.opensearch.telemetry.tracing.InMemorySpanExporter"
             )
             .build();

@@ -46,10 +46,8 @@ public class TelemetryValidators {
                 e.getStackTrace();
             }
         }
-        if (!totalProblematicSpans.isEmpty()){
-            AssertionError error = new AssertionError(
-                " SpanData validation failed for following spans " + totalProblematicSpans
-            );
+        if (!totalProblematicSpans.isEmpty()) {
+            AssertionError error = new AssertionError(" SpanData validation failed for following spans " + totalProblematicSpans);
             throw error;
         }
     }
