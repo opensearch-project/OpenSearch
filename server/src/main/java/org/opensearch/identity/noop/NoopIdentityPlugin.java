@@ -44,4 +44,9 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     public Subject identifyRequester(Principal principal) {
         return new NoopSubject();
     }
+
+    @Override
+    public Principal toPrincipal(String principal) {
+        return null;
+    }
 }

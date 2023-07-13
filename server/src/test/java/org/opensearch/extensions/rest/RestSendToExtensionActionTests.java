@@ -450,4 +450,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, dynamicActionRegistry, identityService)
         );
     }
+
+    public void testRestSendToExtensionActionIncludesToken() {
+
+    }
 }

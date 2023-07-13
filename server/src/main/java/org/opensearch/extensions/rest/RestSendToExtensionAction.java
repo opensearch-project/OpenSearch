@@ -10,7 +10,6 @@ package org.opensearch.extensions.rest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.Principal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -25,9 +24,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.http.HttpRequest;
@@ -37,7 +37,6 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
@@ -53,14 +52,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
     private static final Logger logger = LogManager.getLogger(RestSendToExtensionAction.class);
-
-    // To replace with user identity see https://github.com/opensearch-project/OpenSearch/pull/4247
-    private static final Principal DEFAULT_PRINCIPAL = new Principal() {
-        @Override
-        public String getName() {
-            return "OpenSearchUser";
-        }
-    };
 
     private final List<Route> routes;
     private final List<DeprecatedRoute> deprecatedRoutes;
@@ -259,7 +250,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     filteredHeaders,
                     contentType,
                     content,
-                    identityService.getTokenManager().issueToken(discoveryExtensionNode.getId()).toString(),
+                    identityService.getTokenManager().issueOnBehalfOfToken(List.of(discoveryExtensionNode.getId(), identityService.getSubject().toString())).toString(),
                     httpVersion
                 ),
                 restExecuteOnExtensionResponseHandler

@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.tokens;
 
+import java.util.List;
 import org.opensearch.identity.Subject;
 
 /**
@@ -16,13 +17,12 @@ import org.opensearch.identity.Subject;
 public interface TokenManager {
 
     /**
-     * Create a new auth token.
-     * If the audience is an application ? serviceAccountToken : OnBehalfOf token
+     * Create a new on behalf of token
      *
-     * @param audience: The audience for the token
+     * @param claims: A list of claims for the token to be generated with
      * @return A new auth token
      */
-    public AuthToken issueToken(String audience);
+    public AuthToken issueOnBehalfOfToken(List<String> claims);
 
     /**
      * Authenticates a provided authToken

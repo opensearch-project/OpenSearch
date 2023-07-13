@@ -70,6 +70,11 @@ class ShiroTokenManager implements TokenManager {
     }
 
     @Override
+    public AuthToken issueOnBehalfOfToken(List<String> claims) {
+        return null;
+    }
+
+    @Override
     public Subject authenticateToken(AuthToken authToken) {
         Optional<AuthenticationToken> translatedToken = null;
         if (authToken instanceof BasicAuthToken) {
