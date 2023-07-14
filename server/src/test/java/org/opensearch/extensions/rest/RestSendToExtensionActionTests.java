@@ -522,8 +522,4 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             )
         );
     }
-
-    public void testRestSendToExtensionActionIncludesToken() {
-
-    }
 }

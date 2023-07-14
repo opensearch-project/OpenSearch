@@ -32,6 +32,7 @@ import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.tokens.StandardTokenClaims;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
@@ -251,7 +252,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     contentType,
                     content,
                     identityService.getTokenManager()
-                        .issueOnBehalfOfToken(Map.of("aud", discoveryExtensionNode.getId()))
+                        .issueOnBehalfOfToken(Map.of(StandardTokenClaims.AUDIENCE.getName(), discoveryExtensionNode.getId())) // This gets an extensions uniqueId
                         .toString(),
                     httpVersion
                 ),
