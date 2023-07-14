@@ -21,7 +21,7 @@ import org.opensearch.identity.tokens.AuthToken;
  */
 public class ShiroSubject implements Subject {
     private final ShiroTokenManager authTokenHandler;
-    private final org.apache.shiro.subject.Subject wrappedSubject;
+    private final org.apache.shiro.subject.Subject delegate;
 
     /**
      * Creates a new shiro subject for use with the IdentityPlugin
