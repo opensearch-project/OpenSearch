@@ -2338,7 +2338,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
-        assertFalse(nodesInfoResponse.toString(),nodesInfoResponse.hasFailures());
+        assertFalse(nodesInfoResponse.toString(), nodesInfoResponse.hasFailures());
         return createRestClient(nodesInfoResponse.getNodes(), httpClientConfigCallback, protocol);
     }
 
