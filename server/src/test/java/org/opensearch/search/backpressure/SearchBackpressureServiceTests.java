@@ -250,8 +250,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         // Verify search backpressure stats.
         SearchBackpressureStats expectedStats = new SearchBackpressureStats(
-            new SearchTaskStats(10, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(10))),
-            new SearchShardTaskStats(0, 0, Collections.emptyMap()),
+            new SearchTaskStats(10, 3, 50, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(10))),
+            new SearchShardTaskStats(0, 0, 0, Collections.emptyMap()),
             SearchBackpressureMode.ENFORCED
         );
         SearchBackpressureStats actualStats = service.nodeStats();
@@ -324,8 +324,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         // Verify search backpressure stats.
         SearchBackpressureStats expectedStats = new SearchBackpressureStats(
-            new SearchTaskStats(0, 0, Collections.emptyMap()),
-            new SearchShardTaskStats(12, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(12))),
+            new SearchTaskStats(0, 0, 0, Collections.emptyMap()),
+            new SearchShardTaskStats(12, 3, 60, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(12))),
             SearchBackpressureMode.ENFORCED
         );
         SearchBackpressureStats actualStats = service.nodeStats();
