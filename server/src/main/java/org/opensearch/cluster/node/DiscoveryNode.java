@@ -49,16 +49,15 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.NodePrincipal;
 import org.opensearch.node.Node;
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
@@ -152,7 +151,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public DiscoveryNode(final String id, TransportAddress address, Version version) {
         this(id, address, Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES, version);
-        this.principal = new NamedPrincipal(this.nodeId);
     }
 
     /**
@@ -178,7 +176,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Version version
     ) {
         this("", id, address, attributes, roles, version);
-        this.principal = new NodePrincipal(this);
     }
 
     /**
@@ -216,7 +213,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             roles,
             version
         );
-        this.principal = new NamedPrincipal(this.nodeId);
     }
 
     /**
@@ -254,6 +250,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             this.nodeName = "";
         }
         this.nodeId = nodeId.intern();
+        this.principal = new NamedPrincipal(this.nodeId);
         this.ephemeralId = ephemeralId.intern();
         this.hostName = hostName.intern();
         this.hostAddress = hostAddress.intern();
@@ -273,7 +270,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
             return success;
         };
-        this.principal = new NamedPrincipal(this.nodeId);
         assert predicate.test(attributes) : attributes;
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
     }
