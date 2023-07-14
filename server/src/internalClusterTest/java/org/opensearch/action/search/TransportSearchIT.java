@@ -371,7 +371,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         });
     }
 
-    public void testSearchIdleWithSegmentReplication() throws Exception {
+    public void testSearchIdleWithSegmentReplication() {
         int numOfReplicas = 1;
         internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 1);
         final Settings.Builder settings = Settings.builder()
@@ -390,14 +390,12 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 )
         );
 
-        assertBusy(() -> {
-            for (String node : internalCluster().nodesInclude("test")) {
-                final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                for (IndexShard indexShard : indicesService.indexServiceSafe(resolveIndex("test"))) {
-                    assertFalse(indexShard.isSearchIdleSupported());
-                }
+        for (String node : internalCluster().nodesInclude("test")) {
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+            for (IndexShard indexShard : indicesService.indexServiceSafe(resolveIndex("test"))) {
+                assertFalse(indexShard.isSearchIdleSupported());
             }
-        });
+        }
 
         assertAcked(
             client().admin()
@@ -406,14 +404,13 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
         );
 
-        assertBusy(() -> {
-            for (String node : internalCluster().nodesInclude("test")) {
-                final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                for (IndexShard indexShard : indicesService.indexServiceSafe(resolveIndex("test"))) {
-                    assertTrue(indexShard.isSearchIdleSupported());
-                }
+        for (String node : internalCluster().nodesInclude("test")) {
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+            for (IndexShard indexShard : indicesService.indexServiceSafe(resolveIndex("test"))) {
+                assertTrue(indexShard.isSearchIdleSupported());
             }
-        });
+        }
+        ;
     }
 
     public void testCircuitBreakerReduceFail() throws Exception {
