@@ -171,8 +171,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Native Controller: false",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
-                "Folder name: custom-folder",
-                "Principal:  NamedPrincipal(name=fake_plugin)"
+                "Folder name: custom-folder"
             ),
             terminal.getOutput()
         );
@@ -195,8 +194,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Native Controller: true",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
-                "Folder name: custom-folder",
-                "Principal:  NamedPrincipal(name=fake_plugin1)"
+                "Folder name: custom-folder"
             ),
             terminal.getOutput()
         );
@@ -221,7 +219,6 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "Folder name: custom-folder",
-                "Principal:  NamedPrincipal(name=fake_plugin1)",
                 "fake_plugin2",
                 "- Plugin information:",
                 "Name: fake_plugin2",
@@ -232,8 +229,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Native Controller: false",
                 "Extended Plugins: []",
                 " * Classname: org.fake2",
-                "Folder name: custom-folder",
-                "Principal:  NamedPrincipal(name=fake_plugin2)"
+                "Folder name: custom-folder"
             ),
             terminal.getOutput()
         );

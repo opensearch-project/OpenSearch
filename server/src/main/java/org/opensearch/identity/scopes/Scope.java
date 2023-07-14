@@ -11,13 +11,14 @@ package org.opensearch.identity.scopes;
 import java.io.IOException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 /**
  * This interface defines the components involved in defining the scope of an application in OpenSearch
  *
  * @opensearch.experimental
  */
-public interface Scope {
+public interface Scope extends Writeable {
 
     String UNKNOWN_SCOPE_MESSAGE = "Failed to find scope: ";
 

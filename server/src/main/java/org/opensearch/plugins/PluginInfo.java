@@ -182,7 +182,6 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
-        out.writeString(principal.toString());
     }
 
     /**
@@ -389,7 +388,6 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
             builder.field("custom_foldername", customFolderName);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
-            builder.field("principal", principal.toString());
         }
         builder.endObject();
         return builder;
@@ -456,10 +454,7 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
             .append("\n")
             .append(prefix)
             .append("Folder name: ")
-            .append(customFolderName)
-            .append("\n")
-            .append("Principal:  ")
-            .append(principal);
+            .append(customFolderName);
         return information.toString();
     }
 
