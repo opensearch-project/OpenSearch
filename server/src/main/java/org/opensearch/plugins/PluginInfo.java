@@ -389,7 +389,7 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
             builder.field("custom_foldername", customFolderName);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
-            builder.field("principal", principal);
+            builder.field("principal", principal.toString());
         }
         builder.endObject();
 
