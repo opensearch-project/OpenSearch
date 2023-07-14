@@ -8,6 +8,10 @@
 
 package org.opensearch.identity.scopes;
 
+import java.io.IOException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+
 /**
  * This interface defines the components involved in defining the scope of an application in OpenSearch
  *
@@ -62,5 +66,24 @@ public interface Scope {
             default:
                 throw new RuntimeException(UNKNOWN_SCOPE_MESSAGE + scopeAsString);
         }
+    }
+
+    /**
+     * Create a new scope from a stream input
+     *
+     * @throws IOException if an I/O exception occurred reading the scope information
+     */
+    public static Scope readStream(StreamInput in) throws IOException {
+        String scopeAsString = in.readString();
+        return Scope.parseScopeFromString(scopeAsString);
+    }
+
+    /**
+     * Write a scope out to a stream output
+     * @param out The output
+     * @throws IOException if an I/O exception occurred writing the scope information
+     */
+    public default void writeTo(StreamOutput out) throws IOException {
+        out.writeString(this.asPermissionString());
     }
 }
