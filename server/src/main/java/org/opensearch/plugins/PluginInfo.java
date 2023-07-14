@@ -75,7 +75,7 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
     private final String customFolderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
-    private final Principal pluginPrincipal;
+    private final Principal principal;
 
     /**
      * Construct plugin info.
@@ -110,7 +110,7 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
         this.customFolderName = customFolderName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
-        this.pluginPrincipal = new NamedPrincipal(this.name);
+        this.principal = new NamedPrincipal(this.name);
     }
 
     /**
@@ -164,7 +164,7 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
-        this.pluginPrincipal = new NamedPrincipal(this.name);
+        this.principal = new NamedPrincipal(this.name);
     }
 
     @Override
@@ -182,6 +182,7 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
+        out.writeString(principal.toString());
     }
 
     /**
@@ -388,6 +389,7 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
             builder.field("custom_foldername", customFolderName);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
+            builder.field("principal", principal);
         }
         builder.endObject();
 
@@ -455,12 +457,14 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
             .append("\n")
             .append(prefix)
             .append("Folder name: ")
-            .append(customFolderName);
+            .append(customFolderName)
+            .append("Principal:  ")
+            .append(principal);
         return information.toString();
     }
 
     @Override
     public Principal getPrincipal() {
-        return this.pluginPrincipal;
+        return this.principal;
     }
 }
