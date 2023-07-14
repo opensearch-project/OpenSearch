@@ -238,8 +238,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                                 successful.set(true);
                             } catch (Exception e) {
                                 // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
-                                // in the next refresh. This should not affect durability of the indexed data after remote trans-log
-                                // integration.
+                                // as part of exponential back-off retry logic. This should not affect durability of the indexed data
+                                // with remote trans-log integration.
                                 logger.warn("Exception in post new segment upload actions", e);
                             }
                         }
