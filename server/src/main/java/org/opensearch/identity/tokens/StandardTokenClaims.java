@@ -8,6 +8,9 @@
 
 package org.opensearch.identity.tokens;
 
+/**
+ * This enum represents the standard claims that are used in the JWTs for OnBehalfOf tokens
+ */
 public enum StandardTokenClaims {
 
     ISSUER("iss"),
