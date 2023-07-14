@@ -76,7 +76,10 @@ public interface Scope extends Writeable {
      */
     public static Scope readStream(StreamInput in) throws IOException {
         String scopeAsString = in.readString();
-        return Scope.parseScopeFromString(scopeAsString);
+        if (scopeAsString != null) {
+            return Scope.parseScopeFromString(scopeAsString);
+        }
+        return null;
     }
 
     /**

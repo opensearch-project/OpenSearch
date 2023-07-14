@@ -69,6 +69,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         for (ExtensionDependency dependency : dependencies) {
             dependency.writeTo(out);
         }
+        out.writeVInt(scopes.size());
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             for (Scope scope : scopes) {
                 scope.writeTo(out);
@@ -90,6 +91,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         for (int i = 0; i < size; i++) {
             dependencies.add(new ExtensionDependency(in));
         }
+        size = in.readVInt();
         scopes = new ArrayList<>(size);
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             for (int i = 0; i < size; i++) {

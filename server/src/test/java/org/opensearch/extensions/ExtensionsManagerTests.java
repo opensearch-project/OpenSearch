@@ -52,6 +52,8 @@ import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.scopes.ActionScope;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.rest.RestController;
@@ -343,6 +345,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         Version expectedVersion = Version.fromString("2.0.0");
         ExtensionDependency expectedDependency = new ExtensionDependency(expectedId, expectedVersion);
 
+        Scope scope = ActionScope.ALL;
+
         DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",
             "uniqueid1",
@@ -351,7 +355,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Version.fromString("3.0.0"),
             Version.fromString("3.0.0"),
             List.of(expectedDependency),
-            List.of()
+            List.of(scope)
         );
 
         assertEquals(List.of(expectedDependency), discoveryExtensionNode.getDependencies());
