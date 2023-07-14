@@ -252,7 +252,10 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     contentType,
                     content,
                     identityService.getTokenManager()
-                        .issueOnBehalfOfToken(Map.of(StandardTokenClaims.AUDIENCE.getName(), discoveryExtensionNode.getId())) // This gets an extensions uniqueId
+                        .issueOnBehalfOfToken(Map.of(StandardTokenClaims.AUDIENCE.getName(), discoveryExtensionNode.getId())) // This gets
+                                                                                                                              // an
+                                                                                                                              // extensions
+                                                                                                                              // uniqueId
                         .toString(),
                     httpVersion
                 ),
