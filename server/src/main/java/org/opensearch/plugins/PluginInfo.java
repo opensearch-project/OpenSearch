@@ -392,7 +392,6 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
             builder.field("principal", principal.toString());
         }
         builder.endObject();
-
         return builder;
     }
 
@@ -458,6 +457,7 @@ public class PluginInfo implements Writeable, ToXContentObject, Application {
             .append(prefix)
             .append("Folder name: ")
             .append(customFolderName)
+            .append("\n")
             .append("Principal:  ")
             .append(principal);
         return information.toString();

@@ -39,8 +39,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
-
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.junit.Before;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cli.ExitCodes;
@@ -50,7 +50,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class ListPluginsCommandTests extends OpenSearchTestCase {
@@ -172,7 +171,8 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Native Controller: false",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
-                "Folder name: custom-folder"
+                "Folder name: custom-folder",
+                "Principal:  NamedPrincipal(name=fake_plugin)"
             ),
             terminal.getOutput()
         );
@@ -195,7 +195,8 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Native Controller: true",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
-                "Folder name: custom-folder"
+                "Folder name: custom-folder",
+                "Principal:  NamedPrincipal(name=fake_plugin1)"
             ),
             terminal.getOutput()
         );
@@ -220,6 +221,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "Folder name: custom-folder",
+                "Principal:  NamedPrincipal(name=fake_plugin1)",
                 "fake_plugin2",
                 "- Plugin information:",
                 "Name: fake_plugin2",
@@ -230,7 +232,8 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Native Controller: false",
                 "Extended Plugins: []",
                 " * Classname: org.fake2",
-                "Folder name: custom-folder"
+                "Folder name: custom-folder",
+                "Principal:  NamedPrincipal(name=fake_plugin2)"
             ),
             terminal.getOutput()
         );
