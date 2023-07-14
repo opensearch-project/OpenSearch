@@ -31,6 +31,7 @@
 
 package org.opensearch.common.util.concurrent;
 
+import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +39,7 @@ import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -369,6 +371,29 @@ public final class ThreadContext implements Writeable, ProtobufWriteable {
         final Map<String, String> requestHeaders = in.readMap(StreamInput::readString, StreamInput::readString);
         final Map<String, Set<String>> responseHeaders = in.readMap(StreamInput::readString, input -> {
             final int size = input.readVInt();
+            if (size == 0) {
+                return Collections.emptySet();
+            } else if (size == 1) {
+                return Collections.singleton(input.readString());
+            } else {
+                // use a linked hash set to preserve order
+                final LinkedHashSet<String> values = new LinkedHashSet<>(size);
+                for (int i = 0; i < size; i++) {
+                    final String value = input.readString();
+                    final boolean added = values.add(value);
+                    assert added : value;
+                }
+                return values;
+            }
+        });
+        return new Tuple<>(requestHeaders, responseHeaders);
+    }
+
+    public static Tuple<Map<String, String>, Map<String, Set<String>>> readHeadersFromStreamProtobuf(CodedInputStream in) throws IOException {
+        ProtobufStreamInput streamInput = new ProtobufStreamInput(in);
+        final Map<String, String> requestHeaders = streamInput.readMap(CodedInputStream::readString, CodedInputStream::readString);
+        final Map<String, Set<String>> responseHeaders = streamInput.readMap(CodedInputStream::readString, input -> {
+            final int size = in.readInt32();
             if (size == 0) {
                 return Collections.emptySet();
             } else if (size == 1) {

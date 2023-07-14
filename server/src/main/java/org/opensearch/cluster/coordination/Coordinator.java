@@ -863,7 +863,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             //     )
             //     .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
             //     .build();
-            System.out.println("cluster state initial: " + initialState);
+            // System.out.println("cluster state initial: " + initialState);
             // System.out.println("protobuf cluster state initial: " + protobufInitialState);
             applierState = initialState;
             clusterApplier.setInitialState(initialState);

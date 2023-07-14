@@ -37,6 +37,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 
 /**
@@ -76,6 +78,15 @@ public class BytesTransportRequest extends TransportRequest {
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(bytes.length());
+    }
+
+    /**
+     * Writes the data in a "thin" manner, without the actual bytes, assumes
+     * the actual bytes will be appended right after this content.
+     */
+    public void writeThinProtobuf(CodedOutputStream out) throws IOException {
+        super.writeTo(out);
+        out.writeInt32NoTag(bytes.length());
     }
 
     @Override

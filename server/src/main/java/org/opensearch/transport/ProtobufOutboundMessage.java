@@ -12,10 +12,12 @@ import com.google.protobuf.CodedOutputStream;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.util.concurrent.ThreadContext;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Set;
@@ -34,17 +36,19 @@ abstract class ProtobufOutboundMessage extends ProtobufNetworkMessage {
         this.message = message;
     }
 
-    BytesReference serialize(CodedOutputStream out, byte[] bytes) throws IOException {
+    BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
+        System.out.println("Inside ProtobufOutboundMessage.serialize");
+        CodedOutputStream out = CodedOutputStream.newInstance(bytesStream);
         ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         protobufStreamOutput.setVersion(version);
-        // bytesStream.skip(TcpHeader.headerSize(version));
+        int headerLength = TcpHeader.headerSize(version);
 
         // The compressible bytes stream will not close the underlying bytes stream
         BytesReference reference;
         int variableHeaderLength = -1;
-        // final long preHeaderPosition = out.position();
+        // final long preHeaderPosition = out.();
         writeVariableHeader(out);
-        // variableHeaderLength = Math.toIntExact(out.position() - preHeaderPosition);
+        variableHeaderLength = Math.toIntExact(out.getTotalBytesWritten() - headerLength);
 
         if (TransportStatus.isCompress(status)) {
             protobufStreamOutput.setVersion(version);
@@ -55,9 +59,12 @@ abstract class ProtobufOutboundMessage extends ProtobufNetworkMessage {
         // stream.setFeatures(out.getFeatures());
 
         // if (variableHeaderLength == -1) {
-        // writeVariableHeader(stream);
+        //     writeVariableHeader(out);
         // }
-        reference = writeMessage(out, bytes);
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(); 
+        byteArrayOutputStream.writeTo(bytesStream); 
+        
+        reference = writeMessage(out, byteArrayOutputStream.toByteArray());
         // }
 
         // out.seek(0);
@@ -72,12 +79,13 @@ abstract class ProtobufOutboundMessage extends ProtobufNetworkMessage {
 
     protected BytesReference writeMessage(CodedOutputStream stream, byte[] bytes) throws IOException {
         final BytesReference zeroCopyBuffer;
-        if (message instanceof ProtobufBytesTransportRequest) {
-            ProtobufBytesTransportRequest bRequest = (ProtobufBytesTransportRequest) message;
-            bRequest.writeThin(stream);
+        if (message instanceof BytesTransportRequest) {
+            BytesTransportRequest bRequest = (BytesTransportRequest) message;
+            bRequest.writeThinProtobuf(stream);
             zeroCopyBuffer = bRequest.bytes;
         } else if (message instanceof ProtobufRemoteTransportException) {
-            // stream.writeStringNoTag((ProtobufRemoteTransportException) message.toString());
+            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(stream);
+            protobufStreamOutput.writeException((ProtobufRemoteTransportException) message);
             zeroCopyBuffer = BytesArray.EMPTY;
         } else {
             message.writeTo(stream);

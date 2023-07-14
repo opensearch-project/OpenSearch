@@ -35,6 +35,8 @@ package org.opensearch.core.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.io.stream.StreamInput;
 
+import com.google.protobuf.CodedInputStream;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
@@ -142,5 +144,10 @@ public final class BytesArray extends AbstractBytesReference {
     @Override
     public void writeTo(OutputStream os) throws IOException {
         os.write(bytes, offset, length);
+    }
+
+    @Override
+    public CodedInputStream protobufInput() throws IOException {
+        return CodedInputStream.newInstance(bytes, offset, length);
     }
 }

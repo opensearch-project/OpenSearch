@@ -231,11 +231,11 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
         protected void doStart(ClusterState clusterState) {
             try {
-                System.out.println("TransportClusterManagerNodeAction.doStart");
+                // System.out.println("TransportClusterManagerNodeAction.doStart");
                 final DiscoveryNodes nodes = clusterState.nodes();
-                System.out.println("nodes: " + nodes);
+                // System.out.println("nodes: " + nodes);
                 if (nodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
-                    System.out.println("TransportClusterManagerNodeAction.doStart.isLocalNodeElectedClusterManager");
+                    // System.out.println("TransportClusterManagerNodeAction.doStart.isLocalNodeElectedClusterManager");
                     // check for block, if blocked, retry, else, execute locally
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
@@ -274,9 +274,9 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                             .execute(ActionRunnable.wrap(delegate, l -> clusterManagerOperation(task, request, clusterState, l)));
                     }
                 } else {
-                    System.out.println("In else");
+                    // System.out.println("In else");
                     if (nodes.getClusterManagerNode() == null) {
-                        System.out.println("In else if");
+                        // System.out.println("In else if");
                         logger.debug("no known cluster-manager node, scheduling a retry");
                         retryOnMasterChange(clusterState, null);
                     } else {

@@ -108,6 +108,13 @@ public class InboundPipeline implements Releasable {
     }
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+        System.out.println("Handle bytes in InboundPipeline");
+        System.out.println("Incoming bytes length: " + reference.length());
+        System.out.println("Now the incoming bytes: ");
+        for (int i = 0; i < reference.length(); i++) {
+            System.out.print(reference.get(i) + " ");
+        }
+        System.out.println();
         if (uncaughtException != null) {
             throw new IllegalStateException("Pipeline state corrupted by uncaught exception", uncaughtException);
         }

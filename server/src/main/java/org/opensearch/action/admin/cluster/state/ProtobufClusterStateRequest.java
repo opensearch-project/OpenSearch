@@ -51,6 +51,8 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
 
     public ProtobufClusterStateRequest(CodedInputStream in) throws IOException {
         super(in);
+        System.out.println("ProtobufClusterStateRequest constructor");
+        System.out.println("in: " + in);
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         routingTable = in.readBool();
         nodes = in.readBool();
@@ -61,6 +63,16 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
         indicesOptions = IndicesOptions.readIndicesOptionsProtobuf(in);
         waitForTimeout = protobufStreamInput.readTimeValue();
         waitForMetadataVersion = protobufStreamInput.readOptionalLong();
+        System.out.println("ClusterStateRequest");
+        System.out.println("routingTable: " + routingTable);
+        System.out.println("nodes: " + nodes);
+        System.out.println("metadata: " + metadata);
+        System.out.println("blocks: " + blocks);
+        System.out.println("customs: " + customs);
+        System.out.println("indices: " + indices);
+        System.out.println("indicesOptions: " + indicesOptions);
+        System.out.println("waitForTimeout: " + waitForTimeout);
+        System.out.println("waitForMetadataVersion: " + waitForMetadataVersion);
     }
 
     @Override
@@ -195,5 +207,21 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
         }
         this.waitForMetadataVersion = waitForMetadataVersion;
         return this;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("ProtobufClusterStateRequest[");
+        builder.append("routingTable=").append(routingTable());
+        builder.append(",nodes=").append(nodes());
+        builder.append(",metadata=").append(metadata());
+        builder.append(",blocks=").append(blocks());
+        builder.append(",customs=").append(customs());
+        builder.append(",indices=").append(indices());
+        builder.append(",indicesOptions=").append(indicesOptions());
+        builder.append(",waitForTimeout=").append(waitForTimeout());
+        builder.append(",waitForMetadataVersion=").append(waitForMetadataVersion());
+        return builder.append("]").toString();
     }
 }

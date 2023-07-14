@@ -1464,7 +1464,7 @@ public class Node implements Closeable {
         // configureProtobufNodeAndClusterIdStateListener(clusterService);
 
         ClusterState clusterState1 = clusterService.state();
-        System.out.println("Cluster state: " + clusterState1);
+        // System.out.println("Cluster state: " + clusterState1);
         // ProtobufClusterState protobufClusterState1 = clusterService.protobufState();
         // System.out.println("Protobuf Cluster state: " + protobufClusterState1);
 

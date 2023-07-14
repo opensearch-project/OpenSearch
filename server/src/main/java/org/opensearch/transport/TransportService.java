@@ -1332,6 +1332,7 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         TransportResponseHandler<T> handler
     ) {
+        System.out.println("Sending internal request from transport service");
         if (connection == null) {
             throw new IllegalStateException("can't send request to a null connection");
         }
@@ -1360,6 +1361,7 @@ public class TransportService extends AbstractLifecycleComponent
                 assert options.timeout() != null;
                 timeoutHandler.scheduleTimeout(options.timeout());
             }
+            System.out.println("Before sending request to TcpTransport NodeChannels");
             connection.sendRequest(requestId, action, request, options); // local node optimization happens upstream
         } catch (final Exception e) {
             // usually happen either because we failed to connect to the node

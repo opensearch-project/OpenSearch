@@ -215,6 +215,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             handshaker,
             keepAlive,
             requestHandlers,
+            protobufRequestHandlers,
             responseHandlers
         );
     }
@@ -317,11 +318,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
+            System.out.println("Sending request from NodeChannels");
             if (isClosing.get()) {
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
             outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+            System.out.println("Done with send request");
         }
 
         // @Override

@@ -34,8 +34,11 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.util.concurrent.ThreadContext;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -122,10 +125,29 @@ public class Header {
     }
 
     void finishParsingHeader(StreamInput input) throws IOException {
+        System.out.println("finishParsingHeader");
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
             final String[] featuresFound = input.readStringArray();
+            if (featuresFound.length == 0) {
+                features = Collections.emptySet();
+            } else {
+                features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(featuresFound)));
+            }
+            this.actionName = input.readString();
+        } else {
+            this.actionName = RESPONSE_NAME;
+        }
+    }
+
+    void finishParsingHeaderProtobuf(CodedInputStream input) throws IOException {
+        System.out.println("finishParsingHeaderProtobuf");
+        this.headers = ThreadContext.readHeadersFromStreamProtobuf(input);
+        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(input);
+
+        if (isRequest()) {
+            final String[] featuresFound = protobufStreamInput.readStringArray();
             if (featuresFound.length == 0) {
                 features = Collections.emptySet();
             } else {

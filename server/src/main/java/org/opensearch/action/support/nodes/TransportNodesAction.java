@@ -244,9 +244,9 @@ public abstract class TransportNodesAction<
         }
 
         void start() {
-            System.out.println("TransportNodesAction.AsyncAction.start");
+            // System.out.println("TransportNodesAction.AsyncAction.start");
             final DiscoveryNode[] nodes = request.concreteNodes();
-            System.out.println("Nodes: " + nodes[0]);
+            // System.out.println("Nodes: " + nodes[0]);
             if (nodes.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));

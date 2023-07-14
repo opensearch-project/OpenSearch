@@ -37,8 +37,12 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
 
     public ProtobufClusterStateResponse(CodedInputStream in) throws IOException {
         super(in);
+        System.out.println("Inside ProtobufClusterStateResponse constructor");
+        System.out.println("CodedInputStream in: " + in.readTag());
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        clusterName = new ClusterName(in);
+        String cluster_name = in.readString();
+        System.out.println("cluster_name: " + cluster_name);
+        clusterName = new ClusterName(cluster_name);
         clusterState = protobufStreamInput.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
         waitForTimedOut = in.readBool();
     }
@@ -74,7 +78,7 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        System.out.println("Inside writeTo of ProtobufClusterStateResponse");
+        // System.out.println("Inside writeTo of ProtobufClusterStateResponse");
         ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         clusterName.writeTo(out);
         protobufStreamOutput.writeOptionalWriteable(clusterState);

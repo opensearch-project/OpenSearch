@@ -216,13 +216,13 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
 
         protected void doStart(ClusterState clusterState) {
             try {
-                System.out.println("ProtobufTransportClusterManagerNodeAction.doStart");
+                // System.out.println("ProtobufTransportClusterManagerNodeAction.doStart");
                 //this needs fixing
                 final DiscoveryNodes nodes = clusterService.state().nodes();
-                System.out.println("nodes: " + nodes);
+                // System.out.println("nodes: " + nodes);
                 // final DiscoveryNodes discoveryNodes = clusterService.state().nodes();
                 if (nodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
-                    System.out.println("ProtobufTransportClusterManagerNodeAction.doStart.isLocalNodeElectedClusterManager");
+                    // System.out.println("ProtobufTransportClusterManagerNodeAction.doStart.isLocalNodeElectedClusterManager");
                     // check for block, if blocked, retry, else, execute locally
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
@@ -261,13 +261,13 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
                             .execute(ActionRunnable.wrap(delegate, l -> clusterManagerOperation(task, request, clusterState, l)));
                     }
                 } else {
-                    System.out.println("In else");
+                    // System.out.println("In else");
                     if (nodes.getClusterManagerNode() == null) {
-                        System.out.println("In else if");
+                        // System.out.println("In else if");
                         logger.debug("no known cluster-manager node, scheduling a retry");
                         retryOnMasterChange(clusterState, null);
                     } else {
-                        System.out.println("In else else");
+                        // System.out.println("In else else");
                         DiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
                         final String actionName = getClusterManagerActionName(clusterManagerNode);
                         transportService.sendRequest(

@@ -55,7 +55,10 @@ public class ClusterStateResponse extends ActionResponse {
 
     public ClusterStateResponse(StreamInput in) throws IOException {
         super(in);
+        System.out.println("ClusterStateResponse");
+        System.out.println("Stream input: " + in);
         clusterName = new ClusterName(in);
+        System.out.println("Cluster name: " + clusterName);
         clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
         waitForTimedOut = in.readBoolean();
     }

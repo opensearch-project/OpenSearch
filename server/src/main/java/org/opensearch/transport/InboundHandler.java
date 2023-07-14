@@ -40,12 +40,15 @@ import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.threadpool.ThreadPool;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -68,6 +71,7 @@ public class InboundHandler {
     private final TransportKeepAlive keepAlive;
     private final Transport.ResponseHandlers responseHandlers;
     private final Transport.RequestHandlers requestHandlers;
+    private final Transport.ProtobufRequestHandlers protobufRequestHandlers;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
     // private volatile ProtobufTransportMessageListener protobufMessageListener = ProtobufTransportMessageListener.NOOP_LISTENER;
@@ -81,6 +85,7 @@ public class InboundHandler {
         TransportHandshaker handshaker,
         TransportKeepAlive keepAlive,
         Transport.RequestHandlers requestHandlers,
+        Transport.ProtobufRequestHandlers protobufRequestHandlers,
         Transport.ResponseHandlers responseHandlers
     ) {
         this.threadPool = threadPool;
@@ -89,6 +94,7 @@ public class InboundHandler {
         this.handshaker = handshaker;
         this.keepAlive = keepAlive;
         this.requestHandlers = requestHandlers;
+        this.protobufRequestHandlers = protobufRequestHandlers;
         this.responseHandlers = responseHandlers;
     }
 
@@ -113,6 +119,8 @@ public class InboundHandler {
     }
 
     void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {
+        System.out.println("InboundHandler.inboundMessage");
+        System.out.println("message: " + message);
         final long startTime = threadPool.relativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
         TransportLogger.logInboundMessage(channel, message);
@@ -127,9 +135,15 @@ public class InboundHandler {
     // Empty stream constant to avoid instantiating a new stream for empty messages.
     private static final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
 
+    private static final CodedInputStream EMPTY_CODED_INPUT_STREAM = CodedInputStream.newInstance(BytesRef.EMPTY_BYTES);
+
     private void messageReceived(TcpChannel channel, InboundMessage message, long startTime) throws IOException {
+        System.out.println("InboundHandler.messageReceived");
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
         final Header header = message.getHeader();
+        System.out.println("header: " + header);
+        System.out.println("message: " + message);
+        System.out.println("remoteAddress: " + remoteAddress);
         assert header.needsToReadVariableHeader() == false;
 
         ThreadContext threadContext = threadPool.getThreadContext();
@@ -142,6 +156,7 @@ public class InboundHandler {
                 System.out.println("Header: " + header);
                 handleRequest(channel, header, message);
             } else {
+                System.out.println("InboundHandler.messageReceived isResponse else");
                 // Responses do not support short circuiting currently
                 assert message.isShortCircuit() == false;
                 final TransportResponseHandler<?> handler;
@@ -158,21 +173,51 @@ public class InboundHandler {
                     } else {
                         handler = theHandler;
                     }
+                    System.out.println("Found the handler: " + handler);
                 }
                 // ignore if its null, the service logs it
                 if (handler != null) {
-                    final StreamInput streamInput;
-                    if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
-                        streamInput = namedWriteableStream(message.openOrGetStreamInput());
-                        assertRemoteVersion(streamInput, header.getVersion());
-                        if (header.isError()) {
-                            handlerResponseError(requestId, streamInput, handler);
+                    System.out.println("Handler for the response is: " + handler);
+                    System.out.println("Handler for the response is: " + handler.toString());
+                    System.out.println("Teh final message is: " + message);
+                    if (handler.toString().contains("Protobuf")) {
+                        System.out.println("Trying protobuf");
+                        System.out.println("finale message inside protobuf is: " + message);
+                        System.out.println("finale message inside protobuf is: " + message.getContentLength());
+                        final CodedInputStream streamInput;
+                        if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
+                            System.out.println("Message content length is greater than 0 or header version is not current");
+                            streamInput = message.openOrGetProtobufCodedInput();
+                            System.out.println("Protobuf input is: " + streamInput);
+                            // assertRemoteVersion(streamInput, header.getVersion());
+                            if (header.isError()) {
+                                handlerResponseErrorProtobuf(requestId, streamInput, handler);
+                            } else {
+                                handleResponseProtobuf(requestId, remoteAddress, streamInput, handler);
+                            }
                         } else {
-                            handleResponse(requestId, remoteAddress, streamInput, handler);
+                            System.out.println("Protobuf else condition");
+                            assert header.isError() == false;
+                            handleResponseProtobuf(requestId, remoteAddress, EMPTY_CODED_INPUT_STREAM, handler);
                         }
                     } else {
-                        assert header.isError() == false;
-                        handleResponse(requestId, remoteAddress, EMPTY_STREAM_INPUT, handler);
+                        final StreamInput streamInput;
+                        System.out.println("Trying stream");
+                        if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
+                            System.out.println("if condition");
+                            streamInput = namedWriteableStream(message.openOrGetStreamInput());
+                            System.out.println("Stream input is: " + streamInput);
+                            assertRemoteVersion(streamInput, header.getVersion());
+                            if (header.isError()) {
+                                handlerResponseError(requestId, streamInput, handler);
+                            } else {
+                                handleResponse(requestId, remoteAddress, streamInput, handler);
+                            }
+                        } else {
+                            System.out.println("else condition");
+                            assert header.isError() == false;
+                            handleResponse(requestId, remoteAddress, EMPTY_STREAM_INPUT, handler);
+                        }
                     }
                 }
             }
@@ -194,7 +239,14 @@ public class InboundHandler {
         final String action = header.getActionName();
         final long requestId = header.getRequestId();
         final Version version = header.getVersion();
+        System.out.println("InboundHandler.handleRequest");
+        System.out.println("Header: " + header);
+        System.out.println("Action: " + action);
+        System.out.println("RequestId: " + requestId);
+        System.out.println("Version: " + version);
+        System.out.println("Message: " + message);
         if (header.isHandshake()) {
+            System.out.println("InboundHandler.handleRequest isHandshake");
             messageListener.onRequestReceived(requestId, action);
             // Cannot short circuit handshakes
             assert message.isShortCircuit() == false;
@@ -229,6 +281,7 @@ public class InboundHandler {
                 }
             }
         } else {
+            System.out.println("InboundHandler.handleRequest else isNotHandshake");
             final TransportChannel transportChannel = new TcpTransportChannel(
                 outboundHandler,
                 channel,
@@ -245,24 +298,50 @@ public class InboundHandler {
                 if (message.isShortCircuit()) {
                     sendErrorResponse(action, transportChannel, message.getException());
                 } else {
-                    final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
-                    assertRemoteVersion(stream, header.getVersion());
-                    final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
-                    assert reg != null;
+                    try {
+                        final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
+                        assertRemoteVersion(stream, header.getVersion());
+                        final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
+                        assert reg != null;
 
-                    final T request = newRequest(requestId, action, stream, reg);
-                    request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
-                    checkStreamIsFullyConsumed(requestId, action, stream);
+                        final T request = newRequest(requestId, action, stream, reg);
+                        request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                        checkStreamIsFullyConsumed(requestId, action, stream);
 
-                    final String executor = reg.getExecutor();
-                    if (ThreadPool.Names.SAME.equals(executor)) {
-                        try {
-                            reg.processMessageReceived(request, transportChannel);
-                        } catch (Exception e) {
-                            sendErrorResponse(reg.getAction(), transportChannel, e);
+                        System.out.println("Deserialized request: " + request);
+                        final String executor = reg.getExecutor();
+                        if (ThreadPool.Names.SAME.equals(executor)) {
+                            try {
+                                reg.processMessageReceived(request, transportChannel);
+                            } catch (Exception e) {
+                                sendErrorResponse(reg.getAction(), transportChannel, e);
+                            }
+                        } else {
+                            threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
                         }
-                    } else {
-                        threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
+                    } catch (Exception e) {
+                        System.out.println("Coming in here to try protobuf");
+                        final CodedInputStream stream = message.openOrGetProtobufCodedInput();
+                        // final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
+                        // assertRemoteVersion(stream, header.getVersion());
+                        final ProtobufRequestHandlerRegistry<T> reg = protobufRequestHandlers.getHandler(action);
+                        assert reg != null;
+
+                        final T request = newRequestProtobuf(requestId, action, stream, reg);
+                        request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                        // checkStreamIsFullyConsumed(requestId, action, stream);
+
+                        System.out.println("Deserialized request: " + request);
+                        final String executor = reg.getExecutor();
+                        if (ThreadPool.Names.SAME.equals(executor)) {
+                            try {
+                                reg.processMessageReceived(request, transportChannel);
+                            } catch (Exception exp) {
+                                sendErrorResponse(reg.getAction(), transportChannel, exp);
+                            }
+                        } else {
+                            // threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -288,6 +367,28 @@ public class InboundHandler {
         final String action,
         final StreamInput stream,
         final RequestHandlerRegistry<T> reg
+    ) throws IOException {
+        try {
+            return reg.newRequest(stream);
+        } catch (final EOFException e) {
+            // Another favor of (de)serialization issues is when stream contains less bytes than
+            // the request handler needs to deserialize the payload.
+            throw new IllegalStateException(
+                "Message fully read (request) but more data is expected for requestId ["
+                    + requestId
+                    + "], action ["
+                    + action
+                    + "]; resetting",
+                e
+            );
+        }
+    }
+
+    private <T extends TransportRequest> T newRequestProtobuf(
+        final long requestId,
+        final String action,
+        final CodedInputStream stream,
+        final ProtobufRequestHandlerRegistry<T> reg
     ) throws IOException {
         try {
             return reg.newRequest(stream);
@@ -377,11 +478,43 @@ public class InboundHandler {
         final StreamInput stream,
         final TransportResponseHandler<T> handler
     ) {
+        System.out.println("handleResponse");
         final T response;
         try {
             response = handler.read(stream);
             response.remoteAddress(new TransportAddress(remoteAddress));
             checkStreamIsFullyConsumed(requestId, handler, stream, false);
+        } catch (Exception e) {
+            final Exception serializationException = new TransportSerializationException(
+                "Failed to deserialize response from handler [" + handler + "]",
+                e
+            );
+            logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
+            handleException(handler, serializationException);
+            return;
+        }
+        final String executor = handler.executor();
+        if (ThreadPool.Names.SAME.equals(executor)) {
+            doHandleResponse(handler, response);
+        } else {
+            threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
+        }
+    }
+
+    private <T extends TransportResponse> void handleResponseProtobuf(
+        final long requestId,
+        InetSocketAddress remoteAddress,
+        final CodedInputStream stream,
+        final TransportResponseHandler<T> handler
+    ) throws IOException {
+        System.out.println("handleResponseProtobuf");
+        System.out.println("seeing if the stream has something");
+        System.out.println(stream.readTag());
+        final T response;
+        try {
+            response = handler.read(stream);
+            response.remoteAddress(new TransportAddress(remoteAddress));
+            // checkStreamIsFullyConsumed(requestId, handler, stream, false);
         } catch (Exception e) {
             final Exception serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",
@@ -412,6 +545,21 @@ public class InboundHandler {
         try {
             error = stream.readException();
             checkStreamIsFullyConsumed(requestId, handler, stream, true);
+        } catch (Exception e) {
+            error = new TransportSerializationException(
+                "Failed to deserialize exception response from stream for handler [" + handler + "]",
+                e
+            );
+        }
+        handleException(handler, error);
+    }
+
+    private void handlerResponseErrorProtobuf(final long requestId, CodedInputStream stream, final TransportResponseHandler<?> handler) {
+        Exception error;
+        try {
+            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(stream);
+            error = protobufStreamInput.readException();
+            // checkStreamIsFullyConsumed(requestId, handler, stream, true);
         } catch (Exception e) {
             error = new TransportSerializationException(
                 "Failed to deserialize exception response from stream for handler [" + handler + "]",

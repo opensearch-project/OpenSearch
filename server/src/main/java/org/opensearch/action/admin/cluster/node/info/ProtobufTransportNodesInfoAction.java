@@ -66,22 +66,22 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
         List<ProtobufNodeInfo> responses,
         List<ProtobufFailedNodeException> failures
     ) {
-        System.out.println("Inside newResponse");
-        System.out.println("nodesInfoRequest: " + nodesInfoRequest);
-        System.out.println("responses: " + responses);
-        System.out.println("failures: " + failures);
+        // System.out.println("Inside newResponse");
+        // System.out.println("nodesInfoRequest: " + nodesInfoRequest);
+        // System.out.println("responses: " + responses);
+        // System.out.println("failures: " + failures);
         return new ProtobufNodesInfoResponse(new ClusterName(clusterService.getClusterName().value()), responses, failures);
     }
 
     @Override
     protected NodeInfoRequest newNodeRequest(ProtobufNodesInfoRequest request) {
-        System.out.println("Inside newNodeRequest");
+        // System.out.println("Inside newNodeRequest");
         return new NodeInfoRequest(request);
     }
 
     @Override
     protected ProtobufNodeInfo newNodeResponse(CodedInputStream in) throws IOException {
-        System.out.println("Inside newNodeResponse with input stream");
+        // System.out.println("Inside newNodeResponse with input stream");
         return new ProtobufNodeInfo(in);
     }
 

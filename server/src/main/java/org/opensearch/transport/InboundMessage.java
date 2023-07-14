@@ -33,10 +33,13 @@
 package org.opensearch.transport;
 
 import org.opensearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+
+import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 
@@ -53,6 +56,7 @@ public class InboundMessage implements Releasable {
     private final boolean isPing;
     private Releasable breakerRelease;
     private StreamInput streamInput;
+    private CodedInputStream codedInputStream;
 
     public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
         this.header = header;
@@ -84,8 +88,10 @@ public class InboundMessage implements Releasable {
 
     public int getContentLength() {
         if (content == null) {
+            System.out.println("InboundMessage.getContentLength content is null");
             return 0;
         } else {
+            System.out.println("InboundMessage.getContentLength content is not null: " + content.length());
             return content.length();
         }
     }
@@ -115,10 +121,23 @@ public class InboundMessage implements Releasable {
     public StreamInput openOrGetStreamInput() throws IOException {
         assert isPing == false && content != null;
         if (streamInput == null) {
+            System.out.println("InboundMessage.openOrGetStreamInput");
             streamInput = content.streamInput();
             streamInput.setVersion(header.getVersion());
         }
         return streamInput;
+    }
+
+    public CodedInputStream openOrGetProtobufCodedInput() throws IOException {
+        assert isPing == false && content != null;
+        if (codedInputStream == null) {
+            System.out.println("InboundMessage.openOrGetProtobufCodedInput");
+            streamInput = content.streamInput();
+            codedInputStream = CodedInputStream.newInstance(streamInput);
+            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(codedInputStream);
+            protobufStreamInput.setVersion(header.getVersion());
+        }
+        return codedInputStream;
     }
 
     @Override

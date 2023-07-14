@@ -40,6 +40,8 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
 
+import com.google.protobuf.CodedInputStream;
+
 import java.io.IOException;
 import java.util.function.Consumer;
 
@@ -80,6 +82,7 @@ public class InboundDecoder implements Releasable {
     public int internalDecode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
         if (isOnHeader()) {
             int messageLength = TcpTransport.readMessageLength(reference);
+            System.out.println("Message length: " + messageLength);
             if (messageLength == -1) {
                 return 0;
             } else if (messageLength == 0) {
@@ -93,6 +96,14 @@ public class InboundDecoder implements Releasable {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
                     Header header = readHeader(version, messageLength, reference);
+                    System.out.println("InboundDecoder.internalDecode: header = " + header);
+                    System.out.println("InboundDecoder.internalDecode: header.getNetworkMessageSize() = " + header.getNetworkMessageSize());
+                    System.out.println("InboundDecoder.internalDecode: header.getActionName() = " + header.getActionName());
+                    // if (header.getNetworkMessageSize() == 108 && header.getActionName().equals("cluster:monitor/state")) {
+                    //     System.out.println("Coming in the if condition finally");
+                    //     header = readHeaderProtobuf(version, messageLength, reference);
+                    // }
+                    System.out.println("InboundDecoder.internalDecode after protobuf: header = " + header);
                     bytesConsumed += headerBytesToRead;
                     if (header.isCompressed()) {
                         decompressor = new TransportDecompressor(recycler);
@@ -202,6 +213,31 @@ public class InboundDecoder implements Releasable {
             }
             return header;
         }
+    }
+
+    static Header readHeaderProtobuf(Version version, int networkMessageSize, BytesReference bytesReference) throws IOException {
+        System.out.println("Reading header protobuf");
+        System.out.println("Bytes reference:" + bytesReference.toString());
+        CodedInputStream streamInput = bytesReference.protobufInput();
+
+        streamInput.skipRawBytes(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+        long requestId = streamInput.readInt64();
+        System.out.println("Read request id:" + requestId);
+        byte status = streamInput.readRawByte();
+        System.out.println("Read status:" + status);
+        System.out.println("Read version:" + streamInput.readInt32());
+        Version remoteVersion = Version.fromId(streamInput.readInt32());
+        Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
+        final IllegalStateException invalidVersion = ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
+        if (invalidVersion != null) {
+            throw invalidVersion;
+        } else {
+            // Skip since we already have ensured enough data available
+            streamInput.readInt32();
+            header.finishParsingHeaderProtobuf(streamInput);
+        }
+        return header;
+        
     }
 
     private boolean isOnHeader() {
