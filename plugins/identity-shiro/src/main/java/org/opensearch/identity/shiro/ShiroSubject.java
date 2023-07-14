@@ -31,7 +31,7 @@ public class ShiroSubject implements Subject {
      */
     public ShiroSubject(final ShiroTokenManager authTokenHandler, final org.apache.shiro.subject.Subject shiroBackedSubject) {
         this.authTokenHandler = Objects.requireNonNull(authTokenHandler);
-        this.wrappedSubject = Objects.requireNonNull(shiroBackedSubject);
+        this.delegate = Objects.requireNonNull(shiroBackedSubject);
     }
 
     /**
@@ -41,7 +41,7 @@ public class ShiroSubject implements Subject {
      */
     @Override
     public Principal getPrincipal() {
-        final Object o = wrappedSubject.getPrincipal();
+        final Object o = delegate.getPrincipal();
         if (o == null) return null;
         if (o instanceof Principal) return (Principal) o;
         return () -> o.toString();
@@ -86,7 +86,7 @@ public class ShiroSubject implements Subject {
     public void authenticate(AuthToken authenticationToken) {
         final org.apache.shiro.authc.AuthenticationToken authToken = authTokenHandler.translateAuthToken(authenticationToken)
             .orElseThrow(UnsupportedAuthenticationToken::new);
-        wrappedSubject.login(authToken);
+        delegate.login(authToken);
     }
 
     @SuppressWarnings("unchecked")

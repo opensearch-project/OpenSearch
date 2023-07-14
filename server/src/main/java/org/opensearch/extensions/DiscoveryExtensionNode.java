@@ -69,11 +69,10 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         for (ExtensionDependency dependency : dependencies) {
             dependency.writeTo(out);
         }
-if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-        out.writeList(scopes);
-}
-
-            scope.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+           for (Scope scope : scopes) {
+               scope.writeTo(out);
+           }
         }
     }
 
@@ -91,11 +90,11 @@ if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
         for (int i = 0; i < size; i++) {
             dependencies.add(new ExtensionDependency(in));
         }
+        scopes = new ArrayList<>(size);
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            scopes = in.readList(Scope::new);
-        }
-        for (int i = 0; i < size; i++) {
-            scopes.add(Scope.readStream(in));
+            for (int i = 0; i < size; i++) {
+                scopes.add(Scope.readStream(in));
+            }
         }
     }
 

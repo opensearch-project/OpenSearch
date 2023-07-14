@@ -347,6 +347,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
         this.version = in.readVersion();
+        this.principal = new NamedPrincipal(nodeId);
     }
 
     @Override
