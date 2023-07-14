@@ -32,11 +32,6 @@ import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX
  * This class encapsulates all OpenTelemetry related resources
  */
 public final class OTelResourceProvider {
-
-    private static final Object mutex = new Object();
-
-    private static OpenTelemetry openTelemetry;
-
     private OTelResourceProvider() {}
 
     /**
@@ -62,30 +57,14 @@ public final class OTelResourceProvider {
      * @return Opentelemetry instance
      */
     public static OpenTelemetry get(Settings settings, SpanExporter spanExporter, ContextPropagators contextPropagators, Sampler sampler) {
-        if (openTelemetry == null) {
-            synchronized (mutex) {
-                Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
-                SdkTracerProvider sdkTracerProvider;
-                if (sampler != null) {
-                    sdkTracerProvider = SdkTracerProvider.builder()
-                        .addSpanProcessor(spanProcessor(settings, spanExporter))
-                        .setResource(resource)
-                        .setSampler(sampler)
-                        .build();
-                } else {
-                    sdkTracerProvider = SdkTracerProvider.builder()
-                        .addSpanProcessor(spanProcessor(settings, spanExporter))
-                        .setResource(resource)
-                        .build();
-                }
+        Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
+        SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
+            .addSpanProcessor(spanProcessor(settings, spanExporter))
+            .setResource(resource)
+            .setSampler(sampler)
+            .build();
 
-                openTelemetry = OpenTelemetrySdk.builder()
-                    .setTracerProvider(sdkTracerProvider)
-                    .setPropagators(contextPropagators)
-                    .buildAndRegisterGlobal();
-            }
-        }
-        return openTelemetry;
+        return OpenTelemetrySdk.builder().setTracerProvider(sdkTracerProvider).setPropagators(contextPropagators).buildAndRegisterGlobal();
     }
 
     private static BatchSpanProcessor spanProcessor(Settings settings, SpanExporter spanExporter) {

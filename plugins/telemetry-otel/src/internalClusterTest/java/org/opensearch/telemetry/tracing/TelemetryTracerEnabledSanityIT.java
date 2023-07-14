@@ -11,7 +11,6 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.client.Client;
@@ -42,8 +41,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Class<? extends Plugin> telemetryPlugin() {
-
-        return OTelTelemetryPlugin.class;
+        return IntegrationTestOTelTelemetryPlugin.class;
     }
 
     public void testSanityChecksWhenTracingEnabled() throws Exception {
