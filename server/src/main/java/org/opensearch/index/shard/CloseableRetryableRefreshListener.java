@@ -76,6 +76,10 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
         }, interval, retryThreadPool);
     }
 
+    /**
+     * Schedules the retry based on the {@code shouldRetry} value.
+     * @param shouldRetry determines if the retry should happen.
+     */
     private void scheduleRetry(boolean shouldRetry) {
         if (shouldRetry) {
             scheduleRetry(getNextRetryInterval(), getRetryThreadPoolName());
