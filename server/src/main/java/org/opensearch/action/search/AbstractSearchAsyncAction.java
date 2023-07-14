@@ -455,15 +455,27 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             .findNext(shardIt, clusterState, e, () -> totalOps.incrementAndGet());
 
         final boolean lastShard = nextShard == null;
-        logger.debug(
-            () -> new ParameterizedMessage(
-                "{}: Failed to execute [{}] lastShard [{}]",
-                shard != null ? shard : shardIt.shardId(),
-                request,
-                lastShard
-            ),
-            e
-        );
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "{}: Failed to execute [{}] lastShard [{}]",
+                    shard != null ? shard : shardIt.shardId(),
+                    request,
+                    lastShard
+                ),
+                e
+            );
+        } else {
+            // Log the message without an exception.
+            logger.debug(
+                new ParameterizedMessage(
+                    "{}: Failed to execute [{}] lastShard [{}]",
+                    shard != null ? shard : shardIt.shardId(),
+                    request,
+                    lastShard
+                )
+            );
+        }
         if (lastShard) {
             onShardGroupFailure(shardIndex, shard, e);
         }
