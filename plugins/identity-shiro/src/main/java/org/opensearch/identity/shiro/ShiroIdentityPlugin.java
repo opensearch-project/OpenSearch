@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.shiro;
 
-import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.SecurityUtils;
@@ -29,7 +28,6 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
 
     private final Settings settings;
     private final ShiroTokenManager authTokenHandler;
-    private List<ShiroSubject> shiroSubjectList = List.of();
 
     /**
      * Create a new instance of the Shiro Identity Plugin
@@ -51,9 +49,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
      */
     @Override
     public Subject getSubject() {
-        ShiroSubject newShiroSubject = new ShiroSubject(authTokenHandler, SecurityUtils.getSubject());
-        shiroSubjectList.add(newShiroSubject);
-        return newShiroSubject;
+        return new ShiroSubject(authTokenHandler, SecurityUtils.getSubject());
     }
 
     /**
