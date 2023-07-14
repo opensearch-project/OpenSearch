@@ -80,6 +80,14 @@ public interface ExistingShardsAllocator {
         UnassignedAllocationHandler unassignedAllocationHandler
     );
 
+    default void allocateBatchUnassigned(RoutingAllocation allocation){
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        while (iterator.hasNext()) {
+            ShardRouting shardRouting = iterator.next();
+            allocateUnassigned(shardRouting, allocation, iterator);
+        }
+    }
+
     /**
      * Returns an explanation for a single unassigned shard.
      */
