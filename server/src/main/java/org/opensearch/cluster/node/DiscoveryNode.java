@@ -135,7 +135,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final Map<String, String> attributes;
     private final Version version;
     private final SortedSet<DiscoveryNodeRole> roles;
-    private Principal principal;
+    private final Principal principal;
 
     /**
      * Creates a new {@link DiscoveryNode}
