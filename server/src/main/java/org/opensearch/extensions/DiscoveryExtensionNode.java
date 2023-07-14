@@ -70,9 +70,9 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
             dependency.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-           for (Scope scope : scopes) {
-               scope.writeTo(out);
-           }
+            for (Scope scope : scopes) {
+                scope.writeTo(out);
+            }
         }
     }
 
