@@ -54,9 +54,10 @@ import java.util.Objects;
  *         "type": "ip"
  *       },
  *       "http_ip_addr_fk": {
- *         "type": "correlation",
- *         "target_schema" : "http",
- *         "target_field" : "ip"
+ *          "type": "correlation",
+ *          "path": "ip_addr",
+ *          "target_schema" : "http",
+ *          "target_field" : "ip"
  *       }
  *     }
  *   }
