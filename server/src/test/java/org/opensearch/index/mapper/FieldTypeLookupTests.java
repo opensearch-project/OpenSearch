@@ -64,6 +64,16 @@ public class FieldTypeLookupTests extends OpenSearchTestCase {
         assertEquals(1, size(lookup.iterator()));
     }
 
+    public void testAddFieldCorrelation() {
+        MockFieldMapper field = new MockFieldMapper("foo");
+        FieldAliasMapper alias = new FieldCorrelationMapper("correlation", "correlation", "foo","schema","target_field");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(field), Collections.singletonList(alias));
+
+        MappedFieldType aliasType = lookup.get("correlation");
+        assertEquals(field.fieldType(), aliasType);
+    }
+
     public void testAddFieldAlias() {
         MockFieldMapper field = new MockFieldMapper("foo");
         FieldAliasMapper alias = new FieldAliasMapper("alias", "alias", "foo");
@@ -81,15 +91,20 @@ public class FieldTypeLookupTests extends OpenSearchTestCase {
         FieldAliasMapper alias1 = new FieldAliasMapper("food", "food", "foo");
         FieldAliasMapper alias2 = new FieldAliasMapper("barometer", "barometer", "bar");
 
-        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field1, field2), Arrays.asList(alias1, alias2));
+        FieldCorrelationMapper correlation1 = new FieldCorrelationMapper("food_relation", "food", "foo", "schema" , "barFK");
+        FieldCorrelationMapper correlation2 = new FieldCorrelationMapper("barometer_relation", "barometer", "bar","schema","barFK");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field1, field2), Arrays.asList(alias1, alias2,correlation1,correlation2));
 
         Collection<String> names = lookup.simpleMatchToFullName("b*");
 
         assertFalse(names.contains("foo"));
         assertFalse(names.contains("food"));
+        assertFalse(names.contains("food_relation"));
 
         assertTrue(names.contains("bar"));
         assertTrue(names.contains("barometer"));
+        assertTrue(names.contains("barometer_relation"));
     }
 
     public void testSourcePathWithMultiFields() {

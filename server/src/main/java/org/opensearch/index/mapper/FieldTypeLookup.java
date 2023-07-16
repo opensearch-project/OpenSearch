@@ -52,6 +52,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
     private final Map<String, String> aliasToConcreteName = new HashMap<>();
+    private final Map<String, String> correlationToConcreteName = new HashMap<>();
 
     /**
      * A map from field name to all fields whose content has been copied into it
@@ -68,6 +69,10 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
+        this(fieldMappers,fieldAliasMappers,Collections.emptyList());
+    }
+
+    FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers,Collection<FieldCorrelationMapper> fieldCorrelationMappers) {
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -90,9 +95,11 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         }
 
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
-            String aliasName = fieldAliasMapper.name();
-            String path = fieldAliasMapper.path();
-            aliasToConcreteName.put(aliasName, path);
+            aliasToConcreteName.put(fieldAliasMapper.name(), fieldAliasMapper.path());
+        }
+
+        for (FieldCorrelationMapper fieldCorrelationMapper : fieldCorrelationMappers) {
+            aliasToConcreteName.put(fieldCorrelationMapper.name(), fieldCorrelationMapper.path());
         }
 
         this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);

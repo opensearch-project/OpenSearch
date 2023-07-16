@@ -87,25 +87,9 @@ import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
-import org.opensearch.index.mapper.BinaryFieldMapper;
-import org.opensearch.index.mapper.CompletionFieldMapper;
-import org.opensearch.index.mapper.ContentPath;
-import org.opensearch.index.mapper.DateFieldMapper;
-import org.opensearch.index.mapper.FieldAliasMapper;
-import org.opensearch.index.mapper.FieldMapper;
-import org.opensearch.index.mapper.GeoPointFieldMapper;
-import org.opensearch.index.mapper.GeoShapeFieldMapper;
-import org.opensearch.index.mapper.KeywordFieldMapper;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.*;
 import org.opensearch.index.mapper.Mapper.BuilderContext;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.NumberFieldMapper;
-import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.ObjectMapper.Nested;
-import org.opensearch.index.mapper.RangeFieldMapper;
-import org.opensearch.index.mapper.RangeType;
-import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
@@ -184,6 +168,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         denylist.add(ObjectMapper.NESTED_CONTENT_TYPE); // TODO support for nested
         denylist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
         denylist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
+        denylist.add(FieldCorrelationMapper.CONTENT_TYPE); // TODO support correlation
         TYPE_TEST_DENYLIST = denylist;
     }
 

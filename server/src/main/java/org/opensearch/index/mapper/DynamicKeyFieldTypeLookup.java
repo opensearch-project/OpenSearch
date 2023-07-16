@@ -57,7 +57,7 @@ class DynamicKeyFieldTypeLookup {
      */
     private final int maxKeyDepth;
 
-    DynamicKeyFieldTypeLookup(Map<String, DynamicKeyFieldMapper> newMappers, Map<String, String> aliasToConcreteName) {
+    DynamicKeyFieldTypeLookup(Map<String, DynamicKeyFieldMapper> newMappers, Map<String, String> aliasToConcreteName ) {
         this.mappers = newMappers;
         this.aliasToConcreteName = aliasToConcreteName;
         this.maxKeyDepth = getMaxKeyDepth(mappers, aliasToConcreteName);

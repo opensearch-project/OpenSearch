@@ -252,7 +252,8 @@ public class TypeParsers {
                 }
                 if (type.equals(ObjectMapper.CONTENT_TYPE)
                     || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)
-                    || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
+                    || type.equals(FieldAliasMapper.CONTENT_TYPE)
+                    || type.equals(FieldCorrelationMapper.CONTENT_TYPE)) {
                     throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
                 }
 

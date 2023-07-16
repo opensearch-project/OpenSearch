@@ -37,14 +37,10 @@ import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.FieldNameAnalyzer;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Stream;
+
+import static java.lang.String.format;
 
 /**
  * Looks up a mapping for a field
@@ -140,10 +136,10 @@ public final class MappingLookup implements Iterable<Mapper> {
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
             if (objects.containsKey(aliasMapper.name())) {
-                throw new MapperParsingException("Alias [" + aliasMapper.name() + "] is defined both as an object and an alias");
+                throw new MapperParsingException(format("%s [%s] is defined both as an object and an %s",aliasMapper.contentType(),aliasMapper.name(),aliasMapper.contentType()));
             }
             if (fieldMappers.put(aliasMapper.name(), aliasMapper) != null) {
-                throw new MapperParsingException("Alias [" + aliasMapper.name() + "] is defined both as an alias and a concrete field");
+                throw new MapperParsingException(format("%s [%s] is defined both as an %s and a concrete field",aliasMapper.contentType(),aliasMapper.name(),aliasMapper.contentType()));
             }
         }
 
