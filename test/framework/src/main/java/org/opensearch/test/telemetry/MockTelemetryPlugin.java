@@ -8,11 +8,13 @@
 
 package org.opensearch.test.telemetry;
 
+import java.util.Map;
 import java.util.Optional;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.listeners.TraceEventListener;
 
 /**
  * Mock {@link TelemetryPlugin} implementation for testing.
@@ -30,6 +32,11 @@ public class MockTelemetryPlugin extends Plugin implements TelemetryPlugin {
     @Override
     public Optional<Telemetry> getTelemetry(TelemetrySettings settings) {
         return Optional.of(new MockTelemetry(settings));
+    }
+
+    @Override
+    public Map<String, TraceEventListener> getTraceEventListeners(Telemetry telemetry) {
+        return null;
     }
 
     @Override

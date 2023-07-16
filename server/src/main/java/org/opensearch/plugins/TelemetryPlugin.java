@@ -10,7 +10,9 @@ package org.opensearch.plugins;
 
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.listeners.TraceEventListener;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -19,6 +21,8 @@ import java.util.Optional;
 public interface TelemetryPlugin {
 
     Optional<Telemetry> getTelemetry(TelemetrySettings settings);
+
+    Map<String, TraceEventListener> getTraceEventListeners(Telemetry telemetry);
 
     String getName();
 

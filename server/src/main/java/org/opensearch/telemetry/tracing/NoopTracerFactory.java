@@ -19,7 +19,7 @@ import java.util.Optional;
  */
 public class NoopTracerFactory extends TracerFactory {
     public NoopTracerFactory() {
-        super(null, Optional.empty(), null);
+        super(null, Optional.empty(), null, null);
     }
 
     @Override

@@ -41,6 +41,11 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
+    public Span getCurrentSpan() {
+        return getDelegateTracer().getCurrentSpan();
+    }
+
+    @Override
     public void close() throws IOException {
         defaultTracer.close();
     }

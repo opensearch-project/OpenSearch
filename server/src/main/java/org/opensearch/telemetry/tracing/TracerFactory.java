@@ -13,11 +13,17 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.listeners.TraceEventListener;
+import org.opensearch.telemetry.listeners.TraceEventListenerService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.telemetry.listeners.wrappers.TracerWrapper;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Optional;
+
+import static org.opensearch.telemetry.TelemetrySettings.DIAGNOSIS_ENABLED_SETTING;
 
 /**
  * TracerManager represents a single global class that is used to access tracers.
@@ -31,10 +37,13 @@ public class TracerFactory implements Closeable {
 
     private final TelemetrySettings telemetrySettings;
     private final Tracer tracer;
+    private TraceEventListenerService traceEventListenerService;
 
-    public TracerFactory(TelemetrySettings telemetrySettings, Optional<Telemetry> telemetry, ThreadContext threadContext) {
+    public TracerFactory(TelemetrySettings telemetrySettings, Optional<Telemetry> telemetry,
+                         Map<String, TraceEventListener> traceEventListeners, ThreadContext threadContext) {
         this.telemetrySettings = telemetrySettings;
         this.tracer = tracer(telemetry, threadContext);
+        this.initTraceEventListenerServiceAndWrapper(traceEventListeners);
     }
 
     /**
@@ -52,7 +61,11 @@ public class TracerFactory implements Closeable {
     @Override
     public void close() {
         try {
-            tracer.close();
+            if (tracer instanceof TracerWrapper) {
+                traceEventListenerService.unwrapTracer((TracerWrapper) tracer).close();
+            } else {
+                tracer.close();
+            }
         } catch (IOException e) {
             logger.warn("Error closing tracer", e);
         }
@@ -65,12 +78,28 @@ public class TracerFactory implements Closeable {
             .orElse(NoopTracer.INSTANCE);
     }
 
+    private void initTraceEventListenerServiceAndWrapper(Map<String, TraceEventListener> traceEventListeners) {
+        boolean isDiagnosisEnabled = telemetrySettings!= null && telemetrySettings.isDiagnosisEnabled();
+        this.traceEventListenerService =
+            new TraceEventListenerService(tracer, isDiagnosisEnabled);
+        if (traceEventListeners != null) {
+            for (Map.Entry<String, TraceEventListener> entry : traceEventListeners.entrySet()) {
+                traceEventListenerService.registerTraceEventListener(entry.getKey(), entry.getValue());
+                logger.info("Registered TraceEventListener {} with TraceEventListenerService", entry.getKey());
+            }
+        }
+    }
+
+    public TraceEventListenerService getTraceEventListenerService() {
+        return traceEventListenerService;
+    }
+
     private Tracer createDefaultTracer(TracingTelemetry tracingTelemetry, ThreadContext threadContext) {
         TracerContextStorage<String, Span> tracerContextStorage = new ThreadContextBasedTracerContextStorage(
             threadContext,
             tracingTelemetry
         );
-        return new DefaultTracer(tracingTelemetry, tracerContextStorage);
+        return traceEventListenerService.wrapTracer(new DefaultTracer(tracingTelemetry, tracerContextStorage));
     }
 
     private Tracer createWrappedTracer(Tracer defaultTracer) {

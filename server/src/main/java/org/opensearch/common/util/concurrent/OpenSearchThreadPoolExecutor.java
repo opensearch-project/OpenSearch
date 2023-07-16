@@ -34,6 +34,8 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.telemetry.listeners.TraceEventListenerService;
+import org.opensearch.telemetry.listeners.wrappers.TraceEventsRunnable;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -52,6 +54,9 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
     private volatile ShutdownListener listener;
 
     private final Object monitor = new Object();
+
+    private static TraceEventListenerService traceEventListenerService;
+
     /**
      * Name used in error reporting.
      */
@@ -198,11 +203,33 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
 
     }
 
+    public static void setDiagnosis(TraceEventListenerService traceEventListenerService) {
+        OpenSearchThreadPoolExecutor.traceEventListenerService = traceEventListenerService;
+    }
+
     protected Runnable wrapRunnable(Runnable command) {
-        return contextHolder.preserveContext(command);
+        if (OpenSearchThreadPoolExecutor.traceEventListenerService != null) {
+            if (command instanceof TraceEventsRunnable) {
+                return contextHolder.preserveContext(command);
+            } else {
+                return contextHolder.preserveContext(
+                    OpenSearchThreadPoolExecutor.traceEventListenerService.wrapRunnable(command));
+            }
+        } else {
+            return contextHolder.preserveContext(command);
+        }
     }
 
     protected Runnable unwrap(Runnable runnable) {
-        return contextHolder.unwrap(runnable);
+        if (OpenSearchThreadPoolExecutor.traceEventListenerService != null) {
+            if (runnable instanceof TraceEventsRunnable) {
+                return contextHolder.unwrap(
+                    OpenSearchThreadPoolExecutor.traceEventListenerService.unwrapRunnable((TraceEventsRunnable) runnable));
+            } else {
+                return contextHolder.unwrap(runnable);
+            }
+        } else {
+            return contextHolder.unwrap(runnable);
+        }
     }
 }

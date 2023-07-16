@@ -42,6 +42,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -56,6 +57,7 @@ import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
+import org.opensearch.telemetry.listeners.TraceEventListener;
 import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.search.backpressure.SearchBackpressureService;
@@ -258,10 +260,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static org.opensearch.common.util.FeatureFlags.SEARCH_PIPELINE;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
+import static org.opensearch.telemetry.TelemetrySettings.DIAGNOSIS_ENABLED_SETTING;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -1033,7 +1037,17 @@ public class Node implements Closeable {
                 final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
                 List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
                 TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
-                tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool.getThreadContext());
+                final Map<String, TraceEventListener> traceEventListeners;
+                if (telemetryModule.getTelemetry().isPresent()) {
+                    traceEventListeners = telemetryPlugins.stream()
+                        .flatMap(plugin -> plugin.getTraceEventListeners(telemetryModule.getTelemetry().get()).entrySet().stream())
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                } else {
+                    traceEventListeners = Collections.emptyMap();
+                }
+                tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), traceEventListeners, threadPool.getThreadContext());
+                OpenSearchThreadPoolExecutor.setDiagnosis(tracerFactory.getTraceEventListenerService());
+                clusterService.getClusterSettings().addSettingsUpdateConsumer(DIAGNOSIS_ENABLED_SETTING, tracerFactory.getTraceEventListenerService()::setDiagnosis);
             } else {
                 tracerFactory = new NoopTracerFactory();
             }

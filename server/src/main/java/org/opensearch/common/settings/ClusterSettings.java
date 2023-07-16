@@ -678,6 +678,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
         List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING),
         List.of(FeatureFlags.TELEMETRY),
-        List.of(TelemetrySettings.TRACER_ENABLED_SETTING)
+        List.of(TelemetrySettings.TRACER_ENABLED_SETTING, TelemetrySettings.DIAGNOSIS_ENABLED_SETTING)
     );
 }

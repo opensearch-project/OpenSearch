@@ -12,8 +12,12 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
+
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
@@ -63,8 +67,20 @@ public final class OTelResourceProvider {
             .setResource(resource)
             .setSampler(sampler)
             .build();
+        // TODO - change to default metricExporter
+        OtlpGrpcMetricExporter metricExporter = OtlpGrpcMetricExporter.builder()
+            .setEndpoint("http://localhost:4317") // Replace with the actual endpoint
+            .build();
+        SdkMeterProvider sdkMeterProvider = SdkMeterProvider.builder()
+            .registerMetricReader(PeriodicMetricReader.builder(metricExporter).build())
+            .setResource(resource)
+            .build();
 
-        return OpenTelemetrySdk.builder().setTracerProvider(sdkTracerProvider).setPropagators(contextPropagators).buildAndRegisterGlobal();
+        return OpenTelemetrySdk.builder()
+            .setTracerProvider(sdkTracerProvider)
+            .setPropagators(contextPropagators)
+            .setMeterProvider(sdkMeterProvider)
+            .buildAndRegisterGlobal();
     }
 
     private static BatchSpanProcessor spanProcessor(Settings settings, SpanExporter spanExporter) {
@@ -74,5 +90,4 @@ public final class OTelResourceProvider {
             .setMaxQueueSize(TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING.get(settings))
             .build();
     }
-
 }

@@ -26,4 +26,10 @@ public interface Tracer extends Closeable {
      */
     SpanScope startSpan(String spanName);
 
+    //TODO revisit getting current span logic
+    /**
+     * Get current span
+     */
+    Span getCurrentSpan();
+
 }

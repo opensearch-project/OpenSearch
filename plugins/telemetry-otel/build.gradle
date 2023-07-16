@@ -29,6 +29,11 @@ dependencies {
   api "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
   api "io.opentelemetry:opentelemetry-sdk-logs:${versions.opentelemetry}-alpha"
   api "io.opentelemetry:opentelemetry-api-logs:${versions.opentelemetry}-alpha"
+
+  // exporters
+  api "io.opentelemetry:opentelemetry-exporter-common:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-exporter-otlp:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-exporter-otlp-common:${versions.opentelemetry}"
 }
 
 

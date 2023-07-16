@@ -48,8 +48,9 @@ class DefaultTracer implements Tracer {
         ((Closeable) tracingTelemetry).close();
     }
 
+    @Override
     // Visible for testing
-    Span getCurrentSpan() {
+    public Span getCurrentSpan() {
         return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
     }
 
