@@ -67,12 +67,7 @@ import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
-import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
-import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.admin.indices.mapping.get.*;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
@@ -515,6 +510,21 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * Get the mappings of specific fields
      */
     ActionFuture<GetFieldMappingsResponse> getFieldMappings(GetFieldMappingsRequest request);
+
+    /**
+     * Get the aliases mappings of specific fields
+     */
+    void getFieldAliasesMappings(GetFieldAliasesMappingsRequest request, ActionListener<GetFieldAliasesMappingsResponse> listener);
+
+    /**
+     * Get the aliases mappings of specific fields
+     */
+    GetFieldAliasesMappingsRequestBuilder prepareGetFieldAliasesMappings(String... indices);
+
+    /**
+     * Get the aliases mappings of specific fields
+     */
+    ActionFuture<GetFieldAliasesMappingsResponse> getFieldAliasesMappings(GetFieldAliasesMappingsRequest request);
 
     /**
      * Add mapping definition for a type into one or more indices.

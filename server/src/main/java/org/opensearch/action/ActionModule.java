@@ -157,11 +157,7 @@ import org.opensearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.opensearch.action.admin.indices.forcemerge.TransportForceMergeAction;
 import org.opensearch.action.admin.indices.get.GetIndexAction;
 import org.opensearch.action.admin.indices.get.TransportGetIndexAction;
-import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsAction;
-import org.opensearch.action.admin.indices.mapping.get.TransportGetFieldMappingsAction;
-import org.opensearch.action.admin.indices.mapping.get.TransportGetFieldMappingsIndexAction;
-import org.opensearch.action.admin.indices.mapping.get.TransportGetMappingsAction;
+import org.opensearch.action.admin.indices.mapping.get.*;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -361,52 +357,7 @@ import org.opensearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestListDanglingIndicesAction;
-import org.opensearch.rest.action.admin.indices.RestAddIndexBlockAction;
-import org.opensearch.rest.action.admin.indices.RestAnalyzeAction;
-import org.opensearch.rest.action.admin.indices.RestClearIndicesCacheAction;
-import org.opensearch.rest.action.admin.indices.RestCloseIndexAction;
-import org.opensearch.rest.action.admin.indices.RestCreateDataStreamAction;
-import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
-import org.opensearch.rest.action.admin.indices.RestDataStreamsStatsAction;
-import org.opensearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestDeleteDataStreamAction;
-import org.opensearch.rest.action.admin.indices.RestDeleteIndexAction;
-import org.opensearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestFlushAction;
-import org.opensearch.rest.action.admin.indices.RestForceMergeAction;
-import org.opensearch.rest.action.admin.indices.RestGetAliasesAction;
-import org.opensearch.rest.action.admin.indices.RestGetComponentTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestGetComposableIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestGetDataStreamsAction;
-import org.opensearch.rest.action.admin.indices.RestGetFieldMappingAction;
-import org.opensearch.rest.action.admin.indices.RestGetIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestGetIndicesAction;
-import org.opensearch.rest.action.admin.indices.RestGetMappingAction;
-import org.opensearch.rest.action.admin.indices.RestGetSettingsAction;
-import org.opensearch.rest.action.admin.indices.RestIndexDeleteAliasesAction;
-import org.opensearch.rest.action.admin.indices.RestIndexPutAliasAction;
-import org.opensearch.rest.action.admin.indices.RestIndicesAliasesAction;
-import org.opensearch.rest.action.admin.indices.RestIndicesSegmentsAction;
-import org.opensearch.rest.action.admin.indices.RestIndicesShardStoresAction;
-import org.opensearch.rest.action.admin.indices.RestIndicesStatsAction;
-import org.opensearch.rest.action.admin.indices.RestOpenIndexAction;
-import org.opensearch.rest.action.admin.indices.RestPutComponentTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestPutComposableIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestPutMappingAction;
-import org.opensearch.rest.action.admin.indices.RestRecoveryAction;
-import org.opensearch.rest.action.admin.indices.RestRefreshAction;
-import org.opensearch.rest.action.admin.indices.RestResizeHandler;
-import org.opensearch.rest.action.admin.indices.RestResolveIndexAction;
-import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
-import org.opensearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestSimulateTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestSyncedFlushAction;
-import org.opensearch.rest.action.admin.indices.RestUpdateSettingsAction;
-import org.opensearch.rest.action.admin.indices.RestUpgradeAction;
-import org.opensearch.rest.action.admin.indices.RestUpgradeStatusAction;
-import org.opensearch.rest.action.admin.indices.RestValidateQueryAction;
+import org.opensearch.rest.action.admin.indices.*;
 import org.opensearch.rest.action.cat.AbstractCatAction;
 import org.opensearch.rest.action.cat.RestAliasAction;
 import org.opensearch.rest.action.cat.RestAllocationAction;
@@ -644,6 +595,11 @@ public class ActionModule extends AbstractModule {
             TransportGetFieldMappingsAction.class,
             TransportGetFieldMappingsIndexAction.class
         );
+        actions.register(
+            GetFieldAliasesMappingsAction.INSTANCE,
+            TransportGetFieldAliasesMappingsAction.class,
+            TransportGetFieldAliasesMappingsIndexAction.class
+        );
         actions.register(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
         actions.register(AutoPutMappingAction.INSTANCE, TransportAutoPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
@@ -847,6 +803,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutMappingAction());
         registerHandler.accept(new RestGetMappingAction(threadPool));
         registerHandler.accept(new RestGetFieldMappingAction());
+        registerHandler.accept(new RestGetFieldAliasesMappingAction());
 
         registerHandler.accept(new RestRefreshAction());
         registerHandler.accept(new RestFlushAction());

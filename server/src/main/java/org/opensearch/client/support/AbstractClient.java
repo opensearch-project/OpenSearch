@@ -232,14 +232,7 @@ import org.opensearch.action.admin.indices.get.GetIndexAction;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
-import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
-import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
-import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsAction;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.admin.indices.mapping.get.*;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
@@ -1713,6 +1706,16 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public void getFieldAliasesMappings(GetFieldAliasesMappingsRequest request, ActionListener<GetFieldAliasesMappingsResponse> listener) {
+            execute(GetFieldAliasesMappingsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public GetFieldAliasesMappingsRequestBuilder prepareGetFieldAliasesMappings(String... indices) {
+            return new GetFieldAliasesMappingsRequestBuilder(this, GetFieldAliasesMappingsAction.INSTANCE, indices);
+        }
+
+        @Override
         public GetMappingsRequestBuilder prepareGetMappings(String... indices) {
             return new GetMappingsRequestBuilder(this, GetMappingsAction.INSTANCE, indices);
         }
@@ -1725,6 +1728,10 @@ public abstract class AbstractClient implements Client {
         @Override
         public GetFieldMappingsRequestBuilder prepareGetFieldMappings(String... indices) {
             return new GetFieldMappingsRequestBuilder(this, GetFieldMappingsAction.INSTANCE, indices);
+        }
+        @Override
+        public ActionFuture<GetFieldAliasesMappingsResponse> getFieldAliasesMappings(GetFieldAliasesMappingsRequest request) {
+            return execute(GetFieldAliasesMappingsAction.INSTANCE, request);
         }
 
         @Override

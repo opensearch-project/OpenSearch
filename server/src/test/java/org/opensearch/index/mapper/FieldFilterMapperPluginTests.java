@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
+import org.opensearch.action.admin.indices.mapping.get.GetFieldAliasesMappingsResponse;
 import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.fieldcaps.FieldCapabilities;
@@ -90,6 +91,22 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertExpectedMappings(getIndexResponse.mappings());
     }
 
+    public void testGetFieldAliasesMappings() {
+        GetFieldAliasesMappingsResponse getFieldMappingsResponse = client().admin().indices().prepareGetFieldAliasesMappings().setFields("*").get();
+        Map<String, Map<String, GetFieldAliasesMappingsResponse.FieldAliasesMappingMetadata>> mappings = getFieldMappingsResponse.mappings();
+        assertEquals(2, mappings.size());
+        assertFieldAliasesMappings(mappings.get("index1"), Arrays.asList("date_of_birth","last_name","first_name","age_alias_visible"));
+        assertFieldAliasesMappings(mappings.get("filtered"), List.of("age_alias_visible"));
+        // double check that submitting the filtered mappings to an unfiltered index leads to the same get field mappings output
+        // as the one coming from a filtered index with same mappings
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
+        MappingMetadata filtered = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(filtered.getSourceAsMap()));
+        GetFieldAliasesMappingsResponse response = client().admin().indices().prepareGetFieldAliasesMappings("test").setFields("*").get();
+        assertEquals(1, response.mappings().size());
+        assertFieldAliasesMappings(response.mappings().get("test"),List.of("age_alias_visible") );
+    }
+
     public void testGetFieldMappings() {
         GetFieldMappingsResponse getFieldMappingsResponse = client().admin().indices().prepareGetFieldMappings().setFields("*").get();
         Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = getFieldMappingsResponse.mappings();
@@ -114,15 +131,23 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, fieldmapping.size());
     }
 
+    public void testGetNonExistentFieldAliasesMapping() {
+        GetFieldAliasesMappingsResponse response = client().admin().indices().prepareGetFieldAliasesMappings("index1").setFields("non-existent").get();
+        Map<String, Map<String, GetFieldAliasesMappingsResponse.FieldAliasesMappingMetadata>> mappings = response.mappings();
+        assertEquals(1, mappings.size());
+        Map<String, GetFieldAliasesMappingsResponse.FieldAliasesMappingMetadata> fieldmapping = mappings.get("index1");
+        assertEquals(0, fieldmapping.size());
+    }
+
     public void testFieldCapabilities() {
         List<String> allFields = new ArrayList<>(ALL_FLAT_FIELDS);
         allFields.addAll(ALL_OBJECT_FIELDS);
         FieldCapabilitiesResponse index1 = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("index1")).actionGet();
-        assertFieldCaps(index1, allFields);
+        assertFieldCaps(index1, allFields,0);
         FieldCapabilitiesResponse filtered = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("filtered")).actionGet();
         List<String> filteredFields = new ArrayList<>(FILTERED_FLAT_FIELDS);
         filteredFields.addAll(ALL_OBJECT_FIELDS);
-        assertFieldCaps(filtered, filteredFields);
+        assertFieldCaps(filtered, filteredFields, 1);
         // double check that submitting the filtered mappings to an unfiltered index leads to the same field_caps output
         // as the one coming from a filtered index with same mappings
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
@@ -131,10 +156,10 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         FieldCapabilitiesResponse test = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("test")).actionGet();
         // properties.value is an object field in the new mapping
         filteredFields.add("properties.value");
-        assertFieldCaps(test, filteredFields);
+        assertFieldCaps(test, filteredFields, 0);
     }
 
-    private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, Collection<String> expectedFields) {
+    private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, Collection<String> expectedFields, int expectedFieldsCount) {
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>(fieldCapabilitiesResponse.get());
         Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
         for (String field : builtInMetadataFields) {
@@ -145,7 +170,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
             Map<String, FieldCapabilities> remove = responseMap.remove(field);
             assertNotNull(" expected field [" + field + "] not found", remove);
         }
-        assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
+        assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), expectedFieldsCount, responseMap.size());
     }
 
     private static void assertFieldMappings(
@@ -160,6 +185,18 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         }
         for (String field : expectedFields) {
             GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);
+            assertNotNull("expected field [" + field + "] not found", fieldMappingMetadata);
+        }
+        assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
+    }
+
+    private static void assertFieldAliasesMappings(
+        Map<String, GetFieldAliasesMappingsResponse.FieldAliasesMappingMetadata> actual,
+        Collection<String> expectedFields
+    ) {
+        Map<String, GetFieldAliasesMappingsResponse.FieldAliasesMappingMetadata> fields = new HashMap<>(actual);
+        for (String field : expectedFields) {
+            GetFieldAliasesMappingsResponse.FieldAliasesMappingMetadata fieldMappingMetadata = fields.remove(field);
             assertNotNull("expected field [" + field + "] not found", fieldMappingMetadata);
         }
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
@@ -191,7 +228,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertTrue(sourceAsMap.containsKey("_routing"));
         assertTrue(sourceAsMap.containsKey("_source"));
         Map<String, Object> typeProperties = (Map<String, Object>) sourceAsMap.get("properties");
-        assertEquals(4, typeProperties.size());
+        assertEquals(5, typeProperties.size());
 
         Map<String, Object> name = (Map<String, Object>) typeProperties.get("name");
         assertEquals(1, name.size());
@@ -236,7 +273,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertTrue(sourceAsMap.containsKey("_routing"));
         assertTrue(sourceAsMap.containsKey("_source"));
         Map<String, Object> typeProperties = (Map<String, Object>) sourceAsMap.get("properties");
-        assertEquals(5, typeProperties.size());
+        assertEquals(9, typeProperties.size());
 
         Map<String, Object> name = (Map<String, Object>) typeProperties.get("name");
         assertEquals(1, name.size());
@@ -273,6 +310,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    private static final Collection<String> ALIAS_FIELDS = Arrays.asList("date_of_birth","last_name","first_name","age_alias_visible");
     private static final Collection<String> ALL_FLAT_FIELDS = Arrays.asList(
         "name.first",
         "name.last_visible",
@@ -284,7 +322,11 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         "properties.key_visible",
         "properties.key_visible.keyword",
         "properties.value",
-        "properties.value.keyword_visible"
+        "properties.value.keyword_visible",
+        "date_of_birth",
+        "last_name",
+        "first_name",
+        "age_alias_visible"
     );
 
     private static final Collection<String> ALL_OBJECT_FIELDS = Arrays.asList("name", "address", "properties");
@@ -292,6 +334,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     private static final Collection<String> FILTERED_FLAT_FIELDS = Arrays.asList(
         "name.last_visible",
         "age_visible",
+        "age_alias_visible",
         "address.area_visible",
         "properties.key_visible",
         "properties.value.keyword_visible"
@@ -322,8 +365,24 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         + "        \"birth\": {\n"
         + "          \"type\": \"date\"\n"
         + "        },\n"
+        + "        \"date_of_birth\": {\n"
+        + "          \"type\": \"alias\", \n"
+        + "          \"path\": \"birth\"\n"
+        + "        },\n"
+        + "        \"first_name\": {\n"
+        + "          \"type\": \"alias\", \n"
+        + "          \"path\": \"name.first\"\n"
+        + "        },\n"
+        + "        \"last_name\": {\n"
+        + "          \"type\": \"alias\", \n"
+        + "          \"path\": \"name.last_visible\"\n"
+        + "        },\n"
         + "        \"age_visible\": {\n"
         + "          \"type\": \"integer\"\n"
+        + "        },\n"
+        + "        \"age_alias_visible\": {\n"
+        + "          \"type\": \"alias\",\n"
+        + "          \"path\": \"age_visible\"\n"
         + "        },\n"
         + "        \"address\": {\n"
         + "          \"type\": \"object\",\n"

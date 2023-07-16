@@ -44,10 +44,7 @@ import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.TransportShardFlushAction;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
-import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsAction;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.opensearch.action.admin.indices.mapping.get.*;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.admin.indices.open.OpenIndexAction;
@@ -205,6 +202,18 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(getFieldMappingsRequest, getFieldMappingsShardAction);
+    }
+
+    public void testGetFieldAliasesMappings() {
+        String getFieldAliasesMappingsShardAction = GetFieldAliasesMappingsAction.NAME + "[index][s]";
+        interceptTransportActions(getFieldAliasesMappingsShardAction);
+
+        GetFieldAliasesMappingsRequest getFieldAliasesMappingsRequest = new GetFieldAliasesMappingsRequest();
+        getFieldAliasesMappingsRequest.indices(randomIndicesOrAliases());
+        internalCluster().coordOnlyNodeClient().admin().indices().getFieldAliasesMappings(getFieldAliasesMappingsRequest).actionGet();
+
+        clearInterceptedActions();
+        assertSameIndices(getFieldAliasesMappingsRequest, getFieldAliasesMappingsShardAction);
     }
 
     public void testFieldCapabilities() {

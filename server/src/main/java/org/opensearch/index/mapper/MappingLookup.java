@@ -38,6 +38,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.lang.String.format;
@@ -160,6 +161,10 @@ public final class MappingLookup implements Iterable<Mapper> {
         return fieldMappers.get(field);
     }
 
+    public List<Mapper> getMappers(List<String> fields) {
+        return fields.stream().map(this::getMapper).collect(Collectors.toList());
+    }
+
     public FieldTypeLookup fieldTypes() {
         return fieldTypeLookup;
     }
@@ -274,4 +279,6 @@ public final class MappingLookup implements Iterable<Mapper> {
         }
         return field.substring(0, lastDot);
     }
+
+
 }

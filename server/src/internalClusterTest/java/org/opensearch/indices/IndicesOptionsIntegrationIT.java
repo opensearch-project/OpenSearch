@@ -38,6 +38,7 @@ import org.opensearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.opensearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
+import org.opensearch.action.admin.indices.mapping.get.GetFieldAliasesMappingsRequestBuilder;
 import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
 import org.opensearch.action.admin.indices.refresh.RefreshRequestBuilder;
@@ -98,6 +99,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery("test1", "test2"), true);
         verify(getAliases("test1", "test2"), true);
         verify(getFieldMapping("test1", "test2"), true);
+        verify(getFieldAliasesMapping("test1", "test2"), true);
         verify(getMapping("test1", "test2"), true);
         verify(getSettings("test1", "test2"), true);
 
@@ -113,6 +115,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery("test1", "test2").setIndicesOptions(options), true);
         verify(getAliases("test1", "test2").setIndicesOptions(options), true);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), true);
+        verify(getFieldAliasesMapping("test1", "test2").setIndicesOptions(options), true);
         verify(getMapping("test1", "test2").setIndicesOptions(options), true);
         verify(getSettings("test1", "test2").setIndicesOptions(options), true);
 
@@ -128,6 +131,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery("test1", "test2").setIndicesOptions(options), false);
         verify(getAliases("test1", "test2").setIndicesOptions(options), false);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
+        verify(getFieldAliasesMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getSettings("test1", "test2").setIndicesOptions(options), false);
 
@@ -144,6 +148,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery("test1", "test2").setIndicesOptions(options), false);
         verify(getAliases("test1", "test2").setIndicesOptions(options), false);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
+        verify(getFieldAliasesMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getSettings("test1", "test2").setIndicesOptions(options), false);
     }
@@ -169,6 +174,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery("test1").setIndicesOptions(options), true);
         verify(getAliases("test1").setIndicesOptions(options), true);
         verify(getFieldMapping("test1").setIndicesOptions(options), true);
+        verify(getFieldAliasesMapping("test1").setIndicesOptions(options), true);
         verify(getMapping("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
@@ -190,6 +196,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
+        verify(getFieldAliasesMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
         verify(getSettings("test1").setIndicesOptions(options), false);
 
@@ -208,6 +215,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
+        verify(getFieldAliasesMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
         verify(getSettings("test1").setIndicesOptions(options), false);
     }
@@ -225,6 +233,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery("test1").setIndicesOptions(options), true);
         verify(getAliases("test1").setIndicesOptions(options), true);
         verify(getFieldMapping("test1").setIndicesOptions(options), true);
+        verify(getFieldAliasesMapping("test1").setIndicesOptions(options), true);
         verify(getMapping("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
@@ -246,6 +255,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
+        verify(getFieldAliasesMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
         verify(getSettings("test1").setIndicesOptions(options), false);
 
@@ -263,6 +273,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
+        verify(getFieldAliasesMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
         verify(getSettings("test1").setIndicesOptions(options), false);
     }
@@ -315,6 +326,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery(indices), true);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
+        verify(getFieldAliasesMapping(indices), false);
         verify(getMapping(indices), false);
         verify(getSettings(indices), false);
 
@@ -331,6 +343,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery(indices).setIndicesOptions(options), false);
         verify(getAliases(indices).setIndicesOptions(options), false);
         verify(getFieldMapping(indices).setIndicesOptions(options), false);
+        verify(getFieldAliasesMapping(indices).setIndicesOptions(options), false);
         verify(getMapping(indices).setIndicesOptions(options), false);
         verify(getSettings(indices).setIndicesOptions(options), false);
 
@@ -350,6 +363,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
+        verify(getFieldAliasesMapping(indices), false);
         verify(getMapping(indices), false);
         verify(getSettings(indices).setIndicesOptions(options), false);
 
@@ -366,6 +380,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery(indices), true);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
+        verify(getFieldAliasesMapping(indices), false);
         verify(getMapping(indices), false);
         verify(getSettings(indices).setIndicesOptions(options), false);
 
@@ -382,6 +397,7 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
         verify(validateQuery(indices).setIndicesOptions(options), false);
         verify(getAliases(indices).setIndicesOptions(options), false);
         verify(getFieldMapping(indices).setIndicesOptions(options), false);
+        verify(getFieldAliasesMapping(indices).setIndicesOptions(options), false);
         verify(getMapping(indices).setIndicesOptions(options), false);
         verify(getSettings(indices).setIndicesOptions(options), false);
     }
@@ -693,6 +709,10 @@ public class IndicesOptionsIntegrationIT extends OpenSearchIntegTestCase {
 
     static GetFieldMappingsRequestBuilder getFieldMapping(String... indices) {
         return client().admin().indices().prepareGetFieldMappings(indices);
+    }
+
+    static GetFieldAliasesMappingsRequestBuilder getFieldAliasesMapping(String... indices) {
+        return client().admin().indices().prepareGetFieldAliasesMappings(indices);
     }
 
     static GetMappingsRequestBuilder getMapping(String... indices) {
