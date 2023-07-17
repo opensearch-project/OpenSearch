@@ -149,10 +149,15 @@ final class OutboundHandler {
         System.out.println("canonical: " + request.getClass().getCanonicalName());
         System.out.println("message: " + message);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
+        if (request.getClass().getCanonicalName().contains("ClusterState") && request.getClass().getCanonicalName().contains("Protobuf")) {
+            sendMessageProtobuf(channel, protobufMessage, listener);
+        } else {
+            sendMessage(channel, message, listener);
+        }
         // if (request.getClass().getCanonicalName().contains("Protobuf")) {
         //     sendMessageProtobuf(channel, protobufMessage, listener);
         // } else {
-            sendMessage(channel, message, listener);
+            // sendMessage(channel, message, listener);
         // }   
     }
 
@@ -225,6 +230,14 @@ final class OutboundHandler {
         internalSend(channel, sendContext);
     }
 
+    private void sendMessage1(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
+        System.out.println("OutboundHandler.sendMessage");
+        System.out.println("OutboundHandler.sendMessage networkMessage = " + networkMessage);
+        MessageSerializer1 serializer = new MessageSerializer1(networkMessage, bigArrays);
+        SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
+        internalSend(channel, sendContext);
+    }
+
     private void sendMessageProtobuf(TcpChannel channel, ProtobufOutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
         System.out.println("OutboundHandler.sendMessageProtobuf");
         System.out.println("OutboundHandler.sendMessageProtobuf networkMessage = " + networkMessage);
@@ -288,6 +301,35 @@ final class OutboundHandler {
             System.out.println("OutboundHandler.MessageSerializer.get");
             bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
             return message.serialize(bytesStreamOutput);
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(bytesStreamOutput);
+        }
+    }
+
+    /**
+     * Internal message serializer
+     *
+     * @opensearch.internal
+     */
+    private static class MessageSerializer1 implements CheckedSupplier<BytesReference, IOException>, Releasable {
+
+        private final OutboundMessage message;
+        private final BigArrays bigArrays;
+        private volatile ReleasableBytesStreamOutput bytesStreamOutput;
+
+        private MessageSerializer1(OutboundMessage message, BigArrays bigArrays) {
+            this.message = message;
+            this.bigArrays = bigArrays;
+        }
+
+        @Override
+        public BytesReference get() throws IOException {
+            System.out.println("OutboundHandler.MessageSerializer.get");
+            bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
+            return message.serialize1(bytesStreamOutput);
         }
 
         @Override

@@ -42,6 +42,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.test.OpenSearchTestCase;
 
+import com.google.protobuf.CodedOutputStream;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -297,7 +299,7 @@ public class DiffableTests extends OpenSearchTestCase {
         };
     }
 
-    public static class TestDiffable extends AbstractDiffable<TestDiffable> {
+    public static class TestDiffable extends AbstractDiffable<TestDiffable, TestDiffable> {
 
         private final String value;
 
@@ -336,6 +338,12 @@ public class DiffableTests extends OpenSearchTestCase {
         @Override
         public int hashCode() {
             return value != null ? value.hashCode() : 0;
+        }
+
+        @Override
+        public void writeTo(CodedOutputStream out) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
         }
     }
 

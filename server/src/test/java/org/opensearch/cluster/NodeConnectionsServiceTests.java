@@ -60,7 +60,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.ProtobufConnectionProfile;
-import org.opensearch.transport.ProtobufTransportMessageListener;
+// import org.opensearch.transport.ProtobufTransportMessageListener;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.ProtobufTransportStats;
 import org.opensearch.transport.Transport;
@@ -599,7 +599,7 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
     private static final class MockTransport implements Transport {
         private final ResponseHandlers responseHandlers = new ResponseHandlers();
         private final RequestHandlers requestHandlers = new RequestHandlers();
-        private final ProtobufResponseHandlers protobufResponseHandlers = new ProtobufResponseHandlers();
+        // private final ProtobufResponseHandlers protobufResponseHandlers = new ProtobufResponseHandlers();
         private final ProtobufRequestHandlers protobufRequestHandlers = new ProtobufRequestHandlers();
         private volatile boolean randomConnectionExceptions = false;
         private final ThreadPool threadPool;
@@ -695,70 +695,70 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
             return requestHandlers;
         }
 
-        @Override
-        public void setMessageListenerProtobuf(ProtobufTransportMessageListener listener) {}
+        // @Override
+        // public void setMessageListenerProtobuf(ProtobufTransportMessageListener listener) {}
 
-        @Override
-        public BoundTransportAddress boundProtobufAddress() {
-            return null;
-        }
+        // @Override
+        // public BoundTransportAddress boundProtobufAddress() {
+        //     return null;
+        // }
 
-        @Override
-        public Map<String, BoundTransportAddress> profileProtobufBoundAddresses() {
-            return null;
-        }
+        // @Override
+        // public Map<String, BoundTransportAddress> profileProtobufBoundAddresses() {
+        //     return null;
+        // }
 
-        @Override
-        public ProtobufTransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException {
-            return new ProtobufTransportAddress[0];
-        }
+        // @Override
+        // public ProtobufTransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException {
+        //     return new ProtobufTransportAddress[0];
+        // }
 
-        @Override
-        public void openProtobufConnection(
-            DiscoveryNode node,
-            ProtobufConnectionProfile profile,
-            ActionListener<ProtobufConnection> listener
-        ) {
-            if (profile == null && randomConnectionExceptions && randomBoolean()) {
-                threadPool.generic().execute(() -> listener.onFailure(new ConnectTransportException(node, "simulated")));
-            } else {
-                threadPool.generic().execute(() -> listener.onResponse(new ProtobufConnection() {
-                    @Override
-                    public DiscoveryNode getNode() {
-                        return node;
-                    }
+        // @Override
+        // public void openProtobufConnection(
+        //     DiscoveryNode node,
+        //     ProtobufConnectionProfile profile,
+        //     ActionListener<ProtobufConnection> listener
+        // ) {
+        //     if (profile == null && randomConnectionExceptions && randomBoolean()) {
+        //         threadPool.generic().execute(() -> listener.onFailure(new ConnectTransportException(node, "simulated")));
+        //     } else {
+        //         threadPool.generic().execute(() -> listener.onResponse(new ProtobufConnection() {
+        //             @Override
+        //             public DiscoveryNode getNode() {
+        //                 return node;
+        //             }
 
-                    @Override
-                    public void sendRequest(
-                        long requestId,
-                        String action,
-                        TransportRequest request,
-                        TransportRequestOptions options
-                    ) throws TransportException {}
+        //             @Override
+        //             public void sendRequest(
+        //                 long requestId,
+        //                 String action,
+        //                 TransportRequest request,
+        //                 TransportRequestOptions options
+        //             ) throws TransportException {}
 
-                    @Override
-                    public void addCloseListener(ActionListener<Void> listener) {}
+        //             @Override
+        //             public void addCloseListener(ActionListener<Void> listener) {}
 
-                    @Override
-                    public void close() {}
+        //             @Override
+        //             public void close() {}
 
-                    @Override
-                    public boolean isClosed() {
-                        return false;
-                    }
-                }));
-            }
-        }
+        //             @Override
+        //             public boolean isClosed() {
+        //                 return false;
+        //             }
+        //         }));
+        //     }
+        // }
 
         @Override
         public ProtobufTransportStats getProtobufStats() {
             throw new UnsupportedOperationException();
         }
 
-        @Override
-        public ProtobufResponseHandlers getProtobufResponseHandlers() {
-            return protobufResponseHandlers;
-        }
+        // @Override
+        // public ProtobufResponseHandlers getProtobufResponseHandlers() {
+        //     return protobufResponseHandlers;
+        // }
 
         @Override
         public ProtobufRequestHandlers getProtobufRequestHandlers() {

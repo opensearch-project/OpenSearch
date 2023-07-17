@@ -37,6 +37,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
 
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);
 
+    // private PRotoClusterSatteRq clusterStateRequest;
     private boolean routingTable = true;
     private boolean nodes = true;
     private boolean metadata = true;

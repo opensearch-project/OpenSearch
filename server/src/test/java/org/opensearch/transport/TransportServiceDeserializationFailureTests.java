@@ -45,7 +45,11 @@ import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportResponse.Empty;
 
+import com.google.protobuf.CodedInputStream;
+
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -131,6 +135,18 @@ public class TransportServiceDeserializationFailureTests extends OpenSearchTestC
                     public String toString() {
                         return "test handler without parent";
                     }
+
+                    @Override
+                    public Empty read(CodedInputStream in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
+
+                    @Override
+                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
+                    }
                 }
             );
 
@@ -186,6 +202,18 @@ public class TransportServiceDeserializationFailureTests extends OpenSearchTestC
                     @Override
                     public String toString() {
                         return "test handler with parent";
+                    }
+
+                    @Override
+                    public Empty read(CodedInputStream in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
+
+                    @Override
+                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                     }
                 }
             );

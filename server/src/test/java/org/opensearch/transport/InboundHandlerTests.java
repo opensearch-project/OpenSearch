@@ -55,6 +55,9 @@ import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+
+import com.google.protobuf.CodedInputStream;
+
 import org.junit.After;
 import org.junit.Before;
 
@@ -81,6 +84,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
     private TaskManager taskManager;
     private Transport.ResponseHandlers responseHandlers;
     private Transport.RequestHandlers requestHandlers;
+    private Transport.ProtobufRequestHandlers protobufRequestHandlers;
     private InboundHandler handler;
     private OutboundHandler outboundHandler;
     private FakeTcpChannel channel;
@@ -117,6 +121,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             handshaker,
             keepAlive,
             requestHandlers,
+            protobufRequestHandlers,
             responseHandlers
         );
     }
@@ -176,6 +181,18 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             @Override
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
+            }
+
+            @Override
+            public TestResponse read(CodedInputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
             }
         }, null, action));
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
@@ -364,6 +381,18 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
             }
+
+            @Override
+            public TestResponse read(CodedInputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
+            }
         }, null, action));
 
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
@@ -435,6 +464,18 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             @Override
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
+            }
+
+            @Override
+            public TestResponse read(CodedInputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
             }
         }, null, action));
 
@@ -508,6 +549,18 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             @Override
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
+            }
+
+            @Override
+            public TestResponse read(CodedInputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
             }
         }, null, action));
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
@@ -596,6 +649,18 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             @Override
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
+            }
+
+            @Override
+            public TestResponse read(CodedInputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
             }
         }, null, action));
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(

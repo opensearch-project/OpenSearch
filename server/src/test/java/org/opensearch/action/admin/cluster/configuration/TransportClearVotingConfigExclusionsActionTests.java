@@ -54,9 +54,13 @@ import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+
+import com.google.protobuf.CodedInputStream;
+
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -249,6 +253,18 @@ public class TransportClearVotingConfigExclusionsActionTests extends OpenSearchT
             @Override
             public ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
                 return new ClearVotingConfigExclusionsResponse(in);
+            }
+
+            @Override
+            public ClearVotingConfigExclusionsResponse read(CodedInputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
             }
         };
     }

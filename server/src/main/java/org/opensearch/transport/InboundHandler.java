@@ -187,7 +187,8 @@ public class InboundHandler {
                         final CodedInputStream streamInput;
                         if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
                             System.out.println("Message content length is greater than 0 or header version is not current");
-                            streamInput = message.openOrGetProtobufCodedInput();
+                            StreamInput streamInput1 = namedWriteableStream(message.openOrGetStreamInput());
+                            streamInput = CodedInputStream.newInstance(streamInput1);
                             System.out.println("Protobuf input is: " + streamInput);
                             // assertRemoteVersion(streamInput, header.getVersion());
                             if (header.isError()) {
@@ -321,13 +322,15 @@ public class InboundHandler {
                         }
                     } catch (Exception e) {
                         System.out.println("Coming in here to try protobuf");
-                        final CodedInputStream stream = message.openOrGetProtobufCodedInput();
+                        // final CodedInputStream stream = message.openOrGetProtobufCodedInput();
                         // final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                         // assertRemoteVersion(stream, header.getVersion());
+                        final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
+                        CodedInputStream codedInputStream = CodedInputStream.newInstance(stream);
                         final ProtobufRequestHandlerRegistry<T> reg = protobufRequestHandlers.getHandler(action);
                         assert reg != null;
 
-                        final T request = newRequestProtobuf(requestId, action, stream, reg);
+                        final T request = newRequestProtobuf(requestId, action, codedInputStream, reg);
                         request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                         // checkStreamIsFullyConsumed(requestId, action, stream);
 

@@ -45,6 +45,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
@@ -53,6 +54,9 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+
+import com.google.protobuf.CodedInputStream;
+
 import org.junit.Before;
 
 import java.io.IOException;
@@ -230,6 +234,18 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
             public String executor() {
                 return ThreadPool.Names.SAME;
             }
+
+            @Override
+            public TransportResponse read(CodedInputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
+            }
         };
     }
 
@@ -254,6 +270,18 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
             public String executor() {
                 return ThreadPool.Names.SAME;
             }
+
+            @Override
+            public TransportResponse read(CodedInputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
+            }
         };
     }
 
@@ -277,6 +305,18 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public TransportResponse read(CodedInputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
             }
         };
     }

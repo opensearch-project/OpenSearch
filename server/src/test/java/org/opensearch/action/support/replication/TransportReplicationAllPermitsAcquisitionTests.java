@@ -35,6 +35,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlock;
@@ -67,11 +68,15 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+
+import com.google.protobuf.CodedInputStream;
+
 import org.junit.After;
 import org.junit.Before;
 
@@ -221,6 +226,18 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         @Override
                         public String executor() {
                             return ThreadPool.Names.SAME;
+                        }
+
+                        @Override
+                        public ReplicaResponse read(CodedInputStream in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
+                        }
+
+                        @Override
+                        public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                         }
                     }
                 );

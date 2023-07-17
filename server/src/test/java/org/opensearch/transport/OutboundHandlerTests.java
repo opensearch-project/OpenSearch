@@ -49,6 +49,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.Streams;
+import org.opensearch.example.proto.ExampleRequestProto.ExampleRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -310,6 +311,73 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         assertEquals(action, remoteException.action());
         assertEquals(channel.getLocalAddress(), remoteException.address().address());
 
+        assertEquals("header_value", header.getHeaders().v1().get("header"));
+    }
+
+    public void testSendRequestProtobuf() throws IOException {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
+        String action = "example";
+        long requestId = randomLongBetween(0, 300);
+        boolean isHandshake = false;
+        boolean compress = false;
+        String value = "message";
+        threadContext.putHeader("header", "header_value");
+        ExampleRequest request = ExampleRequest.newBuilder().setHeader("header_value").setMessage(value).build();
+
+        AtomicReference<DiscoveryNode> nodeRef = new AtomicReference<>();
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<TransportRequest> requestRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onRequestSent(
+                DiscoveryNode node,
+                long requestId,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options
+            ) {
+                nodeRef.set(node);
+                requestIdRef.set(requestId);
+                actionRef.set(action);
+                requestRef.set(request);
+            }
+        });
+        handler.sendRequest(node, channel, requestId, action, request, options, version, compress, isHandshake);
+
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+        assertEquals(node, nodeRef.get());
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(request, requestRef.get());
+
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        final Tuple<Header, BytesReference> tuple = message.get();
+        final Header header = tuple.v1();
+        final TestRequest message = new TestRequest(tuple.v2().streamInput());
+        assertEquals(version, header.getVersion());
+        assertEquals(requestId, header.getRequestId());
+        assertTrue(header.isRequest());
+        assertFalse(header.isResponse());
+        if (isHandshake) {
+            assertTrue(header.isHandshake());
+        } else {
+            assertFalse(header.isHandshake());
+        }
+        if (compress) {
+            assertTrue(header.isCompressed());
+        } else {
+            assertFalse(header.isCompressed());
+        }
+
+        assertEquals(value, message.value);
         assertEquals("header_value", header.getHeaders().v1().get("header"));
     }
 }
