@@ -533,6 +533,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStoreRepo)
             .build();
     }
 

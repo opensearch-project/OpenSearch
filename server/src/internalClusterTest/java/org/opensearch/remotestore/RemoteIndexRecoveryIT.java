@@ -59,7 +59,6 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, REPOSITORY_NAME)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s")
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)

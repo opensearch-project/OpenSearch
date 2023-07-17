@@ -21,7 +21,7 @@ public class SegmentReplicationWithRemoteIndexShardTests extends OpenSearchIndex
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
         .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "temp-fs")
-        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
         .build();
 
     public void testReplicaSyncingFromRemoteStore() throws IOException {

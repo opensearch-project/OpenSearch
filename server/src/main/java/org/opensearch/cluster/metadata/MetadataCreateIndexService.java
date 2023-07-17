@@ -123,7 +123,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHAR
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -132,14 +131,12 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 
 /**
@@ -973,29 +970,20 @@ public class MetadataCreateIndexService {
             }
 
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true);
-
             String remoteStoreRepo;
             if (Objects.equals(requestSettings.get(INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()), "true")) {
                 remoteStoreRepo = requestSettings.get(INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey());
             } else {
                 remoteStoreRepo = CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.get(clusterSettings);
             }
-            settingsBuilder.put(SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo);
-
-            boolean translogStoreEnabled = false;
-            String translogStoreRepo = null;
-            if (Objects.equals(requestSettings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()), "true")) {
-                translogStoreEnabled = true;
-                translogStoreRepo = requestSettings.get(INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey());
-            } else if (Objects.equals(requestSettings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()), "false") == false
-                && CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(clusterSettings)) {
-                    translogStoreEnabled = true;
-                    translogStoreRepo = CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(clusterSettings);
-                }
-            if (translogStoreEnabled) {
-                settingsBuilder.put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, translogStoreEnabled)
-                    .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogStoreRepo);
-            }
+            settingsBuilder.put(SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo)
+                .put(
+                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
+                    requestSettings.get(
+                        INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(),
+                        CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(clusterSettings)
+                    )
+                );
         }
     }
 

@@ -293,8 +293,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_REMOTE_STORE_REPOSITORY = "index.remote_store.repository";
 
-    public static final String SETTING_REMOTE_TRANSLOG_STORE_ENABLED = "index.remote_store.translog.enabled";
-
     public static final String SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY = "index.remote_store.translog.repository";
 
     /**
@@ -377,34 +375,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
     }
 
-    /**
-     * Used to specify if the index translog operations should be persisted in the remote store.
-     */
-    public static final Setting<Boolean> INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING = Setting.boolSetting(
-        SETTING_REMOTE_TRANSLOG_STORE_ENABLED,
-        false,
-        new Setting.Validator<>() {
-
-            @Override
-            public void validate(final Boolean value) {}
-
-            @Override
-            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
-                if (value == true) {
-                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
-                return settings.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final
-    );
-
     public static final Setting<String> INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING = Setting.simpleString(
         SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
         new Setting.Validator<>() {
@@ -419,13 +389,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         "Setting " + INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey() + " should be provided with non-empty repository ID"
                     );
                 } else {
-                    final Boolean isRemoteTranslogStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                    final Boolean isRemoteTranslogStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
                     if (isRemoteTranslogStoreEnabled == null || isRemoteTranslogStoreEnabled == false) {
                         throw new IllegalArgumentException(
                             "Settings "
                                 + INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey()
                                 + " can only be set/enabled when "
-                                + INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()
+                                + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
                                 + " is set to true"
                         );
                     }
@@ -434,7 +404,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
                 return settings.iterator();
             }
         },

@@ -892,6 +892,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "temp-fs")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
             .build();
 
         try (ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir())) {
@@ -934,6 +936,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertTrue(nextPrimary.translogStats().estimatedNumberOfOperations() >= additonalDocs);
             assertTrue(nextPrimary.translogStats().getUncommittedOperations() >= additonalDocs);
 
+            int prevOperationCount = nextPrimary.translogStats().estimatedNumberOfOperations();
+
             // promote the replica
             shards.promoteReplicaToPrimary(nextPrimary).get();
 
@@ -946,7 +950,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // As we are downloading segments from remote segment store on failover, there should not be
             // any operations replayed from translog
-            assertEquals(0, nextPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(prevOperationCount, nextPrimary.translogStats().estimatedNumberOfOperations());
 
             // refresh and push segments to our other replica.
             nextPrimary.refresh("test");
