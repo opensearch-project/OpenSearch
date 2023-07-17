@@ -58,7 +58,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
      */
     public FieldMemoryStats(Map<String, Long> stats) {
         this.stats = Objects.requireNonNull(stats, "status must be non-null");
-        assert !stats.containsKey(null);
+        assert stats.containsKey(null) == false;
     }
 
     /**
@@ -128,7 +128,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
      * Returns the fields value in bytes or <code>0</code> if it's not present in the stats
      */
     public long get(String field) {
-        return stats.get(field);
+        return stats.getOrDefault(field, 0L);
     }
 
     /**
