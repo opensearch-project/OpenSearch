@@ -49,7 +49,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -95,12 +94,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     private final RemoteRefreshSegmentTracker segmentTracker;
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
-
-    /**
-     * This boolean is used to ensure that there is only 1 retry scheduled/running at any time.
-     */
-    private final AtomicBoolean retryScheduled = new AtomicBoolean(false);
-
     private volatile Iterator<TimeValue> backoffDelayIterator;
 
     /**
@@ -166,33 +159,34 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     /**
      * Upload new segment files created as part of the last refresh to the remote segment store.
      * This method also uploads remote_segments_metadata file which contains metadata of each segment file uploaded.
-     *
      * @param didRefresh true if the refresh opened a new reference
+     * @return true if the method runs successfully.
      */
     @Override
-    protected boolean performAfterRefresh(boolean didRefresh) {
-        AtomicBoolean shouldRetry = new AtomicBoolean(true);
+    protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
+        if (didRefresh) {
+            updateLocalRefreshTimeAndSeqNo();
+        }
+        boolean successful;
         if (this.primaryTerm != indexShard.getOperationPrimaryTerm()
             || didRefresh
+            || isRetry
             || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
-            updateLocalRefreshTimeAndSeqNo();
-            try {
-                indexShard.getThreadPool()
-                    .executor(ThreadPool.Names.REMOTE_REFRESH)
-                    .submit(() -> shouldRetry.set(syncSegments(false)))
-                    .get();
-            } catch (InterruptedException | ExecutionException e) {
-                logger.info("Exception occurred while scheduling syncSegments", e);
-            }
+            successful = syncSegments(false);
         } else {
-            shouldRetry.set(false);
+            successful = true;
         }
-        return shouldRetry.get();
+        return successful;
     }
 
     private synchronized boolean syncSegments(boolean isRetry) {
-        if (indexShard.getReplicationTracker().isPrimaryMode() == false) {
-            return false;
+        if (indexShard.getReplicationTracker().isPrimaryMode() == false || indexShard.state() == IndexShardState.CLOSED) {
+            logger.info(
+                "Skipped syncing segments with primaryMode={} indexShardState={}",
+                indexShard.getReplicationTracker().isPrimaryMode(),
+                indexShard.state()
+            );
+            return true;
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
         indexShard.onCheckpointPublished(checkpoint);
@@ -200,7 +194,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
         long bytesBeforeUpload = segmentTracker.getUploadBytesSucceeded(), startTimeInNS = System.nanoTime();
-        final AtomicBoolean shouldRetry = new AtomicBoolean(true);
+        final AtomicBoolean successful = new AtomicBoolean(false);
 
         try {
             if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
@@ -268,7 +262,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                                     );
                                     // At this point since we have uploaded new segments, segment infos and segment metadata file,
                                     // along with marking minSeqNoToKeep, upload has succeeded completely.
-                                    shouldRetry.set(false);
+                                    successful.set(true);
                                 } catch (Exception e) {
                                     // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
                                     // in the next refresh. This should not affect durability of the indexed data after remote trans-log
@@ -298,11 +292,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         } catch (Throwable t) {
             logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
         }
-        updateFinalStatusInSegmentTracker(shouldRetry.get() == false, bytesBeforeUpload, startTimeInNS);
-        afterSegmentsSync(isRetry);
+        updateFinalStatusInSegmentTracker(successful.get(), bytesBeforeUpload, startTimeInNS);
         // If there are failures in uploading segments, then we should retry as search idle can lead to
         // refresh not occurring until write happens.
-        return shouldRetry.get() && indexShard.state() != IndexShardState.CLOSED && retryScheduled.compareAndSet(false, true);
+        return successful.get();
     }
 
     /**
@@ -339,8 +332,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         updateRemoteRefreshTimeAndSeqNo(refreshTimeMs, refreshClockTimeMs, refreshSeqNo);
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
-        // Setting retryScheduled to false so that new retries can be scheduled on future failures.
-        retryScheduled.set(false);
         // Set the minimum sequence number for keeping translog
         indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
@@ -354,26 +345,14 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         backoffDelayIterator = EXPONENTIAL_BACKOFF_POLICY.iterator();
     }
 
-    private void afterSegmentsSync(boolean isRetry) {
-        // If this was a retry attempt, then we set the retryScheduled to false so that the next retry (if needed) can be scheduled
-        if (isRetry) {
-            retryScheduled.set(false);
-        }
-    }
-
     @Override
     protected TimeValue getNextRetryInterval() {
         return backoffDelayIterator.next();
     }
 
     @Override
-    protected boolean doRetry() {
-        return syncSegments(true);
-    }
-
-    @Override
     protected String getRetryThreadPoolName() {
-        return ThreadPool.Names.REMOTE_REFRESH;
+        return ThreadPool.Names.REMOTE_REFRESH_RETRY;
     }
 
     private boolean isRefreshAfterCommit() throws IOException {

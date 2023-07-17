@@ -40,13 +40,13 @@ public class CheckpointRefreshListener extends CloseableRetryableRefreshListener
     }
 
     @Override
-    protected boolean performAfterRefresh(boolean didRefresh) {
+    protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
         if (didRefresh
             && shard.state() == IndexShardState.STARTED
             && shard.getReplicationTracker().isPrimaryMode()
             && !shard.indexSettings.isSegRepWithRemoteEnabled()) {
             publisher.publish(shard, shard.getLatestReplicationCheckpoint());
         }
-        return false;
+        return true;
     }
 }

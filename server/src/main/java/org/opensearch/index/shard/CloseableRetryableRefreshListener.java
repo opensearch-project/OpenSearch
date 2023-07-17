@@ -16,35 +16,46 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * RefreshListener that runs afterRefresh method if and only if there are atleast one permit available. Once the listener
+ * RefreshListener that runs afterRefresh method if and only if there is a permit available. Once the listener
  * is closed, all the permits are acquired and there are no available permits to afterRefresh. This abstract class provides
  * necessary abstract methods to schedule retry.
  */
 public abstract class CloseableRetryableRefreshListener implements ReferenceManager.RefreshListener, Closeable {
 
-    private static final int TOTAL_PERMITS = Integer.MAX_VALUE;
+    /**
+     * Total permits = 1 ensures that there is only single instance of performAfterRefresh that is running at a time.
+     * In case there are use cases where concurrency is required, the total permit variable can be put inside the ctor.
+     */
+    private static final int TOTAL_PERMITS = 1;
 
     private final Semaphore semaphore = new Semaphore(TOTAL_PERMITS);
 
-    private final ThreadPool retryThreadPool;
+    private final ThreadPool threadPool;
 
-    public CloseableRetryableRefreshListener(ThreadPool retryThreadPool) {
-        this.retryThreadPool = retryThreadPool;
+    /**
+     * This boolean is used to ensure that there is only 1 retry scheduled/running at any time.
+     */
+    private final AtomicBoolean retryScheduled = new AtomicBoolean(false);
+
+    public CloseableRetryableRefreshListener(ThreadPool threadPool) {
+        this.threadPool = threadPool;
     }
 
     @Override
     public final void afterRefresh(boolean didRefresh) throws IOException {
-        if (semaphore.tryAcquire()) {
-            boolean shouldRetry;
-            try {
-                shouldRetry = performAfterRefresh(didRefresh);
-            } finally {
+        boolean successful;
+        boolean permitAcquired = semaphore.tryAcquire();
+        try {
+            successful = permitAcquired && performAfterRefresh(didRefresh, false);
+        } finally {
+            if (permitAcquired) {
                 semaphore.release();
             }
-            scheduleRetry(shouldRetry);
         }
+        scheduleRetry(successful, didRefresh, permitAcquired == false);
     }
 
     protected String getRetryThreadPoolName() {
@@ -55,54 +66,60 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
         return null;
     }
 
-    private void scheduleRetry(TimeValue interval, String retryThreadPool) {
-        if (this.retryThreadPool == null
+    private void scheduleRetry(TimeValue interval, String retryThreadPoolName, boolean didRefresh, boolean permitsUnavailable) {
+        if (this.threadPool == null
             || interval == null
-            || retryThreadPool == null
-            || ThreadPool.THREAD_POOL_TYPES.containsKey(retryThreadPool) == false
-            || interval == TimeValue.MINUS_ONE) {
+            || retryThreadPoolName == null
+            || ThreadPool.THREAD_POOL_TYPES.containsKey(retryThreadPoolName) == false
+            || interval == TimeValue.MINUS_ONE
+            || retryScheduled.compareAndSet(false, true) == false) {
             return;
         }
-        this.retryThreadPool.schedule(() -> {
-            if (semaphore.tryAcquire()) {
-                boolean shouldRetry;
+        boolean finalDidRefresh = didRefresh && permitsUnavailable;
+        boolean scheduled = false;
+        try {
+            this.threadPool.schedule(() -> {
+                boolean successful;
+                boolean permitAcquired = semaphore.tryAcquire();
                 try {
-                    shouldRetry = doRetry();
+                    successful = permitAcquired && performAfterRefresh(finalDidRefresh, true);
                 } finally {
-                    semaphore.release();
+                    if (permitAcquired) {
+                        semaphore.release();
+                    }
+                    retryScheduled.set(false);
                 }
-                scheduleRetry(shouldRetry);
+                scheduleRetry(successful, finalDidRefresh, permitAcquired == false);
+            }, interval, retryThreadPoolName);
+            scheduled = true;
+        } finally {
+            if (scheduled == false) {
+                retryScheduled.set(false);
             }
-        }, interval, retryThreadPool);
-    }
-
-    /**
-     * Schedules the retry based on the {@code shouldRetry} value.
-     * @param shouldRetry determines if the retry should happen.
-     */
-    private void scheduleRetry(boolean shouldRetry) {
-        if (shouldRetry) {
-            scheduleRetry(getNextRetryInterval(), getRetryThreadPoolName());
         }
     }
 
     /**
-     * Override this method to provide the code that needs to be run on retry.
+     * Schedules the retry based on the {@code afterRefreshSuccessful} value.
      *
-     * @return true if a retry is needed. By default, it returns false which means there are no retries.
+     * @param afterRefreshSuccessful is sent true if the performAfterRefresh(..) is successful.
+     * @param didRefresh             if the refresh did open a new reference then didRefresh will be true
+     * @param permitsUnavailable     if the permits were unavailable during running performAfterRefresh or scheduling retry.
      */
-    protected boolean doRetry() {
-        // By default it is no-op so that the listeners that do not need this, dont have to implement this.
-        return false;
+    private void scheduleRetry(boolean afterRefreshSuccessful, boolean didRefresh, boolean permitsUnavailable) {
+        if (afterRefreshSuccessful == false) {
+            scheduleRetry(getNextRetryInterval(), getRetryThreadPoolName(), didRefresh, permitsUnavailable);
+        }
     }
 
     /**
      * This method needs to be overridden and be provided with what needs to be run on after refresh.
      *
      * @param didRefresh true if the refresh opened a new reference
+     * @param isRetry    true if this is a retry attempt
      * @return true if a retry is needed else false.
      */
-    protected abstract boolean performAfterRefresh(boolean didRefresh);
+    protected abstract boolean performAfterRefresh(boolean didRefresh, boolean isRetry);
 
     @Override
     public final void close() throws IOException {

@@ -35,7 +35,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         CountDownLatch countDownLatch = new CountDownLatch(2);
         CloseableRetryableRefreshListener testRefreshListener = new CloseableRetryableRefreshListener(null) {
             @Override
-            protected boolean performAfterRefresh(boolean didRefresh) {
+            protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
                 countDownLatch.countDown();
                 return false;
             }
@@ -62,7 +62,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(initialCount);
         CloseableRetryableRefreshListener testRefreshListener = new CloseableRetryableRefreshListener(null) {
             @Override
-            protected boolean performAfterRefresh(boolean didRefresh) {
+            protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
                 countDownLatch.countDown();
                 return false;
             }
@@ -94,9 +94,9 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(initialCount);
         CloseableRetryableRefreshListener testRefreshListener = new CloseableRetryableRefreshListener(null) {
             @Override
-            protected boolean performAfterRefresh(boolean didRefresh) {
+            protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
                 countDownLatch.countDown();
-                return countDownLatch.getCount() != 0;
+                return countDownLatch.getCount() == 0;
             }
 
             @Override
@@ -108,9 +108,9 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
         testRefreshListener = new CloseableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefresh(boolean didRefresh) {
+            protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
                 countDownLatch.countDown();
-                return countDownLatch.getCount() != 0;
+                return countDownLatch.getCount() == 0;
             }
 
             @Override
@@ -122,9 +122,9 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
         testRefreshListener = new CloseableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefresh(boolean didRefresh) {
+            protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
                 countDownLatch.countDown();
-                return countDownLatch.getCount() != 0;
+                return countDownLatch.getCount() == 0;
             }
 
             @Override
@@ -132,7 +132,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
             @Override
             protected String getRetryThreadPoolName() {
-                return ThreadPool.Names.REMOTE_REFRESH;
+                return ThreadPool.Names.REMOTE_REFRESH_RETRY;
             }
         };
         testRefreshListener.afterRefresh(true);
@@ -141,9 +141,9 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
         testRefreshListener = new CloseableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefresh(boolean didRefresh) {
+            protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
                 countDownLatch.countDown();
-                return countDownLatch.getCount() != 0;
+                return countDownLatch.getCount() == 0;
             }
 
             @Override
@@ -167,9 +167,9 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(initialCount);
         CloseableRetryableRefreshListener testRefreshListener = new CloseableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefresh(boolean didRefresh) {
+            protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
                 countDownLatch.countDown();
-                return true;
+                return countDownLatch.getCount() == 0;
             }
 
             @Override
@@ -177,18 +177,12 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
             @Override
             protected String getRetryThreadPoolName() {
-                return ThreadPool.Names.REMOTE_REFRESH;
+                return ThreadPool.Names.REMOTE_REFRESH_RETRY;
             }
 
             @Override
             protected TimeValue getNextRetryInterval() {
                 return TimeValue.timeValueMillis(100);
-            }
-
-            @Override
-            protected boolean doRetry() {
-                countDownLatch.countDown();
-                return countDownLatch.getCount() != 0;
             }
         };
         testRefreshListener.afterRefresh(true);
@@ -204,9 +198,9 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(initialCount);
         CloseableRetryableRefreshListener testRefreshListener = new CloseableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefresh(boolean didRefresh) {
+            protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
                 countDownLatch.countDown();
-                return true;
+                return countDownLatch.getCount() == 0;
             }
 
             @Override
@@ -214,18 +208,12 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
             @Override
             protected String getRetryThreadPoolName() {
-                return ThreadPool.Names.REMOTE_REFRESH;
+                return ThreadPool.Names.REMOTE_REFRESH_RETRY;
             }
 
             @Override
             protected TimeValue getNextRetryInterval() {
                 return TimeValue.timeValueMillis(100);
-            }
-
-            @Override
-            protected boolean doRetry() {
-                countDownLatch.countDown();
-                return countDownLatch.getCount() != 0;
             }
         };
         testRefreshListener.afterRefresh(randomBoolean());
@@ -237,7 +225,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         CloseableRetryableRefreshListener testRefreshListener = new CloseableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefresh(boolean didRefresh) {
+            protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
                 try {
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
