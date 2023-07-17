@@ -49,4 +49,9 @@ public class CheckpointRefreshListener extends CloseableRetryableRefreshListener
         }
         return true;
     }
+
+    @Override
+    protected Logger getLogger() {
+        return logger;
+    }
 }

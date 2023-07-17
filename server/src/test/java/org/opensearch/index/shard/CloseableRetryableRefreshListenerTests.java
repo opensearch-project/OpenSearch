@@ -8,6 +8,8 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.common.unit.TimeValue;
@@ -19,6 +21,8 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 
 public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
+
+    private static final Logger logger = LogManager.getLogger(CloseableRetryableRefreshListenerTests.class);
 
     private ThreadPool threadPool;
 
@@ -42,6 +46,11 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
             @Override
             public void beforeRefresh() {}
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
         };
 
         // First invocation of afterRefresh method
@@ -69,6 +78,11 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
             @Override
             public void beforeRefresh() {}
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
         };
 
         int refreshCount = randomIntBetween(1, initialCount);
@@ -101,6 +115,11 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
             @Override
             public void beforeRefresh() {}
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 1, countDownLatch.getCount());
@@ -115,6 +134,11 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
             @Override
             public void beforeRefresh() {}
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 2, countDownLatch.getCount());
@@ -134,6 +158,11 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
             protected String getRetryThreadPoolName() {
                 return ThreadPool.Names.REMOTE_REFRESH_RETRY;
             }
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 3, countDownLatch.getCount());
@@ -152,6 +181,11 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
             @Override
             protected TimeValue getNextRetryInterval() {
                 return TimeValue.timeValueMillis(100);
+            }
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
             }
         };
         testRefreshListener.afterRefresh(true);
@@ -184,6 +218,11 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
             protected TimeValue getNextRetryInterval() {
                 return TimeValue.timeValueMillis(100);
             }
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
         };
         testRefreshListener.afterRefresh(true);
         assertBusy(() -> assertEquals(0, countDownLatch.getCount()));
@@ -215,6 +254,11 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
             protected TimeValue getNextRetryInterval() {
                 return TimeValue.timeValueMillis(100);
             }
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
         };
         testRefreshListener.afterRefresh(randomBoolean());
         testRefreshListener.close();
@@ -237,6 +281,11 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
 
             @Override
             public void beforeRefresh() {}
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
         };
         Thread thread = new Thread(() -> {
             try {
@@ -247,6 +296,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         });
         thread.start();
         assertBusy(() -> assertEquals(0, countDownLatch.getCount()));
+        testRefreshListener.close();
     }
 
     @After

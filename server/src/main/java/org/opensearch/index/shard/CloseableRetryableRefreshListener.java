@@ -8,6 +8,7 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
@@ -55,7 +56,7 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
                 semaphore.release();
             }
         }
-        scheduleRetry(successful, didRefresh, permitAcquired == false);
+        scheduleRetry(successful, didRefresh, permitAcquired);
     }
 
     protected String getRetryThreadPoolName() {
@@ -66,7 +67,7 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
         return null;
     }
 
-    private void scheduleRetry(TimeValue interval, String retryThreadPoolName, boolean didRefresh, boolean permitsUnavailable) {
+    private void scheduleRetry(TimeValue interval, String retryThreadPoolName, boolean didRefresh, boolean isRetry) {
         if (this.threadPool == null
             || interval == null
             || retryThreadPoolName == null
@@ -75,23 +76,23 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
             || retryScheduled.compareAndSet(false, true) == false) {
             return;
         }
-        boolean finalDidRefresh = didRefresh && permitsUnavailable;
         boolean scheduled = false;
         try {
             this.threadPool.schedule(() -> {
                 boolean successful;
                 boolean permitAcquired = semaphore.tryAcquire();
                 try {
-                    successful = permitAcquired && performAfterRefresh(finalDidRefresh, true);
+                    successful = permitAcquired && performAfterRefresh(didRefresh, isRetry);
                 } finally {
                     if (permitAcquired) {
                         semaphore.release();
                     }
                     retryScheduled.set(false);
                 }
-                scheduleRetry(successful, finalDidRefresh, permitAcquired == false);
+                scheduleRetry(successful, didRefresh, isRetry || permitAcquired);
             }, interval, retryThreadPoolName);
             scheduled = true;
+            getLogger().info("Scheduled retry with didRefresh={} isRetry={}", didRefresh, isRetry);
         } finally {
             if (scheduled == false) {
                 retryScheduled.set(false);
@@ -104,11 +105,11 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
      *
      * @param afterRefreshSuccessful is sent true if the performAfterRefresh(..) is successful.
      * @param didRefresh             if the refresh did open a new reference then didRefresh will be true
-     * @param permitsUnavailable     if the permits were unavailable during running performAfterRefresh or scheduling retry.
+     * @param isRetry                if this is a failure or permit was not acquired.
      */
-    private void scheduleRetry(boolean afterRefreshSuccessful, boolean didRefresh, boolean permitsUnavailable) {
+    private void scheduleRetry(boolean afterRefreshSuccessful, boolean didRefresh, boolean isRetry) {
         if (afterRefreshSuccessful == false) {
-            scheduleRetry(getNextRetryInterval(), getRetryThreadPoolName(), didRefresh, permitsUnavailable);
+            scheduleRetry(getNextRetryInterval(), getRetryThreadPoolName(), didRefresh, isRetry);
         }
     }
 
@@ -133,4 +134,6 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
             throw new RuntimeException(e);
         }
     }
+
+    protected abstract Logger getLogger();
 }

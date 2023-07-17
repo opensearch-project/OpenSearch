@@ -159,27 +159,27 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     /**
      * Upload new segment files created as part of the last refresh to the remote segment store.
      * This method also uploads remote_segments_metadata file which contains metadata of each segment file uploaded.
+     *
      * @param didRefresh true if the refresh opened a new reference
      * @return true if the method runs successfully.
      */
     @Override
     protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
-        if (didRefresh) {
+        if (didRefresh && isRetry == false) {
             updateLocalRefreshTimeAndSeqNo();
         }
         boolean successful;
         if (this.primaryTerm != indexShard.getOperationPrimaryTerm()
             || didRefresh
-            || isRetry
             || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
-            successful = syncSegments(false);
+            successful = syncSegments();
         } else {
             successful = true;
         }
         return successful;
     }
 
-    private synchronized boolean syncSegments(boolean isRetry) {
+    private synchronized boolean syncSegments() {
         if (indexShard.getReplicationTracker().isPrimaryMode() == false || indexShard.state() == IndexShardState.CLOSED) {
             logger.info(
                 "Skipped syncing segments with primaryMode={} indexShardState={}",
@@ -190,7 +190,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
         indexShard.onCheckpointPublished(checkpoint);
-        beforeSegmentsSync(isRetry);
+        beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
         long bytesBeforeUpload = segmentTracker.getUploadBytesSucceeded(), startTimeInNS = System.nanoTime();
@@ -311,10 +311,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             .forEach(localSegmentChecksumMap::remove);
     }
 
-    private void beforeSegmentsSync(boolean isRetry) {
-        if (isRetry) {
-            logger.info("Retrying to sync the segments to remote store");
-        }
+    private void beforeSegmentsSync() {
         // Start tracking total uploads started
         segmentTracker.incrementTotalUploadsStarted();
     }
@@ -500,5 +497,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         } else {
             segmentTracker.incrementTotalUploadsFailed();
         }
+    }
+
+    @Override
+    protected Logger getLogger() {
+        return logger;
     }
 }
