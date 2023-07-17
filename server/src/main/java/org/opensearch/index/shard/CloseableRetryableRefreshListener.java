@@ -41,6 +41,10 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
      */
     private final AtomicBoolean retryScheduled = new AtomicBoolean(false);
 
+    public CloseableRetryableRefreshListener() {
+        this.threadPool = null;
+    }
+
     public CloseableRetryableRefreshListener(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }

@@ -29,7 +29,6 @@ public class CheckpointRefreshListener extends CloseableRetryableRefreshListener
     private final SegmentReplicationCheckpointPublisher publisher;
 
     public CheckpointRefreshListener(IndexShard shard, SegmentReplicationCheckpointPublisher publisher) {
-        super(null);
         this.shard = shard;
         this.publisher = publisher;
     }
