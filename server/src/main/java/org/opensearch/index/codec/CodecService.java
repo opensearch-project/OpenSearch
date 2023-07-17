@@ -39,6 +39,7 @@ import org.apache.lucene.codecs.lucene95.Lucene95Codec.Mode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.customcodecs.Lucene95CustomCodec;
 import org.opensearch.index.codec.customcodecs.ZstdCodec;
 import org.opensearch.index.codec.customcodecs.ZstdNoDictCodec;
 import org.opensearch.index.mapper.MapperService;
@@ -46,6 +47,7 @@ import org.opensearch.index.mapper.MapperService;
 import java.util.Map;
 
 import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING;
+import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
@@ -71,7 +73,11 @@ public class CodecService {
     public CodecService(@Nullable MapperService mapperService, IndexSettings indexSettings, Logger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         assert null != indexSettings;
-        int compressionLevel = indexSettings.getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
+        String codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
+        int compressionLevel = Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL;
+        if (isZStandardCodec(codecName)) {
+            compressionLevel = indexSettings.getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
+        }
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene95Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene95Codec(Mode.BEST_COMPRESSION));
@@ -104,4 +110,9 @@ public class CodecService {
     public String[] availableCodecs() {
         return codecs.keySet().toArray(new String[0]);
     }
+
+    public static boolean isZStandardCodec(String codec) {
+        return codec.equals(ZSTD_CODEC) || codec.equals(ZSTD_NO_DICT_CODEC);
+    }
+
 }
