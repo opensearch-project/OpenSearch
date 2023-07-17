@@ -55,6 +55,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -97,10 +99,22 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case HYBRIDFS:
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
-                final Set<String> mmapExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
+                Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
+                final List<String> mmapExtensions = new ArrayList<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
+                if (nioExtensions.isEmpty()) {
+                    List<String> allExtensions = new ArrayList<>(INDEX_STORE_HYBRID_ALL_EXTENSIONS);
+                    allExtensions.removeAll(mmapExtensions);
+                    nioExtensions = new HashSet<>(allExtensions);
+                } else {
+                    if (!mmapExtensions.equals(List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"))) {
+                        throw new IllegalArgumentException(
+                            "INDEX_STORE_HYBRID_MMAP_EXTENSIONS and INDEX_STORE_HYBRID_NIO_EXTENSIONS are both defined. Use INDEX_STORE_HYBRID_NIO_EXTENSIONS only"
+                        );
+                    }
+                }
                 if (primaryDirectory instanceof MMapDirectory) {
                     MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
-                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions), mmapExtensions);
+                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions), nioExtensions);
                 } else {
                     return primaryDirectory;
                 }
@@ -143,12 +157,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
      */
     static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
-        private final Set<String> mmapExtensions;
+        private final Set<String> nioExtensions;
 
-        HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, Set<String> mmapExtensions) throws IOException {
+        HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, Set<String> nioExtensions) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
-            this.mmapExtensions = mmapExtensions;
+            this.nioExtensions = nioExtensions;
         }
 
         @Override
@@ -169,7 +183,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         boolean useDelegate(String name) {
             final String extension = FileSwitchDirectory.getExtension(name);
-            return mmapExtensions.contains(extension);
+            return !nioExtensions.contains(extension);
         }
 
         @Override
@@ -232,4 +246,33 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             return delegate;
         }
     }
+
+    private static List<String> INDEX_STORE_HYBRID_ALL_EXTENSIONS = List.of(
+        "nvd", // mmap defaults start
+        "dvd",
+        "tim",
+        "tip",
+        "dim",
+        "kdd",
+        "kdi",
+        "cfs",
+        "doc", // mmap defaults end
+        "segments_N", // nio defaults start
+        "write.lock",
+        "si",
+        "cfe",
+        "fnm",
+        "fdx",
+        "fdt",
+        "pos",
+        "pay",
+        "nvm",
+        "dvm",
+        "tvx",
+        "tvd",
+        "liv",
+        "dii",
+        "vec",
+        "vem" // nio defaults end
+    );
 }

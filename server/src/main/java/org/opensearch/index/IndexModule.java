@@ -154,13 +154,28 @@ public final class IndexModule {
         Property.NodeScope
     );
 
-    /** Which lucene file extensions to load with the mmap directory when using hybridfs store.
+    /** Which lucene file extensions to load with the mmap directory when using hybridfs store. This settings is ignored if {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} is set.
      *  This is an expert setting.
-     *  @see <a href="https://lucene.apache.org/core/9_2_0/core/org/apache/lucene/codecs/lucene92/package-summary.html#file-names">Lucene File Extensions</a>.
+     *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
+     *
+     * @deprecated This setting will be removed in OpenSearch 4.x. Use {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} instead.
      */
+    @Deprecated
     public static final Setting<List<String>> INDEX_STORE_HYBRID_MMAP_EXTENSIONS = Setting.listSetting(
         "index.store.hybrid.mmap.extensions",
         List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"),
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    /** Which lucene file extensions to load with nio. All others will default to mmap. Takes precedence over {@link #INDEX_STORE_HYBRID_MMAP_EXTENSIONS}.
+     *  This is an expert setting.
+     *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
+     */
+    public static final Setting<List<String>> INDEX_STORE_HYBRID_NIO_EXTENSIONS = Setting.listSetting(
+        "index.store.hybrid.nio.extensions",
+        Collections.emptyList(),
         Function.identity(),
         Property.IndexScope,
         Property.NodeScope

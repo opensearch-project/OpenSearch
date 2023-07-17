@@ -72,7 +72,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
-            // test default hybrid mmap extensions
+            // test default hybrid extensions
             assertTrue(hybridDirectory.useDelegate("foo.nvd"));
             assertTrue(hybridDirectory.useDelegate("foo.dvd"));
             assertTrue(hybridDirectory.useDelegate("foo.tim"));
@@ -82,6 +82,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             assertTrue(hybridDirectory.useDelegate("foo.kdi"));
             assertTrue(hybridDirectory.useDelegate("foo.cfs"));
             assertTrue(hybridDirectory.useDelegate("foo.doc"));
+            assertTrue(hybridDirectory.useDelegate("foo.new"));
             assertFalse(hybridDirectory.useDelegate("foo.pos"));
             assertFalse(hybridDirectory.useDelegate("foo.pay"));
             MMapDirectory delegate = hybridDirectory.getDelegate();
@@ -94,12 +95,12 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
         build = Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "nvd", "dvd", "cfs")
-            .putList(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey(), "nvd", "dvd", "tim", "pos", "pay")
+            .putList(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey(), "tip", "dim", "kdd", "kdi", "cfs", "doc")
             .build();
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
-            // test custom hybrid mmap extensions
+            // test custom hybrid nio extensions
             assertTrue(hybridDirectory.useDelegate("foo.nvd"));
             assertTrue(hybridDirectory.useDelegate("foo.dvd"));
             assertTrue(hybridDirectory.useDelegate("foo.tim"));
@@ -118,6 +119,44 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             assertFalse(preLoadMMapDirectory.useDelegate("foo.bar"));
             assertTrue(preLoadMMapDirectory.useDelegate("foo.cfs"));
             assertTrue(preLoadMMapDirectory.useDelegate("foo.nvd"));
+        }
+        build = Settings.builder()
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
+            .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "nvd", "dvd", "cfs")
+            .putList(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey(), "nvd", "dvd", "tim", "pos")
+            .build();
+        try (Directory directory = newDirectory(build)) {
+            assertTrue(FsDirectoryFactory.isHybridFs(directory));
+            FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
+            // test custom hybrid mmap extensions
+            assertTrue(hybridDirectory.useDelegate("foo.nvd"));
+            assertTrue(hybridDirectory.useDelegate("foo.dvd"));
+            assertTrue(hybridDirectory.useDelegate("foo.tim"));
+            assertTrue(hybridDirectory.useDelegate("foo.pos"));
+            assertTrue(hybridDirectory.useDelegate("foo.new"));
+            assertFalse(hybridDirectory.useDelegate("foo.pay"));
+            assertFalse(hybridDirectory.useDelegate("foo.tip"));
+            assertFalse(hybridDirectory.useDelegate("foo.dim"));
+            assertFalse(hybridDirectory.useDelegate("foo.kdd"));
+            assertFalse(hybridDirectory.useDelegate("foo.kdi"));
+            assertFalse(hybridDirectory.useDelegate("foo.cfs"));
+            assertFalse(hybridDirectory.useDelegate("foo.doc"));
+            MMapDirectory delegate = hybridDirectory.getDelegate();
+            assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
+        }
+        build = Settings.builder()
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
+            .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "nvd", "dvd", "cfs")
+            .putList(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey(), "nvd", "dvd", "tim", "pos")
+            .putList(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey(), "nvd", "dvd", "tim", "pos")
+            .build();
+        try {
+            newDirectory(build);
+        } catch (final Exception e) {
+            assertEquals(
+                e.getMessage(),
+                "INDEX_STORE_HYBRID_MMAP_EXTENSIONS and INDEX_STORE_HYBRID_NIO_EXTENSIONS are both defined. Use INDEX_STORE_HYBRID_NIO_EXTENSIONS only"
+            );
         }
     }
 
