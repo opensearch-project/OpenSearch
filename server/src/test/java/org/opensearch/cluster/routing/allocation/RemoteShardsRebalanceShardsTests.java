@@ -8,12 +8,14 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.routing.ShardRouting;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class RemoteShardsRebalanceShardsTests extends RemoteShardsBalancerBaseTestCase {
 
@@ -33,8 +35,8 @@ public class RemoteShardsRebalanceShardsTests extends RemoteShardsBalancerBaseTe
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         RoutingAllocation allocation = getRoutingAllocation(clusterState, routingNodes);
 
-        ObjectIntHashMap<String> nodePrimariesCounter = getShardCounterPerNodeForRemoteCapablePool(clusterState, allocation, true);
-        ObjectIntHashMap<String> nodeReplicaCounter = getShardCounterPerNodeForRemoteCapablePool(clusterState, allocation, false);
+        final Map<String, Integer> nodePrimariesCounter = getShardCounterPerNodeForRemoteCapablePool(clusterState, allocation, true);
+        final Map<String, Integer> nodeReplicaCounter = getShardCounterPerNodeForRemoteCapablePool(clusterState, allocation, false);
         int avgPrimariesPerNode = getTotalShardCountAcrossNodes(nodePrimariesCounter) / remoteCapableNodes;
 
         // Primary and replica are balanced post first reroute
@@ -46,23 +48,23 @@ public class RemoteShardsRebalanceShardsTests extends RemoteShardsBalancerBaseTe
         }
     }
 
-    private ObjectIntHashMap<String> getShardCounterPerNodeForRemoteCapablePool(
+    private Map<String, Integer> getShardCounterPerNodeForRemoteCapablePool(
         ClusterState clusterState,
         RoutingAllocation allocation,
         boolean primary
     ) {
-        ObjectIntHashMap<String> nodePrimariesCounter = new ObjectIntHashMap<>();
+        final Map<String, Integer> nodePrimariesCounter = new HashMap<>();
         for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
             if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation)) && shard.primary() == primary) {
-                nodePrimariesCounter.putOrAdd(shard.currentNodeId(), 1, 1);
+                nodePrimariesCounter.compute(shard.currentNodeId(), (k, v) -> (v == null) ? 1 : v + 1);
             }
         }
         return nodePrimariesCounter;
     }
 
-    private int getTotalShardCountAcrossNodes(ObjectIntHashMap<String> nodePrimariesCounter) {
+    private int getTotalShardCountAcrossNodes(final Map<String, Integer> nodePrimariesCounter) {
         int totalShardCount = 0;
-        for (int value : nodePrimariesCounter.values) {
+        for (int value : nodePrimariesCounter.values()) {
             totalShardCount += value;
         }
         return totalShardCount;

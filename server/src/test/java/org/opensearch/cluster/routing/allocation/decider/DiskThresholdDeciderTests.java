@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
-import com.carrotsearch.hppc.IntHashSet;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterInfoService;
@@ -1526,7 +1525,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .addAsNewRestore(
                 metadata.index("test"),
                 new RecoverySource.SnapshotRecoverySource("_restore_uuid", snapshot, Version.CURRENT, indexId),
-                new IntHashSet()
+                new HashSet<>()
             )
             .build();
 
