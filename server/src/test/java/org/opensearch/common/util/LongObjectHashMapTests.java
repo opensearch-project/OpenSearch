@@ -68,7 +68,7 @@ public class LongObjectHashMapTests extends OpenSearchTestCase {
                 assertEquals(map1.size(), map2.size());
             }
         }
-        for (int i = 0; i <= maxKey; ++i) {
+        for (long i = 0; i <= maxKey; ++i) {
             assertSame(map1.get(i), map2.get(i));
         }
         final Map<Long, Object> copy = new HashMap<>();

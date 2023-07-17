@@ -122,7 +122,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
             Set<Long> ordinalSet = new HashSet<>();
             final int numValues = randomInt(maxNumValuesPerDoc);
             while (ordinalSet.size() < numValues) {
-                ordinalSet.add(TestUtil.nextLong(random(), 1, terms.length));
+                ordinalSet.add(TestUtil.nextLong(random(), 0, terms.length - 1));
             }
             final long[] ords = ordinalSet.stream().mapToLong(Long::longValue).toArray();
             Arrays.sort(ords);
@@ -223,7 +223,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
             Set<Long> ordinalSet = new HashSet<>();
             final int numValues = randomInt(maxNumValuesPerDoc);
             while (ordinalSet.size() < numValues) {
-                ordinalSet.add(TestUtil.nextLong(random(), 1, terms.length));
+                ordinalSet.add(TestUtil.nextLong(random(), 0, terms.length - 1));
             }
             final long[] ords = ordinalSet.stream().mapToLong(Long::longValue).toArray();
             Arrays.sort(ords);

@@ -39,7 +39,6 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -58,7 +57,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
      * Creates a new FieldMemoryStats instance
      */
     public FieldMemoryStats(Map<String, Long> stats) {
-        this.stats = Collections.unmodifiableMap(Objects.requireNonNull(stats, "status must be non-null"));
+        this.stats = Objects.requireNonNull(stats, "status must be non-null");
         assert !stats.containsKey(null);
     }
 
