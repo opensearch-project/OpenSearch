@@ -51,7 +51,7 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
         return remoteStoreIndexSettings(0);
     }
 
-    private Map<String, Long> indexData(int numberOfIterations, boolean invokeFlush, boolean flushAfterMerge, boolean deleteDocs) {
+    private Map<String, Long> indexData(int numberOfIterations, boolean invokeFlush, boolean flushAfterMerge, long deletedDocs) {
         long totalOperations = 0;
         long maxSeqNo = -1;
         List<IndexResponse> indexResponseList = new ArrayList<>();
@@ -69,26 +69,23 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
                 refresh(INDEX_NAME);
             }
         }
-        if (deleteDocs) {
-            for (int j = 0; j < 10; j++) {
-                int length = indexResponseList.size();
-                maxSeqNo = client().prepareDelete()
-                    .setIndex(INDEX_NAME)
-                    .setId(indexResponseList.get(length - j - 1).getId())
-                    .get()
-                    .getSeqNo();
-            }
+        if (deletedDocs == -1) {
+            deletedDocs = totalOperations;
         }
-
+        int length = indexResponseList.size();
+        for (int j = 0; j < deletedDocs; j++) {
+            maxSeqNo = client().prepareDelete().setIndex(INDEX_NAME).setId(indexResponseList.get(length - j - 1).getId()).get().getSeqNo();
+        }
         client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(flushAfterMerge).get();
+        refresh(INDEX_NAME);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), totalOperations - deletedDocs);
         Map<String, Long> indexingStats = new HashMap<>();
         indexingStats.put(TOTAL_OPERATIONS, totalOperations);
         indexingStats.put(MAX_SEQ_NO_TOTAL, maxSeqNo);
         return indexingStats;
     }
 
-    private void verifyRestoredData(Map<String, Long> indexStats, boolean deleteDocs) {
-        int deletedDocs = deleteDocs ? 10 : 0;
+    private void verifyRestoredData(Map<String, Long> indexStats, long deletedDocs) {
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) - deletedDocs);
@@ -98,13 +95,13 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1 - deletedDocs);
     }
 
-    private void testRestoreWithMergeFlow(int numberOfIterations, boolean invokeFlush, boolean flushAfterMerge, boolean deleteDocs)
+    private void testRestoreWithMergeFlow(int numberOfIterations, boolean invokeFlush, boolean flushAfterMerge, long deletedDocs)
         throws IOException {
         createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
-        Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, flushAfterMerge, deleteDocs);
+        Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, flushAfterMerge, deletedDocs);
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
         assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
@@ -112,7 +109,11 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
         client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
         ensureGreen(INDEX_NAME);
 
-        verifyRestoredData(indexStats, deleteDocs);
+        if (deletedDocs == -1) {
+            verifyRestoredData(indexStats, indexStats.get(TOTAL_OPERATIONS));
+        } else {
+            verifyRestoredData(indexStats, deletedDocs);
+        }
     }
 
     // Following integ tests use randomBoolean to control the number of integ tests. If we use the separate
@@ -121,14 +122,18 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
     public void testRestoreForceMergeSingleIteration() throws IOException {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
-        boolean deleteDocs = randomBoolean();
-        testRestoreWithMergeFlow(1, invokeFLush, flushAfterMerge, deleteDocs);
+        testRestoreWithMergeFlow(1, invokeFLush, flushAfterMerge, randomIntBetween(0, 10));
     }
 
     public void testRestoreForceMergeMultipleIterations() throws IOException {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
-        boolean deleteDocs = randomBoolean();
-        testRestoreWithMergeFlow(randomIntBetween(2, 5), invokeFLush, flushAfterMerge, deleteDocs);
+        testRestoreWithMergeFlow(randomIntBetween(2, 5), invokeFLush, flushAfterMerge, randomIntBetween(0, 10));
+    }
+
+    public void testRestoreForceMergeMultipleIterationsDeleteAll() throws IOException {
+        boolean invokeFLush = randomBoolean();
+        boolean flushAfterMerge = randomBoolean();
+        testRestoreWithMergeFlow(randomIntBetween(2, 3), invokeFLush, flushAfterMerge, -1);
     }
 }
