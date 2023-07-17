@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
@@ -26,11 +25,15 @@ public class IdentityService {
 
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
-    private final ExtensionsManager extensionsManager;
+    private final ApplicationManager applicationManager;
 
-    public IdentityService(ExtensionsManager extensionsManager, final Settings settings, final List<IdentityPlugin> identityPlugins) {
+    public IdentityService(
+        final Settings settings,
+        final List<IdentityPlugin> identityPlugins,
+        final ApplicationManager applicationManager
+    ) {
         this.settings = settings;
-        this.extensionsManager = extensionsManager;
+        this.applicationManager = applicationManager;
 
         if (identityPlugins.size() == 0) {
             log.debug("Identity plugins size is 0");
@@ -50,7 +53,7 @@ public class IdentityService {
      * Gets the current Subject
      */
     public ApplicationAwareSubject getSubject() {
-        return new ApplicationAwareSubject(identityPlugin.getSubject(), extensionsManager);
+        return new ApplicationAwareSubject(identityPlugin.getSubject(), applicationManager);
     }
 
     /**

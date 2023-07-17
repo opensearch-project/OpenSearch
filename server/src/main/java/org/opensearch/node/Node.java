@@ -83,6 +83,7 @@ import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.identity.ApplicationManager;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
@@ -463,6 +464,7 @@ public class Node implements Closeable {
             );
 
             final Settings settings = pluginsService.updatedSettings();
+            final ApplicationManager applicationManager = new ApplicationManager();
 
             // Ensure to initialize Feature Flags via the settings from opensearch.yml
             FeatureFlags.initializeFeatureFlags(settings);
@@ -476,6 +478,7 @@ public class Node implements Closeable {
                 );
                 identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
             }
+            this.identityService = new IdentityService(settings, identityPlugins, applicationManager);
 
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 final List<ExtensionAwarePlugin> extensionAwarePlugins = pluginsService.filterPlugins(ExtensionAwarePlugin.class);
@@ -487,8 +490,7 @@ public class Node implements Closeable {
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
-
-            this.identityService = new IdentityService(extensionsManager, settings, identityPlugins);
+            applicationManager.register(extensionsManager);
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
                 .stream()

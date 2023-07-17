@@ -32,10 +32,8 @@
 
 package org.opensearch.plugins.wrappers;
 
-import java.security.Principal;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import org.opensearch.OpenSearchException;
@@ -54,9 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.Subject;
 import org.opensearch.identity.scopes.ExtensionPointScope;
-import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -67,7 +63,7 @@ import org.opensearch.rest.RestHeaderDefinition;
  *
  * @opensearch.experimental
  */
-public class ScopeProtectedActionPlugin implements ActionPlugin, Subject {
+public class ScopeProtectedActionPlugin implements ActionPlugin {
     private final ActionPlugin plugin;
     private final IdentityService identity;
 
@@ -150,19 +146,5 @@ public class ScopeProtectedActionPlugin implements ActionPlugin, Subject {
     public Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
         checkIfAllowed();
         return plugin.indicesAliasesRequestValidators();
-    }
-
-    // Implement to have access to identity methods
-    @Override
-    public Principal getPrincipal() {
-        return identity.getSubject().getPrincipal();
-    }
-
-    @Override
-    public void authenticate(AuthToken token) {}
-
-    @Override
-    public Optional<Principal> getApplication() {
-        return Optional.of(identity.getSubject().getPrincipal());
     }
 }

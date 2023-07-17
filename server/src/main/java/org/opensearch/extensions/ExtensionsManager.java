@@ -10,7 +10,6 @@ package org.opensearch.extensions;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.security.Principal;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -50,7 +49,6 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
-import org.opensearch.identity.scopes.Scope;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
@@ -510,20 +508,5 @@ public class ExtensionsManager {
 
     public Set<Setting<?>> getAdditionalSettings() {
         return this.additionalSettings;
-    }
-
-    public Set<Scope> getScopes(Principal principal) {
-        if (this.getExtensionIdMap().containsKey(principal.getName())) {
-            return this.getExtensionIdMap().get(principal.getName()).getScopes();
-        }
-        return Set.of();
-    }
-
-    /** Checks whether there is an application associated with the given principal or not
-     * @param principal The principal for the application you are trying to find
-     * @return Whether the application exists (TRUE) or not (FALSE)
-     * */
-    public boolean applicationExists(Principal principal) {
-        return (this.getExtensionIdMap().containsKey(principal.getName()));
     }
 }

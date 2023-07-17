@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import org.opensearch.extensions.ExtensionsManager;
+
 import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.tokens.AuthToken;
@@ -33,24 +33,15 @@ import org.opensearch.identity.tokens.AuthToken;
 public class ApplicationAwareSubject implements Subject {
 
     private final Subject wrapped;
-    private final ExtensionsManager extensionsManager;
+    private final ApplicationManager applicationManager;
 
     /**
      * We wrap a basic Subject object to create an ApplicationAwareSubject -- this should come from the IdentityService
      * @param wrapped The Subject to be wrapped
      */
-    public ApplicationAwareSubject(final Subject wrapped, ExtensionsManager extensionsManager) {
+    public ApplicationAwareSubject(final Subject wrapped, final ApplicationManager applicationManager) {
         this.wrapped = wrapped;
-        this.extensionsManager = extensionsManager;
-    }
-
-    /**
-     * Use the ApplicationManager to get the scopes associated with the principal of the wrapped Subject.
-     * Because the wrapped subject is just a basic Subject, it may not know its own scopes. This circumvents this issue.
-     * @return A set of Strings representing the scopes associated with the wrapped subject's principal
-     */
-    public Set<Scope> getScopes() {
-        return extensionsManager.getScopes(wrapped.getPrincipal());
+        this.applicationManager = applicationManager;
     }
 
     /**
@@ -60,36 +51,29 @@ public class ApplicationAwareSubject implements Subject {
      */
     public boolean isAllowed(final List<Scope> scopes) {
 
-        final Optional<Principal> optionalPrincipal = this.getApplication();
-
-        if (optionalPrincipal.isEmpty()) {
+        final Optional<Principal> application = this.getApplication();
+        if (application.isEmpty()) {
             // If there is no application, actions are allowed by default
-
             return true;
         }
 
-        if (!extensionsManager.applicationExists(this.getPrincipal())) {
-
+        final Optional<Set<Scope>> scopesOfApplication = applicationManager.getScopes(application.get());
+        if (scopesOfApplication.isEmpty()) {
+            // If no matching application was found, actions are denied by default
             return false;
         }
 
-        final Set<Scope> scopesOfApplication = this.getScopes();
-
-        boolean isApplicationSuperUser = scopesOfApplication.contains(ApplicationScope.SUPER_USER_ACCESS);
-
+        final boolean isApplicationSuperUser = scopesOfApplication.get().contains(ApplicationScope.SUPER_USER_ACCESS);
         if (isApplicationSuperUser) {
-
             return true;
         }
 
-        Set<Scope> intersection = new HashSet<>(scopesOfApplication);
-
         // Retain only the elements present in the list
-        intersection.retainAll(scopes);
+        final Set<Scope> scopesCopy = new HashSet<>(scopesOfApplication.get());
+        scopesCopy.retainAll(scopes);
 
-        boolean isMatchingScopePresent = !intersection.isEmpty();
-
-        return isMatchingScopePresent;
+        final boolean hasMatchingScopes = !scopesCopy.isEmpty();
+        return hasMatchingScopes;
     }
 
     // Passthroughs for wrapped subject
@@ -114,7 +98,7 @@ public class ApplicationAwareSubject implements Subject {
         if (!(obj instanceof ApplicationAwareSubject)) {
             return false;
         }
-        ApplicationAwareSubject other = (ApplicationAwareSubject) obj;
-        return Objects.equals(this.getScopes(), other.getScopes());
+        final ApplicationAwareSubject other = (ApplicationAwareSubject) obj;
+        return Objects.equals(this.wrapped, other.wrapped);
     }
 }
