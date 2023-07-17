@@ -259,6 +259,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         SearchContext searchContext = mock(SearchContext.class);
         IndexShard indexShard = mock(IndexShard.class);
         when(searchContext.indexShard()).thenReturn(indexShard);
+        when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
         ContextIndexSearcher searcher = new ContextIndexSearcher(
             filteredReader,
             IndexSearcher.getDefaultSimilarity(),

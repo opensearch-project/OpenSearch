@@ -349,6 +349,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.indexShard()).thenReturn(indexShard);
         when(searchContext.aggregations()).thenReturn(new SearchContextAggregations(AggregatorFactories.EMPTY, bucketConsumer));
         when(searchContext.query()).thenReturn(query);
+        when(searchContext.bucketCollectorProcessor()).thenReturn(new BucketCollectorProcessor());
         /*
          * Always use the circuit breaking big arrays instance so that the CircuitBreakerService
          * we're passed gets a chance to break.

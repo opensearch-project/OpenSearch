@@ -32,6 +32,7 @@
 
 package org.opensearch.http;
 
+import org.opensearch.Build;
 import org.opensearch.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -189,6 +190,10 @@ public class DefaultRestChannelTests extends OpenSearchTestCase {
         assertEquals("abc", headers.get(Task.X_OPAQUE_ID).get(0));
         assertEquals(Integer.toString(resp.content().length()), headers.get(DefaultRestChannel.CONTENT_LENGTH).get(0));
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
+        assertEquals(
+            "OpenSearch/" + Build.CURRENT.getQualifiedVersion() + " (" + Build.CURRENT.getDistribution() + ")",
+            headers.get("X-OpenSearch-Version").get(0)
+        );
     }
 
     public void testCookiesSet() {

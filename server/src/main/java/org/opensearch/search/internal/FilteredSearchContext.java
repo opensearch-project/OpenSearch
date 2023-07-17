@@ -50,6 +50,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.collapse.CollapseContext;
@@ -547,5 +548,15 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public InternalAggregation.ReduceContext partial() {
         return in.partial();
+    }
+
+    @Override
+    public void setBucketCollectorProcessor(BucketCollectorProcessor bucketCollectorProcessor) {
+        in.setBucketCollectorProcessor(bucketCollectorProcessor);
+    }
+
+    @Override
+    public BucketCollectorProcessor bucketCollectorProcessor() {
+        return in.bucketCollectorProcessor();
     }
 }
