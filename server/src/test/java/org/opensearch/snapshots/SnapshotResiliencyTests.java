@@ -713,16 +713,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         }
         deterministicTaskQueue.runAllRunnableTasks();
 
-        final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
-        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
-        assertThat(snapshotIds, hasSize(2));
-        for (SnapshotId snapshotId : snapshotIds) {
-            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
-            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-            assertEquals(0, snapshotInfo.failedShards());
-            assertTrue(Arrays.stream(snapshotsList).anyMatch(snapshotInfo.snapshotId().getName()::equals));
-        }
-
         TransportAction getSnapshotsAction = clusterManagerNode.actions.get(GetSnapshotsAction.INSTANCE);
         GetSnapshotsRequest repoSnapshotRequest = new GetSnapshotsRequest().repository(repoName)
             .snapshots(snapshotsList)
@@ -732,6 +722,12 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         transportGetSnapshotsAction.execute(null, repoSnapshotRequest, ActionListener.wrap(repoSnapshotResponse -> {
             assertNotNull("Snapshot list should be registered", repoSnapshotResponse.getSnapshots());
             assertThat(repoSnapshotResponse.getSnapshots(), hasSize(2));
+            List<SnapshotInfo> snapshotInfos = repoSnapshotResponse.getSnapshots();
+            for (SnapshotInfo snapshotInfo : snapshotInfos) {
+                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+                assertEquals(0, snapshotInfo.failedShards());
+                assertTrue(Arrays.stream(snapshotsList).anyMatch(snapshotInfo.snapshotId().getName()::equals));
+            }
         }, exception -> { throw new AssertionError(exception); }));
     }
 
