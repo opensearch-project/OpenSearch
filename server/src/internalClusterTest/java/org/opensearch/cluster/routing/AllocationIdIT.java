@@ -50,7 +50,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.RemoveCorruptedShardDataCommandIT;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;

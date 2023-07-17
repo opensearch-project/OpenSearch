@@ -37,7 +37,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 

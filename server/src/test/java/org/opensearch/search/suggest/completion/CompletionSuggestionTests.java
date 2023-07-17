@@ -32,7 +32,7 @@
 
 package org.opensearch.search.suggest.completion;
 
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.test.OpenSearchTestCase;
 

@@ -32,7 +32,7 @@
 package fixture.s3;
 
 import com.sun.net.httpserver.HttpHandler;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;

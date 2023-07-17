@@ -33,7 +33,7 @@
 package org.opensearch.common.unit;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
 

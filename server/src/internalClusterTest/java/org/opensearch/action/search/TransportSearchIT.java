@@ -48,8 +48,8 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
@@ -61,9 +61,10 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
@@ -368,6 +369,48 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 .get();
             assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
         });
+    }
+
+    public void testSearchIdleWithSegmentReplication() {
+        int numOfReplicas = 1;
+        internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 1);
+        final Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("created_date", "type=date,format=yyyy-MM-dd"));
+        ensureGreen("test");
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 500)))
+                )
+        );
+
+        for (String node : internalCluster().nodesInclude("test")) {
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+            for (IndexShard indexShard : indicesService.indexServiceSafe(resolveIndex("test"))) {
+                assertFalse(indexShard.isSearchIdleSupported());
+            }
+        }
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
+
+        for (String node : internalCluster().nodesInclude("test")) {
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+            for (IndexShard indexShard : indicesService.indexServiceSafe(resolveIndex("test"))) {
+                assertTrue(indexShard.isSearchIdleSupported());
+            }
+        }
+        ;
     }
 
     public void testCircuitBreakerReduceFail() throws Exception {

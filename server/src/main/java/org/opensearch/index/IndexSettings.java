@@ -47,6 +47,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -929,6 +930,9 @@ public final class IndexSettings {
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
+        if (this.replicationType == ReplicationType.SEGMENT && this.getNumberOfReplicas() > 0) {
+            logger.warn("Search idle is not supported for indices with replicas using 'replication.type: SEGMENT'");
+        }
         this.searchIdleAfter = searchIdleAfter;
     }
 

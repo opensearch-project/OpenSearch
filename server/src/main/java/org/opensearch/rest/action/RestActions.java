@@ -34,12 +34,12 @@ package org.opensearch.rest.action;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.FailedNodeException;
-import org.opensearch.action.ShardOperationFailedException;
+import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.ToXContent;
@@ -54,7 +54,7 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.List;
