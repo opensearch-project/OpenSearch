@@ -1,8 +1,12 @@
 ---
+# Only send sanity request to nodes in >=2.9 versions because search pipeline is GA in 2.9.0.
+# Nodes from earlier versions (before 2.9.0) will submit the request to nodes from 2.9.0
+# or later during the "mixedClusterTest," but this will fail because 2.9.0 removed the feature flag setting.
+
 "Test basic pipeline crud":
   - skip:
-      version: " - 2.6.99"
-      reason: "Added in 2.7.0"
+      version: " - 2.8.99"
+      reason: "Only send sanity request to nodes in >=2.9 versions"
   - do:
       search_pipeline.put:
         id: "my_pipeline"
@@ -32,8 +36,8 @@
 ---
 "Test Put Versioned Pipeline":
   - skip:
-      version: " - 2.6.99"
-      reason: "Added in 2.7.0"
+      version: " - 2.8.99"
+      reason: "Only send sanity request to nodes in >=2.9 versions"
   - do:
       search_pipeline.put:
         id: "my_pipeline"
@@ -125,8 +129,8 @@
 ---
 "Test Get All Pipelines":
   - skip:
-      version: " - 2.6.99"
-      reason: "Added in 2.7.0"
+      version: " - 2.8.99"
+      reason: "Only send sanity request to nodes in >=2.9 versions"
   - do:
       search_pipeline.put:
         id: "first_pipeline"
@@ -152,8 +156,8 @@
 ---
 "Test invalid config":
   - skip:
-      version: " - 2.6.99"
-      reason: "Added in 2.7.0"
+      version: " - 2.8.99"
+      reason: "Only send sanity request to nodes in >=2.9 versions"
   - do:
       catch: /parse_exception/
       search_pipeline.put:
