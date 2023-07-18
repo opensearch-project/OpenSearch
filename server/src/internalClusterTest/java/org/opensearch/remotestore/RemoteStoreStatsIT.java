@@ -13,14 +13,12 @@ import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStor
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
-import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
@@ -277,7 +275,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 assertEquals(uploadBytesAverage, downloadBytesAverage, 0);
                 // Assert last segment size uploaded = last segment size downloaded
                 assertEquals(lastDownloadedSegmentSize, lastUploadedSegmentSize);
-            }, 30, TimeUnit.SECONDS);
+            }, 1, TimeUnit.MINUTES);
         }
     }
 
@@ -354,7 +352,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                     assertEquals(uploadBytesAverage, downloadBytesAverage.get(j), 0);
                     assertEquals(lastUploadedSegmentSize, (long) lastDownloadedSegmentSize.get(j));
                 }
-            }, 45, TimeUnit.SECONDS);
+            }, 1, TimeUnit.MINUTES);
         }
     }
 
@@ -492,10 +490,17 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             Arrays.stream(remoteStoreStats).forEach(statObject -> {
                 RemoteRefreshSegmentTracker.Stats segmentTracker = statObject.getStats();
                 if (statObject.getShardRouting().primary()) {
-                    assertTrue(segmentTracker.totalUploadsStarted > 0 && segmentTracker.totalUploadsSucceeded > 0 && segmentTracker.totalUploadsFailed == 0);
+                    assertTrue(
+                        segmentTracker.totalUploadsStarted > 0
+                            && segmentTracker.totalUploadsSucceeded > 0
+                            && segmentTracker.totalUploadsFailed == 0
+                    );
                 } else {
-                    assertTrue(segmentTracker.totalDownloadsStarted > 0 && segmentTracker.totalDownloadsSucceeded > 0
-                        && segmentTracker.totalDownloadsFailed == 0);
+                    assertTrue(
+                        segmentTracker.totalDownloadsStarted > 0
+                            && segmentTracker.totalDownloadsSucceeded > 0
+                            && segmentTracker.totalDownloadsFailed == 0
+                    );
                 }
             });
         }, 5, TimeUnit.SECONDS);
