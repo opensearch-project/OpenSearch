@@ -29,7 +29,7 @@ public class TelemetryTracerDisabledSanityIT extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(
                 OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
-                "org.opensearch.telemetry.tracing.InMemorySpanExporter"
+                "org.opensearch.telemetry.tracing.InMemorySingletonSpanExporter"
             )
             .build();
     }
@@ -68,7 +68,7 @@ public class TelemetryTracerDisabledSanityIT extends OpenSearchIntegTestCase {
         // Sleep for about 2s to wait for traces are published
         Thread.sleep(2000);
 
-        InMemorySpanExporter exporter = new InMemorySpanExporter();
+        InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.create();
         assertTrue(exporter.getFinishedSpanItems().isEmpty());
     }
 

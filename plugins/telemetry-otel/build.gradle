@@ -27,6 +27,7 @@ dependencies {
   api "io.opentelemetry:opentelemetry-sdk-common:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-sdk-trace:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-sdk-metrics:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-sdk-testing:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-logging:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
   api "io.opentelemetry:opentelemetry-sdk-logs:${versions.opentelemetry}-alpha"
@@ -53,7 +54,29 @@ thirdPartyAudit {
     'io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties',
     'io.opentelemetry.sdk.autoconfigure.spi.logs.ConfigurableLogRecordExporterProvider',
     'io.opentelemetry.sdk.autoconfigure.spi.metrics.ConfigurableMetricExporterProvider',
-    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider'
+    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
+    'org.assertj.core.api.AbstractAssert',
+    'org.assertj.core.api.AbstractBooleanAssert',
+    'org.assertj.core.api.AbstractCollectionAssert',
+    'org.assertj.core.api.AbstractComparableAssert',
+    'org.assertj.core.api.AbstractDoubleAssert',
+    'org.assertj.core.api.AbstractIntegerAssert',
+    'org.assertj.core.api.AbstractIterableAssert',
+    'org.assertj.core.api.AbstractLongAssert',
+    'org.assertj.core.api.AbstractStringAssert',
+    'org.assertj.core.api.Assertions',
+    'org.assertj.core.api.ListAssert',
+    'org.assertj.core.api.MapAssert',
+    'org.assertj.core.api.ObjectAssert',
+    'org.assertj.core.api.WritableAssertionInfo',
+    'org.assertj.core.error.ErrorMessageFactory',
+    'org.assertj.core.error.ShouldContainKeys',
+    'org.assertj.core.error.ShouldNotContainKeys',
+    'org.junit.jupiter.api.extension.AfterAllCallback',
+    'org.junit.jupiter.api.extension.BeforeAllCallback',
+    'org.junit.jupiter.api.extension.BeforeEachCallback',
+    'org.junit.jupiter.api.extension.ExtensionContext',
+    'org.junit.rules.ExternalResource'
   )
 }
 

@@ -779,6 +779,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
+        // Enabling Telemetry setting by default
+        featureSettings.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         return featureSettings.build();
     }
 
@@ -1904,9 +1906,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
-            .put(featureFlagSettings())
-            .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
-            .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
+            .put(featureFlagSettings());
         return builder.build();
     }
 
@@ -1931,9 +1931,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
         Collection<Class<? extends Plugin>> nodePlugins = nodePlugins();
-        if (addMockTelemetryPlugin()) {
-            nodePlugins.add(MockTelemetryPlugin.class);
-        }
         return new ExternalTestCluster(
             createTempDir(),
             externalClusterClientSettings(),
@@ -1997,9 +1994,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 mocks.add(getTestTransportPlugin());
             }
             mockPlugins = mocks;
-        }
-        if (addMockTelemetryPlugin()) {
-            mockPlugins.add(MockTelemetryPlugin.class);
         }
         return new InternalTestCluster(
             seed,
@@ -2118,7 +2112,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (addMockGeoShapeFieldMapper()) {
             mocks.add(TestGeoShapeFieldMapperPlugin.class);
         }
-
+        if (addMockTelemetryPlugin()) {
+            mocks.add(MockTelemetryPlugin.class);
+        }
         return Collections.unmodifiableList(mocks);
     }
 

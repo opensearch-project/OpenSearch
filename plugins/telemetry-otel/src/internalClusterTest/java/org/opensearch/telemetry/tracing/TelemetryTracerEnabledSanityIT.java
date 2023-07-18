@@ -35,7 +35,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(
                 OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
-                "org.opensearch.telemetry.tracing.InMemorySpanExporter"
+                "org.opensearch.telemetry.tracing.InMemorySingletonSpanExporter"
             )
             .build();
     }
@@ -85,7 +85,8 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
                 TotalParentSpansEqualToRequests.class
             )
         );
-        InMemorySpanExporter exporter = new InMemorySpanExporter();
+
+        InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.create();
         if (!exporter.getFinishedSpanItems().isEmpty()) {
             validators.validate(exporter.getFinishedSpanItems(), 2);
         }
