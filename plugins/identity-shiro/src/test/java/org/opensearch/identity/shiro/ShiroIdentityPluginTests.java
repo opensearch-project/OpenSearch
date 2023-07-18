@@ -15,7 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.identity.ApplicationManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.test.OpenSearchTestCase;
@@ -27,7 +27,7 @@ public class ShiroIdentityPluginTests extends OpenSearchTestCase {
     public void testSingleIdentityPluginSucceeds() throws IOException {
         IdentityPlugin identityPlugin1 = new ShiroIdentityPlugin(Settings.EMPTY);
         List<IdentityPlugin> pluginList1 = List.of(identityPlugin1);
-        IdentityService identityService1 = new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, pluginList1);
+        IdentityService identityService1 = new IdentityService(Settings.EMPTY, pluginList1, new ApplicationManager());
         assertThat(identityService1.getTokenManager(), is(instanceOf(ShiroTokenManager.class)));
     }
 
@@ -38,7 +38,7 @@ public class ShiroIdentityPluginTests extends OpenSearchTestCase {
         List<IdentityPlugin> pluginList = List.of(identityPlugin1, identityPlugin2, identityPlugin3);
         Exception ex = assertThrows(
             OpenSearchException.class,
-            () -> new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, pluginList)
+            () -> new IdentityService(Settings.EMPTY, pluginList, new ApplicationManager())
         );
         assert (ex.getMessage().contains("Multiple identity plugins are not supported,"));
     }
@@ -46,7 +46,7 @@ public class ShiroIdentityPluginTests extends OpenSearchTestCase {
     public void testShiroIdentityMethods() throws IOException {
         IdentityPlugin identityPlugin1 = new ShiroIdentityPlugin(Settings.EMPTY);
         List<IdentityPlugin> pluginList1 = List.of(identityPlugin1);
-        IdentityService identityService1 = new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, pluginList1);
+        IdentityService identityService1 = new IdentityService(Settings.EMPTY, pluginList1, new ApplicationManager());
         assertThat(identityService1.getTokenManager(), is(instanceOf(ShiroTokenManager.class)));
         assertTrue(identityPlugin1.getSubject() instanceof ShiroSubject);
         assertEquals(identityPlugin1.getSubject().hashCode(), Objects.hash(identityPlugin1.getSubject().getPrincipal()));
