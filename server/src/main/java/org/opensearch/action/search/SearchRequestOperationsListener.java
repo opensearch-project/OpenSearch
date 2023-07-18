@@ -20,21 +20,6 @@ import java.util.List;
  */
 public interface SearchRequestOperationsListener {
 
-    /**
-     * Executed when the request is started
-     * @param context the current searchPhase context
-     */
-    // void onRequestStart(SearchPhaseContext context);
-
-    /**
-     * Executed when the request is ended
-     * @param context the current searchPhase context
-     */
-    // void onRequestEnd(SearchPhaseContext context);
-
-    /**
-     * Executed when the query phase is started
-     */
     void onDFSPreQueryPhaseStart(SearchPhaseContext context);
 
     void onDFSPreQueryPhaseFailure(SearchPhaseContext context);
@@ -68,7 +53,6 @@ public interface SearchRequestOperationsListener {
     final class CompositeListener implements SearchRequestOperationsListener {
         private final List<SearchRequestOperationsListener> listeners;
         private final Logger logger;
-        private long canMatchPhaseStart;
 
         public CompositeListener(List<SearchRequestOperationsListener> listeners, Logger logger) {
             this.listeners = listeners;

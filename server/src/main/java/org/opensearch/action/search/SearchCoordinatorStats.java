@@ -22,10 +22,6 @@ import java.util.function.Consumer;
 public final class SearchCoordinatorStats implements SearchRequestOperationsListener {
     public StatsHolder totalStats = new StatsHolder();
 
-    // private final CounterMetric openContexts = new CounterMetric();
-
-    // private volatile Map<String, StatsHolder> groupStats = emptyMap();
-
     @Inject
     public SearchCoordinatorStats() {}
 
@@ -89,18 +85,18 @@ public final class SearchCoordinatorStats implements SearchRequestOperationsList
         return totalStats.expandSearchTotal.count();
     }
 
-    private void computeStats(SearchPhaseContext searchPhaseContext, Consumer<StatsHolder> consumer) {
+    private void computeStats(Consumer<StatsHolder> consumer) {
         consumer.accept(totalStats);
     }
 
     @Override
     public void onDFSPreQueryPhaseStart(SearchPhaseContext context) {
-        computeStats(context, statsHolder -> { statsHolder.dfsPreQueryCurrent.inc(); });
+        computeStats(statsHolder -> { statsHolder.dfsPreQueryCurrent.inc(); });
     }
 
     @Override
     public void onDFSPreQueryPhaseEnd(SearchPhaseContext context, long tookTime) {
-        computeStats(context, statsHolder -> {
+        computeStats(statsHolder -> {
             totalStats.dfsPreQueryCurrent.dec();
             totalStats.dfsPreQueryTotal.inc();
             totalStats.dfsPreQueryMetric.inc(tookTime);
@@ -109,17 +105,17 @@ public final class SearchCoordinatorStats implements SearchRequestOperationsList
 
     @Override
     public void onDFSPreQueryPhaseFailure(SearchPhaseContext context) {
-        return;
+        computeStats(statsHolder -> { statsHolder.dfsPreQueryCurrent.dec(); });
     }
 
     @Override
     public void onCanMatchPhaseStart(SearchPhaseContext context) {
-        computeStats(context, statsHolder -> { statsHolder.canMatchCurrent.inc(); });
+        computeStats(statsHolder -> { statsHolder.canMatchCurrent.inc(); });
     }
 
     @Override
     public void onCanMatchPhaseEnd(SearchPhaseContext context, long tookTime) {
-        computeStats(context, statsHolder -> {
+        computeStats(statsHolder -> {
             totalStats.canMatchCurrent.dec();
             totalStats.canMatchTotal.inc();
             totalStats.canMatchMetric.inc(tookTime);
@@ -128,17 +124,17 @@ public final class SearchCoordinatorStats implements SearchRequestOperationsList
 
     @Override
     public void onCanMatchPhaseFailure(SearchPhaseContext context) {
-        return;
+        computeStats(statsHolder -> { statsHolder.canMatchCurrent.dec(); });
     }
 
     @Override
     public void onQueryPhaseStart(SearchPhaseContext context) {
-        computeStats(context, statsHolder -> { statsHolder.queryCurrent.inc(); });
+        computeStats(statsHolder -> { statsHolder.queryCurrent.inc(); });
     }
 
     @Override
     public void onQueryPhaseEnd(SearchPhaseContext context, long tookTime) {
-        computeStats(context, statsHolder -> {
+        computeStats(statsHolder -> {
             totalStats.queryCurrent.dec();
             totalStats.queryTotal.inc();
             totalStats.queryMetric.inc(tookTime);
@@ -147,17 +143,17 @@ public final class SearchCoordinatorStats implements SearchRequestOperationsList
 
     @Override
     public void onQueryPhaseFailure(SearchPhaseContext context) {
-        return;
+        computeStats(statsHolder -> { statsHolder.queryCurrent.dec(); });
     }
 
     @Override
     public void onFetchPhaseStart(SearchPhaseContext context) {
-        computeStats(context, statsHolder -> { totalStats.fetchCurrent.inc(); });
+        computeStats(statsHolder -> { totalStats.fetchCurrent.inc(); });
     }
 
     @Override
     public void onFetchPhaseEnd(SearchPhaseContext context, long tookTime) {
-        computeStats(context, statsHolder -> {
+        computeStats(statsHolder -> {
             totalStats.fetchCurrent.dec();
             totalStats.fetchTotal.inc();
             totalStats.fetchMetric.inc(tookTime);
@@ -166,17 +162,17 @@ public final class SearchCoordinatorStats implements SearchRequestOperationsList
 
     @Override
     public void onFetchPhaseFailure(SearchPhaseContext context) {
-        return;
+        computeStats(statsHolder -> { totalStats.fetchCurrent.dec(); });
     }
 
     @Override
     public void onExpandSearchPhaseStart(SearchPhaseContext context) {
-        computeStats(context, statsHolder -> { totalStats.expandSearchCurrent.inc(); });
+        computeStats(statsHolder -> { totalStats.expandSearchCurrent.inc(); });
     }
 
     @Override
     public void onExpandSearchPhaseEnd(SearchPhaseContext context, long tookTime) {
-        computeStats(context, statsHolder -> {
+        computeStats(statsHolder -> {
             totalStats.expandSearchCurrent.dec();
             totalStats.expandSearchTotal.inc();
             totalStats.expandSearchMetric.inc(tookTime);
@@ -185,7 +181,7 @@ public final class SearchCoordinatorStats implements SearchRequestOperationsList
 
     @Override
     public void onExpandSearchPhaseFailure(SearchPhaseContext context) {
-        return;
+        computeStats(statsHolder -> { totalStats.expandSearchCurrent.dec(); });
     }
 
     public static final class StatsHolder {

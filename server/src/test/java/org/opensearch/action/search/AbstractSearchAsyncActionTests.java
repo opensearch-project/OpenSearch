@@ -349,7 +349,9 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         }, "message", null);
         assertEquals(1, searchCoordinatorMockStats.queryPhaseFailure.get());
 
-        SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(requestOperationListeners);
+        SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(
+            requestOperationListeners
+        );
         searchDfsQueryThenFetchAsyncAction.start();
         searchDfsQueryThenFetchAsyncAction.onPhaseFailure(new SearchPhase("test") {
             @Override
@@ -358,7 +360,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             }
         }, "message", null);
         assertEquals(1, searchCoordinatorMockStats.dfsPreQueryPhaseFailure.get());
-        
+
         FetchSearchPhase fetchPhase = createFetchSearchPhase();
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
         SearchShardIterator searchShardIterator = new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE);
@@ -596,11 +598,13 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
         SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
 
-        SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(requestOperationListeners);
+        SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(
+            requestOperationListeners
+        );
 
         CanMatchPreFilterSearchPhase canMatchPreFilterSearchPhaseAction = createCanMatchPreFilterSearchPhase(requestOperationListeners);
 
-        long delay = (int)Math.floor(Math.random() * (5 - 1 + 1) + 1);
+        long delay = (int) Math.floor(Math.random() * (5 - 1 + 1) + 1);
         action.start();
         assertEquals(1, testListener.totalStats.queryCurrent.count());
         TimeUnit.SECONDS.sleep(delay);
@@ -641,7 +645,9 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals(testListener.totalStats.dfsPreQueryTotal.count(), 1);
     }
 
-    private SearchDfsQueryThenFetchAsyncAction createSearchDfsQueryThenFetchAsyncAction(List<SearchRequestOperationsListener> searchRequestOperationsListeners) {
+    private SearchDfsQueryThenFetchAsyncAction createSearchDfsQueryThenFetchAsyncAction(
+        List<SearchRequestOperationsListener> searchRequestOperationsListeners
+    ) {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
             r -> InternalAggregationTestCase.emptyReduceContextBuilder()
@@ -685,7 +691,9 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         );
     }
 
-    private SearchQueryThenFetchAsyncAction createSearchQueryThenFetchAsyncAction(List<SearchRequestOperationsListener> searchRequestOperationsListeners) {
+    private SearchQueryThenFetchAsyncAction createSearchQueryThenFetchAsyncAction(
+        List<SearchRequestOperationsListener> searchRequestOperationsListeners
+    ) {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
             r -> InternalAggregationTestCase.emptyReduceContextBuilder()
@@ -738,7 +746,9 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         };
     }
 
-    private CanMatchPreFilterSearchPhase createCanMatchPreFilterSearchPhase(List<SearchRequestOperationsListener> searchRequestOperationsListeners) {
+    private CanMatchPreFilterSearchPhase createCanMatchPreFilterSearchPhase(
+        List<SearchRequestOperationsListener> searchRequestOperationsListeners
+    ) {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             0,
             System.nanoTime(),
