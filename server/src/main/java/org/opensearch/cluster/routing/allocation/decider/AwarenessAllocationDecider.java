@@ -39,8 +39,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -178,16 +176,16 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
 
             // build attr_value -> nodes map
-            ObjectIntHashMap<String> nodesPerAttribute = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
+            Set<String> nodesPerAttribute = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
 
             // build the count of shards per attribute value
-            ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
+            Map<String, Integer> shardPerAttribute = new HashMap<>();
             for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting.shardId())) {
                 if (assignedShard.started() || assignedShard.initializing()) {
                     // Note: this also counts relocation targets as that will be the new location of the shard.
                     // Relocation sources should not be counted as the shard is moving away
                     RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
-                    shardPerAttribute.addTo(routingNode.node().getAttributes().get(awarenessAttribute), 1);
+                    shardPerAttribute.merge(routingNode.node().getAttributes().get(awarenessAttribute), 1, Integer::sum);
                 }
             }
 
@@ -196,15 +194,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                     String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
                     if (node.nodeId().equals(nodeId) == false) {
                         // we work on different nodes, move counts around
-                        shardPerAttribute.putOrAdd(
+                        shardPerAttribute.compute(
                             allocation.routingNodes().node(nodeId).node().getAttributes().get(awarenessAttribute),
-                            0,
-                            -1
+                            (k, v) -> (v == null) ? 0 : v - 1
                         );
-                        shardPerAttribute.addTo(node.node().getAttributes().get(awarenessAttribute), 1);
+                        shardPerAttribute.merge(node.node().getAttributes().get(awarenessAttribute), 1, Integer::sum);
                     }
                 } else {
-                    shardPerAttribute.addTo(node.node().getAttributes().get(awarenessAttribute), 1);
+                    shardPerAttribute.merge(node.node().getAttributes().get(awarenessAttribute), 1, Integer::sum);
                 }
             }
 
@@ -214,8 +211,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             if (fullValues != null) {
                 // If forced awareness is enabled, numberOfAttributes = count(distinct((union(discovered_attributes, forced_attributes)))
                 Set<String> attributesSet = new HashSet<>(fullValues);
-                for (ObjectCursor<String> stringObjectCursor : nodesPerAttribute.keys()) {
-                    attributesSet.add(stringObjectCursor.value);
+                for (String stringObjectCursor : nodesPerAttribute) {
+                    attributesSet.add(stringObjectCursor);
                 }
                 numberOfAttributes = attributesSet.size();
             }

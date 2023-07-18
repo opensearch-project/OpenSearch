@@ -32,7 +32,7 @@
 
 package org.opensearch.common.recycler;
 
-import com.carrotsearch.hppc.BitMixer;
+import org.opensearch.common.util.BitMixer;
 
 import java.util.ArrayDeque;
 
