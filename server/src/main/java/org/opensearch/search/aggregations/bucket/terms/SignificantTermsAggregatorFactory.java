@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
@@ -325,8 +326,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                IndexSettings indexSettings = aggregationContext.getQueryShardContext().getIndexSettings();
+                final IncludeExclude.StringFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToStringFilter(format, indexSettings);
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -364,8 +367,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
+                IndexSettings indexSettings = aggregationContext.getQueryShardContext().getIndexSettings();
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToOrdinalsFilter(format, indexSettings);
                 boolean remapGlobalOrd = true;
                 if (cardinality == CardinalityUpperBound.ONE && factories == AggregatorFactories.EMPTY && includeExclude == null) {
                     /*
