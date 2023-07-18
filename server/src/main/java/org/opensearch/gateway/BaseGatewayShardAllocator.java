@@ -124,9 +124,6 @@ public abstract class BaseGatewayShardAllocator {
     );
 
     /**
-     * Returns a list of {@link NodeAllocationResult}
-
-    /**
      * Builds decisions for all nodes in the cluster, so that the explain API can provide information on
      * allocation decisions for each node, while still waiting to allocate the shard (e.g. due to fetching shard data).
      */

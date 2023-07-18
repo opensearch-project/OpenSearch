@@ -113,8 +113,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
 
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
-//        final FetchResult<TransportNodesBatchListGatewayStartedShards.NodeGatewayStartedShardsBatch> batchFetchResult = fetchBatchData(allocation);
-
         if (shardState.hasData() == false) {
             allocation.setHasPendingAsyncFetch();
             List<NodeAllocationResult> nodeDecisions = null;

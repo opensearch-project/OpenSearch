@@ -33,6 +33,7 @@
 package org.opensearch.gateway;
 
 import org.opensearch.common.inject.AbstractModule;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
 
 /**
  * Binds the gateway module
@@ -47,6 +48,7 @@ public class GatewayModule extends AbstractModule {
         bind(GatewayService.class).asEagerSingleton();
         bind(TransportNodesListGatewayMetaState.class).asEagerSingleton();
         bind(TransportNodesListGatewayStartedShards.class).asEagerSingleton();
+        bind(TransportNodesListGatewayStartedShardsBatch.class).asEagerSingleton();
         bind(LocalAllocateDangledIndices.class).asEagerSingleton();
     }
 }
