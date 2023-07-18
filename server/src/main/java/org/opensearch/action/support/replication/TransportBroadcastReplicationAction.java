@@ -32,7 +32,6 @@
 
 package org.opensearch.action.support.replication;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
@@ -154,11 +153,12 @@ public abstract class TransportBroadcastReplicationAction<
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
             if (indexMetadata != null) {
-                for (IntObjectCursor<IndexShardRoutingTable> shardRouting : clusterState.getRoutingTable()
+                for (IndexShardRoutingTable shardRouting : clusterState.getRoutingTable()
                     .indicesRouting()
                     .get(index)
-                    .getShards()) {
-                    shardIds.add(shardRouting.value.shardId());
+                    .getShards()
+                    .values()) {
+                    shardIds.add(shardRouting.shardId());
                 }
             }
         }

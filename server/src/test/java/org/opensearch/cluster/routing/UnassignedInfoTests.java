@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
@@ -58,6 +57,7 @@ import org.opensearch.snapshots.SnapshotId;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -202,7 +202,7 @@ public class UnassignedInfoTests extends OpenSearchAllocationTestCase {
                             Version.CURRENT,
                             new IndexId("test", UUIDs.randomBase64UUID(random()))
                         ),
-                        new IntHashSet()
+                        new HashSet<>()
                     )
                     .build()
             )
