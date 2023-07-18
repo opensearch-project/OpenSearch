@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.opensearch.core.Assertions;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
@@ -73,6 +72,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -1796,7 +1796,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             }
                         }
                     } else if (KEY_PRIMARY_TERMS.equals(currentFieldName)) {
-                        LongArrayList list = new LongArrayList();
+                        final List<Long> list = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_NUMBER) {
                                 list.add(parser.longValue());
@@ -1804,7 +1804,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                                 throw new IllegalStateException("found a non-numeric value under [" + KEY_PRIMARY_TERMS + "]");
                             }
                         }
-                        builder.primaryTerms(list.toArray());
+                        builder.primaryTerms(list.stream().mapToLong(i -> i).toArray());
                     } else {
                         throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
                     }

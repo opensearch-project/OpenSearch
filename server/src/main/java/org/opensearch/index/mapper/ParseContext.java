@@ -32,8 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -44,10 +42,12 @@ import org.opensearch.index.IndexSettings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -68,7 +68,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private final String path;
         private final String prefix;
         private final List<IndexableField> fields;
-        private ObjectObjectMap<Object, IndexableField> keyedFields;
+        private Map<Object, IndexableField> keyedFields;
 
         private Document(String path, Document parent) {
             fields = new ArrayList<>();
@@ -124,7 +124,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
         public void addWithKey(Object key, IndexableField field) {
             if (keyedFields == null) {
-                keyedFields = new ObjectObjectHashMap<>();
+                keyedFields = new HashMap<>();
             } else if (keyedFields.containsKey(key)) {
                 throw new IllegalStateException("Only one field can be stored per key");
             }

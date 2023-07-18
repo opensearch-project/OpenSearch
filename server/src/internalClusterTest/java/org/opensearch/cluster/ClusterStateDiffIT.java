@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -347,16 +346,16 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
      */
     private IndexRoutingTable randomChangeToIndexRoutingTable(IndexRoutingTable original, String[] nodes) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(original.getIndex());
-        for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : original.shards().values()) {
+        for (var indexShardRoutingTable : original.shards().values()) {
             Set<String> availableNodes = Sets.newHashSet(nodes);
-            for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
+            for (ShardRouting shardRouting : indexShardRoutingTable.shards()) {
                 availableNodes.remove(shardRouting.currentNodeId());
                 if (shardRouting.relocating()) {
                     availableNodes.remove(shardRouting.relocatingNodeId());
                 }
             }
 
-            for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
+            for (ShardRouting shardRouting : indexShardRoutingTable.shards()) {
                 final ShardRouting updatedShardRouting = randomChange(shardRouting, availableNodes);
                 availableNodes.remove(updatedShardRouting.currentNodeId());
                 if (shardRouting.relocating()) {

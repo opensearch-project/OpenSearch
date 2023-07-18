@@ -32,8 +32,6 @@
 
 package org.opensearch.index.seqno;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
@@ -816,10 +814,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *
      * @return a map from allocation ID to the local knowledge of the persisted global checkpoint for that allocation ID
      */
-    public synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+    public synchronized Map<String, Long> getInSyncGlobalCheckpoints() {
         assert primaryMode;
         assert handoffInProgress == false;
-        final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size()); // upper bound on the size
+        final Map<String, Long> globalCheckpoints = new HashMap<>(checkpoints.size()); // upper bound on the size
         checkpoints.entrySet()
             .stream()
             .filter(e -> e.getValue().inSync && e.getValue().replicated)
