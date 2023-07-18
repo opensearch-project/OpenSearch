@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.settings.Settings;
 
@@ -124,7 +125,7 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
             .numberOfShards(this.numberOfShards);
     }
 
-    public void testInterleavedShardIterator() {
+    public void testInterleavedShardIteratorPrimaryFirst() {
         // Initialize all the shards for test index 1 and 2
         initPrimaries();
         startInitializingShards(TEST_INDEX_1);
@@ -147,7 +148,8 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
         }
 
         // Get primary first shard iterator and assert primary shards are iterated over first
-        final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes().nodeInterleavedShardIterator(true);
+        final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes()
+            .nodeInterleavedShardIterator(BalancedShardsAllocator.ShardMovementStrategy.PRIMARY_FIRST);
         boolean iteratingPrimary = true;
         int shardCount = 0;
         while (iterator.hasNext()) {
@@ -156,6 +158,63 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
                 iteratingPrimary = shard.primary();
             } else {
                 assert shard.primary() == false;
+            }
+            shardCount++;
+        }
+        assert shardCount == this.totalNumberOfShards;
+    }
+
+    public void testInterleavedShardIteratorNoPreference() {
+        // Initialize all the shards for test index 1 and 2
+        initPrimaries();
+        startInitializingShards(TEST_INDEX_1);
+        startInitializingShards(TEST_INDEX_1);
+        startInitializingShards(TEST_INDEX_2);
+        startInitializingShards(TEST_INDEX_2);
+
+        final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes()
+            .nodeInterleavedShardIterator(BalancedShardsAllocator.ShardMovementStrategy.NO_PREFERENCE);
+        int shardCount = 0;
+        while (iterator.hasNext()) {
+            final ShardRouting shard = iterator.next();
+            shardCount++;
+        }
+        assert shardCount == this.totalNumberOfShards;
+    }
+
+    public void testInterleavedShardIteratorReplicaFirst() {
+        // Initialize all the shards for test index 1 and 2
+        initPrimaries();
+        startInitializingShards(TEST_INDEX_1);
+        startInitializingShards(TEST_INDEX_1);
+        startInitializingShards(TEST_INDEX_2);
+        startInitializingShards(TEST_INDEX_2);
+
+        // Create primary shard count imbalance between two nodes
+        final RoutingNode node0 = this.clusterState.getRoutingNodes().node("node0");
+        final RoutingNode node1 = this.clusterState.getRoutingNodes().node("node1");
+        final List<ShardRouting> shardRoutingList = node0.shardsWithState(TEST_INDEX_1, ShardRoutingState.STARTED);
+        for (ShardRouting routing : shardRoutingList) {
+            if (routing.primary()) {
+                node0.remove(routing);
+                ShardRouting swap = node1.getByShardId(routing.shardId());
+                node0.add(swap);
+                node1.remove(swap);
+                node1.add(routing);
+            }
+        }
+
+        // Get replica first shard iterator and assert replica shards are iterated over first
+        final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes()
+            .nodeInterleavedShardIterator(BalancedShardsAllocator.ShardMovementStrategy.REPLICA_FIRST);
+        boolean iteratingReplica = true;
+        int shardCount = 0;
+        while (iterator.hasNext()) {
+            final ShardRouting shard = iterator.next();
+            if (iteratingReplica) {
+                iteratingReplica = shard.primary() == false;
+            } else {
+                assert shard.primary() == true;
             }
             shardCount++;
         }
