@@ -42,7 +42,6 @@ import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
@@ -651,7 +650,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         BlobStore blobStore = Mockito.mock(BlobStore.class);
         BlobContainer blobContainer = Mockito.mock(BlobContainer.class);
         doAnswer(invocation -> {
-            LatchedActionListener<List<BlobMetadata>> listener = invocation.getArgument(3);
+            ActionListener<List<BlobMetadata>> listener = invocation.getArgument(3);
             listener.onResponse(new ArrayList<>());
             return null;
         }).when(blobContainer)

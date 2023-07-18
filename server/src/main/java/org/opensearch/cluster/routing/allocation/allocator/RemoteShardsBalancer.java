@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster.routing.allocation.allocator;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
@@ -25,7 +24,6 @@ import org.opensearch.cluster.routing.RecoverySource;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -211,8 +209,8 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
             return;
         }
 
-        ObjectIntHashMap<String> nodePrimaryShardCount = calculateNodePrimaryShardCount(remoteRoutingNodes);
-        int totalPrimaryShardCount = Arrays.stream(nodePrimaryShardCount.values).sum();
+        final Map<String, Integer> nodePrimaryShardCount = calculateNodePrimaryShardCount(remoteRoutingNodes);
+        int totalPrimaryShardCount = nodePrimaryShardCount.values().stream().reduce(0, Integer::sum);
 
         totalPrimaryShardCount += routingNodes.unassigned().getNumPrimaries();
         int avgPrimaryPerNode = (totalPrimaryShardCount + routingNodes.size() - 1) / routingNodes.size();
@@ -238,8 +236,8 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
      * @param remoteRoutingNodes routing nodes for which the aggregation needs to be performed
      * @return map of node id to primary shard count
      */
-    private ObjectIntHashMap<String> calculateNodePrimaryShardCount(List<RoutingNode> remoteRoutingNodes) {
-        ObjectIntHashMap<String> primaryShardCount = new ObjectIntHashMap<>();
+    private Map<String, Integer> calculateNodePrimaryShardCount(List<RoutingNode> remoteRoutingNodes) {
+        final Map<String, Integer> primaryShardCount = new HashMap<>();
         for (RoutingNode node : remoteRoutingNodes) {
             int totalPrimaryShardsPerNode = 0;
             for (ShardRouting shard : node) {
@@ -464,7 +462,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
         RoutingNode sourceNode,
         ArrayDeque<RoutingNode> targetNodes,
         int avgPrimary,
-        ObjectIntHashMap<String> primaryCount
+        final Map<String, Integer> primaryCount
     ) {
         long shardsToBalance = primaryCount.get(sourceNode.nodeId()) - avgPrimary;
         assert shardsToBalance >= 0 : "Shards to balance should be greater than 0, but found negative";
@@ -493,7 +491,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
 
                 if (rebalanceDecision.type() == Decision.Type.YES) {
                     shardsToBalance--;
-                    primaryCount.addTo(targetNode.nodeId(), 1);
+                    primaryCount.merge(targetNode.nodeId(), 1, Integer::sum);
                     targetNodes.offer(targetNode);
                     break;
 

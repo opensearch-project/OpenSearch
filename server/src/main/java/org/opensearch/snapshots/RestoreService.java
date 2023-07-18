@@ -31,8 +31,6 @@
 
 package org.opensearch.snapshots;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -499,7 +497,7 @@ public class RestoreService implements ClusterStateApplier {
                                 }
                                 // Check that the index is closed or doesn't exist
                                 IndexMetadata currentIndexMetadata = currentState.metadata().index(renamedIndexName);
-                                IntSet ignoreShards = new IntHashSet();
+                                Set<Integer> ignoreShards = new HashSet<>();
                                 final Index renamedIndex;
                                 if (currentIndexMetadata == null) {
                                     // Index doesn't exist - create it and start recovery
@@ -692,7 +690,7 @@ public class RestoreService implements ClusterStateApplier {
                         }
                     }
 
-                    private void populateIgnoredShards(String index, IntSet ignoreShards) {
+                    private void populateIgnoredShards(String index, final Set<Integer> ignoreShards) {
                         for (SnapshotShardFailure failure : snapshotInfo.shardFailures()) {
                             if (index.equals(failure.index())) {
                                 ignoreShards.add(failure.shardId());
