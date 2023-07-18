@@ -46,7 +46,7 @@ import org.opensearch.index.mapper.DateFieldMapper;
 
 import java.time.ZoneId;
 
-import static com.carrotsearch.hppc.BitMixer.mix32;
+import static org.opensearch.common.util.BitMixer.mix32;
 
 /**
  * Utilities for scoring scripts

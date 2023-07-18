@@ -32,8 +32,6 @@
 
 package org.opensearch.action.search;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -48,7 +46,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.collect.HppcMaps;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
@@ -105,8 +102,8 @@ public final class SearchPhaseController {
     }
 
     public AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
-        ObjectObjectHashMap<Term, TermStatistics> termStatistics = HppcMaps.newNoNullKeysMap();
-        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+        final Map<Term, TermStatistics> termStatistics = new HashMap<>();
+        final Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
         long aggMaxDoc = 0;
         for (DfsSearchResult lEntry : results) {
             final Term[] terms = lEntry.terms();
@@ -135,29 +132,25 @@ public final class SearchPhaseController {
             }
 
             assert !lEntry.fieldStatistics().containsKey(null);
-            final Object[] keys = lEntry.fieldStatistics().keys;
-            final Object[] values = lEntry.fieldStatistics().values;
-            for (int i = 0; i < keys.length; i++) {
-                if (keys[i] != null) {
-                    String key = (String) keys[i];
-                    CollectionStatistics value = (CollectionStatistics) values[i];
-                    if (value == null) {
-                        continue;
-                    }
-                    assert key != null;
-                    CollectionStatistics existing = fieldStatistics.get(key);
-                    if (existing != null) {
-                        CollectionStatistics merged = new CollectionStatistics(
-                            key,
-                            existing.maxDoc() + value.maxDoc(),
-                            existing.docCount() + value.docCount(),
-                            existing.sumTotalTermFreq() + value.sumTotalTermFreq(),
-                            existing.sumDocFreq() + value.sumDocFreq()
-                        );
-                        fieldStatistics.put(key, merged);
-                    } else {
-                        fieldStatistics.put(key, value);
-                    }
+            for (var entry : lEntry.fieldStatistics().entrySet()) {
+                String key = entry.getKey();
+                CollectionStatistics value = entry.getValue();
+                if (value == null) {
+                    continue;
+                }
+                assert key != null;
+                CollectionStatistics existing = fieldStatistics.get(key);
+                if (existing != null) {
+                    CollectionStatistics merged = new CollectionStatistics(
+                        key,
+                        existing.maxDoc() + value.maxDoc(),
+                        existing.docCount() + value.docCount(),
+                        existing.sumTotalTermFreq() + value.sumTotalTermFreq(),
+                        existing.sumDocFreq() + value.sumDocFreq()
+                    );
+                    fieldStatistics.put(key, merged);
+                } else {
+                    fieldStatistics.put(key, value);
                 }
             }
             aggMaxDoc += lEntry.maxDoc();
