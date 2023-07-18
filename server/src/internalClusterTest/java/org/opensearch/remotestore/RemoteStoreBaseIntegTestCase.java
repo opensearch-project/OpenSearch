@@ -9,7 +9,9 @@
 package org.opensearch.remotestore;
 
 import org.junit.After;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
@@ -47,6 +49,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     public Settings indexSettings() {
         return defaultIndexSettings();
+    }
+
+    IndexResponse indexSingleDoc(String indexName) {
+        return client().prepareIndex(indexName)
+            .setId(UUIDs.randomBase64UUID())
+            .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
+            .get();
     }
 
     private Settings defaultIndexSettings() {
