@@ -474,6 +474,33 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         });
     }
 
+    public void testNonZeroStatsOnNewlyCreatedIndexWithZeroDocs() throws Exception {
+        // Create an index with one primary and one replica shard
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 1));
+        ensureGreen(INDEX_NAME);
+
+        // Ensure that the index has 0 documents in it
+        assertEquals(0, client().admin().indices().prepareStats(INDEX_NAME).get().getTotal().docs.getCount());
+
+        // Assert that within 5 seconds the download and upload stats moves to a non-zero value
+        assertBusy(() -> {
+            RemoteStoreStats[] remoteStoreStats = client().admin()
+                .cluster()
+                .prepareRemoteStoreStats(INDEX_NAME, "0")
+                .get()
+                .getRemoteStoreStats();
+            Arrays.stream(remoteStoreStats).forEach(statObject -> {
+                RemoteRefreshSegmentTracker.Stats segmentTracker = statObject.getStats();
+                if (statObject.getShardRouting().primary()) {
+                    assertTrue(segmentTracker.totalUploadsStarted > 0 && segmentTracker.totalUploadsSucceeded > 0 && segmentTracker.totalUploadsFailed == 0);
+                } else {
+                    assertTrue(segmentTracker.totalDownloadsStarted > 0 && segmentTracker.totalDownloadsSucceeded > 0
+                        && segmentTracker.totalDownloadsFailed == 0);
+                }
+            });
+        }, 5, TimeUnit.SECONDS);
+    }
+
     private void indexDocs(boolean withFlushAndRefresh) {
         if (withFlushAndRefresh) {
             // Indexing documents along with refreshes and flushes.
@@ -493,13 +520,6 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 indexSingleDoc(INDEX_NAME);
             }
         }
-    }
-
-    private IndexResponse indexSingleDoc() {
-        return client().prepareIndex(INDEX_NAME)
-            .setId(UUIDs.randomBase64UUID())
-            .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
-            .get();
     }
 
     private void changeReplicaCountAndEnsureGreen(int replicaCount) {
