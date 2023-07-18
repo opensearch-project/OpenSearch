@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.logging.log4j.util.Strings;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -58,7 +59,7 @@ public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
 
     static int numDocs;
 
-    private static final String LARGE_STRING = "a".repeat(2000);
+    private static final String LARGE_STRING = Strings.repeat("a", 2000);
     private static final String LARGE_STRING_EXCEPTION_MESSAGE = "The length of regex ["
         + LARGE_STRING.length()
         + "] used in the request has exceeded the allowed maximum";
