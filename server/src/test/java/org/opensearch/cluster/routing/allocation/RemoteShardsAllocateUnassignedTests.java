@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
@@ -16,6 +15,7 @@ import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.allocator.RemoteShardsBalancer;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class RemoteShardsAllocateUnassignedTests extends RemoteShardsBalancerBaseTestCase {
@@ -68,7 +68,7 @@ public class RemoteShardsAllocateUnassignedTests extends RemoteShardsBalancerBas
 
         assertEquals(0, routingNodes.unassigned().size());
 
-        ObjectIntHashMap<String> nodePrimariesCounter = new ObjectIntHashMap<>();
+        final Map<String, Integer> nodePrimariesCounter = new HashMap<>();
         for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
             assertFalse(shard.unassigned());
             RoutingNode node = routingNodes.node(shard.currentNodeId());
@@ -80,11 +80,11 @@ public class RemoteShardsAllocateUnassignedTests extends RemoteShardsBalancerBas
             if (RoutingPool.getNodePool(node) == RoutingPool.REMOTE_CAPABLE
                 && RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation))
                 && shard.primary()) {
-                nodePrimariesCounter.putOrAdd(node.nodeId(), 1, 1);
+                nodePrimariesCounter.compute(node.nodeId(), (k, v) -> (v == null) ? 1 : v + 1);
             }
         }
         final int indexShardLimit = (int) Math.ceil(totalPrimaries(remoteIndices) / (float) remoteCapableNodes);
-        for (int primaries : nodePrimariesCounter.values) {
+        for (int primaries : nodePrimariesCounter.values()) {
             assertTrue(primaries <= indexShardLimit);
         }
     }

@@ -32,7 +32,6 @@
 
 package org.opensearch.index.shard;
 
-import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
@@ -338,6 +337,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final boolean isTimeSeriesIndex;
     private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
+
+    private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -813,6 +814,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (syncTranslog) {
                     maybeSync();
                 }
+
+                // Ensures all in-flight remote store operations drain, before we perform the handoff.
+                internalRefreshListener.stream()
+                    .filter(refreshListener -> refreshListener instanceof Closeable)
+                    .map(refreshListener -> (Closeable) refreshListener)
+                    .close();
+
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
                     : "in-flight operations in progress while moving shard state to relocated";
@@ -3164,7 +3172,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
      */
-    public ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+    public Map<String, Long> getInSyncGlobalCheckpoints() {
         assert assertPrimaryMode();
         verifyNotClosed();
         return replicationTracker.getInSyncGlobalCheckpoints();
@@ -3185,7 +3193,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
         final boolean asyncDurability = indexSettings().getTranslogDurability() == Durability.ASYNC;
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
-            final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
+            final Map<String, Long> globalCheckpoints = getInSyncGlobalCheckpoints();
             final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
             // async durability means that the local checkpoint might lag (as it is only advanced on fsync)
             // periodically ask for the newest local checkpoint by syncing the global checkpoint, so that ultimately the global
@@ -3195,7 +3203,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final boolean syncNeeded = (asyncDurability
                 && (stats.getGlobalCheckpoint() < stats.getMaxSeqNo() || replicationTracker.pendingInSync()))
                 // check if the persisted global checkpoint
-                || StreamSupport.stream(globalCheckpoints.values().spliterator(), false).anyMatch(v -> v.value < globalCheckpoint);
+                || StreamSupport.stream(globalCheckpoints.values().spliterator(), false).anyMatch(v -> v < globalCheckpoint);
             // only sync if index is not closed and there is a shard lagging the primary
             if (syncNeeded && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN) {
                 logger.trace("syncing global checkpoint for [{}]", reason);
@@ -3660,7 +3668,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
 
-        final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
+        internalRefreshListener.clear();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
         if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
@@ -4282,12 +4290,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
         if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
+                && isSearchIdleSupported()
                 && isSearchIdle()
                 && indexSettings.isExplicitRefresh() == false
-                && indexSettings.isSegRepEnabled() == false
-                // Indices with segrep enabled will never wait on a refresh and ignore shard idle. Primary shards push out new segments only
-                // after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
-                // a new set of segments.
                 && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
@@ -4313,6 +4318,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public final boolean isSearchIdle() {
         return (threadPool.relativeTimeInMillis() - lastSearcherAccess.get()) >= indexSettings.getSearchIdleAfter().getMillis();
+    }
+
+    /**
+     *
+     * Returns true if this shard supports search idle.
+     *
+     * Indices using Segment Replication will ignore search idle unless there are no replicas.
+     * Primary shards push out new segments only
+     * after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
+     * a new set of segments.
+     */
+    public final boolean isSearchIdleSupported() {
+        return indexSettings.isSegRepEnabled() == false || indexSettings.getNumberOfReplicas() == 0;
     }
 
     /**
@@ -4763,7 +4781,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                 if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
                     storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
-                    storeDirectory.sync(Collections.singleton(file));
                     downloadedSegments.add(file);
                 } else {
                     skippedSegments.add(file);

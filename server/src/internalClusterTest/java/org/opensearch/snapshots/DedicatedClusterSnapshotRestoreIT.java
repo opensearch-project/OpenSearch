@@ -32,9 +32,6 @@
 
 package org.opensearch.snapshots;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
-
 import org.opensearch.Version;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -113,8 +110,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -736,7 +735,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         ensureGreen("test-idx");
 
-        IntSet reusedShards = new IntHashSet();
+        final Set<Integer> reusedShards = new HashSet<>();
         List<RecoveryState> recoveryStates = client().admin()
             .indices()
             .prepareRecoveries("test-idx")

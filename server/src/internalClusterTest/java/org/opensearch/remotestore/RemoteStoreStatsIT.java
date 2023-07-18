@@ -12,10 +12,8 @@ import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
-import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.UUIDs;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -128,7 +126,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             }
             int numberOfOperations = randomIntBetween(20, 50);
             for (int j = 0; j < numberOfOperations; j++) {
-                indexSingleDoc();
+                indexSingleDoc(INDEX_NAME);
             }
         }
     }
@@ -149,12 +147,4 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         assertTrue(stats.uploadBytesPerSecMovingAverage > 0);
         assertTrue(stats.uploadTimeMovingAverage > 0);
     }
-
-    private IndexResponse indexSingleDoc() {
-        return client().prepareIndex(INDEX_NAME)
-            .setId(UUIDs.randomBase64UUID())
-            .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
-            .get();
-    }
-
 }

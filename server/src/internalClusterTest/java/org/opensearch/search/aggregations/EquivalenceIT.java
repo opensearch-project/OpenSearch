@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations;
 
-import com.carrotsearch.hppc.IntHashSet;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
@@ -61,9 +60,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -230,7 +231,7 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
         final int numDocs = scaledRandomIntBetween(1000, 2000);
         final int maxNumTerms = randomIntBetween(10, 5000);
 
-        final IntHashSet valuesSet = new IntHashSet();
+        final Set<Integer> valuesSet = new HashSet<>();
         cluster().wipeIndices("idx");
         prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
