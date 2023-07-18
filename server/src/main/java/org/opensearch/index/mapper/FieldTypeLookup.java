@@ -133,8 +133,6 @@ public class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     /**
      * returns whether is field name is an alias for another field
-     * @param field
-     * @return
      */
     public boolean isAlias(String field) {
         return aliasToConcreteName.containsKey(field);

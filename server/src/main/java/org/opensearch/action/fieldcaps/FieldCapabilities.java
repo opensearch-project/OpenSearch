@@ -286,8 +286,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
     /**
      * the list of aliases where this filed is referenced within (referenced by the `path` alias attribute)
-     *
-     * @return
      */
     public String[] aliases() {
         return aliases;
