@@ -25,8 +25,10 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.compareStatsResponse;
-import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createPressureTrackerStats;
+import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createStatsForNewReplica;
 import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createShardRouting;
+import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createStatsForNewPrimary;
+import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createStatsForRemoteStoreRestoredPrimary;
 import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class RemoteStoreStatsTests extends OpenSearchTestCase {
@@ -47,61 +49,139 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     }
 
     public void testXContentBuilderWithPrimaryShard() throws IOException {
-        RemoteRefreshSegmentTracker.Stats pressureTrackerStats = createPressureTrackerStats(shardId);
+        RemoteRefreshSegmentTracker.Stats uploadStats = createStatsForNewPrimary(shardId);
         ShardRouting routing = createShardRouting(shardId, true);
-        RemoteStoreStats stats = new RemoteStoreStats(pressureTrackerStats, routing);
+        RemoteStoreStats stats = new RemoteStoreStats(uploadStats, routing);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         stats.toXContent(builder, EMPTY_PARAMS);
         Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
-        compareStatsResponse(jsonObject, pressureTrackerStats, routing);
+        compareStatsResponse(jsonObject, uploadStats, routing);
     }
 
     public void testXContentBuilderWithReplicaShard() throws IOException {
-        RemoteRefreshSegmentTracker.Stats pressureTrackerStats = createPressureTrackerStats(shardId);
+        RemoteRefreshSegmentTracker.Stats downloadStats = createStatsForNewReplica(shardId);
         ShardRouting routing = createShardRouting(shardId, false);
-        RemoteStoreStats stats = new RemoteStoreStats(pressureTrackerStats, routing);
+        RemoteStoreStats stats = new RemoteStoreStats(downloadStats, routing);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         stats.toXContent(builder, EMPTY_PARAMS);
         Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
-        compareStatsResponse(jsonObject, pressureTrackerStats, routing);
+        compareStatsResponse(jsonObject, downloadStats, routing);
     }
 
-    public void testSerialization() throws Exception {
-        RemoteRefreshSegmentTracker.Stats pressureTrackerStats = createPressureTrackerStats(shardId);
-        RemoteStoreStats stats = new RemoteStoreStats(pressureTrackerStats, createShardRouting(shardId, true));
+    public void testXContentBuilderWithRemoteStoreRestoredShard() throws IOException {
+        RemoteRefreshSegmentTracker.Stats remotestoreRestoredShardStats = createStatsForRemoteStoreRestoredPrimary(shardId);
+        ShardRouting routing = createShardRouting(shardId, true);
+        RemoteStoreStats stats = new RemoteStoreStats(remotestoreRestoredShardStats, routing);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        stats.toXContent(builder, EMPTY_PARAMS);
+        Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        compareStatsResponse(jsonObject, remotestoreRestoredShardStats, routing);
+    }
+
+    public void testSerializationForPrimaryShard() throws Exception {
+        RemoteRefreshSegmentTracker.Stats primaryShardStats = createStatsForNewPrimary(shardId);
+        RemoteStoreStats stats = new RemoteStoreStats(primaryShardStats, createShardRouting(shardId, true));
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 RemoteRefreshSegmentTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
-                assertEquals(deserializedStats.shardId.toString(), stats.getStats().shardId.toString());
-                assertEquals(deserializedStats.refreshTimeLagMs, stats.getStats().refreshTimeLagMs);
-                assertEquals(deserializedStats.localRefreshNumber, stats.getStats().localRefreshNumber);
-                assertEquals(deserializedStats.remoteRefreshNumber, stats.getStats().remoteRefreshNumber);
-                assertEquals(deserializedStats.uploadBytesStarted, stats.getStats().uploadBytesStarted);
-                assertEquals(deserializedStats.uploadBytesSucceeded, stats.getStats().uploadBytesSucceeded);
-                assertEquals(deserializedStats.uploadBytesFailed, stats.getStats().uploadBytesFailed);
-                assertEquals(deserializedStats.totalUploadsStarted, stats.getStats().totalUploadsStarted);
-                assertEquals(deserializedStats.totalUploadsFailed, stats.getStats().totalUploadsFailed);
-                assertEquals(deserializedStats.totalUploadsSucceeded, stats.getStats().totalUploadsSucceeded);
-                assertEquals(deserializedStats.rejectionCount, stats.getStats().rejectionCount);
-                assertEquals(deserializedStats.consecutiveFailuresCount, stats.getStats().consecutiveFailuresCount);
-                assertEquals(deserializedStats.uploadBytesMovingAverage, stats.getStats().uploadBytesMovingAverage, 0);
-                assertEquals(deserializedStats.uploadBytesPerSecMovingAverage, stats.getStats().uploadBytesPerSecMovingAverage, 0);
-                assertEquals(deserializedStats.uploadTimeMovingAverage, stats.getStats().uploadTimeMovingAverage, 0);
-                assertEquals(deserializedStats.bytesLag, stats.getStats().bytesLag);
-                assertEquals(deserializedStats.totalDownloadsStarted, stats.getStats().totalDownloadsStarted);
-                assertEquals(deserializedStats.totalDownloadsSucceeded, stats.getStats().totalDownloadsSucceeded);
-                assertEquals(deserializedStats.totalDownloadsFailed, stats.getStats().totalDownloadsFailed);
-                assertEquals(deserializedStats.downloadBytesStarted, stats.getStats().downloadBytesStarted);
-                assertEquals(deserializedStats.downloadBytesFailed, stats.getStats().downloadBytesFailed);
-                assertEquals(deserializedStats.downloadBytesSucceeded, stats.getStats().downloadBytesSucceeded);
-                assertEquals(deserializedStats.lastSuccessfulSegmentDownloadBytes, stats.getStats().lastSuccessfulSegmentDownloadBytes);
-                assertEquals(deserializedStats.lastDownloadTimestampMs, stats.getStats().lastDownloadTimestampMs);
-                assertEquals(deserializedStats.downloadBytesMovingAverage, stats.getStats().downloadBytesMovingAverage, 0);
-                assertEquals(deserializedStats.downloadBytesPerSecMovingAverage, stats.getStats().downloadBytesPerSecMovingAverage, 0);
-                assertEquals(deserializedStats.downloadTimeMovingAverage, stats.getStats().downloadTimeMovingAverage, 0);
+                assertEquals(stats.getStats().refreshTimeLagMs, deserializedStats.refreshTimeLagMs);
+                assertEquals(stats.getStats().localRefreshNumber, deserializedStats.localRefreshNumber);
+                assertEquals(stats.getStats().remoteRefreshNumber, deserializedStats.remoteRefreshNumber);
+                assertEquals(stats.getStats().uploadBytesStarted, deserializedStats.uploadBytesStarted);
+                assertEquals(stats.getStats().uploadBytesSucceeded, deserializedStats.uploadBytesSucceeded);
+                assertEquals(stats.getStats().uploadBytesFailed, deserializedStats.uploadBytesFailed);
+                assertEquals(stats.getStats().totalUploadsStarted, deserializedStats.totalUploadsStarted);
+                assertEquals(stats.getStats().totalUploadsFailed, deserializedStats.totalUploadsFailed);
+                assertEquals(stats.getStats().totalUploadsSucceeded, deserializedStats.totalUploadsSucceeded);
+                assertEquals(stats.getStats().rejectionCount, deserializedStats.rejectionCount);
+                assertEquals(stats.getStats().consecutiveFailuresCount, deserializedStats.consecutiveFailuresCount);
+                assertEquals(stats.getStats().uploadBytesMovingAverage, deserializedStats.uploadBytesMovingAverage, 0);
+                assertEquals(stats.getStats().uploadBytesPerSecMovingAverage, deserializedStats.uploadBytesPerSecMovingAverage, 0);
+                assertEquals(stats.getStats().uploadTimeMovingAverage, deserializedStats.uploadTimeMovingAverage, 0);
+                assertEquals(stats.getStats().bytesLag, deserializedStats.bytesLag);
+                assertEquals(0, deserializedStats.totalDownloadsStarted);
+                assertEquals(0, deserializedStats.totalDownloadsSucceeded);
+                assertEquals(0, deserializedStats.totalDownloadsFailed);
+                assertEquals(0, deserializedStats.downloadBytesStarted);
+                assertEquals(0, deserializedStats.downloadBytesFailed);
+                assertEquals(0, deserializedStats.downloadBytesSucceeded);
+                assertEquals(0, deserializedStats.lastSuccessfulSegmentDownloadBytes);
+                assertEquals(0, deserializedStats.lastDownloadTimestampMs);
+            }
+        }
+    }
+
+    public void testSerializationForReplicaShard() throws Exception {
+        RemoteRefreshSegmentTracker.Stats replicaShardStats = createStatsForNewReplica(shardId);
+        RemoteStoreStats stats = new RemoteStoreStats(replicaShardStats, createShardRouting(shardId, false));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            stats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                RemoteRefreshSegmentTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
+                assertEquals(0, deserializedStats.refreshTimeLagMs);
+                assertEquals(0, deserializedStats.localRefreshNumber);
+                assertEquals(0, deserializedStats.remoteRefreshNumber);
+                assertEquals(0, deserializedStats.uploadBytesStarted);
+                assertEquals(0, deserializedStats.uploadBytesSucceeded);
+                assertEquals(0, deserializedStats.uploadBytesFailed);
+                assertEquals(0, deserializedStats.totalUploadsStarted);
+                assertEquals(0, deserializedStats.totalUploadsFailed);
+                assertEquals(0, deserializedStats.totalUploadsSucceeded);
+                assertEquals(0, deserializedStats.rejectionCount);
+                assertEquals(0, deserializedStats.consecutiveFailuresCount);
+                assertEquals(0, deserializedStats.bytesLag);
+                assertEquals(stats.getStats().totalDownloadsStarted, deserializedStats.totalDownloadsStarted);
+                assertEquals(stats.getStats().totalDownloadsSucceeded, deserializedStats.totalDownloadsSucceeded);
+                assertEquals(stats.getStats().totalDownloadsFailed, deserializedStats.totalDownloadsFailed);
+                assertEquals(stats.getStats().downloadBytesStarted, deserializedStats.downloadBytesStarted);
+                assertEquals(stats.getStats().downloadBytesFailed, deserializedStats.downloadBytesFailed);
+                assertEquals(stats.getStats().downloadBytesSucceeded, deserializedStats.downloadBytesSucceeded);
+                assertEquals(stats.getStats().lastSuccessfulSegmentDownloadBytes, deserializedStats.lastSuccessfulSegmentDownloadBytes);
+                assertEquals(stats.getStats().lastDownloadTimestampMs, deserializedStats.lastDownloadTimestampMs);
+                assertEquals(stats.getStats().downloadBytesPerSecMovingAverage, deserializedStats.downloadBytesPerSecMovingAverage, 0);
+                assertEquals(stats.getStats().downloadTimeMovingAverage, deserializedStats.downloadTimeMovingAverage, 0);
+                assertEquals(stats.getStats().downloadBytesMovingAverage, deserializedStats.downloadBytesMovingAverage, 0);
+            }
+        }
+    }
+
+    public void testSerializationForRemoteStoreRestoredPrimaryShard() throws Exception {
+        RemoteRefreshSegmentTracker.Stats primaryShardStats = createStatsForRemoteStoreRestoredPrimary(shardId);
+        RemoteStoreStats stats = new RemoteStoreStats(primaryShardStats, createShardRouting(shardId, true));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            stats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                RemoteRefreshSegmentTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
+                assertEquals(stats.getStats().refreshTimeLagMs, deserializedStats.refreshTimeLagMs);
+                assertEquals(stats.getStats().localRefreshNumber, deserializedStats.localRefreshNumber);
+                assertEquals(stats.getStats().remoteRefreshNumber, deserializedStats.remoteRefreshNumber);
+                assertEquals(stats.getStats().uploadBytesStarted, deserializedStats.uploadBytesStarted);
+                assertEquals(stats.getStats().uploadBytesSucceeded, deserializedStats.uploadBytesSucceeded);
+                assertEquals(stats.getStats().uploadBytesFailed, deserializedStats.uploadBytesFailed);
+                assertEquals(stats.getStats().totalUploadsStarted, deserializedStats.totalUploadsStarted);
+                assertEquals(stats.getStats().totalUploadsFailed, deserializedStats.totalUploadsFailed);
+                assertEquals(stats.getStats().totalUploadsSucceeded, deserializedStats.totalUploadsSucceeded);
+                assertEquals(stats.getStats().rejectionCount, deserializedStats.rejectionCount);
+                assertEquals(stats.getStats().consecutiveFailuresCount, deserializedStats.consecutiveFailuresCount);
+                assertEquals(stats.getStats().uploadBytesMovingAverage, deserializedStats.uploadBytesMovingAverage, 0);
+                assertEquals(stats.getStats().uploadBytesPerSecMovingAverage, deserializedStats.uploadBytesPerSecMovingAverage, 0);
+                assertEquals(stats.getStats().uploadTimeMovingAverage, deserializedStats.uploadTimeMovingAverage, 0);
+                assertEquals(stats.getStats().bytesLag, deserializedStats.bytesLag);
+                assertEquals(stats.getStats().totalDownloadsStarted, deserializedStats.totalDownloadsStarted);
+                assertEquals(stats.getStats().totalDownloadsSucceeded, deserializedStats.totalDownloadsSucceeded);
+                assertEquals(stats.getStats().totalDownloadsFailed, deserializedStats.totalDownloadsFailed);
+                assertEquals(stats.getStats().downloadBytesStarted, deserializedStats.downloadBytesStarted);
+                assertEquals(stats.getStats().downloadBytesFailed, deserializedStats.downloadBytesFailed);
+                assertEquals(stats.getStats().downloadBytesSucceeded, deserializedStats.downloadBytesSucceeded);
+                assertEquals(stats.getStats().lastSuccessfulSegmentDownloadBytes, deserializedStats.lastSuccessfulSegmentDownloadBytes);
+                assertEquals(stats.getStats().lastDownloadTimestampMs, deserializedStats.lastDownloadTimestampMs);
+                assertEquals(stats.getStats().downloadBytesPerSecMovingAverage, deserializedStats.downloadBytesPerSecMovingAverage, 0);
+                assertEquals(stats.getStats().downloadTimeMovingAverage, deserializedStats.downloadTimeMovingAverage, 0);
+                assertEquals(stats.getStats().downloadBytesMovingAverage, deserializedStats.downloadBytesMovingAverage, 0);
             }
         }
     }

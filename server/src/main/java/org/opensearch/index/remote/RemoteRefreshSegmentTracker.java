@@ -192,9 +192,9 @@ public class RemoteRefreshSegmentTracker {
 
     /**
      * Provides moving average over the last N total size in bytes of segment files downloaded from the remote store.
-     * N is window size. Wrapped with {@code AtomicReference} for dynamic changes in window size.
+     * N is window size
      */
-    private final AtomicReference<MovingAverage> downloadBytesMovingAverageReference;
+    private volatile MovingAverage downloadBytesMovingAverageReference;
 
     /**
      * Provides moving average over the last N upload speed (in bytes/s) of segment files uploaded as part of remote refresh.
@@ -206,9 +206,9 @@ public class RemoteRefreshSegmentTracker {
 
     /**
      * Provides moving average over the last N upload speed (in bytes/s) of segment files downloaded from the remote store.
-     * N is window size. Wrapped with {@code AtomicReference} for dynamic changes in window size.
+     * N is window size
      */
-    private final AtomicReference<MovingAverage> downloadBytesPerSecMovingAverageReference;
+    private volatile MovingAverage downloadBytesPerSecMovingAverageReference;
 
     /**
      * Provides moving average over the last N overall upload time (in millis) as part of remote refresh.N is window size.
@@ -220,9 +220,8 @@ public class RemoteRefreshSegmentTracker {
 
     /**
      * Provides moving average over the last N overall download time (in millis) of segments downloaded from the remote store.
-     * Wrapped with {@code AtomicReference} for dynamic changes in window size.
      */
-    private final AtomicReference<MovingAverage> downloadTimeMovingAverageReference;
+    private volatile MovingAverage downloadTimeMovingAverageReference;
 
     private final int SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE = 20;
 
@@ -243,9 +242,9 @@ public class RemoteRefreshSegmentTracker {
         uploadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesMovingAverageWindowSize));
         uploadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesPerSecMovingAverageWindowSize));
         uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
-        downloadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE));
-        downloadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE));
-        downloadTimeMovingAverageReference = new AtomicReference<>(new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE));
+        downloadBytesMovingAverageReference = new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE);
+        downloadBytesPerSecMovingAverageReference = new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE);
+        downloadTimeMovingAverageReference = new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE);
         latestLocalFileNameLengthMap = new HashMap<>();
     }
 
@@ -546,16 +545,16 @@ public class RemoteRefreshSegmentTracker {
     }
 
     boolean isDownloadBytesAverageReady() {
-        return downloadBytesMovingAverageReference.get().isReady();
+        return downloadBytesMovingAverageReference.isReady();
     }
 
     double getDownloadBytesAverage() {
-        return downloadBytesMovingAverageReference.get().getAverage();
+        return downloadBytesMovingAverageReference.getAverage();
     }
 
     public void addDownloadBytes(long size) {
         lastSuccessfulSegmentDownloadBytes = size;
-        this.downloadBytesMovingAverageReference.get().record(size);
+        this.downloadBytesMovingAverageReference.record(size);
     }
 
     boolean isUploadBytesPerSecAverageReady() {
@@ -573,15 +572,15 @@ public class RemoteRefreshSegmentTracker {
     }
 
     boolean isDownloadBytesPerSecAverageReady() {
-        return downloadBytesPerSecMovingAverageReference.get().isReady();
+        return downloadBytesPerSecMovingAverageReference.isReady();
     }
 
     double getDownloadBytesPerSecAverage() {
-        return downloadBytesPerSecMovingAverageReference.get().getAverage();
+        return downloadBytesPerSecMovingAverageReference.getAverage();
     }
 
     public void addDownloadBytesPerSec(long bytesPerSec) {
-        this.downloadBytesPerSecMovingAverageReference.get().record(bytesPerSec);
+        this.downloadBytesPerSecMovingAverageReference.record(bytesPerSec);
     }
 
     /**
@@ -621,15 +620,15 @@ public class RemoteRefreshSegmentTracker {
     }
 
     boolean isDownloadTimeAverageReady() {
-        return downloadTimeMovingAverageReference.get().isReady();
+        return downloadTimeMovingAverageReference.isReady();
     }
 
     double getDownloadTimeAverage() {
-        return downloadTimeMovingAverageReference.get().getAverage();
+        return downloadTimeMovingAverageReference.getAverage();
     }
 
     public void addDownloadTime(long timeMs) {
-        this.downloadTimeMovingAverageReference.get().record(timeMs);
+        this.downloadTimeMovingAverageReference.record(timeMs);
     }
 
     public RemoteRefreshSegmentTracker.Stats stats() {
@@ -660,9 +659,9 @@ public class RemoteRefreshSegmentTracker {
             uploadBytesPerSecMovingAverageReference.get().getAverage(),
             uploadTimeMsMovingAverageReference.get().getAverage(),
             lastSuccessfulSegmentDownloadBytes,
-            downloadBytesMovingAverageReference.get().getAverage(),
-            downloadBytesPerSecMovingAverageReference.get().getAverage(),
-            downloadTimeMovingAverageReference.get().getAverage(),
+            downloadBytesMovingAverageReference.getAverage(),
+            downloadBytesPerSecMovingAverageReference.getAverage(),
+            downloadTimeMovingAverageReference.getAverage(),
             getBytesLag()
         );
     }

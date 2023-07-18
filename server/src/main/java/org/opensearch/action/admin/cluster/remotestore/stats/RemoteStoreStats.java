@@ -56,15 +56,16 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.field(RoutingFields.NODE_ID, shardRouting.currentNodeId());
         builder.endObject();
         builder.startObject(Fields.SEGMENT);
-        if (!shardRouting.primary()) {
-            builder.startObject(SubFields.DOWNLOAD);
-            builder.field(DownloadStatsFields.LAST_DOWNLOAD_TIMESTAMP, remoteSegmentShardStats.lastDownloadTimestampMs);
+        builder.startObject(SubFields.DOWNLOAD);
+        // Ensuring that we are not showing 0 metrics to the user
+        if (remoteSegmentShardStats.totalDownloadsStarted != 0) {
+            builder.field(DownloadStatsFields.LAST_SYNC_TIMESTAMP, remoteSegmentShardStats.lastDownloadTimestampMs);
             builder.startObject(DownloadStatsFields.TOTAL_SYNCS_FROM_REMOTE)
                 .field(SubFields.STARTED, remoteSegmentShardStats.totalDownloadsStarted)
                 .field(SubFields.SUCCEEDED, remoteSegmentShardStats.totalDownloadsSucceeded)
                 .field(SubFields.FAILED, remoteSegmentShardStats.totalDownloadsFailed);
             builder.endObject();
-            builder.startObject(DownloadStatsFields.TOTAL_FILE_DOWNLOADS_IN_BYTES)
+            builder.startObject(DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)
                 .field(SubFields.STARTED, remoteSegmentShardStats.downloadBytesStarted)
                 .field(SubFields.SUCCEEDED, remoteSegmentShardStats.downloadBytesSucceeded)
                 .field(SubFields.FAILED, remoteSegmentShardStats.downloadBytesFailed);
@@ -79,14 +80,12 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             builder.startObject(DownloadStatsFields.DOWNLOAD_LATENCY_IN_MILLIS)
                 .field(SubFields.MOVING_AVG, remoteSegmentShardStats.downloadTimeMovingAverage);
             builder.endObject();
-            builder.endObject();
-        } else {
-            builder.startObject(SubFields.DOWNLOAD);
-            builder.endObject();
         }
-        if (shardRouting.primary()) {
-            builder.startObject(SubFields.UPLOAD)
-                .field(UploadStatsFields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentShardStats.localRefreshClockTimeMs)
+        builder.endObject();
+        builder.startObject(SubFields.UPLOAD);
+        // Ensuring that we are not showing 0 metrics to the user
+        if (remoteSegmentShardStats.totalUploadsStarted != 0) {
+            builder.field(UploadStatsFields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentShardStats.localRefreshClockTimeMs)
                 .field(UploadStatsFields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentShardStats.remoteRefreshClockTimeMs)
                 .field(UploadStatsFields.REFRESH_TIME_LAG_IN_MILLIS, remoteSegmentShardStats.refreshTimeLagMs)
                 .field(
@@ -96,7 +95,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
                 .field(UploadStatsFields.BYTES_LAG, remoteSegmentShardStats.bytesLag)
                 .field(UploadStatsFields.BACKPRESSURE_REJECTION_COUNT, remoteSegmentShardStats.rejectionCount)
                 .field(UploadStatsFields.CONSECUTIVE_FAILURE_COUNT, remoteSegmentShardStats.consecutiveFailuresCount);
-            builder.startObject(UploadStatsFields.TOTAL_REMOTE_REFRESH)
+            builder.startObject(UploadStatsFields.TOTAL_SYNCS_TO_REMOTE)
                 .field(SubFields.STARTED, remoteSegmentShardStats.totalUploadsStarted)
                 .field(SubFields.SUCCEEDED, remoteSegmentShardStats.totalUploadsSucceeded)
                 .field(SubFields.FAILED, remoteSegmentShardStats.totalUploadsFailed);
@@ -116,11 +115,8 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             builder.startObject(UploadStatsFields.REMOTE_REFRESH_LATENCY_IN_MILLIS)
                 .field(SubFields.MOVING_AVG, remoteSegmentShardStats.uploadTimeMovingAverage);
             builder.endObject();
-            builder.endObject();
-        } else {
-            builder.startObject(SubFields.UPLOAD);
-            builder.endObject();
         }
+        builder.endObject();
         builder.endObject();
         return builder.endObject();
     }
@@ -185,7 +181,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         /**
          * Represents the number of remote refreshes
          */
-        static final String TOTAL_REMOTE_REFRESH = "total_remote_refresh";
+        static final String TOTAL_SYNCS_TO_REMOTE = "total_syncs_to_remote";
 
         /**
          * Represents the total uploads to remote store in bytes
@@ -210,19 +206,19 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
 
     static final class DownloadStatsFields {
         /**
-         * Last successful segment download timestamp in milliseconds
+         * Last successful sync from remote in milliseconds
          */
-        static final String LAST_DOWNLOAD_TIMESTAMP = "last_download_timestamp";
+        static final String LAST_SYNC_TIMESTAMP = "last_sync_timestamp";
 
         /**
-         * Total number of segment files downloaded from the remote store for a specific shard
+         * Total number of sync from the remote store for a specific shard
          */
         static final String TOTAL_SYNCS_FROM_REMOTE = "total_syncs_from_remote";
 
         /**
          * Total bytes of segment files downloaded from the remote store for a specific shard
          */
-        static final String TOTAL_FILE_DOWNLOADS_IN_BYTES = "total_file_downloads_in_bytes";
+        static final String TOTAL_DOWNLOADS_IN_BYTES = "total_downloads_in_bytes";
 
         /**
          * Size of each segment file downloaded from the remote store
@@ -241,7 +237,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Reusable sub fields for {@link Fields}
+     * Reusable sub fields for {@link UploadStatsFields} and {@link DownloadStatsFields}
      */
     static final class SubFields {
         static final String STARTED = "started";
@@ -252,12 +248,12 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         static final String UPLOAD = "upload";
 
         /**
-         * Moving avg over last N values stat for a {@link Fields}
+         * Moving avg over last N values stat
          */
         static final String MOVING_AVG = "moving_avg";
 
         /**
-         * Most recent successful attempt stat for a {@link Fields}
+         * Most recent successful attempt stat
          */
         static final String LAST_SUCCESSFUL = "last_successful";
     }
