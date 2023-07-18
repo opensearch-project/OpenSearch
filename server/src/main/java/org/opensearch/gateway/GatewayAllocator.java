@@ -85,6 +85,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     private final PrimaryShardAllocator primaryShardAllocator;
     private final ReplicaShardAllocator replicaShardAllocator;
 
+    private final PrimaryShardAllocator primaryBatchShardAllocator;
+    private final TransportNodesBatchListGatewayStartedShards batchStartedAction;
+
+
     private final ConcurrentMap<
         ShardId,
         AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>> asyncFetchStarted = ConcurrentCollections
@@ -93,17 +97,20 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         ConcurrentCollections.newConcurrentMap();
     private Set<String> lastSeenEphemeralIds = Collections.emptySet();
 
-    private final ConcurrentMap<ShardsBatcher, AsyncBatchShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>> asyncBatchFetchStarted = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardsBatcher, AsyncBatchShardFetch<TransportNodesBatchListGatewayStartedShards.NodeGatewayStartedShardsBatch>> asyncBatchFetchStarted = ConcurrentCollections.newConcurrentMap();
 
     @Inject
     public GatewayAllocator(
         RerouteService rerouteService,
         TransportNodesListGatewayStartedShards startedAction,
-        TransportNodesListShardStoreMetadata storeAction
+        TransportNodesListShardStoreMetadata storeAction,
+        TransportNodesBatchListGatewayStartedShards batchStartedAction
     ) {
         this.rerouteService = rerouteService;
         this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction);
         this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction);
+        this.batchStartedAction = batchStartedAction;
+        this.primaryBatchShardAllocator = new InternalPrimaryBatchShardAllocator(batchStartedAction);
     }
 
     @Override
@@ -119,6 +126,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         this.rerouteService = null;
         this.primaryShardAllocator = null;
         this.replicaShardAllocator = null;
+        this.batchStartedAction=null;
+        this.primaryBatchShardAllocator =null;
     }
 
     @Override
@@ -177,25 +186,30 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void allocateBatchUnassigned(final RoutingAllocation allocation){
+    public void allocateBatchUnassigned(final RoutingAllocation allocation, boolean primary){
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
 
-        // create batches
-        createBatchesForShardsStarted(allocation);
-
-        // execute those batches
-        // execution involves two parts: fetching and allocation
+        if (primary) {
+            createBatchesForShardsStarted(allocation);
+            asyncBatchFetchStarted.keySet().forEach(batch -> primaryBatchShardAllocator.allocateBatchUnassigned(batch.getBatchId(), allocation));
+        }
+         else {
+            createBatchesForShardsStore(allocation);
+            asyncBatchFetchStore.keySet().forEach(batch -> replicaShardAllocator.allocateBatchUnassigned(batch.getBatchId(), allocation));
+        }
 
     }
 
     private void createBatchesForShardsStarted(RoutingAllocation allocation) {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
-        // fetch all current batch shards
+        // fetch all current batched shards
         Set<ShardId> currentBatchedShards = asyncBatchFetchStarted.keySet().stream().flatMap(shardsBatcher -> shardsBatcher.getBatchedShards().stream()).collect(Collectors.toSet());
         Set<ShardRouting> shardsToBatch = Sets.newHashSet();
+        // add all unassigned shards to the batch if they are not already in a batch
         unassigned.forEach(shardRouting -> {
-            if (currentBatchedShards.contains(shardRouting.shardId()) == false) {
+            if (currentBatchedShards.contains(shardRouting.shardId()) == false && shardRouting.primary()) {
+                assert shardRouting.unassigned();
                 shardsToBatch.add(shardRouting);
             }
         });
@@ -209,12 +223,22 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                 batchSize--;
                 iterator.remove();
             }
-            // add to batch if batch size full or last shard
+            // add to batch if batch size full or last shard in unassigned list
             if (batchSize == 0 || iterator.hasNext() == false) {
                 String batchUUId = UUIDs.base64UUID();
                 ShardsBatcher shardsBatcher = new ShardsBatcher(batchUUId, addToCurrentBatch);
                 // add to main asyncShardFetchStarted after Async object ready
 
+                asyncBatchFetchStarted.computeIfAbsent(
+                    shardsBatcher,
+                    batch -> new InternalBatchAsyncFetch<>(
+                        logger,
+                        "batch_shards_started",
+                        batch.getShardsToCustomDataPathMap(),
+                        this.batchStartedAction,
+                        batch.getBatchId()
+                    )
+                );
                 addToCurrentBatch.clear();
                 batchSize = MAX_BATCH_SIZE;
             }
@@ -321,6 +345,32 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
     }
 
+    class InternalBatchAsyncFetch<T extends BaseNodeResponse> extends AsyncBatchShardFetch<T> {
+
+        InternalBatchAsyncFetch(Logger logger,
+                                String type,
+                                Map<ShardId, String> map,
+                                AsyncBatchShardFetch.Lister<? extends BaseNodesResponse<T>, T> action,
+                                String batchUUId
+        ) {
+            super(logger, type, map, action, batchUUId);
+        }
+
+        @Override
+        protected void reroute(String batchUUId, String reason) {
+            logger.trace("{} scheduling reroute for {}", batchUUId, reason);
+            assert rerouteService != null;
+            rerouteService.reroute(
+                "async_shard_fetch",
+                Priority.HIGH,
+                ActionListener.wrap(
+                    r -> logger.trace("{} scheduled reroute completed for {}", batchUUId, reason),
+                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", batchUUId, reason), e)
+                )
+            );
+        }
+    }
+
     class InternalPrimaryShardAllocator extends PrimaryShardAllocator {
 
         private final TransportNodesListGatewayStartedShards startedAction;
@@ -353,6 +403,25 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                 shardState.processAllocation(allocation);
             }
             return shardState;
+        }
+    }
+
+    class InternalPrimaryBatchShardAllocator extends PrimaryShardAllocator {
+        private final TransportNodesBatchListGatewayStartedShards startedAction;
+
+        InternalPrimaryBatchShardAllocator(TransportNodesBatchListGatewayStartedShards startedAction) {
+            this.startedAction = startedAction;
+        }
+
+        @Override
+        protected AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+            return null;
+        }
+
+        @Override
+        protected AsyncBatchShardFetch.AdaptedResultsForShard<TransportNodesBatchListGatewayStartedShards.NodeGatewayStartedShardsBatch> fetchBatchData(String batchId, RoutingAllocation allocation){
+            // send adapted data to PSA for processing.
+            return null;
         }
     }
 
@@ -397,6 +466,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
     private class ShardsBatcher {
         private final String uuid;
+
+        public Map<ShardId, String> getShardsToCustomDataPathMap() {
+            return shardsToCustomDataPathMap;
+        }
+
         private Map<ShardId,String> shardsToCustomDataPathMap;
         private ShardsBatcher(String uuid, Map<ShardId,String> shardsToCustomDataPathMap) {
             this.uuid = uuid;
@@ -408,6 +482,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
         Set<ShardId> getBatchedShards() {
             return shardsToCustomDataPathMap.keySet();
+        }
+
+        public String getBatchId() {
+            return uuid;
         }
     }
 

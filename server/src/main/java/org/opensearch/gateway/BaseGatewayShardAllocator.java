@@ -92,6 +92,9 @@ public abstract class BaseGatewayShardAllocator {
         }
     }
 
+    public void allocateBatchUnassigned(String batchId, RoutingAllocation allocation){
+    }
+
     protected long getExpectedShardSize(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
@@ -119,6 +122,9 @@ public abstract class BaseGatewayShardAllocator {
         RoutingAllocation allocation,
         Logger logger
     );
+
+    /**
+     * Returns a list of {@link NodeAllocationResult}
 
     /**
      * Builds decisions for all nodes in the cluster, so that the explain API can provide information on

@@ -89,6 +89,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 || shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
+
     @Override
     public AllocateUnassignedDecision makeAllocationDecision(
         final ShardRouting unassignedShard,
@@ -112,6 +113,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
 
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
+//        final FetchResult<TransportNodesBatchListGatewayStartedShards.NodeGatewayStartedShardsBatch> batchFetchResult = fetchBatchData(allocation);
+
         if (shardState.hasData() == false) {
             allocation.setHasPendingAsyncFetch();
             List<NodeAllocationResult> nodeDecisions = null;
@@ -456,6 +459,10 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     }
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
+    protected AsyncBatchShardFetch.AdaptedResultsForShard<TransportNodesBatchListGatewayStartedShards.NodeGatewayStartedShardsBatch> fetchBatchData(String batchId, RoutingAllocation allocation){
+        return null;
+    }
+
 
     private static class NodeShardsResult {
         final List<NodeGatewayStartedShards> orderedAllocationCandidates;
