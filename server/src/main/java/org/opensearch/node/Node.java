@@ -258,7 +258,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.opensearch.common.util.FeatureFlags.SEARCH_PIPELINE;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
@@ -980,8 +979,7 @@ public class Node implements Closeable {
                 xContentRegistry,
                 namedWriteableRegistry,
                 pluginsService.filterPlugins(SearchPipelinePlugin.class),
-                client,
-                FeatureFlags.isEnabled(SEARCH_PIPELINE)
+                client
             );
             final TaskCancellationMonitoringSettings taskCancellationMonitoringSettings = new TaskCancellationMonitoringSettings(
                 settings,
