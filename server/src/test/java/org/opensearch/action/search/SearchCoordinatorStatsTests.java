@@ -14,6 +14,41 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
 
 public class SearchCoordinatorStatsTests extends OpenSearchTestCase {
+    public void testSearchCoordinatorPhaseFailure() {
+        SearchCoordinatorStats testCoordinatorStats = new SearchCoordinatorStats();
+        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
+
+        testCoordinatorStats.onDFSPreQueryPhaseStart(ctx);
+        assertEquals(1, testCoordinatorStats.getDFSPreQueryCurrent());
+
+        testCoordinatorStats.onDFSPreQueryPhaseFailure(ctx);
+        assertEquals(0, testCoordinatorStats.getDFSPreQueryCurrent());
+
+        testCoordinatorStats.onCanMatchPhaseStart(ctx);
+        assertEquals(1, testCoordinatorStats.getCanMatchCurrent());
+
+        testCoordinatorStats.onCanMatchPhaseFailure(ctx);
+        assertEquals(0, testCoordinatorStats.getCanMatchCurrent());
+
+        testCoordinatorStats.onQueryPhaseStart(ctx);
+        assertEquals(1, testCoordinatorStats.getQueryCurrent());
+
+        testCoordinatorStats.onQueryPhaseFailure(ctx);
+        assertEquals(0, testCoordinatorStats.getQueryCurrent());
+
+        testCoordinatorStats.onFetchPhaseStart(ctx);
+        assertEquals(1, testCoordinatorStats.getFetchCurrent());
+
+        testCoordinatorStats.onFetchPhaseFailure(ctx);
+        assertEquals(0, testCoordinatorStats.getFetchCurrent());
+
+        testCoordinatorStats.onExpandSearchPhaseStart(ctx);
+        assertEquals(1, testCoordinatorStats.getExpandSearchCurrent());
+
+        testCoordinatorStats.onExpandSearchPhaseFailure(ctx);
+        assertEquals(0, testCoordinatorStats.getExpandSearchCurrent());
+    }
+
     public void testSearchCoordinatorStats() {
         SearchCoordinatorStats testCoordinatorStats = new SearchCoordinatorStats();
 

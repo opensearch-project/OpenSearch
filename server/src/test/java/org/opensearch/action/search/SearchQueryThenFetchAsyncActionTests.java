@@ -214,7 +214,8 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
             timeProvider,
             null,
             task,
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            null
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

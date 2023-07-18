@@ -140,7 +140,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        List<SearchRequestOperationsListener> searchListenersList
     ) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -176,12 +177,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
-
-    }
-
-    public void setSearchListenerList(List<SearchRequestOperationsListener> searchListenersList) {
-        this.searchListenersList = searchListenersList;
-        this.searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(this.searchListenersList, logger);
+        if (searchListenersList != null) {
+            this.searchListenersList = searchListenersList;
+            this.searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(this.searchListenersList, logger);
+        }
     }
 
     @Override
@@ -436,7 +435,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    public void onPhaseEnd(SearchPhaseContext searchPhaseContext) {
+    private void onPhaseEnd(SearchPhaseContext searchPhaseContext) {
         if (searchRequestOperationsListener == null) {
             return;
         }
@@ -457,7 +456,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    public void onPhaseStart(SearchPhase phase, SearchPhaseContext searchPhaseContext) {
+    private void onPhaseStart(SearchPhase phase, SearchPhaseContext searchPhaseContext) {
         setCurrentPhase(phase);
         phase.setStartTimeInNanos(System.nanoTime());
         if (searchRequestOperationsListener == null) {
@@ -663,7 +662,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return currentPhase;
     }
 
-    public void setCurrentPhase(SearchPhase phase) {
+    private void setCurrentPhase(SearchPhase phase) {
         currentPhase = phase;
     }
 

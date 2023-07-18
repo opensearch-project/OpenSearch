@@ -350,7 +350,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         new ArraySearchPhaseResults<>(shardsIts.size()),
                         searchRequest.getMaxConcurrentShardRequests(),
-                        clusters
+                        clusters,
+                        searchListenersList
                     ) {
                     @Override
                     protected void executePhaseOnShard(
@@ -378,7 +379,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         return includeSearchContext;
                     }
                 };
-                returnAbstractSearchAsyncAction.setSearchListenerList(searchListenersList);
                 return returnAbstractSearchAsyncAction;
             }
         }, listener);
@@ -1168,7 +1168,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }
                     };
                 },
-                clusters
+                clusters,
+                searchListenersList
             );
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
@@ -1198,7 +1199,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters
+                        clusters,
+                        searchListenersList
                     );
                     break;
                 case QUERY_THEN_FETCH:
@@ -1218,13 +1220,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters
+                        clusters,
+                        searchListenersList
                     );
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
             }
-            searchAsyncAction.setSearchListenerList(searchListenersList);
             return searchAsyncAction;
         }
     }
