@@ -201,10 +201,15 @@ public class RunTask extends DefaultTestClustersTask {
 
     @TaskAction
     public void runAndWait() throws IOException {
+        if (getClusters() == null || getClusters().isEmpty()) {
+            logger.lifecycle("No opensearch cluster is configured.");
+            return;
+        }
         List<BufferedReader> toRead = new ArrayList<>();
         List<BooleanSupplier> aliveChecks = new ArrayList<>();
         try {
             for (OpenSearchCluster cluster : getClusters()) {
+                logger.lifecycle("Starting opensearch cluster {}", cluster.getName());
                 for (OpenSearchNode node : cluster.getNodes()) {
                     BufferedReader reader = Files.newBufferedReader(node.getOpensearchStdoutFile());
                     toRead.add(reader);
