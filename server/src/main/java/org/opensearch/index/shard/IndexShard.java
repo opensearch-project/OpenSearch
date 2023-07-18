@@ -338,6 +338,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final boolean isTimeSeriesIndex;
     private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
 
+    private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -812,6 +814,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (syncTranslog) {
                     maybeSync();
                 }
+
+                // Ensures all in-flight remote store operations drain, before we perform the handoff.
+                internalRefreshListener.stream()
+                    .filter(refreshListener -> refreshListener instanceof Closeable)
+                    .map(refreshListener -> (Closeable) refreshListener)
+                    .close();
+
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
                     : "in-flight operations in progress while moving shard state to relocated";
@@ -3659,7 +3668,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
 
-        final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
+        internalRefreshListener.clear();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
         if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
