@@ -4661,31 +4661,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         indexInput,
                         remoteSegmentMetadata.getGeneration()
                     );
+                    // Replicas never need a local commit
                     if (shouldCommit) {
-                        long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                        // Following code block makes sure to use SegmentInfosSnapshot in the remote store if generation differs
-                        // with local filesystem. If local filesystem already has segments_N+2 and infosSnapshot has generation N,
-                        // after commit, there would be 2 files that would be created segments_N+1 and segments_N+2. With the
-                        // policy of preserving only the latest commit, we will delete segments_N+1 which in fact is the part of the latest
-                        // commit.
-                        Optional<String> localMaxSegmentInfos = localSegmentFiles.stream()
-                            .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
-                            .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
-                        if (localMaxSegmentInfos.isPresent()
-                            && infosSnapshot.getGeneration() < SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get())
-                                - 1) {
-                            // If remote translog is not enabled, local translog will be created with different UUID.
-                            // This fails in Store.trimUnsafeCommits() as translog UUID of checkpoint and SegmentInfos needs
-                            // to be same. Following code block make sure to have the same UUID.
-                            if (indexSettings.isRemoteTranslogStoreEnabled() == false) {
-                                SegmentInfos localSegmentInfos = store.readLastCommittedSegmentsInfo();
-                                Map<String, String> userData = new HashMap<>(infosSnapshot.getUserData());
-                                userData.put(TRANSLOG_UUID_KEY, localSegmentInfos.userData.get(TRANSLOG_UUID_KEY));
-                                infosSnapshot.setUserData(userData, false);
+                        if (this.shardRouting.primary()) {
+                            long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                            // Following code block makes sure to use SegmentInfosSnapshot in the remote store if generation differs
+                            // with local filesystem. If local filesystem already has segments_N+2 and infosSnapshot has generation N,
+                            // after commit, there would be 2 files that would be created segments_N+1 and segments_N+2. With the
+                            // policy of preserving only the latest commit, we will delete segments_N+1 which in fact is the part of the
+                            // latest commit.
+                            Optional<String> localMaxSegmentInfos = localSegmentFiles.stream()
+                                .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
+                                .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
+                            if (localMaxSegmentInfos.isPresent()
+                                && infosSnapshot.getGeneration() < SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get())
+                                    - 1) {
+                                // If remote translog is not enabled, local translog will be created with different UUID.
+                                // This fails in Store.trimUnsafeCommits() as translog UUID of checkpoint and SegmentInfos needs
+                                // to be same. Following code block make sure to have the same UUID.
+                                if (indexSettings.isRemoteTranslogStoreEnabled() == false) {
+                                    SegmentInfos localSegmentInfos = store.readLastCommittedSegmentsInfo();
+                                    Map<String, String> userData = new HashMap<>(infosSnapshot.getUserData());
+                                    userData.put(TRANSLOG_UUID_KEY, localSegmentInfos.userData.get(TRANSLOG_UUID_KEY));
+                                    infosSnapshot.setUserData(userData, false);
+                                }
+                                storeDirectory.deleteFile(localMaxSegmentInfos.get());
                             }
-                            storeDirectory.deleteFile(localMaxSegmentInfos.get());
+                            store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                         }
-                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                     } else {
                         finalizeReplication(infosSnapshot);
                     }
