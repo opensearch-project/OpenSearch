@@ -44,6 +44,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
@@ -610,12 +611,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         Collection<String> segmentFiles,
         SegmentInfos segmentInfosSnapshot,
         Directory storeDirectory,
-        long primaryTerm,
-        long translogGeneration
+        long translogGeneration,
+        ReplicationCheckpoint replicationCheckpoint
     ) throws IOException {
         synchronized (this) {
             String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
-                primaryTerm,
+                replicationCheckpoint.getPrimaryTerm(),
                 segmentInfosSnapshot.getGeneration(),
                 translogGeneration,
                 metadataUploadCounter.incrementAndGet(),
@@ -646,8 +647,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                         new RemoteSegmentMetadata(
                             RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
                             segmentInfoSnapshotByteArray,
-                            primaryTerm,
-                            segmentInfosSnapshot.getGeneration()
+                            replicationCheckpoint
                         )
                     );
                 }

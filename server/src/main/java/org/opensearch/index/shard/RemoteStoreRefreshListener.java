@@ -220,7 +220,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                         public void onResponse(Void unused) {
                             try {
                                 // Start metadata file upload
-                                uploadMetadata(localSegmentsPostRefresh, segmentInfos);
+                                uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
@@ -327,7 +327,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             && !remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)));
     }
 
-    void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos) throws IOException {
+    void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint) throws IOException {
         final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
@@ -344,8 +344,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 localSegmentsPostRefresh,
                 segmentInfosSnapshot,
                 storeDirectory,
-                indexShard.getOperationPrimaryTerm(),
-                translogFileGeneration
+                translogFileGeneration,
+                replicationCheckpoint
             );
         }
     }

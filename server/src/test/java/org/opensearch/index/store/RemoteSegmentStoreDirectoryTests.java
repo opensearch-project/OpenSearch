@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -43,6 +44,7 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -681,7 +683,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         Collection<String> segmentFiles = List.of("_s1.si", "_s1.cfe", "_s3.cfs");
         assertThrows(
             NoSuchFileException.class,
-            () -> remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, segmentInfos, storeDirectory, 12L, 34L)
+            () -> remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, segmentInfos, storeDirectory, 12L, ReplicationCheckpoint.empty(indexShard.shardId(), Codec.getDefault().getName()))
         );
     }
 
@@ -717,7 +719,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         when(storeDirectory.createOutput(startsWith("metadata__" + primaryTermLong + "__" + generationLong), eq(IOContext.DEFAULT)))
             .thenReturn(indexOutput);
 
-        remoteSegmentStoreDirectory.uploadMetadata(segInfos.files(true), segInfos, storeDirectory, primaryTerm, generation);
+        remoteSegmentStoreDirectory.uploadMetadata(segInfos.files(true), segInfos, storeDirectory, generation, indexShard.getLatestReplicationCheckpoint());
 
         verify(remoteMetadataDirectory).copyFrom(
             eq(storeDirectory),

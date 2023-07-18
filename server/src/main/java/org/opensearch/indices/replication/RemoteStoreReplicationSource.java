@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  */
 public class RemoteStoreReplicationSource implements SegmentReplicationSource {
 
-    private static final Logger logger = LogManager.getLogger(PrimaryShardReplicationSource.class);
+    private static final Logger logger = LogManager.getLogger(RemoteStoreReplicationSource.class);
 
     private final IndexShard indexShard;
 
@@ -77,8 +77,8 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                         )
                     )
                 );
-            // TODO: GET current checkpoint from remote store.
-            listener.onResponse(new CheckpointInfoResponse(checkpoint, metadataMap, null));
+            logger.info("--> Sending empty checkpoint");
+            listener.onResponse(new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes()));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -93,8 +93,9 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         ActionListener<GetSegmentFilesResponse> listener
     ) {
         try {
-            indexShard.syncSegmentsFromRemoteSegmentStore(false, true, false);
-            listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+            List<StoreFileMetadata> downloadedFiles = indexShard.syncSegmentsFromRemoteSegmentStore(filesToFetch);
+            assert downloadedFiles.size() == filesToFetch.size() && downloadedFiles.containsAll(filesToFetch);
+            listener.onResponse(new GetSegmentFilesResponse(downloadedFiles));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -102,6 +103,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
 
     @Override
     public String getDescription() {
-        return "remote store";
+        return "RemoteStoreReplicationSource";
     }
 }

@@ -8,6 +8,8 @@
 
 package org.opensearch.indices.replication.checkpoint;
 
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -185,5 +187,23 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             + ", codec="
             + codec
             + '}';
+    }
+
+    public void writeTo(IndexOutput out) throws IOException {
+        shardId.writeTo(out);
+        out.writeLong(primaryTerm);
+        out.writeLong(segmentsGen);
+        out.writeLong(segmentInfosVersion);
+        out.writeLong(length);
+        out.writeString(codec);
+    }
+
+    public ReplicationCheckpoint(IndexInput in) throws IOException {
+        shardId = new ShardId(in);
+        primaryTerm = in.readLong();
+        segmentsGen = in.readLong();
+        segmentInfosVersion = in.readLong();
+        length = in.readLong();
+        codec = in.readString();
     }
 }

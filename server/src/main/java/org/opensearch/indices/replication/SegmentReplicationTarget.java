@@ -38,8 +38,11 @@ import org.opensearch.indices.replication.common.ReplicationTarget;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Represents the target of a replication event.
@@ -148,7 +151,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
         final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
 
-        logger.trace(new ParameterizedMessage("Starting Replication Target: {}", description()));
+        logger.info(new ParameterizedMessage("Starting Replication Target: {}", description()));
         // Get list of files to copy from this checkpoint.
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
         cancellableThreads.checkForCancel();
@@ -158,11 +161,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
             cancellableThreads.checkForCancel();
+            logger.info("--> Before getFiles {}", Arrays.toString(indexShard.store().directory().listAll()));
             source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, indexShard, getFilesListener);
         }, listener::onFailure);
 
         getFilesListener.whenComplete(response -> {
-            finalizeReplication(checkpointInfoListener.result());
+            logger.info("--> After getFiles {}", Arrays.toString(indexShard.store().directory().listAll()));
+            finalizeReplication(checkpointInfoListener.result(), getFilesListener.result());
             listener.onResponse(null);
         }, listener::onFailure);
     }
@@ -193,23 +198,26 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return diff.missing;
     }
 
-    private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws OpenSearchCorruptionException {
-        // TODO: Refactor the logic so that finalize doesn't have to be invoked for remote store as source
-        if (source instanceof RemoteStoreReplicationSource) {
-            state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
-            return;
-        }
+    private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, GetSegmentFilesResponse getSegmentFilesResponse) throws OpenSearchCorruptionException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
         Store store = null;
         try {
             store = store();
             store.incRef();
+            Map<String, String> tempFileNames = null;
+            if (this.indexShard.indexSettings().isRemoteStoreEnabled() == true) {
+                tempFileNames = getSegmentFilesResponse.getFiles() != null ? getSegmentFilesResponse.getFiles().stream().collect(Collectors.toMap(StoreFileMetadata::name, StoreFileMetadata::name)) : Collections.emptyMap();
+            } else {
+                tempFileNames = multiFileWriter.getTempFileNames();
+            }
+            logger.info("--> tempFileNames {} checkpointInfoResponse.getCheckpoint().getSegmentsGen() {}", tempFileNames, checkpointInfoResponse.getCheckpoint().getSegmentsGen());
             store.buildInfosFromBytes(
-                multiFileWriter.getTempFileNames(),
+                tempFileNames,
                 checkpointInfoResponse.getInfosBytes(),
                 checkpointInfoResponse.getCheckpoint().getSegmentsGen(),
-                indexShard::finalizeReplication
+                indexShard::finalizeReplication,
+                this.indexShard.indexSettings().isRemoteStoreEnabled() == true ? (files) -> {}: (files) -> indexShard.store().renameTempFilesSafe(files)
             );
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
@@ -248,22 +256,12 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     /**
-     * This method formats our byte[] containing the primary's SegmentInfos into lucene's {@link ChecksumIndexInput} that can be
-     * passed to SegmentInfos.readCommit
-     */
-    private ChecksumIndexInput toIndexInput(byte[] input) {
-        return new BufferedChecksumIndexInput(
-            new ByteBuffersIndexInput(new ByteBuffersDataInput(Arrays.asList(ByteBuffer.wrap(input))), "SegmentInfos")
-        );
-    }
-
-    /**
      * Trigger a cancellation, this method will not close the target a subsequent call to #fail is required from target service.
      */
     @Override
     public void cancel(String reason) {
         if (finished.get() == false) {
-            logger.trace(new ParameterizedMessage("Cancelling replication for target {}", description()));
+            logger.info(new ParameterizedMessage("Cancelling replication for target {}", description()));
             cancellableThreads.cancel(reason);
             source.cancel();
         }

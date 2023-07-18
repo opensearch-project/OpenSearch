@@ -106,8 +106,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         RemoteSegmentMetadata remoteSegmentMetadata = new RemoteSegmentMetadata(
             RemoteSegmentMetadata.fromMapOfStrings(expectedOutput),
             segmentInfosBytes,
-            1234,
-            1234
+            indexShard.getLatestReplicationCheckpoint()
         );
         remoteSegmentMetadataHandler.writeContent(indexOutput, remoteSegmentMetadata);
         indexOutput.close();
