@@ -37,6 +37,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.hamcrest.Matchers;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecService;
 import org.opensearch.search.SearchService;
 import org.opensearch.test.FeatureFlagSetter;
 
@@ -73,13 +74,13 @@ public class SettingsModuleTests extends ModuleTestCase {
         }
 
         {
-            Settings settings = Settings.builder().put("index.codec", "default").put("index.foo.bar", 1).build();
+            Settings settings = Settings.builder().put("index.codec", CodecService.LZ4_CODEC).put("index.foo.bar", 1).build();
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
             assertEquals("node settings must not contain any index level settings", ex.getMessage());
         }
 
         {
-            Settings settings = Settings.builder().put("index.codec", "default").build();
+            Settings settings = Settings.builder().put("index.codec", CodecService.LZ4_CODEC).build();
             SettingsModule module = new SettingsModule(settings);
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         }

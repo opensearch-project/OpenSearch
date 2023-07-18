@@ -6160,7 +6160,7 @@
   "order": 1,
   "settings": {
     "index": {
-      "codec": "best_compression",
+      "codec": "zlib",
       "mapping": {
         "total_fields": {
           "limit": 10000

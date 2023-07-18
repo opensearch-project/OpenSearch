@@ -45,7 +45,7 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
     /**
      * Creates a new compression codec with the given compression level. We use
      * lowercase letters when registering the codec so that we remain consistent with
-     * the other compression codecs: default, lucene_default, and best_compression.
+     * the other compression codecs: lz4, lucene_default, and zlib.
      *
      * @param mode The compression codec (ZSTD or ZSTDNODICT).
      * @param compressionLevel The compression level.

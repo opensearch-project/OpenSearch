@@ -43,13 +43,13 @@ public class MultiCodecMergeIT extends OpenSearchIntegTestCase {
     public void testForceMergeMultipleCodecs() throws ExecutionException, InterruptedException {
 
         Map<String, String> codecMap = Map.of(
-            "best_compression",
+            CodecService.ZLIB_CODEC,
             "BEST_COMPRESSION",
-            "zstd_no_dict",
+            CodecService.ZSTD_NO_DICT_CODEC,
             "ZSTD_NO_DICT",
-            "zstd",
+            CodecService.ZSTD_CODEC,
             "ZSTD",
-            "default",
+            CodecService.LZ4_CODEC,
             "BEST_SPEED"
         );
 
@@ -71,7 +71,7 @@ public class MultiCodecMergeIT extends OpenSearchIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.codec", "default")
+                .put("index.codec", CodecService.LZ4_CODEC)
                 .put("index.merge.policy.max_merged_segment", "1b")
                 .build()
         );
