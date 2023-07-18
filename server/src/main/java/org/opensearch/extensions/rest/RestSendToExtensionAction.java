@@ -256,7 +256,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                                                                                                                               // an
                                                                                                                               // extensions
                                                                                                                               // uniqueId
-                        .toString(),
+                        .getTokenValue(),
                     httpVersion
                 ),
                 restExecuteOnExtensionResponseHandler
