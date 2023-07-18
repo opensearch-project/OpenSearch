@@ -485,12 +485,12 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 }
                 int numberOfOperations = randomIntBetween(20, 50);
                 for (int j = 0; j < numberOfOperations; j++) {
-                    indexSingleDoc();
+                    indexSingleDoc(INDEX_NAME);
                 }
             }
         } else {
             for (int j = 0; j < randomIntBetween(5, 10); j++) {
-                indexSingleDoc();
+                indexSingleDoc(INDEX_NAME);
             }
         }
     }
