@@ -57,6 +57,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.logging.LoggerMessageFormat;
+import org.opensearch.index.mapper.FieldTypeLookup;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -151,6 +152,8 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         }
         Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
+        FieldTypeLookup fieldTypes = mapperService.documentMapper().fieldTypes();
+
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fieldType(field);
             if (ft != null) {
@@ -158,8 +161,10 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                     IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                         field,
                         ft.familyTypeName(),
+                        fieldTypes.isAlias(field),
                         ft.isSearchable(),
                         ft.isAggregatable(),
+                        fieldTypes.getAliases(field),
                         ft.meta()
                     );
                     responseMap.put(field, fieldCap);
@@ -184,6 +189,8 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                             type,
                             false,
                             false,
+                            false,
+                            Collections.emptyList(),
                             Collections.emptyMap()
                         );
                         responseMap.put(parentField, fieldCap);

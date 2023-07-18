@@ -56,7 +56,7 @@ import java.util.Objects;
  *       "http_ip_addr_fk": {
  *          "type": "correlation",
  *          "path": "ip_addr",
- *          "target_schema" : "http",
+ *          "target_schema" : "logs*",
  *          "target_field" : "ip"
  *       }
  *     }

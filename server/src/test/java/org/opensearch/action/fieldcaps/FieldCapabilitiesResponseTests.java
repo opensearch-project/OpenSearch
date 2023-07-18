@@ -43,6 +43,37 @@ import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 
+/**
+ * Example response
+ * <pre>
+ *     {
+ *   "indices": [ "index1", "index2", "index3", "index4", "index5" ],
+ *   "fields": {
+ *     "rating": {
+ *       "long": {
+ *         "searchable": true,
+ *         "aggregatable": false,
+ *         "aliases": ["index1:feedback_score","index3:feedback"],
+ *         "indices": [ "index1", "index2" ],
+ *         "non_aggregatable_indices": [ "index1" ]
+ *       },
+ *       "keyword": {
+ *         "searchable": false,
+ *         "aggregatable": true,
+ *         "indices": [ "index3", "index4" ],
+ *         "non_searchable_indices": [ "index4" ]
+ *       }
+ *     },
+ *     "title": {
+ *       "text": {
+ *         "searchable": true,
+ *         "aggregatable": false
+ *       }
+ *     }
+ *   }
+ * }
+ * </pre>
+ */
 public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
@@ -88,8 +119,20 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 meta.put("key2", "value2");
                 break;
         }
+        List<String> aliases;
+        switch (randomInt(2)) {
+            case 0:
+                aliases = Collections.emptyList();
+                break;
+            case 1:
+                aliases = List.of("foo");
+                break;
+            default:
+                aliases = List.of("foo","bar");
+                break;
+        }
 
-        return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(), meta);
+        return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(), randomBoolean(),aliases, meta);
     }
 
     @Override

@@ -37,6 +37,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -49,8 +50,10 @@ public class IndexFieldCapabilities implements Writeable {
 
     private final String name;
     private final String type;
+    private final boolean isAlias;
     private final boolean isSearchable;
     private final boolean isAggregatable;
+    private final List<String> aliases;
     private final Map<String, String> meta;
 
     /**
@@ -60,20 +63,24 @@ public class IndexFieldCapabilities implements Writeable {
      * @param isAggregatable Whether this field can be aggregated on.
      * @param meta Metadata about the field.
      */
-    IndexFieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable, Map<String, String> meta) {
+    IndexFieldCapabilities(String name, String type, boolean isAlias, boolean isSearchable, boolean isAggregatable,List<String> aliases, Map<String, String> meta) {
 
         this.name = name;
         this.type = type;
+        this.isAlias = isAlias;
         this.isSearchable = isSearchable;
         this.isAggregatable = isAggregatable;
+        this.aliases = aliases;
         this.meta = meta;
     }
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = in.readString();
+        this.isAlias = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
+        this.aliases = in.readOptionalStringList();
         this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
     }
 
@@ -81,8 +88,10 @@ public class IndexFieldCapabilities implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(type);
+        out.writeBoolean(isAlias);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
+        out.writeOptionalStringCollection(aliases);
         out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
     }
 
@@ -94,6 +103,9 @@ public class IndexFieldCapabilities implements Writeable {
         return type;
     }
 
+    public boolean isAlias() {
+        return isAlias;
+    }
     public boolean isAggregatable() {
         return isAggregatable;
     }
@@ -102,6 +114,9 @@ public class IndexFieldCapabilities implements Writeable {
         return isSearchable;
     }
 
+    public List<String> aliases() {
+        return aliases;
+    }
     public Map<String, String> meta() {
         return meta;
     }
@@ -111,15 +126,17 @@ public class IndexFieldCapabilities implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexFieldCapabilities that = (IndexFieldCapabilities) o;
-        return isSearchable == that.isSearchable
+        return isAlias == that.isAlias
+            && isSearchable == that.isSearchable
             && isAggregatable == that.isAggregatable
             && Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
+            && Objects.equals(aliases, that.aliases)
             && Objects.equals(meta, that.meta);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, isSearchable, isAggregatable, meta);
+        return Objects.hash(name, type, isAlias, isSearchable, isAggregatable,aliases, meta);
     }
 }

@@ -54,8 +54,217 @@ import java.util.function.Predicate;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
+/**
+ * This tests the FieldCapabilities functionality using the next mapping:
+ * <pre>
+ * Indices:
+ *    - old_index
+ *       Mapping:
+ *                {
+ *                   "_doc": {
+ *                     "properties": {
+ *                       "distance": {
+ *                         "type": "double"
+ *                       },
+ *                       "route_length_miles": {
+ *                         "type": "alias",
+ *                         "path": "distance"
+ *                       },
+ *                       "playlist": {
+ *                         "type": "text"
+ *                       },
+ *                       "secret_soundtrack": {
+ *                         "type": "alias",
+ *                         "path": "playlist"
+ *                       },
+ *                       "old_field": {
+ *                         "type": "long"
+ *                       },
+ *                       "new_field": {
+ *                         "type": "alias",
+ *                         "path": "old_field"
+ *                       }
+ *                     }
+ *                   }
+ *                 }
+ *    - new_index
+ *       Mapping:
+ *          {
+ *           "_doc": {
+ *             "properties": {
+ *               "distance": {
+ *                 "type": "text"
+ *               },
+ *               "route_length_miles": {
+ *                 "type": "double"
+ *               },
+ *               "new_field": {
+ *                 "type": "long"
+ *               }
+ *             }
+ *           }
+ *         }
+ *
+ *
+ *    - another_index
+ *       Mapping:
+ *                      {
+ *               "_doc": {
+ *                 "properties": {
+ *                   "distance": {
+ *                     "type": "text"
+ *                   },
+ *                   "route_length_miles": {
+ *                     "type": "alias",
+ *                     "path": "distance"
+ *                   },
+ *                   "another_route_length_miles": {
+ *                     "type": "alias",
+ *                     "path": "distance"
+ *                   },
+ *                   "new_field": {
+ *                     "type": "long"
+ *                   }
+ *                 }
+ *               }
+ *             }
+ *
+ * ----------------------------------------------
+ *
+ * Example requests:
+ * ----------------------------------------------
+ *  GET _field_caps?fields=route_length_miles
+ *  {
+ *   "indices": [
+ *     "another_index",
+ *     "new_index",
+ *     "old_index"
+ *   ],
+ *   "fields": {
+ *     "route_length_miles": {
+ *       "double": {
+ *         "type": "double",
+ *         "searchable": true,
+ *         "aggregatable": true,
+ *         "aliases": [],
+ *         "indices": [
+ *           "new_index",
+ *           "old_index"
+ *         ]
+ *       },
+ *       "text": {
+ *         "type": "text",
+ *         "searchable": true,
+ *         "aggregatable": false,
+ *         "aliases": [],
+ *         "indices": [
+ *           "another_index"
+ *         ]
+ *       }
+ *     }
+ *   }
+ * }
+ *
+ * ----------------------------------------------
+ *  GET another_index/_field_caps?fields=*
+ *  {
+ *   "indices": [
+ *     "another_index",
+ *   ],
+ *   "fields": {
+ *     "distance": {
+ *       "text": {
+ *         "type": "text",
+ *         "searchable": true,
+ *         "aggregatable": false,
+ *         "aliases": ["another_route_length_miles","another_route_length_miles"],
+ *         "indices": [
+ *           "another_index"
+ *         ]
+ *       }
+ *     }
+ *   }
+ * }
+ * </pre>
+ */
 public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
+    /**
+     * <pre>
+     * Indices:
+     *    - old_index
+     *       Mapping:
+     *                {
+     *                   "_doc": {
+     *                     "properties": {
+     *                       "distance": {
+     *                         "type": "double"
+     *                       },
+     *                       "route_length_miles": {
+     *                         "type": "alias",
+     *                         "path": "distance"
+     *                       },
+     *                       "playlist": {
+     *                         "type": "text"
+     *                       },
+     *                       "secret_soundtrack": {
+     *                         "type": "alias",
+     *                         "path": "playlist"
+     *                       },
+     *                       "old_field": {
+     *                         "type": "long"
+     *                       },
+     *                       "new_field": {
+     *                         "type": "alias",
+     *                         "path": "old_field"
+     *                       }
+     *                     }
+     *                   }
+     *                 }
+     *    - new_index
+     *       Mapping:
+     *          {
+     *           "_doc": {
+     *             "properties": {
+     *               "distance": {
+     *                 "type": "text"
+     *               },
+     *               "route_length_miles": {
+     *                 "type": "double"
+     *               },
+     *               "new_field": {
+     *                 "type": "long"
+     *               }
+     *             }
+     *           }
+     *         }
+     *
+     *
+     *    - another_index
+     *       Mapping:
+     *                      {
+     *               "_doc": {
+     *                 "properties": {
+     *                   "distance": {
+     *                     "type": "text"
+     *                   },
+     *                   "route_length_miles": {
+     *                     "type": "alias",
+     *                     "path": "distance"
+     *                   },
+     *                   "another_route_length_miles": {
+     *                     "type": "alias",
+     *                     "path": "distance"
+     *                   },
+     *                   "new_field": {
+     *                     "type": "long"
+     *                   }
+     *                 }
+     *               }
+     *             }
+     * </pre>
+     * @throws Exception
+     */
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -108,6 +317,29 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
             .endObject();
         assertAcked(prepareCreate("new_index").setMapping(newIndexMapping));
         assertAcked(client().admin().indices().prepareAliases().addAlias("new_index", "current"));
+
+        XContentBuilder anotherIndexMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("distance")
+            .field("type", "text")
+            .endObject()
+            .startObject("route_length_miles")
+            .field("type", "alias")
+            .field("path", "distance")
+            .endObject()
+            .startObject("another_route_length_miles")
+            .field("type", "alias")
+            .field("path", "distance")
+            .endObject()
+            .startObject("new_field")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        assertAcked(prepareCreate("another_index").setMapping(anotherIndexMapping));
     }
 
     public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
@@ -122,10 +354,71 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
         return Collections.singleton(FieldFilterPlugin.class);
     }
 
-    public void testFieldAlias() {
+    /**
+     * <pre>
+     *  GET _field_caps?fields=route_length_miles,distance
+     *  {
+     *   "indices": [
+     *     "another_index",
+     *     "new_index",
+     *     "old_index"
+     *   ],
+     *   "fields": {
+     *     "distance": {
+     *       "double": {
+     *         "type": "double",
+     *         "searchable": true,
+     *         "aggregatable": true,
+     *         "aliases": [
+     *           "old_index:route_length_miles"
+     *         ],
+     *         "indices": [
+     *           "old_index"
+     *         ]
+     *       },
+     *       "text": {
+     *         "type": "text",
+     *         "searchable": true,
+     *         "aggregatable": false,
+     *         "aliases": [
+     *           "another_index:another_route_length_miles",
+     *           "another_index:route_length_miles"
+     *         ],
+     *         "indices": [
+     *           "another_index",
+     *           "new_index"
+     *         ]
+     *       }
+     *     },
+     *     "route_length_miles": {
+     *       "double": {
+     *         "type": "double",
+     *         "searchable": true,
+     *         "aggregatable": true,
+     *         "aliases": [],
+     *         "indices": [
+     *           "new_index",
+     *           "old_index"
+     *         ]
+     *       },
+     *       "text": {
+     *         "type": "text",
+     *         "searchable": true,
+     *         "aggregatable": false,
+     *         "aliases": [],
+     *         "indices": [
+     *           "another_index"
+     *         ]
+     *       }
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testFieldAliasInTwoDifferentIndices() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("distance", "route_length_miles").get();
 
-        assertIndices(response, "old_index", "new_index");
+        assertIndices(response, "old_index", "new_index", "another_index");
         // Ensure the response has entries for both requested fields.
         assertTrue(response.get().containsKey("distance"));
         assertTrue(response.get().containsKey("route_length_miles"));
@@ -136,14 +429,227 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(distance.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("distance", "double", true, true, new String[] { "old_index" }, null, null, Collections.emptyMap()),
+            new FieldCapabilities("distance", "double", false,true, true, new String[]{"old_index:route_length_miles"}, new String[]{"old_index"}, null, null,null, Collections.emptyMap()),
             distance.get("double")
         );
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
-            new FieldCapabilities("distance", "text", true, false, new String[] { "new_index" }, null, null, Collections.emptyMap()),
+            new FieldCapabilities("distance", "text", false,true, false, new String[]{"another_index:another_route_length_miles", "another_index:route_length_miles"}, new String[]{"another_index", "new_index"}, null, null,null, Collections.emptyMap()),
             distance.get("text")
+        );
+
+        // Check the capabilities for the 'route_length_miles' alias.
+        Map<String, FieldCapabilities> routeLength = response.getField("route_length_miles");
+        assertEquals(2, routeLength.size());
+
+        assertTrue(routeLength.containsKey("double"));
+        assertEquals(
+            new FieldCapabilities("route_length_miles", "double", false,true, true, new String[]{}, new String[]{"new_index","old_index"}, null, null,null, Collections.emptyMap()),
+            routeLength.get("double")
+        );
+    }
+
+    /**
+     * <pre>
+     *  GET _field_caps?fields=*
+     * {
+     *   "indices": [
+     *     "another_index",
+     *     "new_index",
+     *     "old_index"
+     *   ],
+     *   "fields": {
+     *     "distance": {
+     *       "double": {
+     *         "type": "double",
+     *         "searchable": true,
+     *         "aggregatable": true,
+     *         "aliases": [
+     *           "old_index:route_length_miles"
+     *         ],
+     *         "indices": [
+     *           "old_index"
+     *         ]
+     *       },
+     *       "text": {
+     *         "type": "text",
+     *         "searchable": true,
+     *         "aggregatable": false,
+     *         "aliases": [
+     *           "another_index:another_route_length_miles",
+     *           "another_index:route_length_miles"
+     *         ],
+     *         "indices": [
+     *           "another_index",
+     *           "new_index"
+     *         ]
+     *       }
+     *     },
+     *     "old_field": {
+     *       "long": {
+     *         "type": "long",
+     *         "searchable": true,
+     *         "aggregatable": true
+     *       }
+     *     },
+     *     "route_length_miles": {
+     *       "double": {
+     *         "type": "double",
+     *         "searchable": true,
+     *         "aggregatable": true,
+     *         "aliases": [],
+     *         "indices": [
+     *           "new_index",
+     *           "old_index"
+     *         ]
+     *       },
+     *       "text": {
+     *         "type": "text",
+     *         "searchable": true,
+     *         "aggregatable": false,
+     *         "aliases": [],
+     *         "indices": [
+     *           "another_index"
+     *         ]
+     *       }
+     *     },
+     *     "new_field": {
+     *       "long": {
+     *         "type": "long",
+     *         "searchable": true,
+     *         "aggregatable": true
+     *       }
+     *     },
+     *     "another_route_length_miles": {
+     *       "text": {
+     *         "type": "text",
+     *         "searchable": true,
+     *         "aggregatable": false
+     *       }
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testAllFieldInAllIndices() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").get();
+
+        assertIndices(response, "old_index", "new_index", "another_index");
+        // Ensure the response has entries for both requested fields.
+        assertTrue(response.get().containsKey("distance"));
+        assertTrue(response.get().containsKey("old_field"));
+        assertTrue(response.get().containsKey("route_length_miles"));
+        assertTrue(response.get().containsKey("new_field"));
+        assertTrue(response.get().containsKey("another_route_length_miles"));
+
+        // Check the capabilities for the 'distance' field.
+        Map<String, FieldCapabilities> distance = response.getField("distance");
+        assertEquals(2, distance.size());
+
+        assertTrue(distance.containsKey("double"));
+        assertEquals(
+            new FieldCapabilities("distance", "double", false,true, true, new String[]{"old_index:route_length_miles"}, new String[]{"old_index"}, null, null,null, Collections.emptyMap()),
+            distance.get("double")
+        );
+
+        assertTrue(distance.containsKey("text"));
+        assertEquals(
+            new FieldCapabilities("distance", "text", false,true, false, new String[]{"another_index:another_route_length_miles", "another_index:route_length_miles"}, new String[]{"another_index", "new_index"}, null,null, null, Collections.emptyMap()),
+            distance.get("text")
+        );
+
+        // Check the capabilities for the 'route_length_miles' alias.
+        Map<String, FieldCapabilities> routeLength = response.getField("route_length_miles");
+        assertEquals(2, routeLength.size());
+
+        assertTrue(routeLength.containsKey("double"));
+        assertEquals(
+            new FieldCapabilities("route_length_miles", "double", false,true, true, new String[]{}, new String[]{"new_index","old_index"}, null, null,null, Collections.emptyMap()),
+            routeLength.get("double")
+        );
+    }
+
+    /**
+     * <pre>
+     *  GET old_index/_field_caps?fields=route_length_miles
+     *  {
+     *   "indices": [
+     *     "old_index"
+     *   ],
+     *   "fields": {
+     *     "route_length_miles": {
+     *       "double": {
+     *         "type": "double",
+     *         "searchable": true,
+     *         "aggregatable": true
+     *       }
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testGetOnlyAliasFiled() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index").setFields("route_length_miles").get();
+
+        assertIndices(response, "old_index");
+        // Ensure the response has entries for both requested fields.
+        assertTrue(response.get().containsKey("route_length_miles"));
+
+        // Check the capabilities for the 'distance' field.
+        Map<String, FieldCapabilities> route_length_miles = response.getField("route_length_miles");
+        assertEquals(1, route_length_miles.size());
+
+
+        assertTrue(route_length_miles.containsKey("double"));
+        assertEquals(
+            new FieldCapabilities("route_length_miles", "double", true,true, true, new String[]{}, null, null, null,new String[]{"old_index"}, Collections.emptyMap()),
+            route_length_miles.get("double")
+        );
+    }
+
+    /**
+     * <pre>
+     *  GET old_index/_field_caps?fields=distance,route_length_miles
+     *  {
+     *   "indices": [
+     *     "old_index"
+     *   ],
+     *   "fields": {
+     *     "distance": {
+     *       "double": {
+     *         "type": "double",
+     *         "searchable": true,
+     *         "aggregatable": true
+     *       }
+     *     },
+     *     "route_length_miles": {
+     *       "double": {
+     *         "type": "double",
+     *         "searchable": true,
+     *         "aggregatable": true
+     *       }
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testFieldAlias() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index").setFields("distance", "route_length_miles").get();
+
+        assertIndices(response, "old_index");
+        // Ensure the response has entries for both requested fields.
+        assertTrue(response.get().containsKey("distance"));
+        assertTrue(response.get().containsKey("route_length_miles"));
+
+        // Check the capabilities for the 'distance' field.
+        Map<String, FieldCapabilities> distance = response.getField("distance");
+        assertEquals(1, distance.size());
+
+        assertTrue(distance.containsKey("double"));
+        assertEquals(
+            new FieldCapabilities("distance", "double", false,true, true, new String[]{"old_index:route_length_miles"} , null, null, null,null, Collections.emptyMap()),
+            distance.get("double")
         );
 
         // Check the capabilities for the 'route_length_miles' alias.
@@ -152,7 +658,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", true, true, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("route_length_miles", "double", true,true, true, new String[]{}, null, null, null, new String[]{"old_index"}, Collections.emptyMap()),
             routeLength.get("double")
         );
     }
@@ -160,28 +666,28 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
     public void testFieldAliasWithWildcard() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("route*").get();
 
-        assertIndices(response, "old_index", "new_index");
+        assertIndices(response, "old_index", "new_index", "another_index");
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("route_length_miles"));
     }
 
     public void testFieldAliasFiltering() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("secret-soundtrack", "route_length_miles").get();
-        assertIndices(response, "old_index", "new_index");
+        assertIndices(response, "old_index", "new_index", "another_index");
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("route_length_miles"));
     }
 
     public void testFieldAliasFilteringWithWildcard() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("distance", "secret*").get();
-        assertIndices(response, "old_index", "new_index");
+        assertIndices(response, "old_index", "new_index", "another_index");
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("distance"));
     }
 
     public void testWithUnmapped() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("new_field", "old_field").setIncludeUnmapped(true).get();
-        assertIndices(response, "old_index", "new_index");
+        assertIndices(response, "old_index", "new_index", "another_index");
 
         assertEquals(2, response.get().size());
         assertTrue(response.get().containsKey("old_field"));
@@ -191,13 +697,13 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(oldField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("old_field", "long", true, true, new String[] { "old_index" }, null, null, Collections.emptyMap()),
+            new FieldCapabilities("old_field", "long", false,true, true, new String[]{"old_index:new_field"}, new String[]{"old_index"}, null, null,null, Collections.emptyMap()),
             oldField.get("long")
         );
 
         assertTrue(oldField.containsKey("unmapped"));
         assertEquals(
-            new FieldCapabilities("old_field", "unmapped", false, false, new String[] { "new_index" }, null, null, Collections.emptyMap()),
+            new FieldCapabilities("old_field", "unmapped", false,false, false, new String[]{}, new String[]{"another_index", "new_index"}, null, null,null, Collections.emptyMap()),
             oldField.get("unmapped")
         );
 
@@ -206,7 +712,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(newField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("new_field", "long", true, true, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("new_field", "long", false,true, true, new String[]{}, null, null, null, null, Collections.emptyMap()),
             newField.get("long")
         );
     }

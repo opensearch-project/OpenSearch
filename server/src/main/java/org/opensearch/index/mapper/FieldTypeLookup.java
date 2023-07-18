@@ -132,6 +132,15 @@ public class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     /**
+     * returns whether is field name is an alias for another field
+     * @param field
+     * @return
+     */
+    public boolean isAlias(String field) {
+        return aliasToConcreteName.containsKey(field);
+    }
+
+    /**
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
     public Set<String> simpleMatchToFullName(String pattern) {
@@ -180,4 +189,5 @@ public class FieldTypeLookup implements Iterable<MappedFieldType> {
         Iterator<MappedFieldType> keyedFieldTypes = dynamicKeyLookup.fieldTypes();
         return Iterators.concat(concreteFieldTypes, keyedFieldTypes);
     }
+
 }
