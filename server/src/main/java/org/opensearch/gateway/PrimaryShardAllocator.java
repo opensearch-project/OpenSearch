@@ -459,10 +459,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     }
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
-    protected AsyncBatchShardFetch.AdaptedResultsForShard<TransportNodesBatchListGatewayStartedShards.NodeGatewayStartedShardsBatch> fetchBatchData(String batchId, RoutingAllocation allocation){
-        return null;
-    }
-
 
     private static class NodeShardsResult {
         final List<NodeGatewayStartedShards> orderedAllocationCandidates;
