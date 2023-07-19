@@ -37,6 +37,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -49,11 +52,14 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.threadpool.ThreadPool;
 
 import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Handler for inbound data
@@ -132,10 +138,54 @@ public class InboundHandler {
         }
     }
 
+    void inboundMessageProtobuf(TcpChannel channel, BytesReference message) throws InvalidProtocolBufferException {
+        System.out.println("InboundHandler.inboundMessageProtobuf");
+        System.out.println("message: " + message);
+        final long startTime = threadPool.relativeTimeInMillis();
+        channel.getChannelStats().markAccessed(startTime);
+        ProtobufOutboundMessage protobufOutboundMessage = new ProtobufOutboundMessage(BytesReference.toBytes(message)); 
+        messageReceivedProtobuf(channel, protobufOutboundMessage, startTime);
+    }
+
     // Empty stream constant to avoid instantiating a new stream for empty messages.
     private static final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
 
     private static final CodedInputStream EMPTY_CODED_INPUT_STREAM = CodedInputStream.newInstance(BytesRef.EMPTY_BYTES);
+
+    private void messageReceivedProtobuf(TcpChannel channel, ProtobufOutboundMessage message, long startTime) {
+        System.out.println("InboundHandler.messageReceivedProtobuf");
+        final InetSocketAddress remoteAddress = channel.getRemoteAddress();
+        final org.opensearch.example.proto.OutboundMessageProto.OutboundMsg.Header header = message.getHeader();
+        System.out.println("header: " + header);
+        System.out.println("message: " + message);
+        System.out.println("remoteAddress: " + remoteAddress);
+
+        ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+            // Place the context with the headers from the message
+            final Tuple<Map<String, String>, Map<String, Set<String>>> headers = new Tuple<Map<String,String>,Map<String,Set<String>>>(message.getRequestHeaders(), message.getResponseHandlers());
+            threadContext.setHeaders(headers);
+            threadContext.putTransient("_remote_address", remoteAddress);
+            if (TransportStatus.isRequest(header.getStatus().byteAt(0))) {
+                System.out.println("InboundHandler.messageReceivedProtobuf isRequest");
+                System.out.println("Header: " + header);
+                System.out.println("message: " + message);
+            } else {
+                System.out.println("InboundHandler.messageReceivedProtobuf isResponse");
+            }
+        } finally {
+            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long logThreshold = slowLogThresholdMs;
+            if (logThreshold > 0 && took > logThreshold) {
+                logger.warn(
+                    "handling inbound transport message [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                    message,
+                    took,
+                    logThreshold
+                );
+            }
+        }
+    }
 
     private void messageReceived(TcpChannel channel, InboundMessage message, long startTime) throws IOException {
         System.out.println("InboundHandler.messageReceived");

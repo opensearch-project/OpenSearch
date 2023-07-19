@@ -837,6 +837,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
+    public void inboundMessageProtobuf(TcpChannel channel, BytesReference message) {
+        try {
+            inboundHandler.inboundMessageProtobuf(channel, message);
+        } catch (Exception e) {
+            onException(channel, e);
+        }
+    }
     /**
      * Validates the first 6 bytes of the message header and returns the length of the message. If 6 bytes
      * are not available, it returns -1.
@@ -858,6 +865,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private static int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
         if (headerBuffer.get(0) != 'E' || headerBuffer.get(1) != 'S') {
+            System.out.println("headerBuffer: " + headerBuffer);
+            System.out.println("headerBuffer.get(0): " + headerBuffer.get(0));
+            System.out.println("headerBuffer.get(1): " + headerBuffer.get(1));
             if (appearsToBeHTTPRequest(headerBuffer)) {
                 throw new HttpRequestOnTransportException("This is not an HTTP port");
             }
