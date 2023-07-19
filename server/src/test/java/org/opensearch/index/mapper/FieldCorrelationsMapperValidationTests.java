@@ -39,28 +39,20 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 
-
 public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
 
     public void testDuplicateFieldCorrelationAndObject() {
         ObjectMapper objectMapper = createObjectMapper("some.path");
-        FieldCorrelationMapper correlationMapper = new FieldCorrelationMapper("path", "some.path", "field","remoteSchema","fieldFK");
+        FieldCorrelationMapper correlationMapper = new FieldCorrelationMapper("path", "some.path", "field", "remoteSchema", "fieldFK");
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> new MappingLookup(
-                emptyList(),
-                singletonList(objectMapper),
-                singletonList(correlationMapper),
-                0,
-                Lucene.STANDARD_ANALYZER
-            )
+            () -> new MappingLookup(emptyList(), singletonList(objectMapper), singletonList(correlationMapper), 0, Lucene.STANDARD_ANALYZER)
         );
         assertEquals("correlation [some.path] is defined both as an object and an correlation", e.getMessage());
     }
@@ -68,7 +60,7 @@ public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
     public void testDuplicateFieldCorrelationAndConcreteField() {
         FieldMapper field = new MockFieldMapper("field");
         FieldMapper invalidField = new MockFieldMapper("invalid");
-        FieldCorrelationMapper invalidCorrelation = new FieldCorrelationMapper("invalid", "invalid", "field","remoteSchema","fieldFK");
+        FieldCorrelationMapper invalidCorrelation = new FieldCorrelationMapper("invalid", "invalid", "field", "remoteSchema", "fieldFK");
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
@@ -86,8 +78,14 @@ public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
 
     public void testCorrelationThatRefersToCorrelation() {
         FieldMapper field = new MockFieldMapper("field");
-        FieldCorrelationMapper correlation = new FieldCorrelationMapper("correlation", "correlation", "field","remoteSchema","fieldFK");
-        FieldCorrelationMapper invalidCorrelation = new FieldCorrelationMapper("invalid-correlation", "invalid-correlation", "correlation","remoteSchema","fieldFK");
+        FieldCorrelationMapper correlation = new FieldCorrelationMapper("correlation", "correlation", "field", "remoteSchema", "fieldFK");
+        FieldCorrelationMapper invalidCorrelation = new FieldCorrelationMapper(
+            "invalid-correlation",
+            "invalid-correlation",
+            "correlation",
+            "remoteSchema",
+            "fieldFK"
+        );
 
         MappingLookup mappers = new MappingLookup(
             singletonList(field),
@@ -101,30 +99,41 @@ public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> invalidCorrelation.validate(mappers));
 
         assertEquals(
-            "Invalid [path] value [correlation] for field correlation [invalid-correlation]: an correlation" + " cannot refer to another correlation.",
+            "Invalid [path] value [correlation] for field correlation [invalid-correlation]: an correlation"
+                + " cannot refer to another correlation.",
             e.getMessage()
         );
     }
 
     public void testCorrelationThatRefersToItself() {
-        FieldCorrelationMapper invalidCorrelation = new FieldCorrelationMapper("invalid-correlation", "invalid-correlation", "invalid-correlation","remoteSchema","fieldFK");
+        FieldCorrelationMapper invalidCorrelation = new FieldCorrelationMapper(
+            "invalid-correlation",
+            "invalid-correlation",
+            "invalid-correlation",
+            "remoteSchema",
+            "fieldFK"
+        );
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            MappingLookup mappers = new MappingLookup(emptyList(), emptyList(),
-                singletonList(invalidCorrelation),
-                0,
-                null);
+            MappingLookup mappers = new MappingLookup(emptyList(), emptyList(), singletonList(invalidCorrelation), 0, null);
             invalidCorrelation.validate(mappers);
         });
 
         assertEquals(
-            "Invalid [path] value [invalid-correlation] for field correlation [invalid-correlation]: an correlation" + " cannot refer to itself.",
+            "Invalid [path] value [invalid-correlation] for field correlation [invalid-correlation]: an correlation"
+                + " cannot refer to itself.",
             e.getMessage()
         );
     }
 
     public void testCorrelationWithNonExistentPath() {
-        FieldCorrelationMapper invalidCorrelation = new FieldCorrelationMapper("invalid-correlation", "invalid-correlation", "non-existent","remoteSchema","fieldFK");
+        FieldCorrelationMapper invalidCorrelation = new FieldCorrelationMapper(
+            "invalid-correlation",
+            "invalid-correlation",
+            "non-existent",
+            "remoteSchema",
+            "fieldFK"
+        );
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
             MappingLookup mappers = new MappingLookup(
@@ -132,7 +141,8 @@ public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
                 emptyList(),
                 singletonList(invalidCorrelation),
                 0,
-                Lucene.STANDARD_ANALYZER);
+                Lucene.STANDARD_ANALYZER
+            );
             invalidCorrelation.validate(mappers);
         });
 
@@ -145,7 +155,13 @@ public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
 
     public void testFieldCorrelationWithNestedScope() {
         ObjectMapper objectMapper = createNestedObjectMapper("nested");
-        FieldCorrelationMapper correlationMapper = new FieldCorrelationMapper("correlation", "nested.correlation", "nested.field","remoteSchema","fieldFK");
+        FieldCorrelationMapper correlationMapper = new FieldCorrelationMapper(
+            "correlation",
+            "nested.correlation",
+            "nested.field",
+            "remoteSchema",
+            "fieldFK"
+        );
 
         MappingLookup mappers = new MappingLookup(
             singletonList(createFieldMapper("nested", "field")),
@@ -159,7 +175,13 @@ public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
 
     public void testFieldCorrelationWithDifferentObjectScopes() {
 
-        FieldCorrelationMapper correlationMapper = new FieldCorrelationMapper("correlation", "object2.correlation", "object1.field","remoteSchema","fieldFK");
+        FieldCorrelationMapper correlationMapper = new FieldCorrelationMapper(
+            "correlation",
+            "object2.correlation",
+            "object1.field",
+            "remoteSchema",
+            "fieldFK"
+        );
 
         MappingLookup mappers = new MappingLookup(
             singletonList(createFieldMapper("object1", "field")),
@@ -173,7 +195,13 @@ public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
 
     public void testFieldCorrelationWithNestedTarget() {
         ObjectMapper objectMapper = createNestedObjectMapper("nested");
-        FieldCorrelationMapper correlationMapper = new FieldCorrelationMapper("correlation", "correlation", "nested.field","remoteSchema","fieldFK");
+        FieldCorrelationMapper correlationMapper = new FieldCorrelationMapper(
+            "correlation",
+            "correlation",
+            "nested.field",
+            "remoteSchema",
+            "fieldFK"
+        );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             MappingLookup mappers = new MappingLookup(
@@ -193,7 +221,13 @@ public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
     }
 
     public void testFieldCorrelationWithDifferentNestedScopes() {
-        FieldCorrelationMapper correlationMapper = new FieldCorrelationMapper("correlation", "nested2.correlation", "nested1.field","remoteSchema","fieldFK");
+        FieldCorrelationMapper correlationMapper = new FieldCorrelationMapper(
+            "correlation",
+            "nested2.correlation",
+            "nested1.field",
+            "remoteSchema",
+            "fieldFK"
+        );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             MappingLookup mappers = new MappingLookup(

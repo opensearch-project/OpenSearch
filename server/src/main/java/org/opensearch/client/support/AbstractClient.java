@@ -1717,7 +1717,10 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void getFieldAliasesMappings(GetFieldAliasesMappingsRequest request, ActionListener<GetFieldAliasesMappingsResponse> listener) {
+        public void getFieldAliasesMappings(
+            GetFieldAliasesMappingsRequest request,
+            ActionListener<GetFieldAliasesMappingsResponse> listener
+        ) {
             execute(GetFieldAliasesMappingsAction.INSTANCE, request, listener);
         }
 
@@ -1740,6 +1743,7 @@ public abstract class AbstractClient implements Client {
         public GetFieldMappingsRequestBuilder prepareGetFieldMappings(String... indices) {
             return new GetFieldMappingsRequestBuilder(this, GetFieldMappingsAction.INSTANCE, indices);
         }
+
         @Override
         public ActionFuture<GetFieldAliasesMappingsResponse> getFieldAliasesMappings(GetFieldAliasesMappingsRequest request) {
             return execute(GetFieldAliasesMappingsAction.INSTANCE, request);

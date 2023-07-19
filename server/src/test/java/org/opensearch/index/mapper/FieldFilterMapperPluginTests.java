@@ -92,10 +92,15 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testGetFieldAliasesMappings() {
-        GetFieldAliasesMappingsResponse getFieldMappingsResponse = client().admin().indices().prepareGetFieldAliasesMappings().setFields("*").get();
-        Map<String, Map<String, GetFieldAliasesMappingsResponse.FieldAliasesMappingMetadata>> mappings = getFieldMappingsResponse.mappings();
+        GetFieldAliasesMappingsResponse getFieldMappingsResponse = client().admin()
+            .indices()
+            .prepareGetFieldAliasesMappings()
+            .setFields("*")
+            .get();
+        Map<String, Map<String, GetFieldAliasesMappingsResponse.FieldAliasesMappingMetadata>> mappings = getFieldMappingsResponse
+            .mappings();
         assertEquals(2, mappings.size());
-        assertFieldAliasesMappings(mappings.get("index1"), Arrays.asList("date_of_birth","last_name","first_name","age_alias_visible"));
+        assertFieldAliasesMappings(mappings.get("index1"), Arrays.asList("date_of_birth", "last_name", "first_name", "age_alias_visible"));
         assertFieldAliasesMappings(mappings.get("filtered"), List.of("age_alias_visible"));
         // double check that submitting the filtered mappings to an unfiltered index leads to the same get field mappings output
         // as the one coming from a filtered index with same mappings
@@ -104,7 +109,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(filtered.getSourceAsMap()));
         GetFieldAliasesMappingsResponse response = client().admin().indices().prepareGetFieldAliasesMappings("test").setFields("*").get();
         assertEquals(1, response.mappings().size());
-        assertFieldAliasesMappings(response.mappings().get("test"),List.of("age_alias_visible") );
+        assertFieldAliasesMappings(response.mappings().get("test"), List.of("age_alias_visible"));
     }
 
     public void testGetFieldMappings() {
@@ -132,7 +137,11 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testGetNonExistentFieldAliasesMapping() {
-        GetFieldAliasesMappingsResponse response = client().admin().indices().prepareGetFieldAliasesMappings("index1").setFields("non-existent").get();
+        GetFieldAliasesMappingsResponse response = client().admin()
+            .indices()
+            .prepareGetFieldAliasesMappings("index1")
+            .setFields("non-existent")
+            .get();
         Map<String, Map<String, GetFieldAliasesMappingsResponse.FieldAliasesMappingMetadata>> mappings = response.mappings();
         assertEquals(1, mappings.size());
         Map<String, GetFieldAliasesMappingsResponse.FieldAliasesMappingMetadata> fieldmapping = mappings.get("index1");
@@ -143,7 +152,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         List<String> allFields = new ArrayList<>(ALL_FLAT_FIELDS);
         allFields.addAll(ALL_OBJECT_FIELDS);
         FieldCapabilitiesResponse index1 = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("index1")).actionGet();
-        assertFieldCaps(index1, allFields,0);
+        assertFieldCaps(index1, allFields, 0);
         FieldCapabilitiesResponse filtered = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("filtered")).actionGet();
         List<String> filteredFields = new ArrayList<>(FILTERED_FLAT_FIELDS);
         filteredFields.addAll(ALL_OBJECT_FIELDS);
@@ -159,7 +168,11 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertFieldCaps(test, filteredFields, 0);
     }
 
-    private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, Collection<String> expectedFields, int expectedFieldsCount) {
+    private static void assertFieldCaps(
+        FieldCapabilitiesResponse fieldCapabilitiesResponse,
+        Collection<String> expectedFields,
+        int expectedFieldsCount
+    ) {
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>(fieldCapabilitiesResponse.get());
         Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
         for (String field : builtInMetadataFields) {
@@ -310,7 +323,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    private static final Collection<String> ALIAS_FIELDS = Arrays.asList("date_of_birth","last_name","first_name","age_alias_visible");
+    private static final Collection<String> ALIAS_FIELDS = Arrays.asList("date_of_birth", "last_name", "first_name", "age_alias_visible");
     private static final Collection<String> ALL_FLAT_FIELDS = Arrays.asList(
         "name.first",
         "name.last_visible",

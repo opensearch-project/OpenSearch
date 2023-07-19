@@ -174,7 +174,10 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
 
     private static FieldCapabilitiesResponse createSimpleResponse() {
         Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
-        titleCapabilities.put("text", new FieldCapabilities("title", "text",false, true, false, null,null, null, null, null, Collections.emptyMap()));
+        titleCapabilities.put(
+            "text",
+            new FieldCapabilities("title", "text", false, true, false, null, null, null, null, null, Collections.emptyMap())
+        );
 
         Map<String, FieldCapabilities> ratingCapabilities = new HashMap<>();
         ratingCapabilities.put(
@@ -201,7 +204,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                 false,
                 false,
                 true,
-                new String[] { "index3:rating_alias"},
+                new String[] { "index3:rating_alias" },
                 new String[] { "index3", "index4" },
                 new String[] { "index4" },
                 new String[] { "index3" },

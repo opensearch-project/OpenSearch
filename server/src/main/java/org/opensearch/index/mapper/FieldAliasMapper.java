@@ -72,9 +72,11 @@ public class FieldAliasMapper extends Mapper {
         this.name = name;
         this.path = path;
     }
+
     public String contentType() {
         return CONTENT_TYPE;
     }
+
     @Override
     public String name() {
         return name;
@@ -93,7 +95,13 @@ public class FieldAliasMapper extends Mapper {
     public Mapper merge(Mapper mergeWith) {
         if (!(mergeWith instanceof FieldAliasMapper)) {
             throw new IllegalArgumentException(
-                format(Locale.ROOT,"Cannot merge a field %s mapping [%s] with a mapping that is not for a field %s.",contentType(),name(),contentType())
+                format(
+                    Locale.ROOT,
+                    "Cannot merge a field %s mapping [%s] with a mapping that is not for a field %s.",
+                    contentType(),
+                    name(),
+                    contentType()
+                )
             );
         }
         return mergeWith;
@@ -113,25 +121,64 @@ public class FieldAliasMapper extends Mapper {
     public void validate(MappingLookup mappers) {
         if (Objects.equals(this.path(), this.name())) {
             throw new MapperParsingException(
-                format(Locale.ROOT,"Invalid [path] value [%s] for field %s [%s]: an %s cannot refer to itself.",path(),contentType(),name(),contentType()));
+                format(
+                    Locale.ROOT,
+                    "Invalid [path] value [%s] for field %s [%s]: an %s cannot refer to itself.",
+                    path(),
+                    contentType(),
+                    name(),
+                    contentType()
+                )
+            );
         }
         if (mappers.fieldTypes().get(path) == null) {
             throw new MapperParsingException(
-                format(Locale.ROOT,"Invalid [path] value [%s] for field %s [%s]: an %s must refer to an existing field in the mappings.",path(),contentType(),name(),contentType()));
+                format(
+                    Locale.ROOT,
+                    "Invalid [path] value [%s] for field %s [%s]: an %s must refer to an existing field in the mappings.",
+                    path(),
+                    contentType(),
+                    name(),
+                    contentType()
+                )
+            );
         }
         if (mappers.getMapper(path) instanceof FieldAliasMapper) {
-            throw new MapperParsingException(format(Locale.ROOT,"Invalid [path] value [%s] for field %s [%s]: an %s cannot refer to another %s.",path(),contentType(),name(),contentType(),contentType()));
+            throw new MapperParsingException(
+                format(
+                    Locale.ROOT,
+                    "Invalid [path] value [%s] for field %s [%s]: an %s cannot refer to another %s.",
+                    path(),
+                    contentType(),
+                    name(),
+                    contentType(),
+                    contentType()
+                )
+            );
         }
         String aliasScope = mappers.getNestedScope(name);
         String pathScope = mappers.getNestedScope(path);
 
         if (!Objects.equals(aliasScope, pathScope)) {
             StringBuilder message = new StringBuilder(
-                format(Locale.ROOT,"Invalid [path] value [%s] for field %s [%s]: an %s must have the same nested scope as its target. ",path(),contentType(),name(),contentType())
+                format(
+                    Locale.ROOT,
+                    "Invalid [path] value [%s] for field %s [%s]: an %s must have the same nested scope as its target. ",
+                    path(),
+                    contentType(),
+                    name(),
+                    contentType()
+                )
             );
-            message.append(aliasScope == null ? format(Locale.ROOT,"The %s is not nested",contentType()) : format(Locale.ROOT,"The %s's nested scope is [%s]",contentType(),aliasScope));
+            message.append(
+                aliasScope == null
+                    ? format(Locale.ROOT, "The %s is not nested", contentType())
+                    : format(Locale.ROOT, "The %s's nested scope is [%s]", contentType(), aliasScope)
+            );
             message.append(", but ");
-            message.append(pathScope == null ? "the target is not nested." : format(Locale.ROOT,"the target's nested scope is [%s].",pathScope));
+            message.append(
+                pathScope == null ? "the target is not nested." : format(Locale.ROOT, "the target's nested scope is [%s].", pathScope)
+            );
             throw new IllegalArgumentException(message.toString());
         }
     }

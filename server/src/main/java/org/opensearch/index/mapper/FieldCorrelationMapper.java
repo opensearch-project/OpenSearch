@@ -36,10 +36,7 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * A mapper for field correlation.
@@ -83,7 +80,7 @@ public final class FieldCorrelationMapper extends FieldAliasMapper {
     private final String targetField;
 
     public FieldCorrelationMapper(String simpleName, String name, String path, String targetSchema, String targetField) {
-        super(simpleName,name,path);
+        super(simpleName, name, path);
         this.targetSchema = targetSchema;
         this.targetField = targetField;
     }
@@ -112,7 +109,8 @@ public final class FieldCorrelationMapper extends FieldAliasMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject(simpleName()).field("type", CONTENT_TYPE)
+        return builder.startObject(simpleName())
+            .field("type", CONTENT_TYPE)
             .field(FieldAliasMapper.Names.PATH, super.path())
             .field(Names.TARGET_SCHEMA, targetSchema)
             .field(Names.TARGET_FIELD, targetField)
@@ -122,7 +120,7 @@ public final class FieldCorrelationMapper extends FieldAliasMapper {
     @Override
     public void validate(MappingLookup mappers) {
         super.validate(mappers);
-        //todo add remote schema mapping validation
+        // todo add remote schema mapping validation
     }
 
     /**
@@ -183,7 +181,7 @@ public final class FieldCorrelationMapper extends FieldAliasMapper {
 
         public FieldCorrelationMapper build(BuilderContext context) {
             String fullName = context.path().pathAsText(name());
-            return new FieldCorrelationMapper(name(),path, fullName, targetSchema, targetField);
+            return new FieldCorrelationMapper(name(), path, fullName, targetSchema, targetField);
         }
     }
 }

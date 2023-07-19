@@ -68,7 +68,9 @@ public class RestGetFieldAliasesMappingAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(GET, "/_mapping/field/{fields}/aliases"), new Route(GET, "/{index}/_mapping/field/{fields}/aliases")));
+        return unmodifiableList(
+            asList(new Route(GET, "/_mapping/field/{fields}/aliases"), new Route(GET, "/{index}/_mapping/field/{fields}/aliases"))
+        );
     }
 
     @Override

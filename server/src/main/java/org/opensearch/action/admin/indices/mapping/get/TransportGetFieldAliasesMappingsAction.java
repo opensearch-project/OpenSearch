@@ -55,7 +55,9 @@ import static java.util.Collections.unmodifiableMap;
  *
  * @opensearch.internal
  */
-public class TransportGetFieldAliasesMappingsAction extends HandledTransportAction<GetFieldAliasesMappingsRequest, GetFieldAliasesMappingsResponse> {
+public class TransportGetFieldAliasesMappingsAction extends HandledTransportAction<
+    GetFieldAliasesMappingsRequest,
+    GetFieldAliasesMappingsResponse> {
 
     private final ClusterService clusterService;
     private final TransportGetFieldAliasesMappingsIndexAction shardAction;
@@ -76,7 +78,11 @@ public class TransportGetFieldAliasesMappingsAction extends HandledTransportActi
     }
 
     @Override
-    protected void doExecute(Task task, GetFieldAliasesMappingsRequest request, final ActionListener<GetFieldAliasesMappingsResponse> listener) {
+    protected void doExecute(
+        Task task,
+        GetFieldAliasesMappingsRequest request,
+        final ActionListener<GetFieldAliasesMappingsResponse> listener
+    ) {
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         final AtomicInteger indexCounter = new AtomicInteger();
