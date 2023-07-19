@@ -23,10 +23,6 @@ import java.util.List;
  */
 public class GetSegmentFilesResponse extends TransportResponse {
 
-    public List<StoreFileMetadata> getFiles() {
-        return files;
-    }
-
     List<StoreFileMetadata> files;
 
     public GetSegmentFilesResponse(List<StoreFileMetadata> files) {
@@ -35,6 +31,10 @@ public class GetSegmentFilesResponse extends TransportResponse {
 
     public GetSegmentFilesResponse(StreamInput out) throws IOException {
         out.readList(StoreFileMetadata::new);
+    }
+
+    public List<StoreFileMetadata> getFiles() {
+        return files;
     }
 
     @Override

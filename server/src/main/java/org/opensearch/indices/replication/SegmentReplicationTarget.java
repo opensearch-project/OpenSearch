@@ -32,7 +32,6 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -146,7 +145,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
         final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
 
-        logger.info(new ParameterizedMessage("Starting Replication Target: {}", description()));
+        logger.trace(new ParameterizedMessage("Starting Replication Target: {}", description()));
         // Get list of files to copy from this checkpoint.
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
         cancellableThreads.checkForCancel();
@@ -156,12 +155,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
             cancellableThreads.checkForCancel();
-            logger.info("--> Before getFiles {}", Arrays.toString(indexShard.store().directory().listAll()));
             source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, indexShard, getFilesListener);
         }, listener::onFailure);
 
         getFilesListener.whenComplete(response -> {
-            logger.info("--> After getFiles {}", Arrays.toString(indexShard.store().directory().listAll()));
             finalizeReplication(checkpointInfoListener.result(), getFilesListener.result());
             listener.onResponse(null);
         }, listener::onFailure);
@@ -262,7 +259,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     @Override
     public void cancel(String reason) {
         if (finished.get() == false) {
-            logger.info(new ParameterizedMessage("Cancelling replication for target {}", description()));
+            logger.trace(new ParameterizedMessage("Cancelling replication for target {}", description()));
             cancellableThreads.cancel(reason);
             source.cancel();
         }
