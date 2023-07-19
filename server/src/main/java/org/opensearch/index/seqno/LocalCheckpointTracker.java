@@ -32,9 +32,10 @@
 
 package org.opensearch.index.seqno;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
 import org.opensearch.common.SuppressForbidden;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -55,13 +56,13 @@ public class LocalCheckpointTracker {
      * A collection of bit sets representing processed sequence numbers. Each sequence number is mapped to a bit set by dividing by the
      * bit set size.
      */
-    final LongObjectHashMap<CountedBitSet> processedSeqNo = new LongObjectHashMap<>();
+    final Map<Long, CountedBitSet> processedSeqNo = new HashMap<>();
 
     /**
      * A collection of bit sets representing durably persisted sequence numbers. Each sequence number is mapped to a bit set by dividing by
      * the bit set size.
      */
-    final LongObjectHashMap<CountedBitSet> persistedSeqNo = new LongObjectHashMap<>();
+    final Map<Long, CountedBitSet> persistedSeqNo = new HashMap<>();
 
     /**
      * The current local checkpoint, i.e., all sequence numbers no more than this number have been processed.
@@ -154,7 +155,7 @@ public class LocalCheckpointTracker {
         processedCheckpoint.compareAndSet(currentProcessedCheckpoint, seqNo);
     }
 
-    private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final LongObjectHashMap<CountedBitSet> bitSetMap) {
+    private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final Map<Long, CountedBitSet> bitSetMap) {
         assert Thread.holdsLock(this);
         // make sure we track highest seen sequence number
         advanceMaxSeqNo(seqNo);
@@ -248,7 +249,7 @@ public class LocalCheckpointTracker {
      * following the current checkpoint is processed.
      */
     @SuppressForbidden(reason = "Object#notifyAll")
-    private void updateCheckpoint(AtomicLong checkPoint, LongObjectHashMap<CountedBitSet> bitSetMap) {
+    private void updateCheckpoint(AtomicLong checkPoint, final Map<Long, CountedBitSet> bitSetMap) {
         assert Thread.holdsLock(this);
         assert getBitSetForSeqNo(bitSetMap, checkPoint.get() + 1).get(seqNoToBitSetOffset(checkPoint.get() + 1))
             : "updateCheckpoint is called but the bit following the checkpoint is not set";
@@ -294,23 +295,15 @@ public class LocalCheckpointTracker {
         return seqNo / BIT_SET_SIZE;
     }
 
-    private CountedBitSet getBitSetForSeqNo(final LongObjectHashMap<CountedBitSet> bitSetMap, final long seqNo) {
+    private CountedBitSet getBitSetForSeqNo(final Map<Long, CountedBitSet> bitSetMap, final long seqNo) {
         assert Thread.holdsLock(this);
         final long bitSetKey = getBitSetKey(seqNo);
-        final int index = bitSetMap.indexOf(bitSetKey);
-        final CountedBitSet bitSet;
-        if (bitSetMap.indexExists(index)) {
-            bitSet = bitSetMap.indexGet(index);
-        } else {
-            bitSet = new CountedBitSet(BIT_SET_SIZE);
-            bitSetMap.indexInsert(index, bitSetKey, bitSet);
-        }
-        return bitSet;
+        return bitSetMap.computeIfAbsent(bitSetKey, k -> new CountedBitSet(BIT_SET_SIZE));
     }
 
     /**
      * Obtain the position in the bit set corresponding to the provided sequence number. The bit set corresponding to the sequence number
-     * can be obtained via {@link #getBitSetForSeqNo(LongObjectHashMap, long)}.
+     * can be obtained via {@link #getBitSetForSeqNo(Map, long)}.
      *
      * @param seqNo the sequence number to obtain the position for
      * @return the position in the bit set corresponding to the provided sequence number
