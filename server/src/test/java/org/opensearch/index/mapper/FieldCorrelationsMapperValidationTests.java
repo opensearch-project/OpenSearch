@@ -41,7 +41,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static java.util.Collections.*;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+
 
 public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
 
@@ -52,7 +55,7 @@ public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> new MappingLookup(
-                Collections.emptyList(),
+                emptyList(),
                 singletonList(objectMapper),
                 singletonList(correlationMapper),
                 0,
@@ -175,7 +178,7 @@ public class FieldCorrelationsMapperValidationTests extends OpenSearchTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             MappingLookup mappers = new MappingLookup(
                 singletonList(createFieldMapper("nested", "field")),
-                Collections.singletonList(objectMapper),
+                singletonList(objectMapper),
                 singletonList(correlationMapper),
                 0,
                 Lucene.STANDARD_ANALYZER

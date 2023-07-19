@@ -43,10 +43,20 @@ import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Arrays;
+import java.util.HashMap;
 
-import static org.hamcrest.Matchers.*;
-import static org.opensearch.cluster.metadata.IndexMetadata.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.not;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_METADATA_BLOCK;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
