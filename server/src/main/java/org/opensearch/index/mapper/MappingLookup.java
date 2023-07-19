@@ -137,10 +137,10 @@ public final class MappingLookup implements Iterable<Mapper> {
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
             if (objects.containsKey(aliasMapper.name())) {
-                throw new MapperParsingException(format("%s [%s] is defined both as an object and an %s",aliasMapper.contentType(),aliasMapper.name(),aliasMapper.contentType()));
+                throw new MapperParsingException(format(Locale.ROOT,"%s [%s] is defined both as an object and an %s",aliasMapper.contentType(),aliasMapper.name(),aliasMapper.contentType()));
             }
             if (fieldMappers.put(aliasMapper.name(), aliasMapper) != null) {
-                throw new MapperParsingException(format("%s [%s] is defined both as an %s and a concrete field",aliasMapper.contentType(),aliasMapper.name(),aliasMapper.contentType()));
+                throw new MapperParsingException(format(Locale.ROOT,"%s [%s] is defined both as an %s and a concrete field",aliasMapper.contentType(),aliasMapper.name(),aliasMapper.contentType()));
             }
         }
 

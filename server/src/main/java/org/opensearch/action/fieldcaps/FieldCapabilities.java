@@ -44,16 +44,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -410,7 +401,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
             final String[] indexAliases = indicesList.stream()
                 .flatMap(caps -> caps.aliases.stream()
-                    .map(alias -> String.format("%s:%s", caps.name, alias)))
+                    .map(alias -> String.format(Locale.ROOT,"%s:%s", caps.name, alias)))
                 .collect(Collectors.toList())
                 .toArray(String[]::new);
 
