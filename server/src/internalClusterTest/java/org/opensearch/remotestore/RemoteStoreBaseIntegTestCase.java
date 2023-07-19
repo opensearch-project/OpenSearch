@@ -45,7 +45,8 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     @Override
     protected Settings featureFlagSettings() {
         return Settings.builder()
-            .put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true")
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.REMOTE_STORE, "true")
             .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
             .build();
     }
