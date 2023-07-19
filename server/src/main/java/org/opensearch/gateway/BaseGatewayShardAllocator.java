@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.AllocationDecision;
@@ -46,6 +47,8 @@ import org.opensearch.cluster.routing.allocation.decider.Decision;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * An abstract class that implements basic functionality for allocating
@@ -74,7 +77,26 @@ public abstract class BaseGatewayShardAllocator {
         ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
     ) {
         final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shardRouting, allocation, logger);
+        executeDecision(shardRouting, allocateUnassignedDecision, allocation, unassignedAllocationHandler);
+    }
 
+    public void allocateUnassignedBatch(Set<ShardRouting> shards, RoutingAllocation allocation) {
+        // make Allocation Decisions for all shards
+        ConcurrentMap<ShardRouting, AllocateUnassignedDecision> decisionMap = makeAllocationDecision(shards, allocation, logger);
+        // get all unassigned shards
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        while (iterator.hasNext()){
+            ShardRouting shard = iterator.next();
+            if (shards.contains(shard)) {
+                executeDecision(shard, decisionMap.get(shard), allocation, iterator);
+            }
+        }
+    }
+
+    private void executeDecision(ShardRouting shardRouting,
+                                 AllocateUnassignedDecision allocateUnassignedDecision,
+                                 RoutingAllocation allocation,
+                                 ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
         if (allocateUnassignedDecision.isDecisionTaken() == false) {
             // no decision was taken by this allocator
             return;
@@ -91,7 +113,6 @@ public abstract class BaseGatewayShardAllocator {
             unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
         }
     }
-
     protected long getExpectedShardSize(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
@@ -118,6 +139,12 @@ public abstract class BaseGatewayShardAllocator {
         ShardRouting unassignedShard,
         RoutingAllocation allocation,
         Logger logger
+    );
+
+    public abstract ConcurrentMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(
+            Set<ShardRouting> shards,
+            RoutingAllocation allocation,
+            Logger logger
     );
 
     /**

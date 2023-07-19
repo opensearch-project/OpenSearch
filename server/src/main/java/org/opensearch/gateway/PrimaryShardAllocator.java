@@ -59,6 +59,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -456,6 +457,12 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     }
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
+
+    @Override
+    // to be override
+    public ConcurrentMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(Set<ShardRouting> shards, RoutingAllocation allocation, Logger logger) {
+        return null;
+    }
 
     private static class NodeShardsResult {
         final List<NodeGatewayStartedShards> orderedAllocationCandidates;
