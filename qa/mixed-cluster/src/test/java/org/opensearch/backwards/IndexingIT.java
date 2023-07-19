@@ -117,7 +117,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
             int nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing docs with [{}] concurrent updates initially", nUpdates);
             final int finalVersionForDoc1 = indexDocWithConcurrentUpdates(index, 1, nUpdates);
-            logger.info("allowing shards on all nodes");
+            logger.info("allowing shards on all nodes using index.routing.allocation.include._name");
             updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             ensureGreen(index);
             assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
