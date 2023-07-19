@@ -58,4 +58,9 @@ public class BearerAuthToken implements AuthToken {
     public String toString() {
         return "Bearer auth token with header=" + header + ", payload=" + payload + ", signature=" + signature;
     }
+
+    @Override
+    public String getTokenValue() {
+        return completeToken;
+    }
 }
