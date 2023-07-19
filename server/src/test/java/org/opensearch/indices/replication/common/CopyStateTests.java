@@ -57,7 +57,7 @@ public class CopyStateTests extends IndexShardTestCase {
         CopyState copyState = new CopyState(
             ReplicationCheckpoint.empty(
                 mockIndexShard.shardId(),
-                new CodecService(null, mockIndexShard.indexSettings(), null).codec(CodecService.LZ4_CODEC).getName()
+                new CodecService(null, mockIndexShard.indexSettings(), null).codec("default").getName()
             ),
             mockIndexShard
         );

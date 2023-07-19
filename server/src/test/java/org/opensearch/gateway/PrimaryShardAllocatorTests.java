@@ -812,7 +812,7 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
                 node,
                 allocationId,
                 primary,
-                ReplicationCheckpoint.empty(shardId, new CodecService(null, indexSettings, null).codec(CodecService.LZ4_CODEC).getName()),
+                ReplicationCheckpoint.empty(shardId, new CodecService(null, indexSettings, null).codec("default").getName()),
                 null
             );
         }
@@ -824,7 +824,7 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
                 node,
                 allocationId,
                 primary,
-                ReplicationCheckpoint.empty(shardId, new CodecService(null, indexSettings, null).codec(CodecService.LZ4_CODEC).getName()),
+                ReplicationCheckpoint.empty(shardId, new CodecService(null, indexSettings, null).codec("default").getName()),
                 storeException
             );
         }

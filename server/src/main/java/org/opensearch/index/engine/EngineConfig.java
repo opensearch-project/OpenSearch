@@ -130,6 +130,8 @@ public final class EngineConfig {
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "lz4", s -> {
         switch (s) {
             case "lz4":
+            case "default":
+            case "best_compression":
             case "zlib":
             case "zstd":
             case "zstd_no_dict":
@@ -138,7 +140,8 @@ public final class EngineConfig {
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
                     throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [lz4, zlib, zstd, zstd_no_dict] but was: " + s
+                        "unknown value for [index.codec] must be one of [default, best_compression, lz4, zlib, zstd, zstd_no_dict] but was: "
+                            + s
                     );
                 }
                 return s;
@@ -184,6 +187,8 @@ public final class EngineConfig {
             case "best_compression":
             case "lucene_default":
             case "default":
+            case "lz4":
+            case "zlib":
                 break;
             default:
                 if (Codec.availableCodecs().contains(codec)) {
