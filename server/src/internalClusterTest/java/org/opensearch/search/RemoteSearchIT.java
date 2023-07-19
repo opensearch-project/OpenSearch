@@ -8,12 +8,10 @@
 
 package org.opensearch.search;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import java.nio.file.Path;
+
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.action.admin.indices.close.CloseIndexRequest;
-import org.opensearch.action.admin.indices.open.OpenIndexRequest;
-import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -23,7 +21,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.nio.file.Path;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -83,42 +81,6 @@ public class RemoteSearchIT extends AbstractSnapshotIntegTestCase {
             .build();
     }
 
-    public void testRemoteSearchIndex() throws Exception {
-        final String indexName = "test-idx-1";
-        final int numReplicasIndex = randomIntBetween(0, 3);
-        final int numOfDocs = 100;
-
-        // Spin up node having search/data roles
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
-
-        // Create index with remote translog index settings
-        createIndex(indexName, Settings.builder().put(remoteTranslogIndexSettings(numReplicasIndex)).build());
-        ensureGreen();
-
-        // Index some documents
-        indexRandomDocs(indexName, numOfDocs);
-        ensureGreen();
-        // Search the documents on the index
-        assertDocCount(indexName, 100L);
-
-        // Close the index
-        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indexName);
-        client().admin().indices().close(closeIndexRequest).actionGet();
-
-        // Apply the remote search setting to the index
-        client().admin()
-            .indices()
-            .updateSettings(new UpdateSettingsRequest(Settings.builder().put(INDEX_STORE_TYPE_SETTING.getKey(), "remote_search").build()))
-            .actionGet();
-
-        // Open the index back
-        OpenIndexRequest openIndexRequest = new OpenIndexRequest(indexName);
-        client().admin().indices().open(openIndexRequest).actionGet();
-
-        // Perform search on the index again
-        assertDocCount(indexName, 100L);
-    }
-
     public void testWritableWarmIndex() throws Exception {
         final String indexName = "test-idx-1";
         final int numReplicasIndex = randomIntBetween(0, 3);
@@ -133,7 +95,6 @@ public class RemoteSearchIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put(remoteTranslogIndexSettings(numReplicasIndex))
                 .put(INDEX_STORE_TYPE_SETTING.getKey(), "remote_warm_index")
-                .put(IndexMetadata.INDEX_REMOTE_WARM_INDEX_ENABLED_SETTING.getKey(), true)
                 .build()
         );
         ensureGreen();

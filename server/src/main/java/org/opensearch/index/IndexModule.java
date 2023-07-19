@@ -74,7 +74,6 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.CompositeDirectoryFactory;
 import org.opensearch.index.store.FileTrackerImp;
 import org.opensearch.index.store.FsDirectoryFactory;
-import org.opensearch.index.store.remote.directory.RemoteSearchDirectoryFactory;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
@@ -412,7 +411,6 @@ public final class IndexModule {
         SIMPLEFS("simplefs"),
         FS("fs"),
         REMOTE_SNAPSHOT("remote_snapshot"),
-        REMOTE_SEARCH("remote_search"),
         REMOTE_WARM_INDEX("remote_warm_index");
 
         private final String settingsKey;
@@ -689,9 +687,6 @@ public final class IndexModule {
                         type.getSettingsKey(),
                         new RemoteSnapshotDirectoryFactory(repositoriesService, threadPool, remoteStoreFileCache)
                     );
-                    break;
-                case REMOTE_SEARCH:
-                    factories.put(type.getSettingsKey(), new RemoteSearchDirectoryFactory(repositoriesService, remoteStoreFileCache, threadPool));
                     break;
                 case REMOTE_WARM_INDEX:
                     factories.put(

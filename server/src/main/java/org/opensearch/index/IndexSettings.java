@@ -612,13 +612,11 @@ public final class IndexSettings {
     private final int numberOfShards;
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
-    private final boolean isRemoteWarmIndexEnabled;
     private final boolean isRemoteTranslogStoreEnabled;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private final String remoteStoreTranslogRepository;
     private final String remoteStoreRepository;
     private final boolean isRemoteSnapshot;
-    private final boolean isRemoteIndex;
     private Version extendedCompatibilitySnapshotVersion;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
@@ -784,13 +782,11 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
-        isRemoteWarmIndexEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_WARM_INDEX_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
         isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
-        isRemoteIndex = IndexModule.Type.REMOTE_SEARCH.match(this.settings);
 
         if (isRemoteSnapshot && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
             extendedCompatibilitySnapshotVersion = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
@@ -1071,13 +1067,6 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns if remote warm index is enabled for this index.
-     */
-    public boolean isRemoteWarmIndexEnabled() {
-        return isRemoteStoreEnabled;
-    }
-
-    /**
      * Returns if remote translog store is enabled for this index.
      */
     public boolean isRemoteTranslogStoreEnabled() {
@@ -1100,10 +1089,6 @@ public final class IndexSettings {
      */
     public boolean isRemoteSnapshot() {
         return isRemoteSnapshot;
-    }
-
-    public boolean isRemoteIndex() {
-        return isRemoteIndex;
     }
 
     /**

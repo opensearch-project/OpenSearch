@@ -71,17 +71,6 @@ public class FileCacheTests extends OpenSearchTestCase {
         Files.write(filePath, "test-data".getBytes());
     }
 
-    public void testCreateCacheWithSmallSegments() {
-        assertThrows(IllegalStateException.class, () -> {
-            FileCacheFactory.createConcurrentLRUFileCache(
-                1000,
-                CONCURRENCY_LEVEL,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                new FileTrackerImp()
-            );
-        });
-    }
-
     // test get method
     public void testGet() {
         FileCache fileCache = createFileCache(8 * MEGA_BYTES);

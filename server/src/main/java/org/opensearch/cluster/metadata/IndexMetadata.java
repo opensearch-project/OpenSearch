@@ -300,14 +300,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL = "index.remote_store.translog.buffer_interval";
 
-    public static final Setting<Boolean> INDEX_REMOTE_WARM_INDEX_ENABLED_SETTING = Setting.boolSetting(
-        SETTING_REMOTE_WARM_INDEX_ENABLED,
-        false,
-        Property.IndexScope,
-        // This needs to be a dynamic setting, for now keeping it as final as the support for warm to hot is not yet added
-        Property.Final
-    );
-
     /**
      * Used to specify if the index data should be persisted in the remote store.
      */
