@@ -23,6 +23,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,15 +43,18 @@ public class CompositeDirectoryFactory implements IndexStorePlugin.DirectoryFact
     private final Supplier<RepositoriesService> repositoriesService;
     private final FileCache remoteStoreFileCache;
     private FileTrackerImp fileTrackerImp;
+    private final ThreadPool threadPool;
 
     public CompositeDirectoryFactory(
         Supplier<RepositoriesService> repositoriesService,
         FileCache remoteStoreFileCache,
-        FileTrackerImp fileTrackerImp
+        FileTrackerImp fileTrackerImp,
+        ThreadPool threadPool
     ) {
         this.repositoriesService = repositoriesService;
         this.remoteStoreFileCache = remoteStoreFileCache;
         this.fileTrackerImp = fileTrackerImp;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -90,7 +94,8 @@ public class CompositeDirectoryFactory implements IndexStorePlugin.DirectoryFact
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
             dataDirectory,
             metadataDirectory,
-            mdLockManager
+            mdLockManager,
+            threadPool
         );
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> segmentsUploadedToRemoteStore = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore();

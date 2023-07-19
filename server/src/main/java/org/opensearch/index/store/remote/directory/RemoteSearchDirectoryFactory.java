@@ -25,6 +25,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -43,10 +44,12 @@ public class RemoteSearchDirectoryFactory implements IndexStorePlugin.DirectoryF
 
     private final Supplier<RepositoriesService> repositoriesService;
     private final FileCache remoteStoreFileCache;
+    private final ThreadPool threadPool;
 
-    public RemoteSearchDirectoryFactory(Supplier<RepositoriesService> repositoriesService, FileCache remoteStoreFileCache) {
+    public RemoteSearchDirectoryFactory(Supplier<RepositoriesService> repositoriesService, FileCache remoteStoreFileCache, ThreadPool threadPool) {
         this.repositoriesService = repositoriesService;
         this.remoteStoreFileCache = remoteStoreFileCache;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -85,7 +88,8 @@ public class RemoteSearchDirectoryFactory implements IndexStorePlugin.DirectoryF
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
             dataDirectory,
             metadataDirectory,
-            mdLockManager
+            mdLockManager,
+            threadPool
         );
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> segmentsUploadedToRemoteStore = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore();

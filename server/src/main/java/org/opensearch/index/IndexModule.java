@@ -691,12 +691,12 @@ public final class IndexModule {
                     );
                     break;
                 case REMOTE_SEARCH:
-                    factories.put(type.getSettingsKey(), new RemoteSearchDirectoryFactory(repositoriesService, remoteStoreFileCache));
+                    factories.put(type.getSettingsKey(), new RemoteSearchDirectoryFactory(repositoriesService, remoteStoreFileCache, threadPool));
                     break;
                 case REMOTE_WARM_INDEX:
                     factories.put(
                         type.getSettingsKey(),
-                        new CompositeDirectoryFactory(repositoriesService, remoteStoreFileCache, fileTrackerImp)
+                        new CompositeDirectoryFactory(repositoriesService, remoteStoreFileCache, fileTrackerImp, threadPool)
                     );
                     break;
                 default:
