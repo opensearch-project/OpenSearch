@@ -35,14 +35,14 @@ package org.opensearch.client.core;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response to _count API request.

@@ -35,7 +35,7 @@ package org.opensearch.repositories.azure;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.SecureSetting;
-import org.opensearch.common.settings.SecureString;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.AffixSetting;
 import org.opensearch.common.settings.Setting.Property;

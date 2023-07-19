@@ -11,7 +11,7 @@ package org.opensearch.index.query;
 import static org.opensearch.index.query.IntervalsSourceProvider.Regexp;
 import static org.opensearch.index.query.IntervalsSourceProvider.fromXContent;
 
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 

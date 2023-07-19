@@ -683,8 +683,8 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.index.snapshots.IndexShardSnapshotException.class,
-                org.opensearch.index.snapshots.IndexShardSnapshotException::new,
+                org.opensearch.core.index.snapshots.IndexShardSnapshotException.class,
+                org.opensearch.core.index.snapshots.IndexShardSnapshotException::new,
                 98,
                 UNKNOWN_VERSION_ADDED
             )

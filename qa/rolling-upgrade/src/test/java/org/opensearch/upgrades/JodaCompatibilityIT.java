@@ -40,7 +40,7 @@ import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.WarningsHandler;
 import org.opensearch.common.Booleans;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.DocValueFormat;
 import org.junit.BeforeClass;
 

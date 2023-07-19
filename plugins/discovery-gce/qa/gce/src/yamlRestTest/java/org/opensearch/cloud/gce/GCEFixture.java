@@ -37,7 +37,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.path.PathTrie;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
 import org.opensearch.test.fixture.AbstractHttpFixture;
 

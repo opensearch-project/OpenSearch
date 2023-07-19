@@ -15,7 +15,7 @@ import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
 import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.OpenSearchIntegTestCase;

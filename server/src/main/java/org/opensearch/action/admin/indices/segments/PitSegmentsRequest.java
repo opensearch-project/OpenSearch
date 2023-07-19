@@ -10,8 +10,8 @@ package org.opensearch.action.admin.indices.segments;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
 

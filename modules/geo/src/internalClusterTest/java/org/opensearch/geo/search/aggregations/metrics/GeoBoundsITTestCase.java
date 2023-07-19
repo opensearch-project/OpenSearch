@@ -35,7 +35,7 @@ package org.opensearch.geo.search.aggregations.metrics;
 import org.hamcrest.MatcherAssert;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.util.BigArray;
+import org.opensearch.core.common.util.BigArray;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.terms.Terms;

@@ -34,8 +34,8 @@ package org.opensearch.search.internal;
 
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.Scroll;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;

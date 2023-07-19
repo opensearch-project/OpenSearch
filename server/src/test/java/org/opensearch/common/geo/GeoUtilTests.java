@@ -32,7 +32,7 @@
 package org.opensearch.common.geo;
 
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;

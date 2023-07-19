@@ -32,7 +32,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;

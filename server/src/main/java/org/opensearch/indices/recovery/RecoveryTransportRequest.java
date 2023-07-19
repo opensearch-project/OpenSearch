@@ -33,8 +33,8 @@
 package org.opensearch.indices.recovery;
 
 import org.opensearch.LegacyESVersion;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.transport.TransportRequest;
 

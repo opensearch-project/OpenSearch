@@ -34,12 +34,12 @@ package org.opensearch.common.joda;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.FormatNames;
 import org.opensearch.common.util.LazyInitializable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.Strings;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
