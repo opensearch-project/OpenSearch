@@ -67,7 +67,7 @@ dependencies {
   api "com.google.auth:google-auth-library-oauth2-http:${versions.google_auth}"
 
   api 'com.google.cloud:google-cloud-core:2.5.10'
-  api 'com.google.cloud:google-cloud-core-http:2.17.0'
+  api 'com.google.cloud:google-cloud-core-http:2.21.0'
   api 'com.google.cloud:google-cloud-storage:1.113.1'
 
   api 'com.google.code.gson:gson:2.9.0'
@@ -86,7 +86,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'org.threeten:threetenbp:1.4.4'
-  api 'io.grpc:grpc-context:1.46.0'
+  api 'io.grpc:grpc-context:1.56.1'
   api 'io.opencensus:opencensus-api:0.31.1'
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
 

@@ -31,7 +31,7 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 
 /**

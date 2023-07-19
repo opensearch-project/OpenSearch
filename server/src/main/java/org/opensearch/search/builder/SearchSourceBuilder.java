@@ -36,11 +36,10 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -1250,16 +1249,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         collapse = CollapseBuilder.fromXContent(parser);
                     } else if (POINT_IN_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                         pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
-                    } else if (FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE)
-                        && SEARCH_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            searchPipelineSource = parser.mapOrdered();
-                        } else {
-                            throw new ParsingException(
-                                parser.getTokenLocation(),
-                                "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                parser.getTokenLocation()
-                            );
-                        }
+                    } else if (SEARCH_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        searchPipelineSource = parser.mapOrdered();
+                    } else {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            parser.getTokenLocation()
+                        );
+                    }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     storedFieldsContext = StoredFieldsContext.fromXContent(STORED_FIELDS_FIELD.getPreferredName(), parser);

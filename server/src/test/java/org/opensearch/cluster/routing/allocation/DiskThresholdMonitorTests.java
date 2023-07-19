@@ -51,7 +51,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 
@@ -798,7 +798,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         final Map<String, DiskUsage> diskUsages,
         final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
     ) {
-        return new ClusterInfo(diskUsages, null, null, null, reservedSpace);
+        return new ClusterInfo(diskUsages, null, null, null, reservedSpace, Map.of());
     }
 
 }

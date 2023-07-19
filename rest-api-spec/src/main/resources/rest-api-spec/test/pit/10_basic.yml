@@ -96,7 +96,7 @@
 ---
 "Delete all":
   - skip:
-      version: " - 2.9.99"
+      version: " - 2.99.99"
       reason: "mode to be introduced later than 3.0"
   - do:
       indices.create:

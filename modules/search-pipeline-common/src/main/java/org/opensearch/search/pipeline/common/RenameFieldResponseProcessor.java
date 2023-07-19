@@ -10,7 +10,7 @@ package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -19,6 +19,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 
@@ -41,14 +42,22 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
     /**
      * Constructor that takes a target field to rename and the new name
      *
-     * @param tag           processor tag
-     * @param description   processor description
-     * @param oldField      name of field to be renamed
-     * @param newField      name of field that will replace the old field
+     * @param tag            processor tag
+     * @param description    processor description
+     * @param ignoreFailure  option to ignore failure
+     * @param oldField       name of field to be renamed
+     * @param newField       name of field that will replace the old field
      * @param ignoreMissing if true, do not throw error if oldField does not exist within search response
      */
-    public RenameFieldResponseProcessor(String tag, String description, String oldField, String newField, boolean ignoreMissing) {
-        super(tag, description);
+    public RenameFieldResponseProcessor(
+        String tag,
+        String description,
+        boolean ignoreFailure,
+        String oldField,
+        String newField,
+        boolean ignoreMissing
+    ) {
+        super(tag, description, ignoreFailure);
         this.oldField = oldField;
         this.newField = newField;
         this.ignoreMissing = ignoreMissing;
@@ -140,12 +149,14 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
             Map<String, Processor.Factory<SearchResponseProcessor>> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            boolean ignoreFailure,
+            Map<String, Object> config,
+            PipelineContext pipelineContext
         ) throws Exception {
             String oldField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             String newField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
-            return new RenameFieldResponseProcessor(tag, description, oldField, newField, ignoreMissing);
+            return new RenameFieldResponseProcessor(tag, description, ignoreFailure, oldField, newField, ignoreMissing);
         }
     }
 }

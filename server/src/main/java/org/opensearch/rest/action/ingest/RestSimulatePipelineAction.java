@@ -34,7 +34,7 @@ package org.opensearch.rest.action.ingest;
 
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.BaseRestHandler;

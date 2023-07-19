@@ -9,7 +9,9 @@
 package org.opensearch.remotestore;
 
 import org.junit.After;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
@@ -42,11 +44,22 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
+        return Settings.builder()
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.REMOTE_STORE, "true")
+            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
+            .build();
     }
 
     public Settings indexSettings() {
         return defaultIndexSettings();
+    }
+
+    IndexResponse indexSingleDoc(String indexName) {
+        return client().prepareIndex(indexName)
+            .setId(UUIDs.randomBase64UUID())
+            .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
+            .get();
     }
 
     private Settings defaultIndexSettings() {
@@ -102,9 +115,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected void setupRepo() {
         internalCluster().startClusterManagerOnlyNode();
         absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
+        putRepository(absolutePath);
     }
 
     @After

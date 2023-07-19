@@ -37,7 +37,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.Prepared;
-import org.opensearch.common.util.ByteArray;
+import org.opensearch.core.common.util.ByteArray;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.lease.Releasables;

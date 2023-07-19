@@ -32,10 +32,9 @@
 
 package org.opensearch.action.get;
 
-import com.carrotsearch.hppc.IntArrayList;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,12 +47,12 @@ import java.util.List;
  */
 public class MultiGetShardResponse extends ActionResponse {
 
-    final IntArrayList locations;
+    final List<Integer> locations;
     final List<GetResponse> responses;
     final List<MultiGetResponse.Failure> failures;
 
     MultiGetShardResponse() {
-        locations = new IntArrayList();
+        locations = new ArrayList<>();
         responses = new ArrayList<>();
         failures = new ArrayList<>();
     }
@@ -61,7 +60,7 @@ public class MultiGetShardResponse extends ActionResponse {
     MultiGetShardResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        locations = new IntArrayList(size);
+        locations = new ArrayList<>(size);
         responses = new ArrayList<>(size);
         failures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {

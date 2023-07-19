@@ -32,13 +32,12 @@
 
 package org.opensearch.search.fetch;
 
-import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.dfs.AggregatedDfs;
@@ -49,6 +48,7 @@ import org.opensearch.tasks.TaskId;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -67,9 +67,9 @@ public class ShardFetchRequest extends TransportRequest {
 
     private ScoreDoc lastEmittedDoc;
 
-    public ShardFetchRequest(ShardSearchContextId contextId, IntArrayList list, ScoreDoc lastEmittedDoc) {
+    public ShardFetchRequest(ShardSearchContextId contextId, Collection<Integer> list, ScoreDoc lastEmittedDoc) {
         this.contextId = contextId;
-        this.docIds = list.buffer;
+        this.docIds = list.stream().mapToInt(Integer::intValue).toArray();
         this.size = list.size();
         this.lastEmittedDoc = lastEmittedDoc;
     }

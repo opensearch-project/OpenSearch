@@ -32,7 +32,7 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 
 /**
  * Cluster state part, changes in which can be serialized

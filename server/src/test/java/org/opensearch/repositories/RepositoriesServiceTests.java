@@ -56,10 +56,11 @@ import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -373,6 +374,18 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             SnapshotId target,
             RepositoryShardId shardId,
             String shardGeneration,
+            ActionListener<String> listener
+        ) {
+
+        }
+
+        @Override
+        public void cloneRemoteStoreIndexShardSnapshot(
+            SnapshotId source,
+            SnapshotId target,
+            RepositoryShardId shardId,
+            String shardGeneration,
+            RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
             ActionListener<String> listener
         ) {
 

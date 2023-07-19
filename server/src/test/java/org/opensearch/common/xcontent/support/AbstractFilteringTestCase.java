@@ -33,7 +33,7 @@
 package org.opensearch.common.xcontent.support;
 
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;

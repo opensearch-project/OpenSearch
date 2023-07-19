@@ -8,8 +8,8 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.junit.Assert;
-import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -22,6 +22,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
@@ -49,6 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
@@ -62,7 +64,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.opensearch.indices.replication.SegmentReplicationState.Stage.CANCELLED;
 
 public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
@@ -240,71 +241,81 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         verify(spy, times(0)).startReplication(any(), any());
     }
 
-    public void testShardAlreadyReplicating() throws InterruptedException {
-        // Create a spy of Target Service so that we can verify invocation of startReplication call with specific checkpoint on it.
-        SegmentReplicationTargetService serviceSpy = spy(sut);
-        final SegmentReplicationTarget target = new SegmentReplicationTarget(
-            replicaShard,
-            replicationSource,
-            mock(SegmentReplicationTargetService.SegmentReplicationListener.class)
-        );
-        // Create a Mockito spy of target to stub response of few method calls.
-        final SegmentReplicationTarget targetSpy = Mockito.spy(target);
-        CountDownLatch latch = new CountDownLatch(1);
-        // Mocking response when startReplication is called on targetSpy we send a new checkpoint to serviceSpy and later reduce countdown
-        // of latch.
-        doAnswer(invocation -> {
-            final ActionListener<Void> listener = invocation.getArgument(0);
-            // a new checkpoint arrives before we've completed.
-            serviceSpy.onNewCheckpoint(aheadCheckpoint, replicaShard);
-            listener.onResponse(null);
-            latch.countDown();
-            return null;
-        }).when(targetSpy).startReplication(any());
-        doNothing().when(targetSpy).onDone();
+    public void testShardAlreadyReplicating() {
+        sut.startReplication(replicaShard, mock(SegmentReplicationTargetService.SegmentReplicationListener.class));
+        sut.startReplication(replicaShard, new SegmentReplicationTargetService.SegmentReplicationListener() {
+            @Override
+            public void onReplicationDone(SegmentReplicationState state) {
+                Assert.fail("Should not succeed");
+            }
 
-        // start replication of this shard the first time.
-        serviceSpy.startReplication(targetSpy);
-
-        // wait for the new checkpoint to arrive, before the listener completes.
-        latch.await(30, TimeUnit.SECONDS);
-        verify(targetSpy, times(0)).cancel(any());
-        verify(serviceSpy, times(0)).startReplication(eq(replicaShard), any());
+            @Override
+            public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                assertEquals("Shard " + replicaShard.shardId() + " is already replicating", e.getMessage());
+                assertFalse(sendShardFailure);
+            }
+        });
     }
 
-    public void testOnNewCheckpointFromNewPrimaryCancelOngoingReplication() throws IOException, InterruptedException {
+    public void testOnNewCheckpointFromNewPrimaryCancelOngoingReplication() throws InterruptedException {
         // Create a spy of Target Service so that we can verify invocation of startReplication call with specific checkpoint on it.
         SegmentReplicationTargetService serviceSpy = spy(sut);
+        doNothing().when(serviceSpy).updateVisibleCheckpoint(anyLong(), any());
+        // skip post replication actions so we can assert execution counts. This will continue to process bc replica's pterm is not advanced
+        // post replication.
+        doReturn(true).when(serviceSpy).processLatestReceivedCheckpoint(any(), any());
         // Create a Mockito spy of target to stub response of few method calls.
-        final SegmentReplicationTarget targetSpy = spy(
-            new SegmentReplicationTarget(
-                replicaShard,
-                replicationSource,
-                mock(SegmentReplicationTargetService.SegmentReplicationListener.class)
-            )
-        );
 
         CountDownLatch latch = new CountDownLatch(1);
-        // Mocking response when startReplication is called on targetSpy we send a new checkpoint to serviceSpy and later reduce countdown
-        // of latch.
-        doAnswer(invocation -> {
-            // short circuit loop on new checkpoint request
-            doReturn(null).when(serviceSpy).startReplication(eq(replicaShard), any());
-            // a new checkpoint arrives before we've completed.
-            serviceSpy.onNewCheckpoint(newPrimaryCheckpoint, replicaShard);
-            try {
-                invocation.callRealMethod();
-            } catch (CancellableThreads.ExecutionCancelledException e) {
+        SegmentReplicationSource source = new TestReplicationSource() {
+
+            ActionListener<CheckpointInfoResponse> listener;
+
+            @Override
+            public void getCheckpointMetadata(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                ActionListener<CheckpointInfoResponse> listener
+            ) {
+                // set the listener, we will only fail it once we cancel the source.
+                this.listener = listener;
                 latch.countDown();
+                // do not resolve this listener yet, wait for cancel to hit.
             }
-            return null;
-        }).when(targetSpy).startReplication(any());
+
+            @Override
+            public void getSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                IndexShard indexShard,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                Assert.fail("Unreachable");
+            }
+
+            @Override
+            public void cancel() {
+                // simulate listener resolving, but only after we have issued a cancel from beforeIndexShardClosed .
+                final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("retryable action was cancelled");
+                listener.onFailure(exception);
+            }
+        };
+
+        final SegmentReplicationTarget targetSpy = spy(
+            new SegmentReplicationTarget(replicaShard, source, mock(SegmentReplicationTargetService.SegmentReplicationListener.class))
+        );
 
         // start replication. This adds the target to on-ongoing replication collection
         serviceSpy.startReplication(targetSpy);
+
+        // wait until we get to getCheckpoint step.
         latch.await();
-        // wait for the new checkpoint to arrive, before the listener completes.
-        assertEquals(CANCELLED, targetSpy.state().getStage());
+
+        // new checkpoint arrives with higher pterm.
+        serviceSpy.onNewCheckpoint(newPrimaryCheckpoint, replicaShard);
+
+        // ensure the old target is cancelled. and new iteration kicks off.
         verify(targetSpy, times(1)).cancel("Cancelling stuck target after new primary");
         verify(serviceSpy, times(1)).startReplication(eq(replicaShard), any());
     }
@@ -467,6 +478,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testForceSegmentSyncHandlerWithFailure() throws Exception {
+        allowShardFailures();
         IndexShard spyReplicaShard = spy(replicaShard);
         ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, replicaShard.shardId());
         when(indicesService.getShardOrNull(forceSyncRequest.getShardId())).thenReturn(spyReplicaShard);
@@ -487,5 +499,58 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         Throwable nestedException = finalizeException.getCause().getCause();
         assertTrue(nestedException instanceof IOException);
         assertTrue(nestedException.getMessage().contains("dummy failure"));
+    }
+
+    public void testForceSync_ShardDoesNotExist() {
+        ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, new ShardId("no", "", 0));
+        when(indicesService.getShardOrNull(forceSyncRequest.getShardId())).thenReturn(null);
+        transportService.submitRequest(
+            localNode,
+            SegmentReplicationTargetService.Actions.FORCE_SYNC,
+            forceSyncRequest,
+            TransportRequestOptions.builder().withTimeout(TRANSPORT_TIMEOUT).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME
+        ).txGet();
+    }
+
+    public void testForceSegmentSyncHandlerWithFailure_AlreadyClosedException_swallowed() throws Exception {
+        IndexShard spyReplicaShard = spy(replicaShard);
+        ForceSyncRequest forceSyncRequest = new ForceSyncRequest(1L, 1L, replicaShard.shardId());
+        when(indicesService.getShardOrNull(forceSyncRequest.getShardId())).thenReturn(spyReplicaShard);
+
+        AlreadyClosedException exception = new AlreadyClosedException("shard closed");
+        doThrow(exception).when(spyReplicaShard).finalizeReplication(any());
+
+        // prevent shard failure to avoid test setup assertion
+        doNothing().when(spyReplicaShard).failShard(eq("replication failure"), any());
+        transportService.submitRequest(
+            localNode,
+            SegmentReplicationTargetService.Actions.FORCE_SYNC,
+            forceSyncRequest,
+            TransportRequestOptions.builder().withTimeout(TRANSPORT_TIMEOUT).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME
+        ).txGet();
+    }
+
+    public void testTargetCancelledBeforeStartInvoked() {
+        final SegmentReplicationTarget target = new SegmentReplicationTarget(
+            replicaShard,
+            mock(SegmentReplicationSource.class),
+            new SegmentReplicationTargetService.SegmentReplicationListener() {
+                @Override
+                public void onReplicationDone(SegmentReplicationState state) {
+                    Assert.fail();
+                }
+
+                @Override
+                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    // failures leave state object in last entered stage.
+                    assertEquals(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO, state.getStage());
+                    assertTrue(e.getCause() instanceof CancellableThreads.ExecutionCancelledException);
+                }
+            }
+        );
+        target.cancel("test");
+        sut.startReplication(target);
     }
 }

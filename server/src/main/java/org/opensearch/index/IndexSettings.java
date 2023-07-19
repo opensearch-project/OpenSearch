@@ -41,12 +41,12 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -63,7 +63,6 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
-import static org.opensearch.common.util.FeatureFlags.SEARCH_PIPELINE;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
@@ -933,6 +932,9 @@ public final class IndexSettings {
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
+        if (this.replicationType == ReplicationType.SEGMENT && this.getNumberOfReplicas() > 0) {
+            logger.warn("Search idle is not supported for indices with replicas using 'replication.type: SEGMENT'");
+        }
         this.searchIdleAfter = searchIdleAfter;
     }
 
@@ -1636,16 +1638,6 @@ public final class IndexSettings {
     }
 
     public void setDefaultSearchPipeline(String defaultSearchPipeline) {
-        if (FeatureFlags.isEnabled(SEARCH_PIPELINE)) {
-            this.defaultSearchPipeline = defaultSearchPipeline;
-        } else {
-            throw new SettingsException(
-                "Unable to update setting: "
-                    + DEFAULT_SEARCH_PIPELINE.getKey()
-                    + ". This is an experimental feature that is currently disabled, please enable the "
-                    + SEARCH_PIPELINE
-                    + " feature flag first."
-            );
-        }
+        this.defaultSearchPipeline = defaultSearchPipeline;
     }
 }

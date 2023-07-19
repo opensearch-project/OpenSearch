@@ -46,7 +46,9 @@ publishing {
   }
 }
 
-archivesBaseName = 'opensearch'
+base {
+  archivesBaseName = 'opensearch'
+}
 
 sourceSets {
   main {
@@ -126,7 +128,6 @@ dependencies {
 
   // utilities
   api project(":libs:opensearch-cli")
-  api 'com.carrotsearch:hppc:0.8.1'
 
   // time handling, remove with java 8 time
   api "joda-time:joda-time:${versions.joda}"
@@ -144,6 +145,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
+  annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
@@ -171,6 +173,10 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Xlint:cast'
   options.compilerArgs -= '-Xlint:rawtypes'
   options.compilerArgs -= '-Xlint:unchecked'
+}
+
+compileJava {
+  options.compilerArgs += ['-processor', 'org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor']
 }
 
 tasks.named("internalClusterTest").configure {

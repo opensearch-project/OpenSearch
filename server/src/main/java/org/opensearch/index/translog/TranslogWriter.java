@@ -32,14 +32,13 @@
 
 package org.opensearch.index.translog;
 
-import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.procedures.LongProcedure;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Channels;
@@ -52,15 +51,18 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.Assertions;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -103,12 +105,17 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> try(Releasable lock = writeLock.acquire()) -> synchronized(this)
     private final Object syncLock = new Object();
 
-    private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
+    private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
     private ReleasableBytesStreamOutput buffer;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
+
+    @Nullable
+    private final TranslogCheckedContainer translogCheckedContainer;
+
+    private final Boolean remoteTranslogEnabled;
 
     private TranslogWriter(
         final ShardId shardId,
@@ -123,7 +130,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         TranslogHeader header,
         final TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
-        final BigArrays bigArrays
+        final BigArrays bigArrays,
+        TranslogCheckedContainer translogCheckedContainer,
+        Boolean remoteTranslogEnabled
     ) throws IOException {
         super(initialCheckpoint.generation, channel, path, header);
         assert initialCheckpoint.offset == channel.position() : "initial checkpoint offset ["
@@ -148,6 +157,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.bigArrays = bigArrays;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
+        this.translogCheckedContainer = translogCheckedContainer;
+        this.remoteTranslogEnabled = remoteTranslogEnabled;
     }
 
     public static TranslogWriter create(
@@ -174,14 +185,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         try {
             checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
-            header.write(channel);
+            header.write(channel, !Boolean.TRUE.equals(remoteTranslogEnabled));
+            TranslogCheckedContainer translogCheckedContainer = null;
+            if (Boolean.TRUE.equals(remoteTranslogEnabled)) {
+                ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+                header.write(byteArrayOutputStream);
+                translogCheckedContainer = new TranslogCheckedContainer(byteArrayOutputStream.toByteArray());
+            }
             final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(
                 header.sizeInBytes(),
                 fileGeneration,
                 initialGlobalCheckpoint,
                 initialMinTranslogGen
             );
-            writeCheckpoint(checkpointChannel, checkpointFile, checkpoint);
+            writeCheckpoint(checkpointChannel, checkpointFile, checkpoint, remoteTranslogEnabled);
             final LongSupplier writerGlobalCheckpointSupplier;
             if (Assertions.ENABLED) {
                 writerGlobalCheckpointSupplier = () -> {
@@ -209,7 +226,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 header,
                 tragedy,
                 persistedSequenceNumberConsumer,
-                bigArrays
+                bigArrays,
+                translogCheckedContainer,
+                remoteTranslogEnabled
             );
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -433,7 +452,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             closeWithTragicEvent(ex);
                             throw ex;
                         }
-                        return new TranslogReader(getLastSyncedCheckpoint(), channel, path, header);
+                        return new TranslogReader(
+                            getLastSyncedCheckpoint(),
+                            channel,
+                            path,
+                            header,
+                            (translogCheckedContainer != null) ? translogCheckedContainer.getChecksum() : null
+                        );
                     } else {
                         throw new AlreadyClosedException(
                             "translog [" + getGeneration() + "] is already closed (path [" + path + "]",
@@ -486,7 +511,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
-                    final LongArrayList flushedSequenceNumbers;
+                    final List<Long> flushedSequenceNumbers;
                     final ReleasableBytesReference toWrite;
                     try (ReleasableLock toClose = writeLock.acquire()) {
                         synchronized (this) {
@@ -494,7 +519,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             checkpointToSync = getCheckpoint();
                             toWrite = pollOpsToWrite();
                             flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                            nonFsyncedSequenceNumbers = new LongArrayList(64);
+                            nonFsyncedSequenceNumbers = new ArrayList<>(64);
                         }
 
                         try {
@@ -508,13 +533,15 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // now do the actual fsync outside of the synchronized block such that
                     // we can continue writing to the buffer etc.
                     try {
-                        channel.force(false);
-                        writeCheckpoint(checkpointChannel, checkpointPath, checkpointToSync);
+                        if (!Boolean.TRUE.equals(remoteTranslogEnabled)) {
+                            channel.force(false);
+                        }
+                        writeCheckpoint(checkpointChannel, checkpointPath, checkpointToSync, remoteTranslogEnabled);
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
                     }
-                    flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
+                    flushedSequenceNumbers.forEach(persistedSequenceNumberConsumer::accept);
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset : "illegal state: "
                         + lastSyncedCheckpoint.offset
                         + " <= "
@@ -564,6 +591,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 while (currentBytesConsumed != current.length) {
                     int nBytesToWrite = Math.min(current.length - currentBytesConsumed, ioBuffer.remaining());
                     ioBuffer.put(current.bytes, current.offset + currentBytesConsumed, nBytesToWrite);
+                    if (translogCheckedContainer != null) {
+                        translogCheckedContainer.updateFromBytes(current.bytes, current.offset + currentBytesConsumed, nBytesToWrite);
+                    }
                     currentBytesConsumed += nBytesToWrite;
                     if (ioBuffer.hasRemaining() == false) {
                         ioBuffer.flip();
@@ -603,9 +633,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
     }
 
-    private static void writeCheckpoint(final FileChannel fileChannel, final Path checkpointFile, final Checkpoint checkpoint)
-        throws IOException {
-        Checkpoint.write(fileChannel, checkpointFile, checkpoint);
+    private static void writeCheckpoint(
+        final FileChannel fileChannel,
+        final Path checkpointFile,
+        final Checkpoint checkpoint,
+        final Boolean remoteTranslogEnabled
+    ) throws IOException {
+        Checkpoint.write(fileChannel, checkpointFile, checkpoint, !Boolean.TRUE.equals(remoteTranslogEnabled));
     }
 
     /**

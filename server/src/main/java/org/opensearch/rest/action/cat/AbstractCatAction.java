@@ -35,11 +35,11 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.UTF8StreamWriter;
-import org.opensearch.common.io.stream.BytesStream;
+import org.opensearch.core.common.io.stream.BytesStream;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;

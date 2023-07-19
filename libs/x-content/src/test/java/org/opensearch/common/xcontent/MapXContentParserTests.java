@@ -33,7 +33,7 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;

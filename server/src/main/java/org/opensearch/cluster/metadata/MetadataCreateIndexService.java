@@ -72,12 +72,11 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -137,7 +136,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
@@ -585,8 +583,7 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders,
-            systemIndices.validateSystemIndex(request.index())
+            indexSettingProviders
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -650,8 +647,7 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders,
-            systemIndices.validateSystemIndex(request.index())
+            indexSettingProviders
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -731,8 +727,7 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders,
-            sourceMetadata.isSystem()
+            indexSettingProviders
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -815,8 +810,7 @@ public class MetadataCreateIndexService {
         Settings settings,
         IndexScopedSettings indexScopedSettings,
         ShardLimitValidator shardLimitValidator,
-        Set<IndexSettingProvider> indexSettingProviders,
-        boolean isSystemIndex
+        Set<IndexSettingProvider> indexSettingProviders
     ) {
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
@@ -900,18 +894,8 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        if (isSystemIndex || IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings())) {
-            logger.warn(
-                "Setting replication.type: DOCUMENT will be used for Index until Segment Replication supports System and Hidden indices"
-            );
-            indexSettingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
-            if (FeatureFlags.isEnabled(REMOTE_STORE)) {
-                indexSettingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, false);
-            }
-        } else {
-            updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings);
-            updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
-        }
+        updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings);
+        updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;

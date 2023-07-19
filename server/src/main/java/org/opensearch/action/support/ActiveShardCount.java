@@ -32,15 +32,13 @@
 
 package org.opensearch.action.support;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -186,8 +184,8 @@ public final class ActiveShardCount implements Writeable {
             if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
-            for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-                if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {
+            for (final IndexShardRoutingTable shardRouting : indexRoutingTable.getShards().values()) {
+                if (waitForActiveShards.enoughShardsActive(shardRouting) == false) {
                     // not enough active shard copies yet
                     return false;
                 }

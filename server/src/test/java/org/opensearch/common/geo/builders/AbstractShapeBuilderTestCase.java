@@ -34,9 +34,9 @@ package org.opensearch.common.geo.builders;
 
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.parsers.ShapeParser;
-import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;

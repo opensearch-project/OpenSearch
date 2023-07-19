@@ -50,7 +50,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.RetentionLeases;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TranslogConfig;
@@ -142,6 +142,19 @@ public final class EngineConfig {
                 return s;
         }
     }, Property.IndexScope, Property.NodeScope);
+
+    /**
+     * Index setting to change the compression level of zstd and zstd_no_dict lucene codecs.
+     * Compression Level gives a trade-off between compression ratio and speed. The higher compression level results in higher compression ratio but slower compression and decompression speeds.
+     * This setting is <b>not</b> realtime updateable.
+     */
+    public static final Setting<Integer> INDEX_CODEC_COMPRESSION_LEVEL_SETTING = Setting.intSetting(
+        "index.codec.compression_level",
+        3,
+        1,
+        6,
+        Property.IndexScope
+    );
 
     /**
      * Configures an index to optimize documents with auto generated ids for append only. If this setting is updated from <code>false</code>

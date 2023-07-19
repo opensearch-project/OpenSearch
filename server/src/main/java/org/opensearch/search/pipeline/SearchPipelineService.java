@@ -29,12 +29,12 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.gateway.GatewayService;
@@ -85,8 +85,6 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private final OperationMetrics totalRequestProcessingMetrics = new OperationMetrics();
     private final OperationMetrics totalResponseProcessingMetrics = new OperationMetrics();
 
-    private final boolean isEnabled;
-
     public SearchPipelineService(
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -96,14 +94,13 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         NamedXContentRegistry namedXContentRegistry,
         NamedWriteableRegistry namedWriteableRegistry,
         List<SearchPipelinePlugin> searchPipelinePlugins,
-        Client client,
-        boolean isEnabled
+        Client client
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.threadPool = threadPool;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        Processor.Parameters parameters = new Processor.Parameters(
+        SearchPipelinePlugin.Parameters parameters = new SearchPipelinePlugin.Parameters(
             env,
             scriptService,
             analysisRegistry,
@@ -123,7 +120,6 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         );
         putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_SEARCH_PIPELINE_KEY, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SEARCH_PIPELINE_KEY, true);
-        this.isEnabled = isEnabled;
     }
 
     private static <T extends Processor> Map<String, Processor.Factory<T>> processorFactories(
@@ -189,7 +185,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                     phaseInjectorProcessorFactories,
                     namedWriteableRegistry,
                     totalRequestProcessingMetrics,
-                    totalResponseProcessingMetrics
+                    totalResponseProcessingMetrics,
+                    new Processor.PipelineContext(Processor.PipelineSource.UPDATE_PIPELINE)
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
@@ -232,10 +229,6 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         PutSearchPipelineRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        if (isEnabled == false) {
-            throw new IllegalArgumentException("Experimental search pipeline feature is not enabled");
-        }
-
         validatePipeline(searchPipelineInfos, request);
         clusterService.submitStateUpdateTask(
             "put-search-pipeline-" + request.getId(),
@@ -289,7 +282,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             phaseInjectorProcessorFactories,
             namedWriteableRegistry,
             new OperationMetrics(), // Use ephemeral metrics for validation
-            new OperationMetrics()
+            new OperationMetrics(),
+            new Processor.PipelineContext(Processor.PipelineSource.VALIDATE_PIPELINE)
         );
         List<Exception> exceptions = new ArrayList<>();
         for (SearchRequestProcessor processor : pipeline.getSearchRequestProcessors()) {
@@ -369,9 +363,6 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     public PipelinedRequest resolvePipeline(SearchRequest searchRequest) {
         Pipeline pipeline = Pipeline.NO_OP_PIPELINE;
 
-        if (isEnabled == false) {
-            return new PipelinedRequest(pipeline, searchRequest);
-        }
         if (searchRequest.source() != null && searchRequest.source().searchPipelineSource() != null) {
             // Pipeline defined in search request (ad hoc pipeline).
             if (searchRequest.pipeline() != null) {
@@ -388,7 +379,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                     phaseInjectorProcessorFactories,
                     namedWriteableRegistry,
                     totalRequestProcessingMetrics,
-                    totalResponseProcessingMetrics
+                    totalResponseProcessingMetrics,
+                    new Processor.PipelineContext(Processor.PipelineSource.SEARCH_REQUEST)
                 );
             } catch (Exception e) {
                 throw new SearchPipelineProcessingException(e);
@@ -398,7 +390,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             if (searchRequest.pipeline() != null) {
                 // Named pipeline specified for the request
                 pipelineId = searchRequest.pipeline();
-            } else if (searchRequest.indices() != null && searchRequest.indices().length == 1) {
+            } else if (state != null && searchRequest.indices() != null && searchRequest.indices().length == 1) {
                 // Check for index default pipeline
                 IndexMetadata indexMetadata = state.metadata().index(searchRequest.indices()[0]);
                 if (indexMetadata != null) {

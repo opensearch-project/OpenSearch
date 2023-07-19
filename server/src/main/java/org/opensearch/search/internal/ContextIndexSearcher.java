@@ -73,6 +73,7 @@ import org.opensearch.search.profile.Timer;
 import org.opensearch.search.profile.query.ProfileWeight;
 import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.search.profile.query.QueryTimingType;
+import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
@@ -102,26 +103,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
     private SearchContext searchContext;
-
-    public ContextIndexSearcher(
-        IndexReader reader,
-        Similarity similarity,
-        QueryCache queryCache,
-        QueryCachingPolicy queryCachingPolicy,
-        boolean wrapWithExitableDirectoryReader,
-        Executor executor
-    ) throws IOException {
-        this(
-            reader,
-            similarity,
-            queryCache,
-            queryCachingPolicy,
-            new MutableQueryTimeout(),
-            wrapWithExitableDirectoryReader,
-            executor,
-            null
-        );
-    }
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -295,6 +276,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 searchLeaf(leaves.get(i), weight, collector);
             }
         }
+        searchContext.bucketCollectorProcessor().processPostCollection(collector);
     }
 
     /**
@@ -310,18 +292,22 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return;
         }
 
-        cancellable.checkCancelled();
-        weight = wrapWeight(weight);
-        // See please https://github.com/apache/lucene/pull/964
-        collector.setWeight(weight);
         final LeafCollector leafCollector;
         try {
+            cancellable.checkCancelled();
+            weight = wrapWeight(weight);
+            // See please https://github.com/apache/lucene/pull/964
+            collector.setWeight(weight);
             leafCollector = collector.getLeafCollector(ctx);
         } catch (CollectionTerminatedException e) {
             // there is no doc of interest in this reader context
             // continue with the following leaf
             return;
+        } catch (QueryPhase.TimeExceededException e) {
+            searchContext.setSearchTimedOut(true);
+            return;
         }
+        // catch early terminated exception and rethrow?
         Bits liveDocs = ctx.reader().getLiveDocs();
         BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
         if (liveDocsBitSet == null) {
@@ -332,6 +318,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
+                } catch (QueryPhase.TimeExceededException e) {
+                    searchContext.setSearchTimedOut(true);
+                    return;
                 }
             }
         } else {
@@ -348,6 +337,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
+                } catch (QueryPhase.TimeExceededException e) {
+                    searchContext.setSearchTimedOut(true);
+                    return;
                 }
             }
         }
@@ -492,7 +484,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private boolean canMatchSearchAfter(LeafReaderContext ctx) throws IOException {
-        if (searchContext != null && searchContext.request() != null && searchContext.request().source() != null) {
+        if (searchContext.request() != null && searchContext.request().source() != null) {
             // Only applied on primary sort field and primary search_after.
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
             if (primarySortField != null) {
@@ -512,7 +504,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // This is actually beneficial for search queries to start search on latest segments first for time series workload.
         // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
         // reader order here.
-        if (searchContext != null && searchContext.indexShard().isTimeSeriesDescSortOptimizationEnabled()) {
+        if (searchContext.indexShard().isTimeSeriesDescSortOptimizationEnabled()) {
             // Only reverse order for asc order sort queries
             if (searchContext.sort() != null
                 && searchContext.sort().sort != null
