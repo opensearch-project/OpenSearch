@@ -200,6 +200,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY,
                 IndexSettings.DEFAULT_SEARCH_PIPELINE,
 
+                // Settings for Encryption
+                FsDirectoryFactory.INDEX_CRYPTO_PROVIDER_SETTING,
+                FsDirectoryFactory.INDEX_KMS_PATH_SETTING,
+                FsDirectoryFactory.INDEX_KMS_ALIAS_SETTING,
+                FsDirectoryFactory.INDEX_KMS_PASSWORD_SETTING,
+
                 // Settings for Searchable Snapshots
                 IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY,
                 IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,

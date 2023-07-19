@@ -54,8 +54,11 @@ import org.opensearch.plugins.IndexStorePlugin;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Provider;
+import java.security.Security;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Factory for a filesystem directory
@@ -74,6 +77,34 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 throw new IllegalArgumentException("unrecognized [index.store.fs.fs_lock] \"" + s + "\": must be native or simple");
         } // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
     }, Property.IndexScope, Property.NodeScope);
+
+    public static final Setting<String> INDEX_KMS_PATH_SETTING = new Setting<>(
+        "index.store.kms.path",
+        "",
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+    public static final Setting<String> INDEX_KMS_ALIAS_SETTING = new Setting<>(
+        "index.store.kms.alias",
+        "",
+        Function.identity(),
+        Property.NodeScope,
+        Property.IndexScope
+    );
+    public static final Setting<String> INDEX_KMS_PASSWORD_SETTING = new Setting<>(
+        "index.store.kms.password",
+        "",
+        Function.identity(),
+        Property.NodeScope,
+        Property.IndexScope
+    );
+    public static final Setting<Provider> INDEX_CRYPTO_PROVIDER_SETTING = new Setting<>("index.store.crypto.provider", "SunJCE", (s) -> {
+        Provider p = Security.getProvider(s);
+        if (p == null) {
+            throw new IllegalArgumentException("unrecognized [index.store.crypto.provider] \"" + s + "\"");
+        } else return p;
+    }, Property.IndexScope, Property.InternalIndex);
 
     @Override
     public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
@@ -110,6 +141,20 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case SIMPLEFS:
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
+            case CRYPTOFS:
+                final Provider provider = indexSettings.getValue(INDEX_CRYPTO_PROVIDER_SETTING);
+                final String alias = indexSettings.getValue(INDEX_KMS_ALIAS_SETTING);
+                final String keyStorePath = indexSettings.getValue(INDEX_KMS_PATH_SETTING);
+                java.util.function.Supplier<String> passwordSupplier = () -> { return indexSettings.getValue(INDEX_KMS_PASSWORD_SETTING); };
+                return new CryptoDirectory(
+                    lockFactory,
+                    setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions),
+                    new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS)),
+                    provider,
+                    alias,
+                    passwordSupplier,
+                    keyStorePath
+                );
             default:
                 throw new AssertionError("unexpected built-in store type [" + type + "]");
         }

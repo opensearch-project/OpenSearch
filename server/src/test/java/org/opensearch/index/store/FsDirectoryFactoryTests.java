@@ -52,11 +52,19 @@ import org.opensearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
 
+import javax.crypto.SecretKey;
+import org.opensearch.common.Randomness;
+import java.security.cert.CertificateException;
+import java.security.NoSuchAlgorithmException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 import static org.opensearch.test.store.MockFSDirectoryFactory.FILE_SYSTEM_BASED_STORE_TYPES;
 
 public class FsDirectoryFactoryTests extends OpenSearchTestCase {
@@ -182,6 +190,31 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
         if (typeSettingValue != null) {
             settingsBuilder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), typeSettingValue);
         }
+        if (type.toString().equals("CRYPTOFS")) {
+            final String KEYSTORE_PATH = createTempDir().toString() + "/keystore.ks";
+            settingsBuilder.put(FsDirectoryFactory.INDEX_KMS_ALIAS_SETTING.getKey(), "cryptotest")
+                .put(FsDirectoryFactory.INDEX_KMS_PASSWORD_SETTING.getKey(), "cryptopass")
+                .put(FsDirectoryFactory.INDEX_KMS_PATH_SETTING.getKey(), KEYSTORE_PATH);
+
+            try {
+                KeyStore keystore = KeyStore.getInstance("PKCS12");
+                byte[] keyMaterial = new byte[32];
+                java.util.Random rnd = Randomness.get();
+                rnd.nextBytes(keyMaterial);
+                SecretKey master = new javax.crypto.spec.SecretKeySpec(keyMaterial, "AES");
+                String alias = "cryptotest";
+                String keyPass = "cryptopass";
+                keystore.load(null, keyPass.toCharArray());
+                keystore.setEntry(alias, new KeyStore.SecretKeyEntry(master), new KeyStore.PasswordProtection(keyPass.toCharArray()));
+                try (OutputStream os = Files.newOutputStream(Path.of(KEYSTORE_PATH), StandardOpenOption.CREATE)) {
+                    keystore.store(os, keyPass.toCharArray());
+                }
+
+            } catch (java.security.AccessControlException | KeyStoreException | CertificateException | NoSuchAlgorithmException e) {
+                throw new IOException(e.getMessage());
+            }
+        }
+
         Settings settings = settingsBuilder.build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         FsDirectoryFactory service = new FsDirectoryFactory();
@@ -204,6 +237,9 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
                     } else {
                         assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
                     }
+                    break;
+                case CRYPTOFS:
+                    assertTrue(type + " " + directory.toString(), directory instanceof CryptoDirectory);
                     break;
                 default:
                     fail();

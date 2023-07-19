@@ -408,6 +408,7 @@ public final class IndexModule {
         MMAPFS("mmapfs"),
         SIMPLEFS("simplefs"),
         FS("fs"),
+        CRYPTOFS("cryptofs"),
         REMOTE_SNAPSHOT("remote_snapshot");
 
         private final String settingsKey;
@@ -675,6 +676,7 @@ public final class IndexModule {
                 case NIOFS:
                 case FS:
                 case MMAPFS:
+                case CRYPTOFS:
                 case SIMPLEFS:
                     factories.put(type.getSettingsKey(), DEFAULT_DIRECTORY_FACTORY);
                     break;
