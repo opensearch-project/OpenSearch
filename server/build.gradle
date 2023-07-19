@@ -158,6 +158,9 @@ dependencies {
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
 
+  // hashing
+  api "net.openhft:zero-allocation-hashing:${versions.zero_allocation_hashing}"
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -364,7 +367,18 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-            'com.google.protobuf.UnsafeUtil$MemoryAccessor'
+            'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+
+            // from zero-allocation-hashing
+            'net.openhft.hashing.HotSpotPrior7u6StringHash',
+            'net.openhft.hashing.LongHashFunction',
+            'net.openhft.hashing.LongTupleHashFunction',
+            'net.openhft.hashing.ModernCompactStringHash',
+            'net.openhft.hashing.ModernHotSpotStringHash',
+            'net.openhft.hashing.UnsafeAccess',
+            'net.openhft.hashing.UnsafeAccess$OldUnsafeAccessBigEndian',
+            'net.openhft.hashing.UnsafeAccess$OldUnsafeAccessLittleEndian',
+            'net.openhft.hashing.Util'
     )
 }
 
