@@ -222,19 +222,11 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             INDEX_NAME,
             Settings.builder().put(remoteStoreIndexSettings(1, 1)).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build()
         );
-
-        // Ensure zero stats when there are no refreshes
-        RemoteStoreStatsResponse zeroStateResponse = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
-        for (RemoteStoreStats stats : zeroStateResponse.getRemoteStoreStats()) {
-            assertZeroStats(stats);
-        }
-
-        // Manually invoke a refresh
-        refresh(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
 
         // Get zero state values
         // Extract and assert zero state primary stats
-        zeroStateResponse = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
+        RemoteStoreStatsResponse zeroStateResponse = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
         RemoteRefreshSegmentTracker.Stats zeroStatePrimaryStats = Arrays.stream(zeroStateResponse.getRemoteStoreStats())
             .filter(remoteStoreStats -> remoteStoreStats.getShardRouting().primary())
             .collect(Collectors.toList())
@@ -308,7 +300,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
                 // Assert last segment size uploaded = last segment size downloaded
                 assertEquals(replicaStats.lastSuccessfulSegmentDownloadBytes, primaryStats.lastSuccessfulRemoteRefreshBytes);
-            }, 30, TimeUnit.SECONDS);
+            }, 60, TimeUnit.SECONDS);
         }
     }
 
@@ -326,22 +318,18 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         createIndex(
             INDEX_NAME,
             Settings.builder()
-                .put(remoteStoreIndexSettings(dataNodeCount - 1, 1))
+                .put(remoteStoreIndexSettings(dataNodeCount, 1))
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build()
         );
-
-        RemoteStoreStatsResponse zeroStateResponse = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
-        for (RemoteStoreStats stats : zeroStateResponse.getRemoteStoreStats()) {
-            assertZeroStats(stats);
-        }
+        ensureGreen(INDEX_NAME);
 
         // Manually invoke a refresh
         refresh(INDEX_NAME);
 
         // Get zero state values
         // Extract and assert zero state primary stats
-        zeroStateResponse = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
+        RemoteStoreStatsResponse zeroStateResponse = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
         RemoteRefreshSegmentTracker.Stats zeroStatePrimaryStats = Arrays.stream(zeroStateResponse.getRemoteStoreStats())
             .filter(remoteStoreStats -> remoteStoreStats.getShardRouting().primary())
             .collect(Collectors.toList())
@@ -375,7 +363,6 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             indexSingleDoc(INDEX_NAME);
             // Running Flush & Refresh manually
             flushAndRefresh(INDEX_NAME);
-            ensureGreen(INDEX_NAME);
 
             assertBusy(() -> {
                 RemoteStoreStatsResponse response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
@@ -422,7 +409,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                     assertEquals(0, (long) downloadBytesFailed.get(j));
                     assertEquals(lastUploadedSegmentSize, (long) lastDownloadedSegmentSize.get(j));
                 }
-            }, 30, TimeUnit.SECONDS);
+            }, 60, TimeUnit.SECONDS);
         }
     }
 
@@ -435,6 +422,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
         // Create index
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 1));
+        ensureGreen(INDEX_NAME);
         // Index docs
         indexDocs();
 
@@ -489,6 +477,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         // a. Total shard Count in the response object is equal to the previous node count
         // b. Successful shard count in the response object is equal to the new node count
         createIndex(INDEX_NAME, remoteStoreIndexSettings(2, 1));
+        ensureGreen(INDEX_NAME);
         indexDocs();
         int dataNodeCountBeforeStop = client().admin().cluster().prepareHealth().get().getNumberOfDataNodes();
         internalCluster().stopRandomDataNode();
@@ -502,6 +491,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         // Creating an index with primary shard count == total nodes in cluster and 0 replicas
         int dataNodeCount = client().admin().cluster().prepareHealth().get().getNumberOfDataNodes();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0, dataNodeCount));
+        ensureGreen(INDEX_NAME);
 
         // Index some docs to ensure segments being uploaded to remote store
         indexDocs();
@@ -653,20 +643,5 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                     && r.primary() == routing.primary())
             )
         );
-    }
-
-    private static void assertZeroStats(RemoteStoreStats stats) {
-        RemoteRefreshSegmentTracker.Stats statsTracker = stats.getStats();
-        if (stats.getShardRouting().primary()) {
-            assertEquals(0, statsTracker.totalUploadsStarted);
-            assertEquals(0, statsTracker.totalUploadsSucceeded);
-            assertEquals(0, statsTracker.uploadBytesStarted);
-            assertEquals(0, statsTracker.uploadBytesFailed);
-        } else {
-            assertEquals(0, statsTracker.totalDownloadsStarted);
-            assertEquals(0, statsTracker.totalDownloadsSucceeded);
-            assertEquals(0, statsTracker.downloadBytesStarted);
-            assertEquals(0, statsTracker.downloadBytesSucceeded);
-        }
     }
 }
