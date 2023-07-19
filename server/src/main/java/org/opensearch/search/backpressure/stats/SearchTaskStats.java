@@ -8,6 +8,7 @@
 
 package org.opensearch.search.backpressure.stats;
 
+import org.opensearch.Version;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -49,7 +50,11 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
     public SearchTaskStats(StreamInput in) throws IOException {
         this.cancellationCount = in.readVLong();
         this.limitReachedCount = in.readVLong();
-        this.completionCount = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            this.completionCount = in.readVLong();
+        } else {
+            this.completionCount = -1;
+        }
 
         MapBuilder<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> builder = new MapBuilder<>();
         builder.put(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, in.readOptionalWriteable(CpuUsageTracker.Stats::new));
@@ -67,7 +72,10 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
             builder.field(entry.getKey().getName(), entry.getValue());
         }
         builder.endObject();
-        builder.field("completion_count", completionCount);
+        if (completionCount != -1) {
+            builder.field("completion_count", completionCount);
+        }
+
 
         builder.startObject("cancellation_stats")
             .field("cancellation_count", cancellationCount)
@@ -81,7 +89,9 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(cancellationCount);
         out.writeVLong(limitReachedCount);
-        out.writeVLong(completionCount);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeVLong(completionCount);
+        }
 
         out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER));
         out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER));
