@@ -243,7 +243,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 RemoteRefreshSegmentTracker.Stats primaryStats = primaryStatsList.get(0).getStats();
                 RemoteRefreshSegmentTracker.Stats replicaStats = replicaStatsList.get(0).getStats();
                 // Assert Upload syncs = download syncs
-                assertTrue(primaryStats.totalUploadsStarted > 0 && primaryStats.totalUploadsStarted == replicaStats.totalUploadsStarted);
+                assertTrue(primaryStats.totalUploadsStarted > 0 && primaryStats.totalUploadsStarted == replicaStats.totalDownloadsStarted);
                 assertTrue(
                     primaryStats.totalUploadsSucceeded > 0 && primaryStats.totalUploadsSucceeded == replicaStats.totalDownloadsSucceeded
                 );
