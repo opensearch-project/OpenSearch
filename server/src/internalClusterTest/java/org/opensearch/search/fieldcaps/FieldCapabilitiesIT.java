@@ -472,7 +472,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
                 false,
                 true,
                 true,
-                new String[] {},
+                null,
                 new String[] { "new_index", "old_index" },
                 null,
                 null,
@@ -628,7 +628,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
                 false,
                 true,
                 true,
-                new String[] {},
+                null,
                 new String[] { "new_index", "old_index" },
                 null,
                 null,
@@ -677,7 +677,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
                 true,
                 true,
                 true,
-                new String[] {},
+                null,
                 null,
                 null,
                 null,
@@ -765,7 +765,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
                 true,
                 true,
                 true,
-                new String[] {},
+                null,
                 null,
                 null,
                 null,
@@ -834,7 +834,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
                 false,
                 false,
                 false,
-                new String[] {},
+                null,
                 new String[] { "another_index", "new_index" },
                 null,
                 null,
@@ -849,7 +849,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(newField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("new_field", "long", false, true, true, new String[] {}, null, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("new_field", "long", false, true, true, null, null, null, null, null, Collections.emptyMap()),
             newField.get("long")
         );
     }
