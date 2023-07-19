@@ -71,6 +71,8 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         String version = null;
         String openSearchVersion = null;
         String minimumCompatibleVersion = null;
+        List<String> distinguishedNames = new ArrayList<>();
+        ;
         List<ExtensionDependency> dependencies = new ArrayList<>();
         Set<String> additionalSettingsKeys = extensionsManager.getAdditionalSettings()
             .stream()
@@ -141,6 +143,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
             version = extensionMap.get("version").toString();
             openSearchVersion = extensionMap.get("opensearchVersion").toString();
             minimumCompatibleVersion = extensionMap.get("minimumCompatibleVersion").toString();
+            distinguishedNames = new ArrayList<>((Collection<String>) extensionMap.get("distinguishedNames"));
             dependencies = extensionDependencyList;
         } catch (IOException e) {
             logger.warn("loading extension has been failed because of exception : " + e.getMessage());
@@ -155,6 +158,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
             version,
             openSearchVersion,
             minimumCompatibleVersion,
+            distinguishedNames,
             dependencies,
             extAdditionalSettings
         );
