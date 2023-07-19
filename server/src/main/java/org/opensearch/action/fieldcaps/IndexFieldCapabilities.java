@@ -63,7 +63,15 @@ public class IndexFieldCapabilities implements Writeable {
      * @param isAggregatable Whether this field can be aggregated on.
      * @param meta Metadata about the field.
      */
-    IndexFieldCapabilities(String name, String type, boolean isAlias, boolean isSearchable, boolean isAggregatable,List<String> aliases, Map<String, String> meta) {
+    IndexFieldCapabilities(
+        String name,
+        String type,
+        boolean isAlias,
+        boolean isSearchable,
+        boolean isAggregatable,
+        List<String> aliases,
+        Map<String, String> meta
+    ) {
 
         this.name = name;
         this.type = type;
@@ -106,6 +114,7 @@ public class IndexFieldCapabilities implements Writeable {
     public boolean isAlias() {
         return isAlias;
     }
+
     public boolean isAggregatable() {
         return isAggregatable;
     }
@@ -117,6 +126,7 @@ public class IndexFieldCapabilities implements Writeable {
     public List<String> aliases() {
         return aliases;
     }
+
     public Map<String, String> meta() {
         return meta;
     }
@@ -137,6 +147,6 @@ public class IndexFieldCapabilities implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, isAlias, isSearchable, isAggregatable,aliases, meta);
+        return Objects.hash(name, type, isAlias, isSearchable, isAggregatable, aliases, meta);
     }
 }

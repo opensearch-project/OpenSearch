@@ -71,10 +71,14 @@ public class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
-        this(fieldMappers,fieldAliasMappers,Collections.emptyList());
+        this(fieldMappers, fieldAliasMappers, Collections.emptyList());
     }
 
-    FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers,Collection<FieldCorrelationMapper> fieldCorrelationMappers) {
+    FieldTypeLookup(
+        Collection<FieldMapper> fieldMappers,
+        Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<FieldCorrelationMapper> fieldCorrelationMappers
+    ) {
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -128,7 +132,7 @@ public class FieldTypeLookup implements Iterable<MappedFieldType> {
      * Returns the field type aliase's for the given field name.
      */
     public List<String> getAliases(String field) {
-        return concreteToAliasName.getOrDefault(field,Collections.emptyList());
+        return concreteToAliasName.getOrDefault(field, Collections.emptyList());
     }
 
     /**

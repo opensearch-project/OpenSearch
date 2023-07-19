@@ -58,7 +58,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-
 /**
  * Describes the capabilities of a field optionally merged across multiple indices.
  *
@@ -308,7 +307,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return nonAggregatableIndices;
     }
 
-
     /**
      * The list of indices where this field is actually an alias
      */
@@ -343,7 +341,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, type,isAlias, isSearchable, isAggregatable, meta);
+        int result = Objects.hash(name, type, isAlias, isSearchable, isAggregatable, meta);
         result = 31 * result + Arrays.hashCode(aliases);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
@@ -410,8 +408,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 indices = null;
             }
             final String[] indexAliases = indicesList.stream()
-                .flatMap(caps -> caps.aliases.stream()
-                    .map(alias -> String.format(Locale.ROOT,"%s:%s", caps.name, alias)))
+                .flatMap(caps -> caps.aliases.stream().map(alias -> String.format(Locale.ROOT, "%s:%s", caps.name, alias)))
                 .collect(Collectors.toList())
                 .toArray(String[]::new);
 
@@ -442,10 +439,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             if (isAlias == true && indicesList.stream().anyMatch((caps) -> caps.isAlias)) {
                 // If this field is alias in some indices AND non-alias in others
                 // we keep the list of alias indices
-                aliasIndices = indicesList.stream()
-                    .filter((caps) -> caps.isAlias == true)
-                    .map(caps -> caps.name)
-                    .toArray(String[]::new);
+                aliasIndices = indicesList.stream().filter((caps) -> caps.isAlias == true).map(caps -> caps.name).toArray(String[]::new);
             } else {
                 aliasIndices = null;
             }

@@ -426,13 +426,37 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(distance.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("distance", "double", false,true, true, new String[]{"old_index:route_length_miles"}, new String[]{"old_index"}, null, null,null, Collections.emptyMap()),
+            new FieldCapabilities(
+                "distance",
+                "double",
+                false,
+                true,
+                true,
+                new String[] { "old_index:route_length_miles" },
+                new String[] { "old_index" },
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            ),
             distance.get("double")
         );
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
-            new FieldCapabilities("distance", "text", false,true, false, new String[]{"another_index:another_route_length_miles", "another_index:route_length_miles"}, new String[]{"another_index", "new_index"}, null, null,null, Collections.emptyMap()),
+            new FieldCapabilities(
+                "distance",
+                "text",
+                false,
+                true,
+                false,
+                new String[] { "another_index:another_route_length_miles", "another_index:route_length_miles" },
+                new String[] { "another_index", "new_index" },
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            ),
             distance.get("text")
         );
 
@@ -442,7 +466,19 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", false,true, true, new String[]{}, new String[]{"new_index","old_index"}, null, null,null, Collections.emptyMap()),
+            new FieldCapabilities(
+                "route_length_miles",
+                "double",
+                false,
+                true,
+                true,
+                new String[] {},
+                new String[] { "new_index", "old_index" },
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            ),
             routeLength.get("double")
         );
     }
@@ -546,13 +582,37 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(distance.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("distance", "double", false,true, true, new String[]{"old_index:route_length_miles"}, new String[]{"old_index"}, null, null,null, Collections.emptyMap()),
+            new FieldCapabilities(
+                "distance",
+                "double",
+                false,
+                true,
+                true,
+                new String[] { "old_index:route_length_miles" },
+                new String[] { "old_index" },
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            ),
             distance.get("double")
         );
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
-            new FieldCapabilities("distance", "text", false,true, false, new String[]{"another_index:another_route_length_miles", "another_index:route_length_miles"}, new String[]{"another_index", "new_index"}, null,null, null, Collections.emptyMap()),
+            new FieldCapabilities(
+                "distance",
+                "text",
+                false,
+                true,
+                false,
+                new String[] { "another_index:another_route_length_miles", "another_index:route_length_miles" },
+                new String[] { "another_index", "new_index" },
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            ),
             distance.get("text")
         );
 
@@ -562,7 +622,19 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", false,true, true, new String[]{}, new String[]{"new_index","old_index"}, null, null,null, Collections.emptyMap()),
+            new FieldCapabilities(
+                "route_length_miles",
+                "double",
+                false,
+                true,
+                true,
+                new String[] {},
+                new String[] { "new_index", "old_index" },
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            ),
             routeLength.get("double")
         );
     }
@@ -597,10 +669,21 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
         Map<String, FieldCapabilities> route_length_miles = response.getField("route_length_miles");
         assertEquals(1, route_length_miles.size());
 
-
         assertTrue(route_length_miles.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", true,true, true, new String[]{}, null, null, null,new String[]{"old_index"}, Collections.emptyMap()),
+            new FieldCapabilities(
+                "route_length_miles",
+                "double",
+                true,
+                true,
+                true,
+                new String[] {},
+                null,
+                null,
+                null,
+                new String[] { "old_index" },
+                Collections.emptyMap()
+            ),
             route_length_miles.get("double")
         );
     }
@@ -654,7 +737,19 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(distance.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("distance", "double", false,true, true, new String[]{"old_index:route_length_miles"} , null, null, null,null, Collections.emptyMap()),
+            new FieldCapabilities(
+                "distance",
+                "double",
+                false,
+                true,
+                true,
+                new String[] { "old_index:route_length_miles" },
+                null,
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            ),
             distance.get("double")
         );
 
@@ -664,7 +759,19 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", true,true, true, new String[]{}, null, null, null, new String[]{"old_index"}, Collections.emptyMap()),
+            new FieldCapabilities(
+                "route_length_miles",
+                "double",
+                true,
+                true,
+                true,
+                new String[] {},
+                null,
+                null,
+                null,
+                new String[] { "old_index" },
+                Collections.emptyMap()
+            ),
             routeLength.get("double")
         );
     }
@@ -703,13 +810,37 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(oldField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("old_field", "long", false,true, true, new String[]{"old_index:new_field"}, new String[]{"old_index"}, null, null,null, Collections.emptyMap()),
+            new FieldCapabilities(
+                "old_field",
+                "long",
+                false,
+                true,
+                true,
+                new String[] { "old_index:new_field" },
+                new String[] { "old_index" },
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            ),
             oldField.get("long")
         );
 
         assertTrue(oldField.containsKey("unmapped"));
         assertEquals(
-            new FieldCapabilities("old_field", "unmapped", false,false, false, new String[]{}, new String[]{"another_index", "new_index"}, null, null,null, Collections.emptyMap()),
+            new FieldCapabilities(
+                "old_field",
+                "unmapped",
+                false,
+                false,
+                false,
+                new String[] {},
+                new String[] { "another_index", "new_index" },
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            ),
             oldField.get("unmapped")
         );
 
@@ -718,7 +849,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
         assertTrue(newField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("new_field", "long", false,true, true, new String[]{}, null, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("new_field", "long", false, true, true, new String[] {}, null, null, null, null, Collections.emptyMap()),
             newField.get("long")
         );
     }

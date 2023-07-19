@@ -197,15 +197,21 @@ public class TransportGetFieldAliasesMappingsIndexAction extends TransportSingle
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (Mapper fieldMapper : allFieldMappers) {
-                    for( Mapper fieldAliasMapper : getFieldAliases(fieldMapper,aliasesLookup,allFieldMappers)) {
+                    for (Mapper fieldAliasMapper : getFieldAliases(fieldMapper, aliasesLookup, allFieldMappers)) {
                         addFieldMapper(fieldPredicate, fieldAliasMapper.name(), fieldAliasMapper, fieldMappings, request.includeDefaults());
                     }
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
                 for (Mapper fieldMapper : allFieldMappers) {
                     if (Regex.simpleMatch(field, fieldMapper.name())) {
-                        for( Mapper fieldAliasMapper : getFieldAliases(fieldMapper,aliasesLookup,allFieldMappers)) {
-                            addFieldMapper(fieldPredicate, fieldAliasMapper.name(), fieldAliasMapper, fieldMappings, request.includeDefaults());
+                        for (Mapper fieldAliasMapper : getFieldAliases(fieldMapper, aliasesLookup, allFieldMappers)) {
+                            addFieldMapper(
+                                fieldPredicate,
+                                fieldAliasMapper.name(),
+                                fieldAliasMapper,
+                                fieldMappings,
+                                request.includeDefaults()
+                            );
                         }
                     }
                 }
@@ -213,7 +219,7 @@ public class TransportGetFieldAliasesMappingsIndexAction extends TransportSingle
                 // not a pattern
                 Mapper fieldMapper = allFieldMappers.getMapper(field);
                 if (fieldMapper != null) {
-                    for( Mapper fieldAliasMapper : getFieldAliases(fieldMapper,aliasesLookup,allFieldMappers)) {
+                    for (Mapper fieldAliasMapper : getFieldAliases(fieldMapper, aliasesLookup, allFieldMappers)) {
                         addFieldMapper(fieldPredicate, fieldAliasMapper.name(), fieldAliasMapper, fieldMappings, request.includeDefaults());
                     }
                 }

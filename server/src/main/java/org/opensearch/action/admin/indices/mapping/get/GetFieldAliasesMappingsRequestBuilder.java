@@ -42,7 +42,9 @@ import org.opensearch.common.util.ArrayUtils;
  *
  * @opensearch.internal
  **/
-public class GetFieldAliasesMappingsRequestBuilder extends ActionRequestBuilder<GetFieldAliasesMappingsRequest, GetFieldAliasesMappingsResponse> {
+public class GetFieldAliasesMappingsRequestBuilder extends ActionRequestBuilder<
+    GetFieldAliasesMappingsRequest,
+    GetFieldAliasesMappingsResponse> {
 
     public GetFieldAliasesMappingsRequestBuilder(OpenSearchClient client, GetFieldAliasesMappingsAction action, String... indices) {
         super(client, action, new GetFieldAliasesMappingsRequest().indices(indices));

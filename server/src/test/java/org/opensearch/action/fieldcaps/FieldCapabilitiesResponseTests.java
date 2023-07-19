@@ -128,11 +128,19 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 aliases = List.of("foo");
                 break;
             default:
-                aliases = List.of("foo","bar");
+                aliases = List.of("foo", "bar");
                 break;
         }
 
-        return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(), randomBoolean(),aliases, meta);
+        return new IndexFieldCapabilities(
+            fieldName,
+            randomAlphaOfLengthBetween(5, 20),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            aliases,
+            meta
+        );
     }
 
     @Override
