@@ -490,6 +490,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return Objects.hash(restoreUUID, index, version);
         }
 
+        @Override
+        public boolean expectEmptyRetentionLeases() {
+            return false;
+        }
     }
 
     /**
