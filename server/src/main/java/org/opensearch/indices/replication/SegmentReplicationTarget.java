@@ -13,10 +13,6 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ByteBuffersDataInput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
@@ -36,7 +32,6 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -198,7 +193,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return diff.missing;
     }
 
-    private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, GetSegmentFilesResponse getSegmentFilesResponse) throws OpenSearchCorruptionException {
+    private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, GetSegmentFilesResponse getSegmentFilesResponse)
+        throws OpenSearchCorruptionException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
         Store store = null;
@@ -207,17 +203,22 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             store.incRef();
             Map<String, String> tempFileNames = null;
             if (this.indexShard.indexSettings().isRemoteStoreEnabled() == true) {
-                tempFileNames = getSegmentFilesResponse.getFiles() != null ? getSegmentFilesResponse.getFiles().stream().collect(Collectors.toMap(StoreFileMetadata::name, StoreFileMetadata::name)) : Collections.emptyMap();
+                tempFileNames = getSegmentFilesResponse.getFiles() != null
+                    ? getSegmentFilesResponse.getFiles()
+                        .stream()
+                        .collect(Collectors.toMap(StoreFileMetadata::name, StoreFileMetadata::name))
+                    : Collections.emptyMap();
             } else {
                 tempFileNames = multiFileWriter.getTempFileNames();
             }
-            logger.info("--> tempFileNames {} checkpointInfoResponse.getCheckpoint().getSegmentsGen() {}", tempFileNames, checkpointInfoResponse.getCheckpoint().getSegmentsGen());
             store.buildInfosFromBytes(
                 tempFileNames,
                 checkpointInfoResponse.getInfosBytes(),
                 checkpointInfoResponse.getCheckpoint().getSegmentsGen(),
                 indexShard::finalizeReplication,
-                this.indexShard.indexSettings().isRemoteStoreEnabled() == true ? (files) -> {}: (files) -> indexShard.store().renameTempFilesSafe(files)
+                this.indexShard.indexSettings().isRemoteStoreEnabled() == true
+                    ? (files) -> {}
+                    : (files) -> indexShard.store().renameTempFilesSafe(files)
             );
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.

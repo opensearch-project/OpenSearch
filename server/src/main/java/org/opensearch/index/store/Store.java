@@ -853,7 +853,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         byte[] infosBytes,
         long segmentsGen,
         CheckedConsumer<SegmentInfos, IOException> finalizeConsumer,
-        CheckedConsumer<Map<String,String>, IOException> renameConsumer
+        CheckedConsumer<Map<String, String>, IOException> renameConsumer
     ) throws IOException {
         metadataLock.writeLock().lock();
         try {

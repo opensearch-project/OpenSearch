@@ -4630,7 +4630,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 store.incRef();
                 remoteStore.incRef();
                 final Directory storeDirectory = store.directory();
-                logger.info("--> storeDirectory {}", storeDirectory.getClass());
                 String segmentNFile = null;
                 for (StoreFileMetadata fileMetadata : filesToFetch) {
                     String file = fileMetadata.name();
@@ -4658,8 +4657,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param refreshLevelSegmentSync last refresh checkpoint is used if true, commit checkpoint otherwise
      * @throws IOException if exception occurs while reading segments from remote store
      */
-    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync)
-        throws IOException {
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();

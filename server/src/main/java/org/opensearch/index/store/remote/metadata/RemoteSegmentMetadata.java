@@ -39,14 +39,14 @@ public class RemoteSegmentMetadata {
 
     private final byte[] segmentInfosBytes;
 
-//    private final long primaryTerm;
-//    private final long generation;
-//
-//    private final long version;
-//
-//    private final long length;
-//
-//    private final String codec;
+    // private final long primaryTerm;
+    // private final long generation;
+    //
+    // private final long version;
+    //
+    // private final long length;
+    //
+    // private final String codec;
 
     public ReplicationCheckpoint getReplicationCheckpoint() {
         return replicationCheckpoint;

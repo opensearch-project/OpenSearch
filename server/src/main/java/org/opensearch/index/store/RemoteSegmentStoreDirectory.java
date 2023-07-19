@@ -604,7 +604,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param segmentFiles segment files that are part of the shard at the time of the latest refresh
      * @param segmentInfosSnapshot SegmentInfos bytes to store as part of metadata file
      * @param storeDirectory instance of local directory to temporarily create metadata file before upload
-     * @param primaryTerm primary term to be used in the name of metadata file
+     * @param translogGeneration translog generation
+     * @param replicationCheckpoint ReplicationCheckpoint of primary shard
      * @throws IOException in case of I/O error while uploading the metadata file
      */
     public void uploadMetadata(

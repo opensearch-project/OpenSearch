@@ -77,7 +77,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                         )
                     )
                 );
-            logger.info("--> Sending empty checkpoint");
             listener.onResponse(new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes()));
         } catch (Exception e) {
             listener.onFailure(e);
