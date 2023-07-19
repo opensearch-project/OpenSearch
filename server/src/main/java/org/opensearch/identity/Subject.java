@@ -10,7 +10,7 @@ import org.opensearch.identity.tokens.AuthToken;
 import java.util.Optional;
 
 /**
- * An individual, process, or device that causes information to flow among objects or change to the system state.
+ * An individual, process, or device that causes information to flow among objects or changes to the system state.
  *
  * @opensearch.experimental
  */

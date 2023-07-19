@@ -36,6 +36,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+
+import org.opensearch.identity.Application;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
@@ -51,6 +53,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.identity.ApplicationAwareSubject;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.scopes.ExtensionPointScope;
 import org.opensearch.plugins.ActionPlugin;
@@ -63,31 +66,30 @@ import org.opensearch.rest.RestHeaderDefinition;
  *
  * @opensearch.experimental
  */
-public class ScopeProtectedActionPlugin implements ActionPlugin {
+public final class ScopeProtectedActionPlugin implements ActionPlugin {
+    private final Application application;
     private final ActionPlugin plugin;
     private final IdentityService identity;
 
     String INVALID_EXTENSION_POINT_SCOPE_MESSAGE = "Unable to identify extension point scope: ";
 
-    public ScopeProtectedActionPlugin(final ActionPlugin plugin, final IdentityService identity) {
+    public ScopeProtectedActionPlugin(final Application application, final ActionPlugin plugin, final IdentityService identity) {
+        this.application = application;
         this.plugin = plugin;
         this.identity = identity;
     }
 
-    private void throwIfNotAllowed() {
+    private void checkIfAllowed() {
         if (!(identity.getSubject().isAllowed(List.of(ExtensionPointScope.ACTION)))) {
             throw new OpenSearchException(INVALID_EXTENSION_POINT_SCOPE_MESSAGE + ExtensionPointScope.ACTION.asPermissionString());
         }
     }
 
-    // Have to wrap with a Public Method for testing
-    public void checkIfAllowed() {
-        throwIfNotAllowed();
-    }
-
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        checkIfAllowed();
-        return plugin.getActions();
+        return identity.getSubject().runAs(application, () -> {
+            checkIfAllowed();
+            return plugin.getActions();
+        });
     }
 
     public List<ActionType<? extends ActionResponse>> getClientActions() {
@@ -109,7 +111,7 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        throwIfNotAllowed();
+        checkIfAllowed();
         return plugin.getRestHandlers(
             settings,
             restController,

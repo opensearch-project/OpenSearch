@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.opensearch.Application;
+import org.opensearch.identity.Application;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.core.common.Strings;

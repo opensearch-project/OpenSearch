@@ -66,6 +66,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
+import org.opensearch.identity.ApplicationManager;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasEntry;
@@ -138,7 +139,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, new ArrayList<>()),
+            new IdentityService(Settings.EMPTY, new ArrayList<>(), new ApplicationManager()),
             new ExtensionsManager(Set.of())
         );
         actionModule.initRestHandlers(null);

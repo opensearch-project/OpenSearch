@@ -39,6 +39,7 @@ import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.action.ExtensionAction;
 import org.opensearch.extensions.action.ExtensionTransportAction;
+import org.opensearch.identity.ApplicationManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.NamedRoute;
@@ -118,7 +119,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            new IdentityService(extensionsManager, Settings.EMPTY, new ArrayList<>()),
+            new IdentityService(Settings.EMPTY, new ArrayList<>(), new ApplicationManager()),
             extensionsManager
         );
         dynamicActionRegistry = actionModule.getDynamicActionRegistry();

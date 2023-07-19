@@ -69,6 +69,7 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 import org.opensearch.usage.UsageService;
+import org.opensearch.identity.ApplicationManager;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -147,7 +148,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new NodeClient(Settings.EMPTY, threadPool),
             new NoneCircuitBreakerService(),
             new UsageService(),
-            new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, List.of())
+            new IdentityService(Settings.EMPTY, List.of(), new ApplicationManager())
         );
         when(actionModule.getDynamicActionRegistry()).thenReturn(mock(DynamicActionRegistry.class));
         when(actionModule.getRestController()).thenReturn(restController);

@@ -52,7 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.identity.ApplicationManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestController;
@@ -76,15 +76,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static IdentityService identityService;
-
-    static {
-        try {
-            identityService = new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, List.of());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+    private static IdentityService identityService = new IdentityService(Settings.EMPTY, List.of(), new ApplicationManager());
 
     private static RestController controller = new RestController(
         emptySet(),

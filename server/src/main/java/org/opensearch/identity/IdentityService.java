@@ -5,16 +5,20 @@
 
 package org.opensearch.identity;
 
+import java.security.Principal;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
+import org.opensearch.identity.noop.NoopSubject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
-
+import org.opensearch.common.util.concurrent.ThreadContext;
 /**
  * Identity and access control for OpenSearch
  *
@@ -26,6 +30,7 @@ public class IdentityService {
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
     private final ApplicationManager applicationManager;
+    private final AtomicReference<ThreadContext> threadContext = new AtomicReference<>();
 
     public IdentityService(
         final Settings settings,
@@ -49,11 +54,17 @@ public class IdentityService {
         }
     }
 
+    public void associateThreadContext(final ThreadContext threadContext) {
+        if (!this.threadContext.compareAndSet(null, threadContext)) {
+            throw new OpenSearchException("Thread context was already associated to identity service");
+        }
+    }
+
     /**
      * Gets the current Subject
      */
     public ApplicationAwareSubject getSubject() {
-        return new ApplicationAwareSubject(identityPlugin.getSubject(), applicationManager);
+        return getSubjectFromContext().orElseGet(this::createSubjectAndPutInContext);
     }
 
     /**
@@ -61,5 +72,24 @@ public class IdentityService {
      */
     public TokenManager getTokenManager() {
         return identityPlugin.getTokenManager();
+    }
+
+    private static final String SUBJECT_CONTEXT_KEY = "application_aware_subject";
+    private Optional<ApplicationAwareSubject> getSubjectFromContext() {
+        return Optional.ofNullable(threadContext.get())
+            .map(context -> context.getPersistent(SUBJECT_CONTEXT_KEY))
+            .map(sub -> {
+                if (sub instanceof ApplicationAwareSubject) {
+                    return (ApplicationAwareSubject)sub;
+                }
+                return null;
+            });
+    }
+
+    private ApplicationAwareSubject createSubjectAndPutInContext() {
+        final ApplicationAwareSubject newSubject = new ApplicationAwareSubject(identityPlugin::getSubject, applicationManager);
+        Optional.ofNullable(threadContext.get())
+            .ifPresent(context -> context.putPersistent(SUBJECT_CONTEXT_KEY, newSubject));
+        return newSubject;
     }
 }

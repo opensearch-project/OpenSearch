@@ -16,7 +16,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.function.Supplier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.ApplicationScope;
 import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.tokens.AuthToken;
@@ -32,14 +38,15 @@ import org.opensearch.identity.tokens.AuthToken;
 @SuppressWarnings("overrides")
 public class ApplicationAwareSubject implements Subject {
 
-    private final Subject wrapped;
+    private final AtomicReference<Application> assumedApplication = new AtomicReference<>();
+    private final Supplier<Subject> wrapped;
     private final ApplicationManager applicationManager;
 
     /**
      * We wrap a basic Subject object to create an ApplicationAwareSubject -- this should come from the IdentityService
      * @param wrapped The Subject to be wrapped
      */
-    public ApplicationAwareSubject(final Subject wrapped, final ApplicationManager applicationManager) {
+    public ApplicationAwareSubject(final Supplier<Subject> wrapped, final ApplicationManager applicationManager) {
         this.wrapped = wrapped;
         this.applicationManager = applicationManager;
     }
@@ -50,8 +57,16 @@ public class ApplicationAwareSubject implements Subject {
      * @return true if allowed, false if none of the scopes are allowed.
      */
     public boolean isAllowed(final List<Scope> scopes) {
+        final boolean isSubjectApplicationAllowed = isAllowed(getApplication(), scopes);
 
-        final Optional<Principal> application = this.getApplication();
+        final Optional<Principal> assumedApplicationPrincipal = Optional.ofNullable(assumedApplication.get())
+            .map(Application::getPrincipal);
+        final boolean isAssumedApplicationAllowed = isAllowed(assumedApplicationPrincipal, scopes);
+
+        return isSubjectApplicationAllowed && isAssumedApplicationAllowed;
+    }
+
+    private boolean isAllowed(final Optional<Principal> application, final List<Scope> scopes) {
         if (application.isEmpty()) {
             // If there is no application, actions are allowed by default
             return true;
@@ -76,29 +91,28 @@ public class ApplicationAwareSubject implements Subject {
         return hasMatchingScopes;
     }
 
-    // Passthroughs for wrapped subject
+    public synchronized <T> T runAs(final Application application, final Callable<T> callable) {
+        if (!assumedApplication.compareAndSet(null, application)) {
+            throw new AssumeIdentityException("Subject is already running as another application, " + assumedApplication.get() + ", tried to become " + application);
+        }
+        try {
+            return callable.call();
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            assumedApplication.set(null);
+        }
+    }
+
     public Principal getPrincipal() {
-        return wrapped.getPrincipal();
+        return wrapped.get().getPrincipal();
     }
 
     public void authenticate(final AuthToken token) {
-        wrapped.authenticate(token);
+        wrapped.get().authenticate(token);
     }
 
     public Optional<Principal> getApplication() {
-        return wrapped.getApplication();
-    }
-    // end Passthroughs for wrapped subject
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (!(obj instanceof ApplicationAwareSubject)) {
-            return false;
-        }
-        final ApplicationAwareSubject other = (ApplicationAwareSubject) obj;
-        return Objects.equals(this.wrapped, other.wrapped);
+        return wrapped.get().getApplication();
     }
 }

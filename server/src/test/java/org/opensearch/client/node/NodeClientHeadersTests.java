@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
@@ -47,7 +46,7 @@ import org.opensearch.client.AbstractClientHeadersTestCase;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.identity.ApplicationManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
@@ -64,17 +63,14 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         NodeClient client = new NodeClient(settings, threadPool);
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
         dynamicActionRegistry.registerUnmodifiableActionMap(actions);
-        try {
-            client.initialize(
-                dynamicActionRegistry,
-                () -> "test",
-                null,
-                new NamedWriteableRegistry(Collections.emptyList()),
-                new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, List.of())
-            );
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        client.initialize(
+            dynamicActionRegistry,
+            () -> "test",
+            null,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new IdentityService(Settings.EMPTY, List.of(), new ApplicationManager())
+        );
+
         return client;
     }
 

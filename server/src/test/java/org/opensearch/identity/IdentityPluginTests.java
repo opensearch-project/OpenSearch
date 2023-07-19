@@ -10,10 +10,8 @@ package org.opensearch.identity;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.noop.NoopTokenManager;
 import org.opensearch.plugins.IdentityPlugin;
@@ -26,7 +24,7 @@ public class IdentityPluginTests extends OpenSearchTestCase {
     public void testSingleIdentityPluginSucceeds() throws IOException {
         IdentityPlugin identityPlugin1 = new NoopIdentityPlugin();
         List<IdentityPlugin> pluginList1 = List.of(identityPlugin1);
-        IdentityService identityService1 = new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, pluginList1);
+        IdentityService identityService1 = new IdentityService(Settings.EMPTY, pluginList1, new ApplicationManager());
         assertTrue(identityService1.getSubject().getPrincipal().getName().equalsIgnoreCase("Unauthenticated"));
         assertThat(identityService1.getTokenManager(), is(instanceOf(NoopTokenManager.class)));
     }
@@ -38,7 +36,7 @@ public class IdentityPluginTests extends OpenSearchTestCase {
         List<IdentityPlugin> pluginList = List.of(identityPlugin1, identityPlugin2, identityPlugin3);
         Exception ex = assertThrows(
             OpenSearchException.class,
-            () -> new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, pluginList)
+            () -> new IdentityService(Settings.EMPTY, pluginList, new ApplicationManager())
         );
         assert (ex.getMessage().contains("Multiple identity plugins are not supported,"));
     }

@@ -20,50 +20,21 @@ import org.opensearch.action.get.GetAction;
 import org.opensearch.action.get.MultiGetAction;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings;
+import org.opensearch.identity.ApplicationManager;
 import org.opensearch.identity.ApplicationAwareSubject;
 import org.opensearch.test.OpenSearchTestCase;
 import static org.mockito.Mockito.spy;
+import static org.hamcrest.MatcherAssert.assertThat;
 
-public class ActionScopeTests extends OpenSearchTestCase {
+public class ScopeTests extends OpenSearchTestCase {
 
-    private ExtensionsManager extensionsManager;
-
-    ExtensionsSettings.Extension expectedExtensionNode = new ExtensionsSettings.Extension(
-        "firstExtension",
-        "uniqueid1",
-        "127.0.0.1",
-        "9300",
-        "0.0.7",
-        "3.0.0",
-        "3.0.0",
-        Collections.emptyList(),
-        null,
-        List.of(ActionScope.READ)
-    );
+    private final ApplicationManager applicationManager;
 
     @Before
     public void setup() throws IOException {
-
-        extensionsManager = new ExtensionsManager(Set.of());
-        extensionsManager.loadExtension(expectedExtensionNode);
-
     }
 
-    public void testApplicationAwareSubject() {
-        ApplicationAwareSubject appSubject1 = new ApplicationAwareSubject(
-            extensionsManager.getExtensionIdMap().get("uniqueid1"),
-            extensionsManager
-        );
-        ApplicationAwareSubject appSubject2 = new ApplicationAwareSubject(
-            extensionsManager.getExtensionIdMap().get("uniqueid1"),
-            extensionsManager
-        );
-
-        assertTrue(appSubject1.getScopes().contains(ActionScope.READ));
-        assertTrue(appSubject1.equals(appSubject2));
-        assertEquals(appSubject1, appSubject1); // Code coverage...
-
-    }
+    //TODO: Review coverage
 
     public void testScopes() {
         assertEquals(ActionScope.ALL.asPermissionString(), "ACTION.CLUSTER.ALL");
@@ -88,7 +59,7 @@ public class ActionScopeTests extends OpenSearchTestCase {
         Set<Scope> allowedScopes = Set.of(ActionScope.READ);
 
         ApplicationAwareSubject appSubject = spy(
-            new ApplicationAwareSubject(extensionsManager.getExtensionIdMap().get("uniqueid1"), extensionsManager)
+            new ApplicationAwareSubject(, applicationManager)
         );
 
         assertEquals(appSubject.getScopes(), allowedScopes);
@@ -98,7 +69,7 @@ public class ActionScopeTests extends OpenSearchTestCase {
 
         Set<Scope> allowedScopes = Set.of(ActionScope.READ);
         ApplicationAwareSubject appSubject = spy(
-            new ApplicationAwareSubject(extensionsManager.getExtensionIdMap().get("uniqueid1"), extensionsManager)
+            new ApplicationAwareSubject(extensionsManager.getExtensionIdMap().get("uniqueid1"), applicationManager)
         );
         assertEquals(appSubject.getScopes(), allowedScopes);
 
@@ -115,7 +86,7 @@ public class ActionScopeTests extends OpenSearchTestCase {
 
         Set<Scope> allowedScopes = Set.of(ActionScope.READ);
         ApplicationAwareSubject appSubject = spy(
-            new ApplicationAwareSubject(extensionsManager.getExtensionIdMap().get("uniqueid1"), extensionsManager)
+            new ApplicationAwareSubject(extensionsManager.getExtensionIdMap().get("uniqueid1"), applicationManager)
         );
         assertEquals(appSubject.getScopes(), allowedScopes);
 

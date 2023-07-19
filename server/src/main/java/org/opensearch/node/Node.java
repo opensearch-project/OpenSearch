@@ -531,6 +531,7 @@ public class Node implements Closeable {
             // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
             HeaderWarning.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
+            identityService.associateThreadContext(threadPool.getThreadContext());
 
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
@@ -804,9 +805,10 @@ public class Node implements Closeable {
                 )
                 .collect(Collectors.toList());
 
+                //TODO MOVE INTO MODULE
             final List<ActionPlugin> scopeProtectedActionPlugin = pluginsService.filterPlugins(ActionPlugin.class)
                 .stream()
-                .map(plugin -> new ScopeProtectedActionPlugin(plugin, identityService))
+                .map(plugin -> new ScopeProtectedActionPlugin(null, plugin, identityService))
                 .collect(Collectors.toList());
 
             ActionModule actionModule = new ActionModule(

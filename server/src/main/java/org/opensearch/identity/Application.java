@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.opensearch;
+package org.opensearch.identity;
 
 import java.security.Principal;
 

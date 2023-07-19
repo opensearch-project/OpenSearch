@@ -243,6 +243,7 @@ import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.identity.ApplicationManager;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.contains;
@@ -2184,7 +2185,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     () -> clusterService.localNode().getId(),
                     transportService.getRemoteClusterService(),
                     new NamedWriteableRegistry(Collections.emptyList()),
-                    new IdentityService(new ExtensionsManager(Set.of()), Settings.EMPTY, List.of())
+                    new IdentityService(Settings.EMPTY, List.of(), new ApplicationManager())
                 );
             }
 
