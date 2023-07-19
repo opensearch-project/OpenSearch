@@ -22,6 +22,7 @@ import org.opensearch.test.telemetry.tracing.validators.NumberOfTraceIDsEqualToR
 import org.opensearch.test.telemetry.tracing.validators.TotalParentSpansEqualToRequests;
 
 import java.util.Arrays;
+import java.util.Collection;
 
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 
@@ -40,8 +41,13 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
     }
 
     @Override
-    protected Class<? extends Plugin> telemetryPlugin() {
-        return IntegrationTestOTelTelemetryPlugin.class;
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(IntegrationTestOTelTelemetryPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockTelemetryPlugin() {
+        return false;
     }
 
     public void testSanityChecksWhenTracingEnabled() throws Exception {

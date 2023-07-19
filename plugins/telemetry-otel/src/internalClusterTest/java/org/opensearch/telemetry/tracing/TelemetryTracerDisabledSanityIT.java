@@ -15,6 +15,9 @@ import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.Arrays;
+import java.util.Collection;
+
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, supportsDedicatedMasters = false, minNumDataNodes = 2)
@@ -32,8 +35,13 @@ public class TelemetryTracerDisabledSanityIT extends OpenSearchIntegTestCase {
     }
 
     @Override
-    protected Class<? extends Plugin> telemetryPlugin() {
-        return IntegrationTestOTelTelemetryPlugin.class;
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(IntegrationTestOTelTelemetryPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockTelemetryPlugin() {
+        return false;
     }
 
     public void testSanityCheckWhenTracingDisabled() throws Exception {

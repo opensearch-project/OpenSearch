@@ -514,7 +514,6 @@ public final class InternalTestCluster extends TestCluster {
     public Collection<Class<? extends Plugin>> getPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
-        plugins.add(nodeConfigurationSource.telemetryPlugin());
         return plugins;
     }
 

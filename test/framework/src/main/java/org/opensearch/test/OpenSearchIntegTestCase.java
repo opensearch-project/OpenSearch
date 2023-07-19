@@ -783,15 +783,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Setting Telemetry feature flag settings at base IT. We don't need this to be overridden by
-     * individual test cases.
-     * @return Telemetry Feature flag settings.
-     */
-    private Settings telemetryFeatureFlagSettings() {
-        return Settings.builder().put(FeatureFlags.TELEMETRY_SETTING.getKey(), true).build();
-    }
-
-    /**
      * Creates one or more indices and asserts that the indices are acknowledged. If one of the indices
      * already exists this method will fail and wipe all the indices created so far.
      */
@@ -1913,9 +1904,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
-            .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
             .put(featureFlagSettings())
-            .put(telemetryFeatureFlagSettings());
+            .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
+            .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         return builder.build();
     }
 
@@ -1930,10 +1921,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return Collections.emptyList();
     }
 
-    protected Class<? extends Plugin> telemetryPlugin() {
-        return MockTelemetryPlugin.class;
-    }
-
     private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
@@ -1943,13 +1930,16 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             InetAddress inetAddress = InetAddress.getByName(url.getHost());
             transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
-        nodePlugins().add(telemetryPlugin());
+        Collection<Class<? extends Plugin>> nodePlugins = nodePlugins();
+        if (addMockTelemetryPlugin()) {
+            nodePlugins.add(MockTelemetryPlugin.class);
+        }
         return new ExternalTestCluster(
             createTempDir(),
             externalClusterClientSettings(),
             getClientWrapper(),
             clusterName,
-            nodePlugins(),
+            nodePlugins,
             transportAddresses
         );
     }
@@ -2008,6 +1998,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             }
             mockPlugins = mocks;
         }
+        if (addMockTelemetryPlugin()) {
+            mockPlugins.add(MockTelemetryPlugin.class);
+        }
         return new InternalTestCluster(
             seed,
             createTempDir(),
@@ -2048,11 +2041,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 return OpenSearchIntegTestCase.this.nodePlugins();
             }
-
-            @Override
-            public Class<? extends Plugin> telemetryPlugin() {
-                return OpenSearchIntegTestCase.this.telemetryPlugin();
-            }
         };
     }
 
@@ -2078,6 +2066,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     /** Returns {@code true} iff this test cluster should use a dummy geo_shape field mapper */
     protected boolean addMockGeoShapeFieldMapper() {
+        return true;
+    }
+
+    /** Returns {@code true} if this test cluster should have tracing enabled with MockTelemetryPlugin */
+    protected boolean addMockTelemetryPlugin() {
         return true;
     }
 
