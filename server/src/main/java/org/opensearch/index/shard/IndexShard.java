@@ -4613,45 +4613,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Segment Replication method
-     *
-     * Downloads specified segments from remote store
-     * @param filesToFetch Files to download from remote store
-     *
-     */
-    public List<StoreFileMetadata> syncSegmentsFromRemoteSegmentStore(List<StoreFileMetadata> filesToFetch) throws IOException {
-        assert indexSettings.isSegRepEnabled() && indexSettings.isRemoteStoreEnabled();
-        logger.trace("Downloading segments files from remote store {}", filesToFetch);
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteDirectory();
-        RemoteSegmentMetadata remoteSegmentMetadata = remoteSegmentStoreDirectory.init();
-        List<StoreFileMetadata> downloadedSegments = new ArrayList<>();
-        if (remoteSegmentMetadata != null) {
-            try {
-                store.incRef();
-                remoteStore.incRef();
-                final Directory storeDirectory = store.directory();
-                String segmentNFile = null;
-                for (StoreFileMetadata fileMetadata : filesToFetch) {
-                    String file = fileMetadata.name();
-                    logger.info("--> Copying file {}", file);
-                    storeDirectory.copyFrom(remoteSegmentStoreDirectory, file, file, IOContext.DEFAULT);
-                    downloadedSegments.add(fileMetadata);
-                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                        assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
-                        segmentNFile = file;
-                    }
-                }
-                storeDirectory.sync(downloadedSegments.stream().map(metadata -> metadata.name()).collect(Collectors.toList()));
-            } finally {
-                store.decRef();
-                remoteStore.decRef();
-                logger.trace("Downloaded segments from remote store {}", downloadedSegments);
-            }
-        }
-        return downloadedSegments;
-    }
-
-    /**
      * Downloads segments from remote segment store.
      * @param overrideLocal flag to override local segment files with those in remote store
      * @param refreshLevelSegmentSync last refresh checkpoint is used if true, commit checkpoint otherwise

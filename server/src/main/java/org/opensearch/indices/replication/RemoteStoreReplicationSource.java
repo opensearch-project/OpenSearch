@@ -10,7 +10,10 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
@@ -21,6 +24,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -92,9 +96,36 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         ActionListener<GetSegmentFilesResponse> listener
     ) {
         try {
-            List<StoreFileMetadata> downloadedFiles = indexShard.syncSegmentsFromRemoteSegmentStore(filesToFetch);
-            assert downloadedFiles.size() == filesToFetch.size() && downloadedFiles.containsAll(filesToFetch);
-            listener.onResponse(new GetSegmentFilesResponse(downloadedFiles));
+            logger.trace("Downloading segments files from remote store {}", filesToFetch);
+            FilterDirectory remoteStoreDirectory = (FilterDirectory) indexShard.remoteStore().directory();
+            FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) byteSizeCachingStoreDirectory
+                .getDelegate();
+            RemoteSegmentMetadata remoteSegmentMetadata = remoteSegmentStoreDirectory.init();
+            List<StoreFileMetadata> downloadedSegments = new ArrayList<>();
+            if (remoteSegmentMetadata != null) {
+                try {
+                    indexShard.store().incRef();
+                    indexShard.remoteStore().incRef();
+                    final Directory storeDirectory = indexShard.store().directory();
+                    String segmentNFile = null;
+                    for (StoreFileMetadata fileMetadata : filesToFetch) {
+                        String file = fileMetadata.name();
+                        storeDirectory.copyFrom(remoteSegmentStoreDirectory, file, file, IOContext.DEFAULT);
+                        downloadedSegments.add(fileMetadata);
+                        if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                            assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
+                            segmentNFile = file;
+                        }
+                    }
+                    storeDirectory.sync(downloadedSegments.stream().map(metadata -> metadata.name()).collect(Collectors.toList()));
+                } finally {
+                    indexShard.store().decRef();
+                    indexShard.remoteStore().decRef();
+                    logger.trace("Downloaded segments from remote store {}", downloadedSegments);
+                }
+            }
+            listener.onResponse(new GetSegmentFilesResponse(downloadedSegments));
         } catch (Exception e) {
             listener.onFailure(e);
         }
