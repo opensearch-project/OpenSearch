@@ -1110,7 +1110,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     @SuppressForbidden(reason = "sets the SEARCH_PIPELINE feature flag")
     public void testDefaultSearchPipeline() throws Exception {
-        FeatureFlagSetter.set(FeatureFlags.SEARCH_PIPELINE);
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
@@ -1126,22 +1125,5 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         settings.updateIndexMetadata(metadata);
         assertEquals("foo", settings.getDefaultSearchPipeline());
-    }
-
-    public void testDefaultSearchPipelineWithoutFeatureFlag() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(SearchPipelineService.NOOP_PIPELINE_ID, settings.getDefaultSearchPipeline());
-        IndexMetadata updatedMetadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexSettings.DEFAULT_SEARCH_PIPELINE.getKey(), "foo")
-                .build()
-        );
-        assertThrows(SettingsException.class, () -> settings.updateIndexMetadata(updatedMetadata));
     }
 }
