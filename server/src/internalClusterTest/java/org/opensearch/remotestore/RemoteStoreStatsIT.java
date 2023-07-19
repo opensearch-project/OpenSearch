@@ -231,50 +231,35 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             // Poll for RemoteStore Stats
             assertBusy(() -> {
                 RemoteStoreStatsResponse response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
-                long uploadsStarted = 0, uploadsSucceeded = 0, uploadsFailed = 0;
-                long uploadBytesStarted = 0, uploadBytesSucceeded = 0, uploadBytesFailed = 0;
-                long downloadsStarted = 0, downloadsSucceeded = 0, downloadsFailed = 0;
-                long downloadBytesStarted = 0, downloadBytesSucceeded = 0, downloadBytesFailed = 0;
-                double uploadBytesAverage = 0, downloadBytesAverage = 0;
-                long lastUploadedSegmentSize = 0, lastDownloadedSegmentSize = 0;
-
                 // Iterate through the response and extract the relevant segment upload and download stats
-                for (RemoteStoreStats eachStatsObject : response.getRemoteStoreStats()) {
-                    RemoteRefreshSegmentTracker.Stats stats = eachStatsObject.getStats();
-                    if (eachStatsObject.getShardRouting().primary()) {
-                        uploadsStarted = stats.totalUploadsStarted;
-                        uploadsSucceeded = stats.totalUploadsSucceeded;
-                        uploadsFailed = stats.totalUploadsFailed;
-                        uploadBytesStarted = stats.uploadBytesStarted;
-                        uploadBytesSucceeded = stats.uploadBytesSucceeded;
-                        uploadBytesFailed = stats.uploadBytesFailed;
-                        uploadBytesAverage = stats.uploadBytesMovingAverage;
-                        lastUploadedSegmentSize = stats.lastSuccessfulRemoteRefreshBytes;
-                    } else {
-                        downloadsStarted = stats.totalDownloadsStarted;
-                        downloadsSucceeded = stats.totalDownloadsSucceeded;
-                        downloadsFailed = stats.totalDownloadsFailed;
-                        downloadBytesStarted = stats.downloadBytesStarted;
-                        downloadBytesSucceeded = stats.downloadBytesSucceeded;
-                        downloadBytesFailed = stats.downloadBytesFailed;
-                        downloadBytesAverage = stats.downloadBytesMovingAverage;
-                        lastDownloadedSegmentSize = stats.lastSuccessfulSegmentDownloadBytes;
-                    }
-                }
+                List<RemoteStoreStats> primaryStatsList = Arrays.stream(response.getRemoteStoreStats())
+                    .filter(remoteStoreStats -> remoteStoreStats.getShardRouting().primary())
+                    .collect(Collectors.toList());
+                assertEquals(1, primaryStatsList.size());
+                List<RemoteStoreStats> replicaStatsList = Arrays.stream(response.getRemoteStoreStats())
+                    .filter(remoteStoreStats -> !remoteStoreStats.getShardRouting().primary())
+                    .collect(Collectors.toList());
+                assertEquals(1, replicaStatsList.size());
+                RemoteRefreshSegmentTracker.Stats primaryStats = primaryStatsList.get(0).getStats();
+                RemoteRefreshSegmentTracker.Stats replicaStats = replicaStatsList.get(0).getStats();
                 // Assert Upload syncs = download syncs
-                assertTrue(uploadsStarted > 0 && uploadsStarted == downloadsStarted);
-                assertTrue(uploadsSucceeded > 0 && uploadsSucceeded == downloadsSucceeded);
-                assertTrue(downloadBytesStarted > 0 && uploadBytesStarted == downloadBytesStarted);
-                assertTrue(downloadBytesSucceeded > 0 && uploadBytesSucceeded == downloadBytesSucceeded);
+                assertTrue(primaryStats.totalUploadsStarted > 0 && primaryStats.totalUploadsStarted == replicaStats.totalUploadsStarted);
+                assertTrue(
+                    primaryStats.totalUploadsSucceeded > 0 && primaryStats.totalUploadsSucceeded == replicaStats.totalDownloadsSucceeded
+                );
+                assertTrue(replicaStats.downloadBytesStarted > 0 && primaryStats.uploadBytesStarted == replicaStats.downloadBytesStarted);
+                assertTrue(
+                    replicaStats.downloadBytesSucceeded > 0 && primaryStats.uploadBytesSucceeded == replicaStats.downloadBytesSucceeded
+                );
                 // Assert zero failures
-                assertEquals(0, uploadsFailed);
-                assertEquals(0, uploadBytesFailed);
-                assertEquals(0, downloadsFailed);
-                assertEquals(0, downloadBytesFailed);
+                assertEquals(0, primaryStats.totalDownloadsFailed);
+                assertEquals(0, primaryStats.uploadBytesFailed);
+                assertEquals(0, replicaStats.totalDownloadsFailed);
+                assertEquals(0, replicaStats.downloadBytesFailed);
                 // Assert transfer bytes average is same across downloads and uploads
-                assertEquals(uploadBytesAverage, downloadBytesAverage, 0);
+                assertEquals(primaryStats.uploadBytesMovingAverage, replicaStats.downloadBytesMovingAverage, 0);
                 // Assert last segment size uploaded = last segment size downloaded
-                assertEquals(lastDownloadedSegmentSize, lastUploadedSegmentSize);
+                assertEquals(replicaStats.lastSuccessfulSegmentDownloadBytes, primaryStats.lastSuccessfulRemoteRefreshBytes);
             }, 1, TimeUnit.MINUTES);
         }
     }
