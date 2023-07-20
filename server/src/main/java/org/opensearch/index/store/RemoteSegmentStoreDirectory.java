@@ -60,8 +60,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
@@ -626,43 +624,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             );
             try {
                 try (IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT)) {
-                    // TODO: The following regex could work incorrectly if both major and minor versions are double-digits.
-                    // This is because the major and minor versions do not have a separator in the filename currently
-                    // (Lucence<major><minor>).
-                    // We may need to revisit this if the filename pattern is updated in future Lucene versions.
-                    Pattern pattern = Pattern.compile("_\\d+_\\d+_Lucene(\\d+)\\d+_\\d+");
-                    Map<String, Integer> segmentToLuceneVersion = new HashMap<>();
-                    for (SegmentCommitInfo segmentCommitInfo : segmentInfosSnapshot) {
-                        SegmentInfo info = segmentCommitInfo.info;
-                        Set<String> segFiles = info.files();
-                        for (String file : segFiles) {
-                            segmentToLuceneVersion.put(file, info.getVersion().major);
-                        }
-
-                        int dvUpdateLuceneMajorVersion = -1;
-
-                        Map<Integer, Set<String>> docValuesUpdatesFiles = segmentCommitInfo.getDocValuesUpdatesFiles();
-                        for (int key : docValuesUpdatesFiles.keySet()) {
-                            for (String file : docValuesUpdatesFiles.get(key)) {
-                                if (dvUpdateLuceneMajorVersion == -1) {
-                                    Matcher matcher = pattern.matcher(file);
-                                    if (matcher.find()) {
-                                        dvUpdateLuceneMajorVersion = Integer.parseInt(matcher.group(1));
-                                    } else {
-                                        throw new CorruptIndexException("Unable to infer Lucene version for segment file " + file, file);
-                                    }
-                                }
-
-                                segmentToLuceneVersion.put(file, dvUpdateLuceneMajorVersion);
-                            }
-
-                            Set<String> fieldInfosFiles = segmentCommitInfo.getFieldInfosFiles();
-                            for (String file : fieldInfosFiles) {
-                                segmentToLuceneVersion.put(file, dvUpdateLuceneMajorVersion);
-                            }
-                        }
-                    }
-
+                    Map<String, Integer> segmentToLuceneVersion = getSegmentToLuceneVersion(segmentInfosSnapshot);
                     Map<String, String> uploadedSegments = new HashMap<>();
                     for (String file : segmentFiles) {
                         if (segmentsUploadedToRemoteStore.containsKey(file)) {
@@ -706,6 +668,42 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 tryAndDeleteLocalFile(metadataFilename, storeDirectory);
             }
         }
+    }
+
+    /**
+     * Parses the provided SegmenttInfos to retrieve a mapping of segment files to the respective Lucene major version that wrote the segments
+     * @param segmentInfosSnapshot SegmenttInfos instance to parse
+     * @return Map of segment file name to the Lucene major version that wrote it
+     * @throws CorruptIndexException If the Lucene major version cannot be parsed for a segment file
+     */
+    private Map<String, Integer> getSegmentToLuceneVersion(SegmentInfos segmentInfosSnapshot) throws CorruptIndexException {
+        Map<String, Integer> segmentToLuceneVersion = new HashMap<>();
+        for (SegmentCommitInfo segmentCommitInfo : segmentInfosSnapshot) {
+            SegmentInfo info = segmentCommitInfo.info;
+            Set<String> segFiles = info.files();
+            for (String file : segFiles) {
+                segmentToLuceneVersion.put(file, info.getVersion().major);
+            }
+
+            int docValuesUpdatesLuceneMajorVersion = -1;
+            Map<Integer, Set<String>> docValuesUpdatesFiles = segmentCommitInfo.getDocValuesUpdatesFiles();
+            for (int key : docValuesUpdatesFiles.keySet()) {
+                for (String file : docValuesUpdatesFiles.get(key)) {
+                    if (docValuesUpdatesLuceneMajorVersion == -1) {
+                        docValuesUpdatesLuceneMajorVersion = RemoteStoreUtils.getLuceneVersionForDocValuesUpdates(file);
+                    }
+
+                    segmentToLuceneVersion.put(file, docValuesUpdatesLuceneMajorVersion);
+                }
+
+                Set<String> fieldInfosFiles = segmentCommitInfo.getFieldInfosFiles();
+                for (String file : fieldInfosFiles) {
+                    segmentToLuceneVersion.put(file, docValuesUpdatesLuceneMajorVersion);
+                }
+            }
+        }
+
+        return segmentToLuceneVersion;
     }
 
     /**

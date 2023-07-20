@@ -8,7 +8,11 @@
 
 package org.opensearch.index.remote;
 
+import org.apache.lucene.index.CorruptIndexException;
+
 import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Utils for remote store
@@ -47,5 +51,20 @@ public class RemoteStoreUtils {
             throw new IllegalArgumentException("Strings representing negative long values are not allowed");
         }
         return Long.MAX_VALUE - num;
+    }
+
+    public static int getLuceneVersionForDocValuesUpdates(String filename) throws CorruptIndexException {
+        // TODO: The following regex could work incorrectly if both major and minor versions are double-digits.
+        // This is because the major and minor versions do not have a separator in the filename currently
+        // (Lucence<major><minor>).
+        // We may need to revisit this if the filename pattern is updated in future Lucene versions.
+        Pattern docValuesUpdatesFileNamePattern = Pattern.compile("_\\d+_\\d+_Lucene(\\d+)\\d+_\\d+");
+
+        Matcher matcher = docValuesUpdatesFileNamePattern.matcher(filename);
+        if (matcher.find()) {
+            return Integer.parseInt(matcher.group(1));
+        } else {
+            throw new CorruptIndexException("Unable to infer Lucene version for segment file " + filename, filename);
+        }
     }
 }
