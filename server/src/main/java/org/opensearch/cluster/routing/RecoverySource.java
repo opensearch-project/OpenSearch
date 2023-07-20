@@ -490,6 +490,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return Objects.hash(restoreUUID, index, version);
         }
 
+        // TODO: This override should be removed/be updated to return "true",
+        // i.e. we expect no retention leases, once the following issue is fixed:
+        // https://github.com/opensearch-project/OpenSearch/issues/8795
+        @Override
+        public boolean expectEmptyRetentionLeases() {
+            return false;
+        }
     }
 
     /**
