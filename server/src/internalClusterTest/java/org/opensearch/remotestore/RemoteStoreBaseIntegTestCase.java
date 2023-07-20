@@ -69,7 +69,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             .put(super.indexSettings())
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, REPOSITORY_NAME)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, REPOSITORY_NAME)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, sameRepoForRSSAndRTS ? REPOSITORY_NAME : REPOSITORY_2_NAME)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)

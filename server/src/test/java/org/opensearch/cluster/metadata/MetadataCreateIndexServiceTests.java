@@ -131,7 +131,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -1329,7 +1329,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(SETTING_REMOTE_STORE_ENABLED, true)
-            .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo");
+            .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-custom-repo");
         request.settings(requestSettings.build());
         Settings indexSettings = aggregateIndexSettings(
             ClusterState.EMPTY_STATE,
@@ -1662,7 +1662,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     ) {
         assertEquals(replicationType, indexSettings.get(SETTING_REPLICATION_TYPE));
         assertEquals(isRemoteSegmentEnabled, indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
-        assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY));
+        assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
         assertEquals(remoteTranslogRepo, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
         assertEquals(translogBufferInterval, INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings));
     }

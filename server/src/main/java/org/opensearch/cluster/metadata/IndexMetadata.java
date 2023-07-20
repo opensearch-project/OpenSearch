@@ -291,7 +291,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
 
-    public static final String SETTING_REMOTE_STORE_REPOSITORY = "index.remote_store.repository";
+    public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
 
     public static final String SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY = "index.remote_store.translog.repository";
 
@@ -335,7 +335,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * Used to specify remote store repository to use for this index.
      */
     public static final Setting<String> INDEX_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
-        SETTING_REMOTE_STORE_REPOSITORY,
+        SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
         new Setting.Validator<>() {
 
             @Override

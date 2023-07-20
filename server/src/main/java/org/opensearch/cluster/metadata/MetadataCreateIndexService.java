@@ -105,6 +105,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -129,7 +130,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
@@ -968,14 +969,14 @@ public class MetadataCreateIndexService {
                 );
             }
 
-            settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
-                .put(
-                    SETTING_REMOTE_STORE_REPOSITORY,
-                    requestSettings.get(
-                        INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey(),
-                        CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.get(clusterSettings)
-                    )
-                )
+            settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true);
+            String remoteStoreRepo;
+            if (Objects.equals(requestSettings.get(INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()), "true")) {
+                remoteStoreRepo = requestSettings.get(INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey());
+            } else {
+                remoteStoreRepo = CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.get(clusterSettings);
+            }
+            settingsBuilder.put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStoreRepo)
                 .put(
                     SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
                     requestSettings.get(

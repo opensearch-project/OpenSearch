@@ -21,9 +21,11 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.Locale;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
@@ -156,7 +158,13 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         );
         assertThat(
             exc.getMessage(),
-            containsString("Setting index.remote_store.repository should be provided with non-empty repository ID")
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Setting %s should be provided with non-empty repository ID",
+                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY
+                )
+            )
         );
     }
 
@@ -186,7 +194,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo")
+            .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-custom-repo")
             .build();
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
@@ -194,7 +202,14 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         );
         assertThat(
             exc.getMessage(),
-            containsString("Settings index.remote_store.repository can only be set/enabled when index.remote_store.enabled is set to true")
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Settings %s can only be set/enabled when %s is set to true",
+                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+                    SETTING_REMOTE_STORE_ENABLED
+                )
+            )
         );
     }
 
@@ -204,7 +219,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(SETTING_REMOTE_STORE_ENABLED, true)
-            .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo")
+            .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-custom-repo")
             .build();
 
         assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
@@ -236,7 +251,12 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         assertThat(
             exc.getMessage(),
             containsString(
-                "Settings index.remote_store.translog.repository can only be set/enabled when index.remote_store.enabled is set to true"
+                String.format(
+                    Locale.ROOT,
+                    "Settings %s can only be set/enabled when %s is set to true",
+                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
+                    SETTING_REMOTE_STORE_ENABLED
+                )
             )
         );
     }
@@ -247,7 +267,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(SETTING_REMOTE_STORE_ENABLED, true)
-            .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo")
+            .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-custom-repo")
             .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo")
             .build();
         assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
@@ -298,7 +318,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
     ) {
         assertEquals(replicationType, indexSettings.get(SETTING_REPLICATION_TYPE));
         assertEquals(isRemoteSegmentEnabled, indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
-        assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY));
+        assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
         assertEquals(remoteTranslogRepo, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
         assertEquals(translogBufferInterval, INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings));
     }

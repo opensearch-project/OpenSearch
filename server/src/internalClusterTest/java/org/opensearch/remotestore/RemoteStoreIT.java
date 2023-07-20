@@ -120,13 +120,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(statsGranularity) + 1);
     }
 
-    private void prepareCluster(
-        int numClusterManagerNodes,
-        int numDataOnlyNodes,
-        String indices,
-        int replicaCount,
-        int shardCount
-    ) {
+    private void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
         internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
         internalCluster().startDataOnlyNodes(numDataOnlyNodes);
         for (String index : indices.split(",")) {
@@ -192,8 +186,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
      * @throws IOException IO Exception.
      */
-    private void testRestoreFlowMultipleIndices(int numberOfIterations, boolean invokeFlush, int shardCount)
-        throws IOException {
+    private void testRestoreFlowMultipleIndices(int numberOfIterations, boolean invokeFlush, int shardCount) throws IOException {
         prepareCluster(1, 3, INDEX_NAMES, 1, shardCount);
         String[] indices = INDEX_NAMES.split(",");
         Map<String, Map<String, Long>> indicesStats = new HashMap<>();
