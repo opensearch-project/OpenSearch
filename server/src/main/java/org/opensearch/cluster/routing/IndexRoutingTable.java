@@ -450,7 +450,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         /**
          * Initializes an existing index, to be restored from remote store
          */
-        public Builder initializeAsRemoteStoreRestore(IndexMetadata indexMetadata, RemoteStoreRecoverySource recoverySource, Map<ShardId, ShardRouting> activeShards) {
+        public Builder initializeAsRemoteStoreRestore(
+            IndexMetadata indexMetadata,
+            RemoteStoreRecoverySource recoverySource,
+            Map<ShardId, ShardRouting> activeShards
+        ) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(
                 UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
                 "restore_source[remote_store]"

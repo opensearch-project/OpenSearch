@@ -190,7 +190,9 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RestoreRemoteStoreRequest that = (RestoreRemoteStoreRequest) o;
-        return waitForCompletion == that.waitForCompletion && restoreAllShards == that.restoreAllShards && Arrays.equals(indices, that.indices);
+        return waitForCompletion == that.waitForCompletion
+            && restoreAllShards == that.restoreAllShards
+            && Arrays.equals(indices, that.indices);
     }
 
     @Override

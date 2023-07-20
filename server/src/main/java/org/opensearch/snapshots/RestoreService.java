@@ -260,7 +260,12 @@ public class RestoreService implements ClusterStateApplier {
                             updatedIndexMetadata.getCreationVersion(),
                             indexId
                         );
-                        Map<ShardId, ShardRouting> activeShards = currentState.routingTable().index(index).randomAllActiveShardsIt().getShardRoutings().stream().collect(Collectors.toMap(ShardRouting::shardId, Function.identity()));
+                        Map<ShardId, ShardRouting> activeShards = currentState.routingTable()
+                            .index(index)
+                            .randomAllActiveShardsIt()
+                            .getShardRoutings()
+                            .stream()
+                            .collect(Collectors.toMap(ShardRouting::shardId, Function.identity()));
                         rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource, activeShards);
                         blocks.updateBlocks(updatedIndexMetadata);
                         mdBuilder.put(updatedIndexMetadata, true);
