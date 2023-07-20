@@ -125,8 +125,28 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             "123456",
             1234
         );
-        metadata.setWrittenBy(Version.LATEST);
+        metadata.setWrittenByMajor(Version.LATEST.major);
         assertEquals("abc::pqr::123456::1234::" + Version.LATEST, metadata.toString());
+    }
+
+    public void testUploadedSegmentMetadataToStringExceptionTooNew() {
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = new RemoteSegmentStoreDirectory.UploadedSegmentMetadata(
+            "abc",
+            "pqr",
+            "123456",
+            1234
+        );
+        assertThrows(IllegalArgumentException.class, () -> metadata.setWrittenByMajor(Version.LATEST.major + 1));
+    }
+
+    public void testUploadedSegmentMetadataToStringExceptionTooOld() {
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = new RemoteSegmentStoreDirectory.UploadedSegmentMetadata(
+            "abc",
+            "pqr",
+            "123456",
+            1234
+        );
+        assertThrows(IllegalArgumentException.class, () -> metadata.setWrittenByMajor(Version.LATEST.major - 2));
     }
 
     public void testUploadedSegmentMetadataFromString() {
