@@ -234,14 +234,15 @@ public class RestoreService implements ClusterStateApplier {
                         continue;
                     }
                     if (currentIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
-                        if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
+                        /*if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
                             throw new IllegalStateException(
                                 "cannot restore index ["
                                     + index
                                     + "] because an open index "
                                     + "with same name already exists in the cluster. Close the existing index"
                             );
-                        }
+                        }*/
+                        /*
                         IndexMetadata updatedIndexMetadata = IndexMetadata.builder(currentIndexMetadata)
                             .state(IndexMetadata.State.OPEN)
                             .version(1 + currentIndexMetadata.getVersion())
@@ -249,19 +250,21 @@ public class RestoreService implements ClusterStateApplier {
                             .settingsVersion(1 + currentIndexMetadata.getSettingsVersion())
                             .aliasesVersion(1 + currentIndexMetadata.getAliasesVersion())
                             .build();
+                         */
 
-                        IndexId indexId = new IndexId(index, updatedIndexMetadata.getIndexUUID());
+                        IndexId indexId = new IndexId(index, currentIndexMetadata.getIndexUUID());
 
                         RemoteStoreRecoverySource recoverySource = new RemoteStoreRecoverySource(
                             restoreUUID,
-                            updatedIndexMetadata.getCreationVersion(),
+                            currentIndexMetadata.getCreationVersion(),
                             indexId
                         );
-                        rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource);
-                        blocks.updateBlocks(updatedIndexMetadata);
-                        mdBuilder.put(updatedIndexMetadata, true);
+                        Map<ShardId, ShardRouting> activeShards = currentState.routingTable().index(index).randomAllActiveShardsIt().getShardRoutings().stream().collect(Collectors.toMap(ShardRouting::shardId, Function.identity()));
+                        rtBuilder.addAsRemoteStoreRestore(currentIndexMetadata, recoverySource, activeShards);
+                        blocks.updateBlocks(currentIndexMetadata);
+                        mdBuilder.put(currentIndexMetadata, true);
                         indicesToBeRestored.add(index);
-                        totalShards += updatedIndexMetadata.getNumberOfShards();
+                        totalShards += currentIndexMetadata.getNumberOfShards();
                     } else {
                         logger.warn("Remote store is not enabled for index: {}", index);
                     }
