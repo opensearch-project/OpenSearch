@@ -28,7 +28,7 @@ public class NoopTokenManager implements TokenManager {
      * @return a new Noop Token
      */
     @Override
-    public AuthToken issueOnBehalfOfToken(Map<String, Object> claims) {
+    public AuthToken issueOnBehalfOfToken(final Subject subject, final OnBehalfOfClaims claims) {
         return new AuthToken() {
         };
     }
