@@ -35,8 +35,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<RestoreRemoteStoreRequest> implements ToXContentObject {
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private Boolean waitForCompletion;
-    private Boolean restoreAllShards;
+    private Boolean waitForCompletion = false;
+    private Boolean restoreAllShards = false;
 
     public RestoreRemoteStoreRequest() {}
 

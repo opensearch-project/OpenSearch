@@ -144,8 +144,16 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
         ensureRed(INDEX_NAME);
 
-        assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
-        client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
+        boolean restoreAllShards = randomBoolean();
+        if (restoreAllShards) {
+            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+        }
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(restoreAllShards),
+                PlainActionFuture.newFuture()
+            );
 
         ensureGreen(INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
