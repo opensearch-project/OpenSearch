@@ -75,7 +75,7 @@ class AggregationCollectorManager implements CollectorManager<Collector, Reducea
             // using topLevelReduce here as PipelineTreeSource needs to be sent to coordinator in older release of OpenSearch. The actual
             // evaluation of pipeline aggregation though happens on the coordinator during final reduction phase
             return new AggregationReduceableSearchResult(
-                InternalAggregations.topLevelReduce(Collections.singletonList(internalAggregations), context.partial())
+                InternalAggregations.topLevelReduce(Collections.singletonList(internalAggregations), context.partialOnShard())
             );
         } else {
             return new AggregationReduceableSearchResult(internalAggregations);
