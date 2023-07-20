@@ -659,7 +659,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public InternalAggregation.ReduceContext partial() {
+    public InternalAggregation.ReduceContext partialOnShard() {
         return InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction();
     }
 
