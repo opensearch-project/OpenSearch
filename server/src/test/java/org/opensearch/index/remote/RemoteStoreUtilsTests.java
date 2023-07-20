@@ -8,6 +8,7 @@
 
 package org.opensearch.index.remote;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class RemoteStoreUtilsTests extends OpenSearchTestCase {
@@ -37,5 +38,13 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             long num = randomLongBetween(1, Long.MAX_VALUE);
             assertEquals(num, RemoteStoreUtils.invertLong(RemoteStoreUtils.invertLong(num)));
         }
+    }
+
+    public void testGetLuceneVersionForDocValuesUpdates() throws CorruptIndexException {
+        assertEquals(9, RemoteStoreUtils.getLuceneVersionForDocValuesUpdates("_0_1_Lucene90_0.dvm"));
+    }
+
+    public void testGetLuceneVersionForDocValuesUpdatesException() {
+        assertThrows(CorruptIndexException.class, () -> RemoteStoreUtils.getLuceneVersionForDocValuesUpdates("_0_1_Asserting_0.dvm"));
     }
 }

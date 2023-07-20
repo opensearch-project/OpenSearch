@@ -53,6 +53,12 @@ public class RemoteStoreUtils {
         return Long.MAX_VALUE - num;
     }
 
+    /**
+     * Extracts the Lucene major version from the provided DocValuesUpdates file name
+     * @param filename DocValuesUpdates file name to parse
+     * @return Lucene major version that wrote the DocValuesUpdates file
+     * @throws CorruptIndexException If the Lucene major version cannot be inferred
+     */
     public static int getLuceneVersionForDocValuesUpdates(String filename) throws CorruptIndexException {
         // TODO: The following regex could work incorrectly if both major and minor versions are double-digits.
         // This is because the major and minor versions do not have a separator in the filename currently
