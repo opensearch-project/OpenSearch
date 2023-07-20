@@ -318,7 +318,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         createIndex(
             INDEX_NAME,
             Settings.builder()
-                .put(remoteStoreIndexSettings(dataNodeCount, 1))
+                .put(remoteStoreIndexSettings(dataNodeCount - 1, 1))
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build()
         );
