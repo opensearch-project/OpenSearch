@@ -33,7 +33,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
@@ -67,7 +66,6 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -75,14 +73,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
@@ -100,6 +93,67 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .build();
 
+    protected SegmentReplicationTargetService segmentReplicationTargetService() {
+        RecoverySettings recoverySettings = new RecoverySettings(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        TransportService transportService = mock(TransportService.class);
+        IndicesService indicesService = mock(IndicesService.class);
+        SegmentReplicationSourceFactory sourceFactory = new SegmentReplicationSourceFactory(
+            transportService,
+            recoverySettings,
+            clusterService
+        );
+        return new SegmentReplicationTargetService(
+            threadPool,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            mock(TransportService.class),
+            sourceFactory,
+            indicesService,
+            clusterService
+        );
+    }
+
+    protected ReplicationGroup getReplicationGroup(int numberOfReplicas) throws IOException {
+        return createGroup(numberOfReplicas, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());
+    }
+
+    protected ReplicationGroup getReplicationGroup(int numberOfReplicas, String indexMapping) throws IOException {
+        return createGroup(numberOfReplicas, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());
+    }
+
+    protected Settings getIndexSettings() {
+        return settings;
+    }
+
+    protected IndexShard getStartedShard() throws IOException {
+        return newStartedShard(randomBoolean(), settings, new NRTReplicationEngineFactory());
+    }
+
+    /**
+     * Validates happy path of segment replication where primary index docs which are replicated to replica shards. Assertions
+     * made on doc count on both primary and replica.
+     * @throws Exception
+     */
+    public void testReplication() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+
+            // index and replicate segments to replica.
+            int numDocs = randomIntBetween(10, 100);
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+            replicateSegments(primaryShard, List.of(replicaShard));
+
+            // Assertions
+            shards.assertAllEqual(numDocs);
+        }
+    }
+
     /**
      * Test that latestReplicationCheckpoint returns null only for docrep enabled indices
      */
@@ -114,7 +168,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
      * Test that latestReplicationCheckpoint returns ReplicationCheckpoint for segrep enabled indices
      */
     public void testReplicationCheckpointNotNullForSegRep() throws IOException {
-        final IndexShard indexShard = newStartedShard(randomBoolean(), settings, new NRTReplicationEngineFactory());
+        final IndexShard indexShard = newStartedShard(randomBoolean(), getIndexSettings(), new NRTReplicationEngineFactory());
         final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
         assertNotNull(replicationCheckpoint);
         closeShards(indexShard);
@@ -127,7 +181,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     public void testSegmentInfosAndReplicationCheckpointTuple() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory())) {
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
@@ -180,7 +234,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     public void testIsSegmentReplicationAllowed_WrongEngineType() throws IOException {
-        final IndexShard indexShard = newShard(false, settings, new InternalEngineFactory());
+        final IndexShard indexShard = newShard(false, getIndexSettings(), new InternalEngineFactory());
         assertFalse(indexShard.isSegmentReplicationAllowed());
         closeShards(indexShard);
     }
@@ -193,7 +247,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
      */
     public void testSegmentReplication_With_ReaderClosedConcurrently() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
-        try (ReplicationGroup shards = createGroup(1, settings, mappings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), mappings, new NRTReplicationEngineFactory())) {
             shards.startAll();
             IndexShard primaryShard = shards.getPrimary();
             final IndexShard replicaShard = shards.getReplicas().get(0);
@@ -242,7 +296,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
      */
     public void testSegmentReplication_With_EngineClosedConcurrently() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
-        try (ReplicationGroup shards = createGroup(1, settings, mappings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), mappings, new NRTReplicationEngineFactory())) {
             shards.startAll();
             IndexShard primaryShard = shards.getPrimary();
             final IndexShard replicaShard = shards.getReplicas().get(0);
@@ -284,87 +338,9 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    /**
-     * Verifies that commits on replica engine resulting from engine or reader close does not cleanup the temporary
-     * replication files from ongoing round of segment replication
-     */
-    public void testTemporaryFilesNotCleanup() throws Exception {
-        String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
-        try (ReplicationGroup shards = createGroup(1, settings, mappings, new NRTReplicationEngineFactory())) {
-            shards.startAll();
-            IndexShard primaryShard = shards.getPrimary();
-            final IndexShard replica = shards.getReplicas().get(0);
-
-            // Step 1. Ingest numDocs documents, commit to create commit point on primary & replicate
-            final int numDocs = randomIntBetween(100, 200);
-            logger.info("--> Inserting documents {}", numDocs);
-            for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
-            }
-            assertEqualTranslogOperations(shards, primaryShard);
-            primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
-            replicateSegments(primaryShard, shards.getReplicas());
-            shards.assertAllEqual(numDocs);
-
-            // Step 2. Ingest numDocs documents again to create a new commit on primary
-            logger.info("--> Ingest {} docs again", numDocs);
-            for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
-            }
-            assertEqualTranslogOperations(shards, primaryShard);
-            primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
-
-            // Step 3. Copy segment files to replica shard but prevent commit
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            Map<String, StoreFileMetadata> primaryMetadata;
-            try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = primaryShard.getSegmentInfosSnapshot()) {
-                final SegmentInfos primarySegmentInfos = segmentInfosSnapshot.get();
-                primaryMetadata = primaryShard.store().getSegmentMetadataMap(primarySegmentInfos);
-            }
-            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
-            final IndicesService indicesService = mock(IndicesService.class);
-            when(indicesService.getShardOrNull(replica.shardId)).thenReturn(replica);
-            final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
-                threadPool,
-                new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-                mock(TransportService.class),
-                sourceFactory,
-                indicesService,
-                clusterService
-            );
-            final Consumer<IndexShard> runnablePostGetFiles = (indexShard) -> {
-                try {
-                    Collection<String> temporaryFiles = Stream.of(indexShard.store().directory().listAll())
-                        .filter(name -> name.startsWith(SegmentReplicationTarget.REPLICATION_PREFIX))
-                        .collect(Collectors.toList());
-
-                    // Step 4. Perform a commit on replica shard.
-                    NRTReplicationEngine engine = (NRTReplicationEngine) indexShard.getEngine();
-                    engine.updateSegments(engine.getSegmentInfosSnapshot().get());
-
-                    // Step 5. Validate temporary files are not deleted from store.
-                    Collection<String> replicaStoreFiles = List.of(indexShard.store().directory().listAll());
-                    assertTrue(replicaStoreFiles.containsAll(temporaryFiles));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            };
-            SegmentReplicationSource segmentReplicationSource = getSegmentReplicationSource(
-                primaryShard,
-                (repId) -> targetService.get(repId),
-                runnablePostGetFiles
-            );
-            when(sourceFactory.get(any())).thenReturn(segmentReplicationSource);
-            targetService.startReplication(replica, getTargetListener(primaryShard, replica, primaryMetadata, countDownLatch));
-            countDownLatch.await(30, TimeUnit.SECONDS);
-            assertEquals("Replication failed", 0, countDownLatch.getCount());
-            shards.assertAllEqual(numDocs);
-        }
-    }
-
     public void testSegmentReplication_Index_Update_Delete() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
-        try (ReplicationGroup shards = createGroup(2, settings, mappings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(2, getIndexSettings(), mappings, new NRTReplicationEngineFactory())) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
 
@@ -414,7 +390,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
     public void testIgnoreShardIdle() throws Exception {
         Settings updatedSettings = Settings.builder()
-            .put(settings)
+            .put(getIndexSettings())
             .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
             .build();
         try (ReplicationGroup shards = createGroup(1, updatedSettings, new NRTReplicationEngineFactory())) {
@@ -464,7 +440,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
     public void testShardIdleWithNoReplicas() throws Exception {
         Settings updatedSettings = Settings.builder()
-            .put(settings)
+            .put(getIndexSettings())
             .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
             .build();
         try (ReplicationGroup shards = createGroup(0, updatedSettings, new NRTReplicationEngineFactory())) {
@@ -544,85 +520,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         closeShards(primaryShard);
     }
 
-    public void testReplicaReceivesGenIncrease() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
-            shards.startAll();
-            final IndexShard primary = shards.getPrimary();
-            final IndexShard replica = shards.getReplicas().get(0);
-            final int numDocs = randomIntBetween(10, 100);
-            shards.indexDocs(numDocs);
-            assertEquals(numDocs, primary.translogStats().estimatedNumberOfOperations());
-            assertEquals(numDocs, replica.translogStats().estimatedNumberOfOperations());
-            assertEquals(numDocs, primary.translogStats().getUncommittedOperations());
-            assertEquals(numDocs, replica.translogStats().getUncommittedOperations());
-            flushShard(primary, true);
-            replicateSegments(primary, shards.getReplicas());
-            assertEquals(0, primary.translogStats().estimatedNumberOfOperations());
-            assertEquals(0, replica.translogStats().estimatedNumberOfOperations());
-            assertEquals(0, primary.translogStats().getUncommittedOperations());
-            assertEquals(0, replica.translogStats().getUncommittedOperations());
-
-            final int additionalDocs = shards.indexDocs(randomIntBetween(numDocs + 1, numDocs + 10));
-
-            final int totalDocs = numDocs + additionalDocs;
-            primary.refresh("test");
-            replicateSegments(primary, shards.getReplicas());
-            assertEquals(additionalDocs, primary.translogStats().estimatedNumberOfOperations());
-            assertEquals(additionalDocs, replica.translogStats().estimatedNumberOfOperations());
-            assertEquals(additionalDocs, primary.translogStats().getUncommittedOperations());
-            assertEquals(additionalDocs, replica.translogStats().getUncommittedOperations());
-            flushShard(primary, true);
-            replicateSegments(primary, shards.getReplicas());
-
-            assertEqualCommittedSegments(primary, replica);
-            assertDocCount(primary, totalDocs);
-            assertDocCount(replica, totalDocs);
-            assertEquals(0, primary.translogStats().estimatedNumberOfOperations());
-            assertEquals(0, replica.translogStats().estimatedNumberOfOperations());
-            assertEquals(0, primary.translogStats().getUncommittedOperations());
-            assertEquals(0, replica.translogStats().getUncommittedOperations());
-        }
-    }
-
-    public void testPrimaryRelocation() throws Exception {
-        final IndexShard primarySource = newStartedShard(true, settings);
-        int totalOps = randomInt(10);
-        for (int i = 0; i < totalOps; i++) {
-            indexDoc(primarySource, "_doc", Integer.toString(i));
-        }
-        IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
-        final IndexShard primaryTarget = newShard(
-            primarySource.routingEntry().getTargetRelocatingShard(),
-            settings,
-            new NRTReplicationEngineFactory()
-        );
-        updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
-
-        Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction = (shardList) -> {
-            try {
-                assert shardList.size() >= 2;
-                final IndexShard primary = shardList.get(0);
-                return replicateSegments(primary, shardList.subList(1, shardList.size()));
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        };
-        recoverReplica(primaryTarget, primarySource, true, replicatePrimaryFunction);
-
-        // check that local checkpoint of new primary is properly tracked after primary relocation
-        assertThat(primaryTarget.getLocalCheckpoint(), equalTo(totalOps - 1L));
-        assertThat(
-            primaryTarget.getReplicationTracker()
-                .getTrackedLocalCheckpointForShard(primaryTarget.routingEntry().allocationId().getId())
-                .getLocalCheckpoint(),
-            equalTo(totalOps - 1L)
-        );
-        assertDocCount(primaryTarget, totalOps);
-        closeShards(primarySource, primaryTarget);
-    }
-
     public void testPrimaryRelocationWithSegRepFailure() throws Exception {
-        final IndexShard primarySource = newStartedShard(true, settings);
+        final IndexShard primarySource = newStartedShard(true, getIndexSettings());
         int totalOps = randomInt(10);
         for (int i = 0; i < totalOps; i++) {
             indexDoc(primarySource, "_doc", Integer.toString(i));
@@ -630,7 +529,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
         final IndexShard primaryTarget = newShard(
             primarySource.routingEntry().getTargetRelocatingShard(),
-            settings,
+            getIndexSettings(),
             new NRTReplicationEngineFactory()
         );
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
@@ -669,7 +568,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     // Todo: Remove this test when there is a better mechanism to test a functionality passing in different replication
     // strategy.
     public void testLockingBeforeAndAfterRelocated() throws Exception {
-        final IndexShard shard = newStartedShard(true, settings);
+        final IndexShard shard = newStartedShard(true, getIndexSettings());
         final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node");
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         CountDownLatch latch = new CountDownLatch(1);
@@ -702,7 +601,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     // Todo: Remove this test when there is a better mechanism to test a functionality passing in different replication
     // strategy.
     public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
-        final IndexShard shard = newStartedShard(true, settings);
+        final IndexShard shard = newStartedShard(true, getIndexSettings());
         final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node");
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         final CountDownLatch startRecovery = new CountDownLatch(1);
@@ -776,344 +675,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         closeShards(shard);
     }
 
-    public void testReplicaReceivesLowerGeneration() throws Exception {
-        // when a replica gets incoming segments that are lower than what it currently has on disk.
-
-        // start 3 nodes Gens: P [2], R [2], R[2]
-        // index some docs and flush twice, push to only 1 replica.
-        // State Gens: P [4], R-1 [3], R-2 [2]
-        // Promote R-2 as the new primary and demote the old primary.
-        // State Gens: R[4], R-1 [3], P [4] - *commit on close of NRTEngine, xlog replayed and commit made.
-        // index docs on new primary and flush
-        // replicate to all.
-        // Expected result: State Gens: P[4], R-1 [4], R-2 [4]
-        try (ReplicationGroup shards = createGroup(2, settings, new NRTReplicationEngineFactory())) {
-            shards.startAll();
-            final IndexShard primary = shards.getPrimary();
-            final IndexShard replica_1 = shards.getReplicas().get(0);
-            final IndexShard replica_2 = shards.getReplicas().get(1);
-            int numDocs = randomIntBetween(10, 100);
-            shards.indexDocs(numDocs);
-            flushShard(primary, false);
-            replicateSegments(primary, List.of(replica_1));
-            numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
-            shards.indexDocs(numDocs);
-            flushShard(primary, false);
-            replicateSegments(primary, List.of(replica_1));
-
-            assertEqualCommittedSegments(primary, replica_1);
-
-            shards.promoteReplicaToPrimary(replica_2).get();
-            primary.close("demoted", false, false);
-            primary.store().close();
-            IndexShard oldPrimary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
-            shards.recoverReplica(oldPrimary);
-
-            numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
-            shards.indexDocs(numDocs);
-            flushShard(replica_2, false);
-            replicateSegments(replica_2, shards.getReplicas());
-            assertEqualCommittedSegments(replica_2, oldPrimary, replica_1);
-        }
-    }
-
-    public void testReplicaRestarts() throws Exception {
-        try (ReplicationGroup shards = createGroup(3, settings, new NRTReplicationEngineFactory())) {
-            shards.startAll();
-            IndexShard primary = shards.getPrimary();
-            // 1. Create ops that are in the index and xlog of both shards but not yet part of a commit point.
-            final int numDocs = shards.indexDocs(randomInt(10));
-
-            // refresh and copy the segments over.
-            if (randomBoolean()) {
-                flushShard(primary);
-            }
-            primary.refresh("Test");
-            replicateSegments(primary, shards.getReplicas());
-
-            // at this point both shards should have numDocs persisted and searchable.
-            assertDocCounts(primary, numDocs, numDocs);
-            for (IndexShard shard : shards.getReplicas()) {
-                assertDocCounts(shard, numDocs, numDocs);
-            }
-
-            final int i1 = randomInt(5);
-            for (int i = 0; i < i1; i++) {
-                shards.indexDocs(randomInt(10));
-
-                // randomly resetart a replica
-                final IndexShard replicaToRestart = getRandomReplica(shards);
-                replicaToRestart.close("restart", false, false);
-                replicaToRestart.store().close();
-                shards.removeReplica(replicaToRestart);
-                final IndexShard newReplica = shards.addReplicaWithExistingPath(
-                    replicaToRestart.shardPath(),
-                    replicaToRestart.routingEntry().currentNodeId()
-                );
-                shards.recoverReplica(newReplica);
-
-                // refresh and push segments to our other replicas.
-                if (randomBoolean()) {
-                    failAndPromoteRandomReplica(shards);
-                }
-                flushShard(shards.getPrimary());
-                replicateSegments(shards.getPrimary(), shards.getReplicas());
-            }
-            primary = shards.getPrimary();
-
-            // refresh and push segments to our other replica.
-            flushShard(primary);
-            replicateSegments(primary, shards.getReplicas());
-
-            for (IndexShard shard : shards) {
-                assertConsistentHistoryBetweenTranslogAndLucene(shard);
-            }
-            final List<DocIdSeqNoAndSource> docsAfterReplication = getDocIdAndSeqNos(shards.getPrimary());
-            for (IndexShard shard : shards.getReplicas()) {
-                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterReplication));
-            }
-        }
-    }
-
-    public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshRefresh() throws Exception {
-        testNRTReplicaWithRemoteStorePromotedAsPrimary(false, false);
-    }
-
-    public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshCommit() throws Exception {
-        testNRTReplicaWithRemoteStorePromotedAsPrimary(false, true);
-    }
-
-    public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitRefresh() throws Exception {
-        testNRTReplicaWithRemoteStorePromotedAsPrimary(true, false);
-    }
-
-    public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitCommit() throws Exception {
-        testNRTReplicaWithRemoteStorePromotedAsPrimary(true, true);
-    }
-
-    private void testNRTReplicaWithRemoteStorePromotedAsPrimary(boolean performFlushFirst, boolean performFlushSecond) throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "temp-fs")
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
-            .build();
-
-        try (ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir())) {
-            shards.startAll();
-            IndexShard oldPrimary = shards.getPrimary();
-            final IndexShard nextPrimary = shards.getReplicas().get(0);
-
-            // 1. Create ops that are in the index and xlog of both shards but not yet part of a commit point.
-            final int numDocs = shards.indexDocs(randomInt(10));
-
-            // refresh but do not copy the segments over.
-            if (performFlushFirst) {
-                flushShard(oldPrimary, true);
-            } else {
-                oldPrimary.refresh("Test");
-            }
-            // replicateSegments(primary, shards.getReplicas());
-
-            // at this point both shards should have numDocs persisted and searchable.
-            assertDocCounts(oldPrimary, numDocs, numDocs);
-            for (IndexShard shard : shards.getReplicas()) {
-                assertDocCounts(shard, numDocs, 0);
-            }
-
-            // 2. Create ops that are in the replica's xlog, not in the index.
-            // index some more into both but don't replicate. replica will have only numDocs searchable, but should have totalDocs
-            // persisted.
-            final int additonalDocs = shards.indexDocs(randomInt(10));
-            final int totalDocs = numDocs + additonalDocs;
-
-            if (performFlushSecond) {
-                flushShard(oldPrimary, true);
-            } else {
-                oldPrimary.refresh("Test");
-            }
-            assertDocCounts(oldPrimary, totalDocs, totalDocs);
-            for (IndexShard shard : shards.getReplicas()) {
-                assertDocCounts(shard, totalDocs, 0);
-            }
-            assertTrue(nextPrimary.translogStats().estimatedNumberOfOperations() >= additonalDocs);
-            assertTrue(nextPrimary.translogStats().getUncommittedOperations() >= additonalDocs);
-
-            int prevOperationCount = nextPrimary.translogStats().estimatedNumberOfOperations();
-
-            // promote the replica
-            shards.promoteReplicaToPrimary(nextPrimary).get();
-
-            // close oldPrimary.
-            oldPrimary.close("demoted", false, false);
-            oldPrimary.store().close();
-
-            assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
-            assertDocCounts(nextPrimary, totalDocs, totalDocs);
-
-            // As we are downloading segments from remote segment store on failover, there should not be
-            // any operations replayed from translog
-            assertEquals(prevOperationCount, nextPrimary.translogStats().estimatedNumberOfOperations());
-
-            // refresh and push segments to our other replica.
-            nextPrimary.refresh("test");
-
-            for (IndexShard shard : shards) {
-                assertConsistentHistoryBetweenTranslogAndLucene(shard);
-            }
-            final List<DocIdSeqNoAndSource> docsAfterRecovery = getDocIdAndSeqNos(shards.getPrimary());
-            for (IndexShard shard : shards.getReplicas()) {
-                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
-            }
-        }
-    }
-
-    public void testNRTReplicaPromotedAsPrimary() throws Exception {
-        try (ReplicationGroup shards = createGroup(2, settings, new NRTReplicationEngineFactory())) {
-            shards.startAll();
-            IndexShard oldPrimary = shards.getPrimary();
-            final IndexShard nextPrimary = shards.getReplicas().get(0);
-            final IndexShard replica = shards.getReplicas().get(1);
-
-            // 1. Create ops that are in the index and xlog of both shards but not yet part of a commit point.
-            final int numDocs = shards.indexDocs(randomInt(10));
-
-            // refresh and copy the segments over.
-            oldPrimary.refresh("Test");
-            replicateSegments(oldPrimary, shards.getReplicas());
-
-            // at this point both shards should have numDocs persisted and searchable.
-            assertDocCounts(oldPrimary, numDocs, numDocs);
-            for (IndexShard shard : shards.getReplicas()) {
-                assertDocCounts(shard, numDocs, numDocs);
-            }
-            assertEqualTranslogOperations(shards, oldPrimary);
-
-            // 2. Create ops that are in the replica's xlog, not in the index.
-            // index some more into both but don't replicate. replica will have only numDocs searchable, but should have totalDocs
-            // persisted.
-            final int additonalDocs = shards.indexDocs(randomInt(10));
-            final int totalDocs = numDocs + additonalDocs;
-
-            assertDocCounts(oldPrimary, totalDocs, totalDocs);
-            assertEqualTranslogOperations(shards, oldPrimary);
-            for (IndexShard shard : shards.getReplicas()) {
-                assertDocCounts(shard, totalDocs, numDocs);
-            }
-            assertEquals(totalDocs, oldPrimary.translogStats().estimatedNumberOfOperations());
-            assertEquals(totalDocs, oldPrimary.translogStats().estimatedNumberOfOperations());
-            assertEquals(totalDocs, nextPrimary.translogStats().estimatedNumberOfOperations());
-            assertEquals(totalDocs, replica.translogStats().estimatedNumberOfOperations());
-            assertEquals(totalDocs, nextPrimary.translogStats().getUncommittedOperations());
-            assertEquals(totalDocs, replica.translogStats().getUncommittedOperations());
-
-            // promote the replica
-            shards.syncGlobalCheckpoint();
-            shards.promoteReplicaToPrimary(nextPrimary);
-
-            // close and start the oldPrimary as a replica.
-            oldPrimary.close("demoted", false, false);
-            oldPrimary.store().close();
-            oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
-            shards.recoverReplica(oldPrimary);
-
-            assertEquals(NRTReplicationEngine.class, oldPrimary.getEngine().getClass());
-            assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
-            assertDocCounts(nextPrimary, totalDocs, totalDocs);
-            assertEquals(0, nextPrimary.translogStats().estimatedNumberOfOperations());
-
-            // refresh and push segments to our other replica.
-            nextPrimary.refresh("test");
-            replicateSegments(nextPrimary, asList(replica));
-
-            for (IndexShard shard : shards) {
-                assertConsistentHistoryBetweenTranslogAndLucene(shard);
-            }
-            final List<DocIdSeqNoAndSource> docsAfterRecovery = getDocIdAndSeqNos(shards.getPrimary());
-            for (IndexShard shard : shards.getReplicas()) {
-                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
-            }
-        }
-    }
-
-    public void testReplicaPromotedWhileReplicating() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
-            shards.startAll();
-            final IndexShard oldPrimary = shards.getPrimary();
-            final IndexShard nextPrimary = shards.getReplicas().get(0);
-
-            final int numDocs = shards.indexDocs(randomInt(10));
-            oldPrimary.refresh("Test");
-            shards.syncGlobalCheckpoint();
-
-            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
-            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new TestReplicationSource() {
-                @Override
-                public void getCheckpointMetadata(
-                    long replicationId,
-                    ReplicationCheckpoint checkpoint,
-                    ActionListener<CheckpointInfoResponse> listener
-                ) {
-                    resolveCheckpointInfoResponseListener(listener, oldPrimary);
-                    ShardRouting oldRouting = nextPrimary.shardRouting;
-                    try {
-                        shards.promoteReplicaToPrimary(nextPrimary);
-                    } catch (IOException e) {
-                        Assert.fail("Promotion should not fail");
-                    }
-                    targetService.shardRoutingChanged(nextPrimary, oldRouting, nextPrimary.shardRouting);
-                }
-
-                @Override
-                public void getSegmentFiles(
-                    long replicationId,
-                    ReplicationCheckpoint checkpoint,
-                    List<StoreFileMetadata> filesToFetch,
-                    IndexShard indexShard,
-                    ActionListener<GetSegmentFilesResponse> listener
-                ) {
-                    listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
-                }
-            };
-            when(sourceFactory.get(any())).thenReturn(source);
-            startReplicationAndAssertCancellation(nextPrimary, targetService);
-            // wait for replica to finish being promoted, and assert doc counts.
-            final CountDownLatch latch = new CountDownLatch(1);
-            nextPrimary.acquirePrimaryOperationPermit(new ActionListener<>() {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            }, ThreadPool.Names.GENERIC, "");
-            latch.await();
-            assertEquals(nextPrimary.getEngine().getClass(), InternalEngine.class);
-            nextPrimary.refresh("test");
-
-            oldPrimary.close("demoted", false, false);
-            oldPrimary.store().close();
-            IndexShard newReplica = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
-            shards.recoverReplica(newReplica);
-
-            assertDocCount(nextPrimary, numDocs);
-            assertDocCount(newReplica, numDocs);
-
-            nextPrimary.refresh("test");
-            replicateSegments(nextPrimary, shards.getReplicas());
-            final List<DocIdSeqNoAndSource> docsAfterRecovery = getDocIdAndSeqNos(shards.getPrimary());
-            for (IndexShard shard : shards.getReplicas()) {
-                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
-            }
-        }
-    }
-
     public void testReplicaClosesWhileReplicating_AfterGetCheckpoint() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
@@ -1155,7 +718,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     public void testReplicaClosesWhileReplicating_AfterGetSegmentFiles() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
@@ -1197,7 +760,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     public void testCloseShardDuringFinalize() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
@@ -1212,7 +775,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     public void testCloseShardWhileGettingCheckpoint() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
@@ -1264,7 +827,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     public void testBeforeIndexShardClosedWhileCopyingFiles() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
@@ -1316,7 +879,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     public void testPrimaryCancelsExecution() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
@@ -1353,7 +916,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    private SegmentReplicationTargetService newTargetService(SegmentReplicationSourceFactory sourceFactory) {
+    protected SegmentReplicationTargetService newTargetService(SegmentReplicationSourceFactory sourceFactory) {
         return new SegmentReplicationTargetService(
             threadPool,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
@@ -1368,14 +931,15 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
      * Assert persisted and searchable doc counts.  This method should not be used while docs are concurrently indexed because
      * it asserts point in time seqNos are relative to the doc counts.
      */
-    private void assertDocCounts(IndexShard indexShard, int expectedPersistedDocCount, int expectedSearchableDocCount) throws IOException {
+    protected void assertDocCounts(IndexShard indexShard, int expectedPersistedDocCount, int expectedSearchableDocCount)
+        throws IOException {
         assertDocCount(indexShard, expectedSearchableDocCount);
         // assigned seqNos start at 0, so assert max & local seqNos are 1 less than our persisted doc count.
         assertEquals(expectedPersistedDocCount - 1, indexShard.seqNoStats().getMaxSeqNo());
         assertEquals(expectedPersistedDocCount - 1, indexShard.seqNoStats().getLocalCheckpoint());
     }
 
-    private void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
+    protected void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
         try {
             final CopyState copyState = new CopyState(
                 ReplicationCheckpoint.empty(primary.shardId, primary.getLatestReplicationCheckpoint().getCodec()),
@@ -1390,7 +954,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    private void startReplicationAndAssertCancellation(IndexShard replica, SegmentReplicationTargetService targetService)
+    protected void startReplicationAndAssertCancellation(IndexShard replica, SegmentReplicationTargetService targetService)
         throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         final SegmentReplicationTarget target = targetService.startReplication(
@@ -1414,11 +978,11 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         assertNull(targetService.get(target.getId()));
     }
 
-    private IndexShard getRandomReplica(ReplicationGroup shards) {
+    protected IndexShard getRandomReplica(ReplicationGroup shards) {
         return shards.getReplicas().get(randomInt(shards.getReplicas().size() - 1));
     }
 
-    private IndexShard failAndPromoteRandomReplica(ReplicationGroup shards) throws IOException {
+    protected IndexShard failAndPromoteRandomReplica(ReplicationGroup shards) throws IOException {
         IndexShard primary = shards.getPrimary();
         final IndexShard newPrimary = getRandomReplica(shards);
         shards.promoteReplicaToPrimary(newPrimary);
@@ -1429,7 +993,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         return newPrimary;
     }
 
-    private void assertEqualCommittedSegments(IndexShard primary, IndexShard... replicas) throws IOException {
+    protected void assertEqualCommittedSegments(IndexShard primary, IndexShard... replicas) throws IOException {
         for (IndexShard replica : replicas) {
             final SegmentInfos replicaInfos = replica.store().readLastCommittedSegmentsInfo();
             final SegmentInfos primaryInfos = primary.store().readLastCommittedSegmentsInfo();
@@ -1441,7 +1005,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    private void assertEqualTranslogOperations(ReplicationGroup shards, IndexShard primaryShard) throws IOException {
+    protected void assertEqualTranslogOperations(ReplicationGroup shards, IndexShard primaryShard) throws IOException {
         try (final Translog.Snapshot snapshot = getTranslog(primaryShard).newSnapshot()) {
             List<Translog.Operation> operations = new ArrayList<>();
             Translog.Operation op;

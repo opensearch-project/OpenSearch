@@ -149,7 +149,12 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
     protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory)
         throws IOException {
-        return createGroup(replicas, settings, mappings, engineFactory, null);
+        Path remotePath = null;
+        if (settings.get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED) != null
+            && settings.get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED).equals("true")) {
+            remotePath = createTempDir();
+        }
+        return createGroup(replicas, settings, mappings, engineFactory, remotePath);
     }
 
     protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory, Path remotePath)

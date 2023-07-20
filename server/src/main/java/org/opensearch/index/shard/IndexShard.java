@@ -4620,7 +4620,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
-        logger.info("Downloading segments from remote segment store");
+        logger.trace("Downloading segments from remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
         // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
         // are uploaded to the remote segment store.
@@ -4710,7 +4710,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long primaryTerm,
         long commitGeneration
     ) throws IOException {
-        logger.info("Downloading segments from given remote segment store");
+        logger.trace("Downloading segments from given remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = null;
         if (remoteStore != null) {
             remoteDirectory = getRemoteDirectory();
