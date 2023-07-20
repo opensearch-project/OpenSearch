@@ -136,7 +136,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
                 + "::"
                 + randomIntBetween(1024, 2048)
                 + "::"
-                + Version.LATEST
+                + Version.LATEST.major
         );
         expectedOutput.put(
             prefix + ".cfs",
@@ -150,7 +150,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
                 + "::"
                 + randomIntBetween(1024, 2048)
                 + "::"
-                + Version.LATEST
+                + Version.LATEST.major
         );
         return expectedOutput;
     }
