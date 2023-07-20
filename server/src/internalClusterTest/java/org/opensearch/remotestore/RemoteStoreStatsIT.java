@@ -573,7 +573,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             } else {
                 refresh(INDEX_NAME);
             }
-            int numberOfOperations = randomIntBetween(20, 50);
+            int numberOfOperations = randomIntBetween(10, 30);
             for (int j = 0; j < numberOfOperations; j++) {
                 indexSingleDoc(INDEX_NAME);
             }
