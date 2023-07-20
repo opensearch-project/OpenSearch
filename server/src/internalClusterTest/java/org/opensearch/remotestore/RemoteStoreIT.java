@@ -75,13 +75,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get();
     }
 
-    private IndexResponse indexSingleDoc(String indexName) {
-        return client().prepareIndex(indexName)
-            .setId(UUIDs.randomBase64UUID())
-            .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
-            .get();
-    }
-
     private Map<String, Long> indexData(int numberOfIterations, boolean invokeFlush, String index) {
         long totalOperations = 0;
         long refreshedOrFlushedOperations = 0;
