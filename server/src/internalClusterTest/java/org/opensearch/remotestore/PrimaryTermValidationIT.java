@@ -69,6 +69,8 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
         assertAcked(
             clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
         );
+        absolutePath2 = randomRepoPath().toAbsolutePath();
+        putRepository(absolutePath2, REPOSITORY_2_NAME);
 
         // Start data nodes and create index
         internalCluster().startDataOnlyNodes(2, clusterSettings);
