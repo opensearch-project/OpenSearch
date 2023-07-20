@@ -116,6 +116,10 @@ public class ProfileResultTests extends OpenSearchTestCase {
             assertNull(parser.nextToken());
         }
         assertEquals(profileResult.getTime(), parsed.getTime());
+        assertEquals(profileResult.getMaxSliceTime(), parsed.getMaxSliceTime());
+        assertEquals(profileResult.getMinSliceTime(), parsed.getMinSliceTime());
+        assertEquals(profileResult.getAvgSliceTime(), parsed.getAvgSliceTime());
+        assertEquals(profileResult.isConcurrent(), parsed.isConcurrent());
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
@@ -238,5 +242,21 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "}",
             Strings.toString(builder)
         );
+    }
+
+    public void testRemoveStartTimeFields() {
+        Map<String, Long> breakdown = new HashMap<>();
+        breakdown.put("initialize_startTime", 123456L);
+        breakdown.put("initialize_count", 1L);
+        breakdown.put("initialize", 654321L);
+        Map<String, Long> modifiedBreakdown = new LinkedHashMap<>(breakdown);
+        assertEquals(3, modifiedBreakdown.size());
+        assertEquals(123456L, (long) modifiedBreakdown.get("initialize_startTime"));
+        assertEquals(1L, (long) modifiedBreakdown.get("initialize_count"));
+        assertEquals(654321L, (long) modifiedBreakdown.get("initialize"));
+        ProfileResult.removeStartTimeFields(modifiedBreakdown);
+        assertFalse(modifiedBreakdown.containsKey("initialize_startTime"));
+        assertTrue(modifiedBreakdown.containsKey("initialize_count"));
+        assertTrue(modifiedBreakdown.containsKey("initialize"));
     }
 }

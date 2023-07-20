@@ -50,8 +50,8 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     /**
      * The accumulated timings for this query node
      */
-    private final Timer[] timings;
-    private final T[] timingTypes;
+    public final Timer[] timings;
+    public final T[] timingTypes;
 
     /** Sole constructor. */
     public AbstractProfileBreakdown(Class<T> clazz) {
@@ -80,11 +80,11 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     /**
      * Build a timing count breakdown for arbitrary instance
      */
-    protected final Map<String, Long> buildBreakdownMap(AbstractProfileBreakdown<T> breakdown) {
-        Map<String, Long> map = new HashMap<>(breakdown.timings.length * 2);
+    protected Map<String, Long> buildBreakdownMap(AbstractProfileBreakdown<T> breakdown) {
+        Map<String, Long> map = new HashMap<>(breakdown.timings.length * 3);
         for (T timingType : breakdown.timingTypes) {
             map.put(timingType.toString(), breakdown.timings[timingType.ordinal()].getApproximateTiming());
-            map.put(timingType.toString() + "_count", breakdown.timings[timingType.ordinal()].getCount());
+            map.put(timingType + "_count", breakdown.timings[timingType.ordinal()].getCount());
         }
         return Collections.unmodifiableMap(map);
     }
@@ -102,5 +102,9 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
             total += timings[timingType.ordinal()].getApproximateTiming();
         }
         return total;
+    }
+
+    public final long toNodeStartTime() {
+        return timings[timingTypes[0].ordinal()].getEarliestTimerStartTime();
     }
 }

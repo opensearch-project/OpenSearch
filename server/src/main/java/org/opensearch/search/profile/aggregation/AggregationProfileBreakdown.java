@@ -34,6 +34,7 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -61,5 +62,19 @@ public class AggregationProfileBreakdown extends AbstractProfileBreakdown<Aggreg
     @Override
     protected Map<String, Object> toDebugMap() {
         return unmodifiableMap(extra);
+    }
+
+    /**
+     * Build a timing count startTime breakdown for aggregation timing types
+     */
+    @Override
+    protected final Map<String, Long> buildBreakdownMap(AbstractProfileBreakdown<AggregationTimingType> breakdown) {
+        Map<String, Long> map = new HashMap<>(breakdown.timings.length * 3);
+        for (AggregationTimingType timingType : breakdown.timingTypes) {
+            map.put(timingType.toString(), breakdown.timings[timingType.ordinal()].getApproximateTiming());
+            map.put(timingType + "_count", breakdown.timings[timingType.ordinal()].getCount());
+            map.put(timingType + "_startTime", breakdown.timings[timingType.ordinal()].getEarliestTimerStartTime());
+        }
+        return Collections.unmodifiableMap(map);
     }
 }

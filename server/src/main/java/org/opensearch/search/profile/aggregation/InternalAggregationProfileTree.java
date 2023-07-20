@@ -62,6 +62,10 @@ public class InternalAggregationProfileTree extends AbstractInternalProfileTree<
         return element.getClass().getSimpleName();
     }
 
+    /**
+     * @return is used to group aggregations with same name across slices.
+     * So the name returned here should be same across slices for an aggregation operator.
+     */
     @Override
     protected String getDescriptionFromElement(Aggregator element) {
         return element.name();

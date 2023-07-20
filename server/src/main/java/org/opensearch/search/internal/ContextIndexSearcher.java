@@ -449,6 +449,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return (DirectoryReader) reader;
     }
 
+    public SearchContext getSearchContext() {
+        return searchContext;
+    }
+
     private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
 
         private final Set<Runnable> runnables = new HashSet<>();
