@@ -546,8 +546,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public InternalAggregation.ReduceContext partial() {
-        return in.partial();
+    public InternalAggregation.ReduceContext partialOnShard() {
+        return in.partialOnShard();
     }
 
     @Override
