@@ -66,6 +66,7 @@ import org.opensearch.node.Node;
 import org.opensearch.node.NodeValidationException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
+import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
@@ -211,7 +212,10 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     /** Additional settings to add when creating the node. Also allows overriding the default settings. */
     protected Settings nodeSettings() {
-        return Settings.EMPTY;
+        // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
+        // when tests are run with concurrent segment search enabled. When concurrent segment search is disabled then it's a no-op as
+        // slices are not used
+        return Settings.builder().put(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2).build();
     }
 
     /** True if a dummy http transport should be used, or false if the real http transport should be used. */
