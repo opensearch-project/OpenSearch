@@ -290,12 +290,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
+    public static final String SETTING_REMOTE_WARM_INDEX_ENABLED = "index.remote_store.warm_index.enabled";
 
     public static final String SETTING_REMOTE_STORE_REPOSITORY = "index.remote_store.repository";
 
     public static final String SETTING_REMOTE_TRANSLOG_STORE_ENABLED = "index.remote_store.translog.enabled";
 
     public static final String SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY = "index.remote_store.translog.repository";
+
+    public static final String SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL = "index.remote_store.translog.buffer_interval";
 
     /**
      * Used to specify if the index data should be persisted in the remote store.

@@ -71,6 +71,7 @@ import java.util.stream.Collectors;
 public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     public static final List<IndexModule.Type> FILE_SYSTEM_BASED_STORE_TYPES = Arrays.stream(IndexModule.Type.values())
         .filter(t -> (t == IndexModule.Type.REMOTE_SNAPSHOT) == false)
+        .filter(t -> (t == IndexModule.Type.REMOTE_WARM_INDEX) == false)
         .collect(Collectors.toUnmodifiableList());
 
     public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING = Setting.doubleSetting(
