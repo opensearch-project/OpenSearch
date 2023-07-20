@@ -105,7 +105,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -969,14 +968,14 @@ public class MetadataCreateIndexService {
                 );
             }
 
-            settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true);
-            String remoteStoreRepo;
-            if (Objects.equals(requestSettings.get(INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()), "true")) {
-                remoteStoreRepo = requestSettings.get(INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey());
-            } else {
-                remoteStoreRepo = CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.get(clusterSettings);
-            }
-            settingsBuilder.put(SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo)
+            settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
+                .put(
+                    SETTING_REMOTE_STORE_REPOSITORY,
+                    requestSettings.get(
+                        INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey(),
+                        CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.get(clusterSettings)
+                    )
+                )
                 .put(
                     SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
                     requestSettings.get(

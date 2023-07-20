@@ -366,7 +366,6 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
             .put("location", OpenSearchIntegTestCase.randomRepoPath(node().settings()))
             .build();
         createRepository(client, remoteStoreRepositoryName, remoteStoreRepoSettings);
-        // createRepository(client, remoteStoreRepositoryName + "translog", remoteStoreRepoSettings);
 
         logger.info("--> creating a remote store enabled index and indexing documents");
         final String remoteStoreIndexName = "test-rs-idx";
@@ -440,7 +439,6 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
 
         logger.info("-->  creating remote store repository");
         createRepository(client, remoteStoreRepositoryName);
-        createRepository(client, remoteStoreRepositoryName + "translog");
 
         logger.info("--> creating an index and indexing documents");
         final String indexName = "test-idx";
