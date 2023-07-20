@@ -58,6 +58,7 @@ import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
+import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.TracerFactory;
@@ -468,6 +469,7 @@ public class Node implements Closeable {
 
             // Ensure to initialize Feature Flags via the settings from opensearch.yml
             FeatureFlags.initializeFeatureFlags(settings);
+            SearchBootstrapSettings.initialize(settings);
 
             final List<IdentityPlugin> identityPlugins = new ArrayList<>();
             if (FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {

@@ -45,6 +45,7 @@ import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -494,6 +495,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,
                 SearchService.MAX_OPEN_PIT_CONTEXT,
                 SearchService.MAX_PIT_KEEPALIVE_SETTING,
+                SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,

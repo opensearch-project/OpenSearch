@@ -152,6 +152,7 @@ import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptMetadata;
 import org.opensearch.search.MockSearchService;
+import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
 import org.opensearch.test.client.RandomizingClient;
@@ -1941,7 +1942,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
-            .put(featureFlagSettings());
+            .put(featureFlagSettings())
+            // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
+            // when tests are run with concurrent segment search enabled. When concurrent segment search is disabled then it's a no-op as
+            // slices are not used
+            .put(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
         if (rarely()) {
             // Sometimes adjust the minimum search thread pool size, causing
             // QueueResizingOpenSearchThreadPoolExecutor to be used instead of a regular
