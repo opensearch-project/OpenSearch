@@ -11,7 +11,6 @@ package org.opensearch.remotestore;
 import org.junit.After;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Randomness;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -36,8 +35,8 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_2_NAME = "test-remore-store-repo-2";
     protected static final int SHARD_COUNT = 1;
     protected static final int REPLICA_COUNT = 1;
-
     protected Path absolutePath;
+    protected Path absolutePath2;
 
     @Override
     protected boolean addMockInternalEngine() {
@@ -97,7 +96,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     protected Settings remoteTranslogIndexSettings(int numberOfReplicas, int numberOfShards) {
-        boolean sameRepoForRSSAndRTS = Randomness.get().nextBoolean();
+        boolean sameRepoForRSSAndRTS = randomBoolean();
         return Settings.builder()
             .put(remoteStoreIndexSettings(numberOfReplicas, numberOfShards))
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
@@ -110,18 +109,19 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     protected void putRepository(Path path) {
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", path))
-        );
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_2_NAME).setType("fs").setSettings(Settings.builder().put("location", path))
-        );
+        putRepository(path, REPOSITORY_NAME);
+    }
+
+    protected void putRepository(Path path, String repoName) {
+        assertAcked(clusterAdmin().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder().put("location", path)));
     }
 
     protected void setupRepo() {
         internalCluster().startClusterManagerOnlyNode();
         absolutePath = randomRepoPath().toAbsolutePath();
         putRepository(absolutePath);
+        absolutePath2 = randomRepoPath().toAbsolutePath();
+        putRepository(absolutePath2, REPOSITORY_2_NAME);
     }
 
     @After
