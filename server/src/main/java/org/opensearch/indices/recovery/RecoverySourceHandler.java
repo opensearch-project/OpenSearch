@@ -71,6 +71,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.replication.SegmentFileTransferHandler;
+import org.opensearch.telemetry.tracing.TracerUtil;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
@@ -85,6 +86,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
@@ -201,8 +203,24 @@ public abstract class RecoverySourceHandler {
         final StepListener<Void> finalizeStep = new StepListener<>();
         // Recovery target can trim all operations >= startingSeqNo as we have sent all these operations in the phase 2
         final long trimAboveSeqNo = startingSeqNo - 1;
-        sendSnapshotStep.whenComplete(r -> finalizeRecovery(r.targetLocalCheckpoint, trimAboveSeqNo, finalizeStep), onFailure);
-
+        sendSnapshotStep.whenComplete(r -> {
+            BiFunction<Object[], ActionListener<?>, Void> finalizeRecoveryFun =
+                (args, actionListener) -> {
+                    try {
+                        finalizeRecovery((long) args[0], (long) args[1], (ActionListener<Void>) actionListener);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return null;
+                };
+            TracerUtil.callFunctionAndStartSpan(
+                "FinalizeRecovery",
+                finalizeRecoveryFun,
+                finalizeStep,
+                r.targetLocalCheckpoint,
+                trimAboveSeqNo
+            );
+        }, onFailure);
         finalizeStep.whenComplete(r -> {
             final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
             final SendSnapshotResult sendSnapshotResult = sendSnapshotStep.result();
@@ -436,17 +454,48 @@ public abstract class RecoverySourceHandler {
                 final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
                 final StepListener<Void> cleanFilesStep = new StepListener<>();
                 cancellableThreads.checkForCancel();
-                recoveryTarget.receiveFileInfo(
+                BiFunction<Object[], ActionListener<?>, Void> receiveFileInfoFunction = (args, actionListener) -> {
+                    recoveryTarget.receiveFileInfo(
+                        (List<String>) args[0],
+                        (List<Long>)args[1],
+                        (List<String>) args[2],
+                        (List<Long>) args[3],
+                        (int) args[4],
+                        (ActionListener<Void>)actionListener
+                    );
+                    return null;
+                };
+                TracerUtil.callFunctionAndStartSpan(
+                    "SendFileInfo",
+                    receiveFileInfoFunction,
+                    sendFileInfoStep,
                     phase1FileNames,
                     phase1FileSizes,
                     phase1ExistingFileNames,
                     phase1ExistingFileSizes,
-                    translogOps.getAsInt(),
-                    sendFileInfoStep
+                    translogOps.getAsInt()
                 );
 
                 sendFileInfoStep.whenComplete(
-                    r -> sendFiles(store, phase1Files.toArray(new StoreFileMetadata[0]), translogOps, sendFilesStep),
+                    r -> {
+                        BiFunction<Object[], ActionListener<?>, Void> sendFileFunction = (args, actionListener) -> {
+                            sendFiles(
+                                (Store) args[0],
+                                (StoreFileMetadata[])args[1],
+                                (IntSupplier) args[2],
+                                (ActionListener<Void>) actionListener
+                            );
+                            return null;
+                        };
+                        TracerUtil.callFunctionAndStartSpan(
+                            "SendFiles",
+                            sendFileFunction,
+                            sendFilesStep,
+                            store,
+                            phase1Files.toArray(new StoreFileMetadata[0]),
+                            translogOps
+                        );
+                    },
                     listener::onFailure
                 );
 
@@ -454,8 +503,21 @@ public abstract class RecoverySourceHandler {
                 if (skipCreateRetentionLeaseStep) {
                     sendFilesStep.whenComplete(r -> createRetentionLeaseStep.onResponse(null), listener::onFailure);
                 } else {
-                    sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
-                }
+                    sendFilesStep.whenComplete(r -> {
+                        BiFunction<Object[], ActionListener<?>, Void> createRetentionLeaseFunction = (args, actionListener) -> {
+                            createRetentionLease(
+                                (long) args[0],
+                                (ActionListener<RetentionLease>) actionListener
+                            );
+                            return null;
+                        };
+                        TracerUtil.callFunctionAndStartSpan(
+                            "CreateRetentionLease",
+                            createRetentionLeaseFunction,
+                            createRetentionLeaseStep,
+                            startingSeqNo
+                        );
+                    }, listener::onFailure);                }
 
                 createRetentionLeaseStep.whenComplete(retentionLease -> {
                     final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();

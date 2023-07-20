@@ -12,6 +12,8 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.context.Context;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.telemetry.diagnostics.DiagnosticSpan;
+import org.opensearch.telemetry.listeners.TraceEventListenerService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -47,7 +49,13 @@ public class OTelTracingTelemetry implements TracingTelemetry {
 
     @Override
     public Span createSpan(String spanName, Span parentSpan) {
-        return createOtelSpan(spanName, parentSpan);
+        Span parentSpanOrig;
+        if (parentSpan instanceof DiagnosticSpan) {
+            parentSpanOrig = ((DiagnosticSpan) parentSpan).unwrap();
+        } else {
+            parentSpanOrig = parentSpan;
+        }
+        return TraceEventListenerService.wrapSpan(createOtelSpan(spanName, parentSpanOrig));
     }
 
     @Override

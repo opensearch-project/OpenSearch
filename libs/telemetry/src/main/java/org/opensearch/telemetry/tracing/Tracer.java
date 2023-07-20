@@ -9,6 +9,7 @@
 package org.opensearch.telemetry.tracing;
 
 import java.io.Closeable;
+import java.util.Map;
 
 /**
  * Tracer is the interface used to create a {@link Span}
@@ -25,6 +26,15 @@ public interface Tracer extends Closeable {
      * @return scope of the span, must be closed with explicit close or with try-with-resource
      */
     SpanScope startSpan(String spanName);
+
+    /**
+     * Starts the {@link Span} with given name
+     *
+     * @param spanName span name
+     * @param attributes initial attributes
+     * @return scope of the span, must be closed with explicit close or with try-with-resource
+     */
+    SpanScope startSpan(String spanName, Map<String, String> attributes);
 
     //TODO revisit getting current span logic
     /**

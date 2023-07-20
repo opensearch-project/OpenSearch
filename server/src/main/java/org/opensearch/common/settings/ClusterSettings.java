@@ -655,7 +655,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Related to monitoring of task cancellation
                 TaskCancellationMonitoringSettings.IS_ENABLED_SETTING,
-                TaskCancellationMonitoringSettings.DURATION_MILLIS_SETTING
+                TaskCancellationMonitoringSettings.DURATION_MILLIS_SETTING,
+                TelemetrySettings.DIAGNOSIS_ENABLED_SETTING
             )
         )
     );
@@ -678,6 +679,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
         List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING),
         List.of(FeatureFlags.TELEMETRY),
-        List.of(TelemetrySettings.TRACER_ENABLED_SETTING, TelemetrySettings.DIAGNOSIS_ENABLED_SETTING)
+        List.of(TelemetrySettings.TRACER_ENABLED_SETTING)
     );
 }

@@ -57,6 +57,7 @@ import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.listeners.TraceEventListenerService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.threadpool.ThreadPool;
@@ -225,9 +226,10 @@ public final class MockTransportService extends TransportService {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        TraceEventListenerService traceEventListenerService
     ) {
-        this(settings, new StubbableTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+        this(settings, new StubbableTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders, traceEventListenerService);
     }
 
     private MockTransportService(
@@ -237,7 +239,8 @@ public final class MockTransportService extends TransportService {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        TraceEventListenerService traceEventListenerService
     ) {
         super(
             settings,
@@ -247,7 +250,8 @@ public final class MockTransportService extends TransportService {
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport))
+            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport)),
+            traceEventListenerService
         );
         this.original = transport.getDelegate();
     }

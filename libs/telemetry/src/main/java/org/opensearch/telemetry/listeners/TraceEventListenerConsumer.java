@@ -28,5 +28,7 @@ public interface TraceEventListenerConsumer {
      */
     void onTraceEventListenerDeregister(String name);
 
+    void onTracingSettingChange(boolean tracingEnabled);
+
     void onDiagnosisSettingChange(boolean diagnosisEnabled);
 }

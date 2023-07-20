@@ -10,6 +10,8 @@ package org.opensearch.telemetry.tracing;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  *
@@ -37,9 +39,19 @@ class DefaultTracer implements Tracer {
 
     @Override
     public SpanScope startSpan(String spanName) {
+        return startSpan(spanName, Collections.emptyMap());
+    }
+
+    @Override
+    public SpanScope startSpan(String spanName, Map<String, String> attributes) {
         Span span = createSpan(spanName, getCurrentSpan());
         setCurrentSpanInContext(span);
         addDefaultAttributes(span);
+        if (attributes != null) {
+            for (String name : attributes.keySet()) {
+                span.addAttribute(name, attributes.get(name));
+            }
+        }
         return new DefaultSpanScope(span, (scopeSpan) -> endSpan(scopeSpan));
     }
 

@@ -90,4 +90,6 @@ public interface Span {
      */
     String getSpanId();
 
+    boolean hasEnded();
+
 }

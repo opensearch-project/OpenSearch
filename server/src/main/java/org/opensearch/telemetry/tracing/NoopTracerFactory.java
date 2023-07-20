@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.telemetry.listeners.TraceEventListenerService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.util.Optional;
@@ -19,7 +20,7 @@ import java.util.Optional;
  */
 public class NoopTracerFactory extends TracerFactory {
     public NoopTracerFactory() {
-        super(null, Optional.empty(), null, null);
+        super(null, Optional.empty(), null, new TraceEventListenerService());
     }
 
     @Override

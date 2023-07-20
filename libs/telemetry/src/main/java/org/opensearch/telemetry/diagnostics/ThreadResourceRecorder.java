@@ -8,7 +8,8 @@
 
 package org.opensearch.telemetry.diagnostics;
 
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.diagnostics.metrics.DiagnosticMetric;
 import org.opensearch.telemetry.tracing.Span;
 
@@ -21,6 +22,9 @@ import org.opensearch.telemetry.tracing.Span;
  * @param <T> the type of ThreadResourceObserver
  */
 public abstract class ThreadResourceRecorder<T extends ThreadResourceObserver> {
+
+    private static final Logger logger = LogManager.getLogger(ThreadResourceRecorder.class);
+
     private final T observer;
 
     /**
@@ -54,15 +58,15 @@ public abstract class ThreadResourceRecorder<T extends ThreadResourceObserver> {
      * @param t       the thread for which to end the recording
      * @param endSpan a flag indicating whether its invoked as a result of {@link org.opensearch.telemetry.listeners.TraceEventListener#onSpanComplete(Span, Thread)}
      * @return the computed diff metric between the start and end metrics
-     * @throws IllegalStateException if the start metric is missing for the specified span and thread
      */
     public DiagnosticMetric endRecording(DiagnosticSpan span, Thread t, boolean endSpan) {
         DiagnosticMetric startMetric = span.removeMetric(String.valueOf(t.getId()));
-        if (startMetric == null) {
-            // this can happen if
-            throw new IllegalStateException("Start metric is missing for span: " + span.getSpanId());
-        }
         DiagnosticMetric endMetric = observer.observe(t);
+        if (startMetric == null) {
+            logger.debug("Start metric is missing for span:{} ", span, new Throwable());
+            // this scenario should never happen. We don't throw an exception instead return zero usage
+            return computeDiff(endMetric, endMetric);
+        }
         return computeDiff(startMetric, endMetric);
     }
 

@@ -54,6 +54,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
 import org.opensearch.node.ReportingService;
+import org.opensearch.telemetry.listeners.TraceEventListenerService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -222,6 +223,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener,
         final ExecutorBuilder<?>... customBuilders
     ) {
+        this(settings, runnableTaskListener, null, customBuilders);
+    }
+
+    public ThreadPool(
+        final Settings settings,
+        final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener,
+        TraceEventListenerService traceEventListenerService,
+        final ExecutorBuilder<?>... customBuilders
+    ) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
@@ -229,7 +239,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
-        builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
+        builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), traceEventListenerService));
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));

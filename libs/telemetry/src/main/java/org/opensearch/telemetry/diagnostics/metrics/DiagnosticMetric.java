@@ -14,9 +14,9 @@ import java.util.Map;
  * Represents a metric point with a list of measurements, attributes, and their observation time.
  */
 public class DiagnosticMetric {
-    private final Map<String, Measurement<?>> measurements;
+    private final Map<String, Measurement<Number>> measurements;
     private final long observationTime;
-    private final Map<String, String> attributes;
+    private final Map<String, Object> attributes;
 
     /**
      * Constructs a new Metric with the specified measurements, attributes, and observation time.
@@ -26,7 +26,7 @@ public class DiagnosticMetric {
      * @param observationTime the observation time of the metric in milliseconds
      * @throws IllegalArgumentException if any of the input parameters are null
      */
-    public DiagnosticMetric(Map<String, Measurement<?>> measurements, Map<String, String> attributes,
+    public DiagnosticMetric(Map<String, Measurement<Number>> measurements, Map<String, Object> attributes,
                             long observationTime) {
         if (measurements == null || measurements.isEmpty()) {
             throw new IllegalArgumentException("Measurements cannot be null");
@@ -52,7 +52,7 @@ public class DiagnosticMetric {
      * @param name the name of the measurement
      * @return the measurement object, or null if not found
      */
-    public Measurement<?> getMeasurement(String name) {
+    public Measurement<Number> getMeasurement(String name) {
         return measurements.get(name);
     }
 
@@ -61,7 +61,7 @@ public class DiagnosticMetric {
      *
      * @return an unmodifiable map of measurement names to measurement objects
      */
-    public Map<String, Measurement<?>> getMeasurements() {
+    public Map<String, Measurement<Number>> getMeasurements() {
         return measurements;
     }
 
@@ -70,7 +70,7 @@ public class DiagnosticMetric {
      *
      * @return an unmodifiable map of attribute keys to attribute values
      */
-    public Map<String, String> getAttributes() {
+    public Map<String, Object> getAttributes() {
         return attributes;
     }
 

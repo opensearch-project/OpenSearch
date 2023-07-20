@@ -56,6 +56,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.TracerUtil;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
@@ -68,6 +69,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -202,7 +204,17 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
-            recover(request, new ChannelActionListener<>(channel, Actions.START_RECOVERY, request));
+            BiFunction<Object[], ActionListener<?>, Void> recoverFunction = (args, actionListener) -> {
+                recover((StartRecoveryRequest) args[0], (ActionListener<RecoveryResponse>) actionListener);
+                return null;
+            };
+            Map<String, String> attributes = new HashMap<>();
+            attributes.put("index_name", request.shardId().getIndexName());
+            attributes.put("shard_id", String.valueOf(request.shardId().id()));
+            attributes.put("source_node", request.sourceNode().getId());
+            attributes.put("target_node", request.targetNode().getId());
+            TracerUtil.callFunctionAndStartSpan("SourcePeerRecovery", recoverFunction,
+                new ChannelActionListener<>(channel, Actions.START_RECOVERY, request), attributes, request);
         }
     }
 

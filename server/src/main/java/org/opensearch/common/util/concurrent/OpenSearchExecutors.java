@@ -40,6 +40,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.listeners.TraceEventListenerService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.TaskAwareRunnable;
 
@@ -138,6 +139,18 @@ public class OpenSearchExecutors {
         ThreadFactory threadFactory,
         ThreadContext contextHolder
     ) {
+        return newScaling(name, min, max, keepAliveTime, unit, threadFactory, contextHolder, null);
+    }
+    public static OpenSearchThreadPoolExecutor newScaling(
+        String name,
+        int min,
+        int max,
+        long keepAliveTime,
+        TimeUnit unit,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        TraceEventListenerService traceEventListenerService
+    ) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
         OpenSearchThreadPoolExecutor executor = new OpenSearchThreadPoolExecutor(
             name,
@@ -148,7 +161,8 @@ public class OpenSearchExecutors {
             queue,
             threadFactory,
             new ForceQueuePolicy(),
-            contextHolder
+            contextHolder,
+            traceEventListenerService
         );
         queue.executor = executor;
         return executor;

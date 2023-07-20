@@ -31,20 +31,21 @@ public class TraceEventListenerService {
 
     private volatile Map<String, TraceEventListener> traceEventListeners;
     private final List<TraceEventListenerConsumer> traceEventListenerConsumers;
-    private final Tracer tracer;
+    private volatile Tracer tracer;
+
+    private volatile boolean tracingEnabled;
 
     private volatile boolean diagnosisEnabled;
 
     /**
      * Constructs a new TraceEventListenerService with the specified tracer.
      *
-     * @param tracer the tracer to be associated with the service
      */
-    public TraceEventListenerService(Tracer tracer, boolean diagnosisEnabled) {
-        this.tracer = tracer;
+    public TraceEventListenerService() {
         traceEventListeners = emptyMap();
         traceEventListenerConsumers = new ArrayList<>();
-        this.diagnosisEnabled = diagnosisEnabled;
+        this.tracingEnabled = false;
+        this.diagnosisEnabled = false;
     }
 
     /**
@@ -53,7 +54,7 @@ public class TraceEventListenerService {
      * @param name              the name of the trace event listener
      * @param traceEventListener the trace event listener to be registered
      */
-    public void registerTraceEventListener(String name, TraceEventListener traceEventListener) {
+    public synchronized void registerTraceEventListener(String name, TraceEventListener traceEventListener) {
         HashMap<String, TraceEventListener> newTraceEventListeners = new HashMap<>(traceEventListeners);
         newTraceEventListeners.put(name, traceEventListener);
         traceEventListeners = unmodifiableMap(newTraceEventListeners);
@@ -67,7 +68,7 @@ public class TraceEventListenerService {
      *
      * @param name the name of the trace event listener to be deregistered
      */
-    public void deregisterTraceEventListener(String name) {
+    public synchronized void deregisterTraceEventListener(String name) {
         HashMap<String, TraceEventListener> newTraceEventListeners = new HashMap<>(traceEventListeners);
         newTraceEventListeners.remove(name);
         traceEventListeners = unmodifiableMap(newTraceEventListeners);
@@ -112,11 +113,26 @@ public class TraceEventListenerService {
         return tracer;
     }
 
-    public void setDiagnosis(boolean diagnosisEnabled) {
+    public synchronized void setDiagnosisEnabled(boolean diagnosisEnabled) {
         this.diagnosisEnabled = diagnosisEnabled;
         for (TraceEventListenerConsumer traceEventListenerConsumer : traceEventListenerConsumers) {
             traceEventListenerConsumer.onDiagnosisSettingChange(diagnosisEnabled);
         }
+    }
+
+    public boolean isDiagnosisEnabled() {
+        return diagnosisEnabled;
+    }
+
+    public synchronized void setTracingEnabled(boolean tracingEnabled) {
+        this.tracingEnabled = tracingEnabled;
+        for (TraceEventListenerConsumer traceEventListenerConsumer : traceEventListenerConsumers) {
+            traceEventListenerConsumer.onTracingSettingChange(tracingEnabled);
+        }
+    }
+
+    public boolean isTracingEnabled() {
+        return tracingEnabled;
     }
 
     /**
@@ -125,9 +141,16 @@ public class TraceEventListenerService {
      * @param runnable the Runnable to wrap
      * @return the wrapped TraceEventsRunnable
      */
-    public TraceEventsRunnable wrapRunnable(Runnable runnable) {
-        return new TraceEventsRunnable(runnable, this.getTracer(),
-            this.getTraceEventListeners(), diagnosisEnabled);
+    public Runnable wrapRunnable(Runnable runnable) {
+        if (runnable instanceof TraceEventsRunnable) {
+            return runnable;
+        }
+        if (tracingEnabled) {
+            return new TraceEventsRunnable(runnable, this.getTracer(),
+                this.getTraceEventListeners(), diagnosisEnabled);
+        } else {
+            return runnable;
+        }
     }
 
     /**
@@ -136,8 +159,12 @@ public class TraceEventListenerService {
      * @param runnableWrapper the TraceEventsRunnable to unwrap
      * @return the original Runnable
      */
-    public Runnable unwrapRunnable(TraceEventsRunnable runnableWrapper) {
-        return runnableWrapper.unwrap();
+    public Runnable unwrapRunnable(Runnable runnableWrapper) {
+        if (runnableWrapper instanceof TraceEventsRunnable) {
+            return ((TraceEventsRunnable)runnableWrapper).unwrap();
+        } else {
+            return runnableWrapper;
+        }
     }
 
     /**
@@ -146,9 +173,10 @@ public class TraceEventListenerService {
      * @param tracer the Tracer to wrap
      * @return the wrapped TracerWrapper
      */
-    public TracerWrapper wrapTracer(Tracer tracer) {
-        TracerWrapper tracerWrapper = new TracerWrapper(tracer, this.getTraceEventListeners(), diagnosisEnabled);
+    public synchronized TracerWrapper wrapAndSetTracer(Tracer tracer) {
+        TracerWrapper tracerWrapper = new TracerWrapper(tracer, traceEventListeners, tracingEnabled, diagnosisEnabled);
         this.registerTraceEventListenerConsumer(tracerWrapper);
+        this.tracer = tracerWrapper;
         return tracerWrapper;
     }
 

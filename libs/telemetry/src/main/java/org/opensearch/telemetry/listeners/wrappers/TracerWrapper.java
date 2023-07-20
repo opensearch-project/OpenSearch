@@ -8,6 +8,8 @@
 
 package org.opensearch.telemetry.listeners.wrappers;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.diagnostics.DiagnosticSpan;
 import org.opensearch.telemetry.listeners.TraceEventListener;
 import org.opensearch.telemetry.listeners.TraceEventListenerConsumer;
@@ -16,17 +18,21 @@ import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
  * This class invokes all events associated with {@link org.opensearch.telemetry.listeners.SpanEventListener}
  */
 public class TracerWrapper implements Tracer, TraceEventListenerConsumer {
+
+    private static final Logger logger = LogManager.getLogger(TracerWrapper.class);
+
     private final Tracer tracer;
     private final Map<String, TraceEventListener> traceEventListeners;
+
+    private volatile boolean tracingEnabled;
 
     private volatile boolean diagnosisEnabled;
 
@@ -36,7 +42,8 @@ public class TracerWrapper implements Tracer, TraceEventListenerConsumer {
      * @param delegate            the underlying Tracer implementation
      * @param traceEventListeners the map of TraceEventListeners
      */
-    public TracerWrapper(Tracer delegate, Map<String, TraceEventListener> traceEventListeners, boolean diagnosisEnabled) {
+    public TracerWrapper(Tracer delegate, Map<String, TraceEventListener> traceEventListeners,
+                         boolean tracingEnabled, boolean diagnosisEnabled) {
         assert delegate != null;
         this.tracer = delegate;
         if (traceEventListeners != null) {
@@ -44,22 +51,38 @@ public class TracerWrapper implements Tracer, TraceEventListenerConsumer {
         } else {
             this.traceEventListeners = new HashMap<>();
         }
+        this.tracingEnabled = tracingEnabled;
         this.diagnosisEnabled = diagnosisEnabled;
     }
 
     @Override
     public SpanScope startSpan(String spanName) {
-        SpanScope scope = tracer.startSpan(spanName);
-        Span span = tracer.getCurrentSpan();
-        for (TraceEventListener traceEventListener : traceEventListeners.values()) {
-            if (traceEventListener instanceof DiagnosticSpan && !diagnosisEnabled) {
-                continue;
-            }
-            if (traceEventListener.isEnabled(span)) {
-                traceEventListener.onSpanStart(span, Thread.currentThread());
-            }
+        return this.startSpan(spanName, Collections.emptyMap());
+    }
+
+    @Override
+    public SpanScope startSpan(String spanName, Map<String, String> attributes) {
+        SpanScope scope = tracer.startSpan(spanName, attributes);
+        if (!tracingEnabled) {
+            return scope;
         }
-        return new SpanScopeWrapper(span, scope, new ArrayList<>(traceEventListeners.values()), diagnosisEnabled);
+        Span span = tracer.getCurrentSpan();
+        if (span instanceof DiagnosticSpan && !diagnosisEnabled) {
+            return scope;
+        }
+        try {
+            for (TraceEventListener traceEventListener : traceEventListeners.values()) {
+                if (traceEventListener.isEnabled(span)) {
+                    traceEventListener.onSpanStart(span, Thread.currentThread());
+                }
+            }
+            return new SpanScopeWrapper(span, scope, traceEventListeners,
+                tracingEnabled, diagnosisEnabled);
+        } catch (Exception e) {
+            // failing silently
+            logger.debug("Exception while invoking TraceEventListener for span {}", span, e);
+            return scope;
+        }
     }
 
     @Override
@@ -83,6 +106,11 @@ public class TracerWrapper implements Tracer, TraceEventListenerConsumer {
     }
 
     @Override
+    public void onTracingSettingChange(boolean tracingEnabled) {
+        this.tracingEnabled = tracingEnabled;
+    }
+
+    @Override
     public void onDiagnosisSettingChange(boolean diagnosisEnabled) {
         this.diagnosisEnabled = diagnosisEnabled;
     }
@@ -99,15 +127,18 @@ public class TracerWrapper implements Tracer, TraceEventListenerConsumer {
     private static class SpanScopeWrapper implements SpanScope {
         private final SpanScope scope;
         private final Span span;
-        private final List<TraceEventListener> traceEventListeners;
+        private final Map<String, TraceEventListener> traceEventListeners;
+
+        private final boolean tracingEnabled;
 
         private final boolean diagnosisEnabled;
 
-        SpanScopeWrapper(Span span, SpanScope delegate, List<TraceEventListener> traceEventListeners,
-                         boolean diagnosisEnabled) {
+        SpanScopeWrapper(Span span, SpanScope delegate, Map<String, TraceEventListener> traceEventListeners,
+                         boolean tracingEnabled, boolean diagnosisEnabled) {
             this.span = span;
             this.scope = delegate;
             this.traceEventListeners = traceEventListeners;
+            this.tracingEnabled = tracingEnabled;
             this.diagnosisEnabled = diagnosisEnabled;
         }
 
@@ -143,16 +174,21 @@ public class TracerWrapper implements Tracer, TraceEventListenerConsumer {
 
         @Override
         public void close() {
-            for (TraceEventListener traceEventListener : traceEventListeners) {
-                if (traceEventListener instanceof DiagnosticSpan && !diagnosisEnabled) {
-                    continue;
-                }
-                if (traceEventListener.isEnabled(span)) {
-                    traceEventListener.onSpanComplete(span, Thread.currentThread());
-                }
-            }
             scope.close();
+            try {
+                if (tracingEnabled) {
+                    for (TraceEventListener traceEventListener : traceEventListeners.values()) {
+                        if (span instanceof DiagnosticSpan && !diagnosisEnabled) {
+                            continue;
+                        }
+                        if (traceEventListener.isEnabled(span)) {
+                            traceEventListener.onSpanComplete(span, Thread.currentThread());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.debug("Exception on Scope close while invoking TraceEventListener for span {}", span, e);
+            }
         }
     }
 }
-

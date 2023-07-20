@@ -13,9 +13,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
-import org.opensearch.telemetry.diagnostics.JMXMetricsObserverThread;
-import org.opensearch.telemetry.diagnostics.JMXOTelMeters;
-import org.opensearch.telemetry.diagnostics.JMXThreadResourceRecorder;
+import org.opensearch.telemetry.diagnostics.jmx.JMXMetricsObserverThread;
+import org.opensearch.telemetry.diagnostics.jmx.JMXOTelMetricEmitter;
+import org.opensearch.telemetry.diagnostics.jmx.JMXThreadResourceRecorder;
 import org.opensearch.telemetry.listeners.TraceEventListener;
 import org.opensearch.telemetry.metrics.OTelMetricsTelemetry;
 import org.opensearch.telemetry.tracing.OTelResourceProvider;
@@ -69,7 +69,7 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
         OpenTelemetry openTelemetry = ((OTelMetricsTelemetry)telemetry.getMetricsTelemetry()).getTelemetry();
         return Map.of("ThreadDiagnosticsTraceEventListener", new DiagnosticsEventListener(
             new JMXThreadResourceRecorder(new JMXMetricsObserverThread()),
-            JMXOTelMeters.getInstance(openTelemetry)
+            JMXOTelMetricEmitter.getInstance(openTelemetry)
         ));
     }
 

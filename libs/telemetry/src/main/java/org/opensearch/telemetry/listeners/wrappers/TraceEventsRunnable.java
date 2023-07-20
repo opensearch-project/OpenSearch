@@ -21,13 +21,14 @@ import java.util.Map;
  * Runnable implementation that wraps another Runnable and adds trace event listener functionality.
  */
 public class TraceEventsRunnable implements Runnable {
+    private static final Logger logger = LogManager.getLogger(TraceEventsRunnable.class);
+
     private final Runnable runnable;
     private final Tracer tracer;
     private final Map<String, TraceEventListener> traceEventListeners;
 
     private final boolean diagnosisEnabled;
 
-    private static final Logger logger = LogManager.getLogger(TraceEventsRunnable.class);
 
     /**
      * Constructs a TraceEventsRunnable with the provided delegate Runnable.
@@ -48,37 +49,61 @@ public class TraceEventsRunnable implements Runnable {
     @Override
     public void run() {
         try {
-            for (TraceEventListener traceEventListener : traceEventListeners.values()) {
-                Span span = tracer.getCurrentSpan();
-                if (traceEventListener instanceof DiagnosticSpan && !diagnosisEnabled) {
-                    continue;
-                }
-                if (span != null && traceEventListener.isEnabled(span)) {
-                    try {
-                        traceEventListener.onRunnableStart(span, Thread.currentThread());
-                    } catch (Exception e) {
-                        // failing diagnosis shouldn't impact the application
-                        logger.warn("Error in onRunnableStart for TraceEventListener: " + traceEventListener.getClass().getName());
+            Span span = validateAndGetCurrentSpan();
+            if (span != null) {
+                for (TraceEventListener traceEventListener : traceEventListeners.values()) {
+                    if (traceEventListener.isEnabled(span)) {
+                        try {
+                            traceEventListener.onRunnableStart(span, Thread.currentThread());
+                        } catch (Exception e) {
+                            // failing diagnosis shouldn't impact the application
+                            logger.debug("Error in onRunnableStart for TraceEventListener: {}",
+                                traceEventListener.getClass().getName(), e);
+                        }
                     }
                 }
             }
-            runnable.run();
+        } catch (Exception e) {
+            logger.debug("Error in onRunnableStart", e);
         } finally {
-            for (TraceEventListener traceEventListener : traceEventListeners.values()) {
-                Span span = tracer.getCurrentSpan();
-                if (traceEventListener instanceof DiagnosticSpan && !diagnosisEnabled) {
-                    continue;
-                }
-                if (span != null && traceEventListener.isEnabled(span)) {
-                    try {
-                        traceEventListener.onRunnableComplete(span, Thread.currentThread());
-                    } catch (Exception e) {
-                        // failing diagnosis shouldn't impact the application
-                        logger.warn("Error in onRunnableComplete for TraceEventListener: " + traceEventListener.getClass().getName());
+            runnable.run();
+        }
+        try {
+            Span span = validateAndGetCurrentSpan();
+            if (span != null) {
+                for (TraceEventListener traceEventListener : traceEventListeners.values()) {
+                    if (traceEventListener.isEnabled(span)) {
+                        try {
+                            traceEventListener.onRunnableComplete(span, Thread.currentThread());
+                        } catch (Exception e) {
+                            // failing diagnosis shouldn't impact the application
+                            logger.debug("Error in onRunnableComplete for TraceEventListener: {}",
+                                traceEventListener.getClass().getName(), e);
+                        }
                     }
                 }
             }
+        } catch (Exception e) {
+            logger.debug("Error in onRunnableStart", e);
         }
+    }
+
+    private Span validateAndGetCurrentSpan() {
+        if (traceEventListeners == null || traceEventListeners.isEmpty()) {
+            return null;
+        }
+        Span span = tracer.getCurrentSpan();
+        if (span == null) {
+            return null;
+        }
+        if (span instanceof DiagnosticSpan && !diagnosisEnabled) {
+            return null;
+        }
+        if (span.hasEnded()) {
+            logger.debug("TraceEventsRunnable is invoked post span completion", new Throwable());
+            return null;
+        }
+        return span;
     }
 
     /**

@@ -93,6 +93,10 @@ public class DiagnosticSpan implements Span {
         delegateSpan.addAttribute(key, value);
     }
 
+    public Map<String, Object> getAttributes() {
+        return baggage;
+    }
+
     @Override
     public void setError(Exception exception) {
         delegateSpan.setError(exception);
@@ -111,6 +115,11 @@ public class DiagnosticSpan implements Span {
     @Override
     public String getSpanId() {
         return delegateSpan.getSpanId();
+    }
+
+    @Override
+    public boolean hasEnded() {
+        return delegateSpan.hasEnded();
     }
 
     /**

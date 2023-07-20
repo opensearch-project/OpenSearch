@@ -12,6 +12,7 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.context.propagation.TextMapSetter;
+import org.opensearch.telemetry.diagnostics.DiagnosticSpan;
 
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -34,7 +35,7 @@ public class OTelTracingContextPropagator implements TracingContextPropagator {
     @Override
     public Span extract(Map<String, String> props) {
         Context context = openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), props, TEXT_MAP_GETTER);
-        if (context != null) {
+        if (context != null && context != Context.root()) {
             io.opentelemetry.api.trace.Span span = io.opentelemetry.api.trace.Span.fromContext(context);
             return new OTelPropagatedSpan(span);
         }
@@ -43,7 +44,13 @@ public class OTelTracingContextPropagator implements TracingContextPropagator {
 
     @Override
     public void inject(Span currentSpan, BiConsumer<String, String> setter) {
-        openTelemetry.getPropagators().getTextMapPropagator().inject(context((OTelSpan) currentSpan), setter, TEXT_MAP_SETTER);
+        Span unwrappedSpan;
+        if (currentSpan instanceof DiagnosticSpan) {
+            unwrappedSpan = ((DiagnosticSpan) currentSpan).unwrap();
+        } else {
+            unwrappedSpan = currentSpan;
+        }
+        openTelemetry.getPropagators().getTextMapPropagator().inject(context((OTelSpan) unwrappedSpan), setter, TEXT_MAP_SETTER);
 
     }
 

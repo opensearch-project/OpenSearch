@@ -16,6 +16,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.listeners.TraceEventListenerService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
@@ -42,7 +43,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
-        tracerFactory = new TracerFactory(telemetrySettings, Optional.empty(), Collections.emptyMap(), new ThreadContext(Settings.EMPTY));
+        tracerFactory = new TracerFactory(telemetrySettings, Optional.empty(), new ThreadContext(Settings.EMPTY), new TraceEventListenerService());
         Tracer tracer = tracerFactory.getTracer();
 
         assertTrue(tracer instanceof NoopTracer);
@@ -54,7 +55,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
-        tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), Collections.emptyMap(), new ThreadContext(Settings.EMPTY));
+        tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), new ThreadContext(Settings.EMPTY), new TraceEventListenerService());
 
         Tracer tracer = tracerFactory.getTracer();
         assertTrue(tracer instanceof WrappedTracer);

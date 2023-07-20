@@ -55,7 +55,7 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
 
     private final Object monitor = new Object();
 
-    private static TraceEventListenerService traceEventListenerService;
+    private TraceEventListenerService traceEventListenerService;
 
     /**
      * Name used in error reporting.
@@ -101,9 +101,25 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
         XRejectedExecutionHandler handler,
         ThreadContext contextHolder
     ) {
+        this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder, null);
+    }
+
+    OpenSearchThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        BlockingQueue<Runnable> workQueue,
+        ThreadFactory threadFactory,
+        XRejectedExecutionHandler handler,
+        ThreadContext contextHolder,
+        TraceEventListenerService traceEventListenerService
+    ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
+        this.traceEventListenerService = traceEventListenerService;
     }
 
     @Override
@@ -203,31 +219,17 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
 
     }
 
-    public static void setDiagnosis(TraceEventListenerService traceEventListenerService) {
-        OpenSearchThreadPoolExecutor.traceEventListenerService = traceEventListenerService;
-    }
-
     protected Runnable wrapRunnable(Runnable command) {
-        if (OpenSearchThreadPoolExecutor.traceEventListenerService != null) {
-            if (command instanceof TraceEventsRunnable) {
-                return contextHolder.preserveContext(command);
-            } else {
-                return contextHolder.preserveContext(
-                    OpenSearchThreadPoolExecutor.traceEventListenerService.wrapRunnable(command));
-            }
+        if (traceEventListenerService != null) {
+            return traceEventListenerService.wrapRunnable(contextHolder.preserveContext(command));
         } else {
             return contextHolder.preserveContext(command);
         }
     }
 
     protected Runnable unwrap(Runnable runnable) {
-        if (OpenSearchThreadPoolExecutor.traceEventListenerService != null) {
-            if (runnable instanceof TraceEventsRunnable) {
-                return contextHolder.unwrap(
-                    OpenSearchThreadPoolExecutor.traceEventListenerService.unwrapRunnable((TraceEventsRunnable) runnable));
-            } else {
-                return contextHolder.unwrap(runnable);
-            }
+        if (traceEventListenerService != null) {
+            return traceEventListenerService.unwrapRunnable(contextHolder.unwrap(runnable));
         } else {
             return contextHolder.unwrap(runnable);
         }

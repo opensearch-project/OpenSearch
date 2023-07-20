@@ -12,7 +12,9 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
 import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
@@ -25,6 +27,8 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import org.opensearch.common.settings.Settings;
 
+import java.security.AccessController;
+import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.TimeUnit;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 
@@ -62,25 +66,37 @@ public final class OTelResourceProvider {
      */
     public static OpenTelemetry get(Settings settings, SpanExporter spanExporter, ContextPropagators contextPropagators, Sampler sampler) {
         Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
-        SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
-            .addSpanProcessor(spanProcessor(settings, spanExporter))
-            .setResource(resource)
-            .setSampler(sampler)
-            .build();
+        SdkTracerProvider sdkTracerProvider = null;
         // TODO - change to default metricExporter
-        OtlpGrpcMetricExporter metricExporter = OtlpGrpcMetricExporter.builder()
-            .setEndpoint("http://localhost:4317") // Replace with the actual endpoint
-            .build();
-        SdkMeterProvider sdkMeterProvider = SdkMeterProvider.builder()
-            .registerMetricReader(PeriodicMetricReader.builder(metricExporter).build())
-            .setResource(resource)
-            .build();
+        try {
+            SpanExporter spanExporter1 = AccessController.doPrivileged((PrivilegedExceptionAction<OtlpGrpcSpanExporter>) () ->
+                OtlpGrpcSpanExporter.builder().setEndpoint("http://localhost:4317").build());
+            sdkTracerProvider = SdkTracerProvider.builder()
+                .addSpanProcessor(spanProcessor(settings, spanExporter1))
+                .setResource(resource)
+                .setSampler(sampler)
+                .build();
+            OtlpGrpcMetricExporter metricExporter = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<OtlpGrpcMetricExporter>) () ->
+                    OtlpGrpcMetricExporter.builder().setEndpoint("http://localhost:4317") // Replace with the actual endpoint
+                    .build()
+            );
+            SdkMeterProvider sdkMeterProvider = SdkMeterProvider.builder()
+                .registerMetricReader(PeriodicMetricReader.builder(metricExporter).build())
+                .setResource(resource)
+                .build();
 
-        return OpenTelemetrySdk.builder()
-            .setTracerProvider(sdkTracerProvider)
-            .setPropagators(contextPropagators)
-            .setMeterProvider(sdkMeterProvider)
-            .buildAndRegisterGlobal();
+            return OpenTelemetrySdk.builder()
+                .setTracerProvider(sdkTracerProvider)
+                .setPropagators(contextPropagators)
+                .setMeterProvider(sdkMeterProvider)
+                .buildAndRegisterGlobal();
+        } catch (Throwable e) {
+            return OpenTelemetrySdk.builder()
+                .setTracerProvider(sdkTracerProvider)
+                .setPropagators(contextPropagators)
+                .buildAndRegisterGlobal();
+        }
     }
 
     private static BatchSpanProcessor spanProcessor(Settings settings, SpanExporter spanExporter) {

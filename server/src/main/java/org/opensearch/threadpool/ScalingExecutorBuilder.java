@@ -38,6 +38,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.listeners.TraceEventListenerService;
 
 import java.util.Arrays;
 import java.util.List;
@@ -57,6 +58,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
     private final Setting<Integer> maxSetting;
     private final Setting<TimeValue> keepAliveSetting;
 
+    private final TraceEventListenerService traceEventListenerService;
+
     /**
      * Construct a scaling executor builder; the settings will have the
      * key prefix "thread_pool." followed by the executor name.
@@ -73,6 +76,22 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
 
     /**
      * Construct a scaling executor builder; the settings will have the
+     * key prefix "thread_pool." followed by the executor name.
+     *
+     * @param name                      the name of the executor
+     * @param core                      the minimum number of threads in the pool
+     * @param max                       the maximum number of threads in the pool
+     * @param keepAlive                 the time that spare threads above {@code core}
+     *                                  threads will be kept alive
+     * @param traceEventListenerService trace event listener service to wrap the Runnable to listen to Runnable events
+     *                                  and notify registered event listeners with the service.
+     */
+    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive,
+                                  TraceEventListenerService traceEventListenerService) {
+        this(name, core, max, keepAlive, "thread_pool." + name, traceEventListenerService);
+    }
+    /**
+     * Construct a scaling executor builder; the settings will have the
      * specified key prefix.
      *
      * @param name      the name of the executor
@@ -83,10 +102,16 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
      * @param prefix    the prefix for the settings keys
      */
     public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix) {
+        this(name, core, max, keepAlive, prefix, null);
+    }
+
+    private ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix,
+                                  TraceEventListenerService traceEventListenerService) {
         super(name);
         this.coreSetting = Setting.intSetting(settingsKey(prefix, "core"), core, Setting.Property.NodeScope);
         this.maxSetting = Setting.intSetting(settingsKey(prefix, "max"), max, Setting.Property.NodeScope);
         this.keepAliveSetting = Setting.timeSetting(settingsKey(prefix, "keep_alive"), keepAlive, Setting.Property.NodeScope);
+        this.traceEventListenerService = traceEventListenerService;
     }
 
     @Override
@@ -118,7 +143,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             keepAlive.millis(),
             TimeUnit.MILLISECONDS,
             threadFactory,
-            threadContext
+            threadContext,
+            traceEventListenerService
         );
         return new ThreadPool.ExecutorHolder(executor, info);
     }

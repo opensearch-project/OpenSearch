@@ -8,13 +8,16 @@
 
 package org.opensearch.telemetry.diagnostics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.telemetry.diagnostics.metrics.DiagnosticMetric;
 import org.opensearch.telemetry.diagnostics.metrics.MetricEmitter;
 import org.opensearch.telemetry.listeners.TraceEventListener;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.Tracer;
 
 /**
- * When a {@link Tracer} is wrapped with {@link org.opensearch.telemetry.listeners.TraceEventListenerService#wrapTracer(Tracer)}
+ * When a {@link Tracer} is wrapped with {@link org.opensearch.telemetry.listeners.TraceEventListenerService#wrapAndSetTracer(Tracer)}
  * and all Runnable associated with a trace are wrapped with {@link org.opensearch.telemetry.listeners.TraceEventListenerService#wrapRunnable(Runnable)},
  * this class records the resource consumption of the complete trace using provided {@link ThreadResourceRecorder} and emits corresponding metrics using
  * {@link MetricEmitter}.
@@ -22,7 +25,7 @@ import org.opensearch.telemetry.tracing.Tracer;
  * using {@link org.opensearch.telemetry.listeners.TraceEventListenerService#wrapSpan(Span)}
  */
 public class DiagnosticsEventListener implements TraceEventListener {
-
+    private static final Logger logger = LogManager.getLogger(DiagnosticsEventListener.class);
     private final ThreadResourceRecorder<?> threadResourceRecorder;
     private final MetricEmitter metricEmitter;
 
@@ -47,7 +50,9 @@ public class DiagnosticsEventListener implements TraceEventListener {
      */
     @Override
     public void onSpanStart(Span span, Thread t) {
-        ensureDiagnosticSpan(span);
+        if(!ensureDiagnosticSpan(span)) {
+            return;
+        }
         threadResourceRecorder.startRecording((DiagnosticSpan) span, t);
     }
 
@@ -60,8 +65,13 @@ public class DiagnosticsEventListener implements TraceEventListener {
      */
     @Override
     public void onSpanComplete(Span span, Thread t) {
-        ensureDiagnosticSpan(span);
-        metricEmitter.emitMetric(threadResourceRecorder.endRecording((DiagnosticSpan) span, t, true));
+        if (!ensureDiagnosticSpan(span)) {
+            return;
+        }
+        DiagnosticMetric diffMetric = threadResourceRecorder.endRecording((DiagnosticSpan) span, t, true);
+        DiagnosticMetric endMetric = new DiagnosticMetric(diffMetric.getMeasurements(),
+            ((DiagnosticSpan) span).getAttributes(), diffMetric.getObservationTime());
+        metricEmitter.emitMetric(endMetric);
     }
 
     /**
@@ -73,7 +83,9 @@ public class DiagnosticsEventListener implements TraceEventListener {
      */
     @Override
     public void onRunnableStart(Span span, Thread t) {
-        ensureDiagnosticSpan(span);
+        if (!ensureDiagnosticSpan(span)) {
+            return;
+        }
         threadResourceRecorder.startRecording((DiagnosticSpan) span, t);
     }
 
@@ -86,7 +98,9 @@ public class DiagnosticsEventListener implements TraceEventListener {
      */
     @Override
     public void onRunnableComplete(Span span, Thread t) {
-        ensureDiagnosticSpan(span);
+        if (!ensureDiagnosticSpan(span)) {
+            return;
+        }
         metricEmitter.emitMetric(threadResourceRecorder.endRecording((DiagnosticSpan) span, t, false));
     }
 
@@ -101,9 +115,13 @@ public class DiagnosticsEventListener implements TraceEventListener {
         return true;
     }
 
-    private void ensureDiagnosticSpan(Span span) {
-        if (!(span instanceof DiagnosticSpan)) {
-            throw new IllegalArgumentException("Expected DiagnosticSpan");
+    private boolean ensureDiagnosticSpan(Span span) {
+        if(span instanceof DiagnosticSpan) {
+            return true;
+        } else {
+            logger.debug("Non diagnostic span detected while processing DiagnosticEventListener for span  {}",
+                span, new Throwable());
+            return false;
         }
     }
 }

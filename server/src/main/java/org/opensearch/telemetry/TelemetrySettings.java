@@ -19,7 +19,7 @@ import org.opensearch.telemetry.listeners.TraceEventListenerService;
 public class TelemetrySettings {
     public static final Setting<Boolean> TRACER_ENABLED_SETTING = Setting.boolSetting(
         "telemetry.tracer.enabled",
-        false,
+        true, // TODO - change back to false after dev testing
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -34,19 +34,25 @@ public class TelemetrySettings {
     private volatile boolean tracingEnabled;
     private volatile boolean diagnosisEnabled;
 
-    public TelemetrySettings(Settings settings, ClusterSettings clusterSettings) {
-        this.tracingEnabled = TRACER_ENABLED_SETTING.get(settings);
+    private final TraceEventListenerService traceEventListenerService;
 
+    public TelemetrySettings(Settings settings, ClusterSettings clusterSettings, TraceEventListenerService traceEventListenerService) {
+       // TODO - revert
+        this.traceEventListenerService = traceEventListenerService;
+        this.setTracingEnabled(TRACER_ENABLED_SETTING.get(settings));
+        this.setDiagnosisEnabled(DIAGNOSIS_ENABLED_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(TRACER_ENABLED_SETTING, this::setTracingEnabled);
         clusterSettings.addSettingsUpdateConsumer(DIAGNOSIS_ENABLED_SETTING, this::setDiagnosisEnabled);
     }
 
     public void setTracingEnabled(boolean tracingEnabled) {
         this.tracingEnabled = tracingEnabled;
+        traceEventListenerService.setTracingEnabled(tracingEnabled);
     }
 
     public void setDiagnosisEnabled(boolean diagnosisEnabled) {
         this.diagnosisEnabled = diagnosisEnabled;
+        traceEventListenerService.setDiagnosisEnabled(diagnosisEnabled);
     }
 
     public boolean isTracingEnabled() {
