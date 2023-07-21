@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.is;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
@@ -178,8 +178,11 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureRed(INDEX_NAME);
         internalCluster().startDataOnlyNodes(2);
 
-        assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
-        client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
+        boolean restoreAllShards = randomBoolean();
+        if (restoreAllShards) {
+            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+        }
+        client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(restoreAllShards), PlainActionFuture.newFuture());
 
         ensureGreen(INDEX_NAME);
 
@@ -220,10 +223,13 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureRed(indices);
         internalCluster().startDataOnlyNodes(3);
 
-        assertAcked(client().admin().indices().prepareClose(indices));
+        boolean restoreAllShards = randomBoolean();
+        if (restoreAllShards) {
+            assertAcked(client().admin().indices().prepareClose(indices));
+        }
         client().admin()
             .cluster()
-            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAMES_WILDCARD.split(",")), PlainActionFuture.newFuture());
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAMES_WILDCARD.split(",")).restoreAllShards(restoreAllShards), PlainActionFuture.newFuture());
         ensureGreen(indices);
         for (String index : indices) {
             assertEquals(shardCount, getNumShards(index).totalNumShards);
@@ -349,10 +355,13 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureRed(indices);
         internalCluster().startDataOnlyNodes(3);
 
-        assertAcked(client().admin().indices().prepareClose(indices));
+        boolean restoreAllShards = randomBoolean();
+        if (restoreAllShards) {
+            assertAcked(client().admin().indices().prepareClose(indices));
+        }
         client().admin()
             .cluster()
-            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(new String[] {}), PlainActionFuture.newFuture());
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(new String[] {}).restoreAllShards(restoreAllShards), PlainActionFuture.newFuture());
         ensureGreen(indices);
 
         for (String index : indices) {
@@ -389,10 +398,13 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureRed(indices);
         internalCluster().startDataOnlyNodes(3);
 
-        assertAcked(client().admin().indices().prepareClose(indices[0], indices[1]));
+        boolean restoreAllShards = randomBoolean();
+        if (restoreAllShards) {
+            assertAcked(client().admin().indices().prepareClose(indices[0], indices[1]));
+        }
         client().admin()
             .cluster()
-            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(indices[0], indices[1]), PlainActionFuture.newFuture());
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(indices[0], indices[1]).restoreAllShards(restoreAllShards), PlainActionFuture.newFuture());
         ensureGreen(indices[0], indices[1]);
         assertEquals(shardCount, getNumShards(indices[0]).totalNumShards);
         verifyRestoredData(indicesStats.get(indices[0]), true, indices[0]);
@@ -435,10 +447,13 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureRed(indices);
         internalCluster().startDataOnlyNodes(3);
 
-        assertAcked(client().admin().indices().prepareClose(indices[0], indices[1]));
+        boolean restoreAllShards = randomBoolean();
+        if (restoreAllShards) {
+            assertAcked(client().admin().indices().prepareClose(indices[0], indices[1]));
+        }
         client().admin()
             .cluster()
-            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices("*", "-remote-store-test-index-*"), PlainActionFuture.newFuture());
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices("*", "-remote-store-test-index-*").restoreAllShards(restoreAllShards), PlainActionFuture.newFuture());
         ensureGreen(indices[0], indices[1]);
         assertEquals(shardCount, getNumShards(indices[0]).totalNumShards);
         verifyRestoredData(indicesStats.get(indices[0]), true, indices[0]);
