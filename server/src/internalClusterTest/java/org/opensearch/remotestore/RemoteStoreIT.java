@@ -18,7 +18,6 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
-import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.RemoteStoreRefreshListener;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -68,13 +67,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         return remoteStoreIndexSettings(0);
     }
 
-    private IndexResponse indexSingleDoc() {
-        return client().prepareIndex(INDEX_NAME)
-            .setId(UUIDs.randomBase64UUID())
-            .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
-            .get();
-    }
-
     private Map<String, Long> indexData(int numberOfIterations, boolean invokeFlush, String index) {
         long totalOperations = 0;
         long refreshedOrFlushedOperations = 0;
@@ -93,7 +85,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             refreshedOrFlushedOperations = totalOperations;
             int numberOfOperations = randomIntBetween(20, 50);
             for (int j = 0; j < numberOfOperations; j++) {
-                IndexResponse response = INDEX_NAME.equals(index) ? indexSingleDoc() : indexSingleDoc(index);
+                IndexResponse response = indexSingleDoc(index);
                 maxSeqNo = response.getSeqNo();
                 shardId = response.getShardId().id();
                 indexingStats.put(MAX_SEQ_NO_TOTAL + "-shard-" + shardId, maxSeqNo);
@@ -114,7 +106,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(statsGranularity));
-        IndexResponse response = INDEX_NAME.equals(indexName) ? indexSingleDoc() : indexSingleDoc(indexName);
+        IndexResponse response = indexSingleDoc(indexName);
         assertEquals(indexStats.get(maxSeqNoGranularity + "-shard-" + response.getShardId().id()) + 1, response.getSeqNo());
         refresh(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(statsGranularity) + 1);
@@ -156,6 +148,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             );
 
         ensureGreen(INDEX_NAME);
+        // This is required to get updated number from already active shards which were not restored
+        refresh(INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         verifyRestoredData(indexStats, true, INDEX_NAME);
     }
@@ -182,7 +176,12 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         if (restoreAllShards) {
             assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
         }
-        client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(restoreAllShards), PlainActionFuture.newFuture());
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(restoreAllShards),
+                PlainActionFuture.newFuture()
+            );
 
         ensureGreen(INDEX_NAME);
 
@@ -229,7 +228,10 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }
         client().admin()
             .cluster()
-            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAMES_WILDCARD.split(",")).restoreAllShards(restoreAllShards), PlainActionFuture.newFuture());
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices(INDEX_NAMES_WILDCARD.split(",")).restoreAllShards(restoreAllShards),
+                PlainActionFuture.newFuture()
+            );
         ensureGreen(indices);
         for (String index : indices) {
             assertEquals(shardCount, getNumShards(index).totalNumShards);
@@ -361,7 +363,10 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }
         client().admin()
             .cluster()
-            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(new String[] {}).restoreAllShards(restoreAllShards), PlainActionFuture.newFuture());
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices(new String[] {}).restoreAllShards(restoreAllShards),
+                PlainActionFuture.newFuture()
+            );
         ensureGreen(indices);
 
         for (String index : indices) {
@@ -404,7 +409,10 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }
         client().admin()
             .cluster()
-            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(indices[0], indices[1]).restoreAllShards(restoreAllShards), PlainActionFuture.newFuture());
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices(indices[0], indices[1]).restoreAllShards(restoreAllShards),
+                PlainActionFuture.newFuture()
+            );
         ensureGreen(indices[0], indices[1]);
         assertEquals(shardCount, getNumShards(indices[0]).totalNumShards);
         verifyRestoredData(indicesStats.get(indices[0]), true, indices[0]);
@@ -453,7 +461,10 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }
         client().admin()
             .cluster()
-            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices("*", "-remote-store-test-index-*").restoreAllShards(restoreAllShards), PlainActionFuture.newFuture());
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices("*", "-remote-store-test-index-*").restoreAllShards(restoreAllShards),
+                PlainActionFuture.newFuture()
+            );
         ensureGreen(indices[0], indices[1]);
         assertEquals(shardCount, getNumShards(indices[0]).totalNumShards);
         verifyRestoredData(indicesStats.get(indices[0]), true, indices[0]);
@@ -513,7 +524,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             assertEquals(0, recoverySource.get().getIndex().recoveredFileCount());
         }
 
-        IndexResponse response = indexSingleDoc();
+        IndexResponse response = indexSingleDoc(INDEX_NAME);
         assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL) + 1, response.getSeqNo());
         refresh(INDEX_NAME);
         assertBusy(

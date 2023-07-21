@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -37,6 +38,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final int REPLICA_COUNT = 1;
     protected Path absolutePath;
     protected Path absolutePath2;
+    private final List<String> documentKeys = List.of(
+        randomAlphaOfLength(5),
+        randomAlphaOfLength(5),
+        randomAlphaOfLength(5),
+        randomAlphaOfLength(5),
+        randomAlphaOfLength(5)
+    );
 
     @Override
     protected boolean addMockInternalEngine() {
@@ -59,7 +67,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     IndexResponse indexSingleDoc(String indexName) {
         return client().prepareIndex(indexName)
             .setId(UUIDs.randomBase64UUID())
-            .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
+            .setSource(documentKeys.get(randomIntBetween(0, documentKeys.size() - 1)), randomAlphaOfLength(5))
             .get();
     }
 
