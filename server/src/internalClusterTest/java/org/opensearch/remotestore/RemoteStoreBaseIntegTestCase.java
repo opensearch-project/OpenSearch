@@ -64,11 +64,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     private Settings defaultIndexSettings() {
+        boolean sameRepoForRSSAndRTS = randomBoolean();
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, REPOSITORY_NAME)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, REPOSITORY_NAME)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, sameRepoForRSSAndRTS ? REPOSITORY_NAME : REPOSITORY_2_NAME)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s")
@@ -93,19 +95,6 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             .put(remoteStoreIndexSettings(numberOfReplicas))
             .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldLimit)
             .build();
-    }
-
-    protected Settings remoteTranslogIndexSettings(int numberOfReplicas, int numberOfShards) {
-        boolean sameRepoForRSSAndRTS = randomBoolean();
-        return Settings.builder()
-            .put(remoteStoreIndexSettings(numberOfReplicas, numberOfShards))
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, sameRepoForRSSAndRTS ? REPOSITORY_NAME : REPOSITORY_2_NAME)
-            .build();
-    }
-
-    protected Settings remoteTranslogIndexSettings(int numberOfReplicas) {
-        return remoteTranslogIndexSettings(numberOfReplicas, 1);
     }
 
     protected void putRepository(Path path) {
