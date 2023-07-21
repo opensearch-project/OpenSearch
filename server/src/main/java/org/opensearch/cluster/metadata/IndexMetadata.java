@@ -334,7 +334,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * Used to specify remote store repository to use for this index.
      */
-    public static final Setting<String> INDEX_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
+    public static final Setting<String> INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING = Setting.simpleString(
         SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
         new Setting.Validator<>() {
 
@@ -345,10 +345,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             public void validate(final String value, final Map<Setting<?>, Object> settings) {
                 if (value == null || value.isEmpty()) {
                     throw new IllegalArgumentException(
-                        "Setting " + INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey() + " should be provided with non-empty repository ID"
+                        "Setting "
+                            + INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey()
+                            + " should be provided with non-empty repository ID"
                     );
                 } else {
-                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_STORE_REPOSITORY_SETTING);
+                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING);
                 }
             }
 

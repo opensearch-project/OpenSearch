@@ -115,7 +115,17 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             IllegalArgumentException.class,
             () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
         );
-        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot override [%s] settings when [%s] is set to [true].",
+                    SETTING_REMOTE_STORE_ENABLED,
+                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
+                )
+            )
+        );
     }
 
     public void testRemoteStoreEnabledByUserWithoutRemoteRepoAndSegmentReplicationIllegalArgumentException() throws Exception {
@@ -147,7 +157,17 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             IllegalArgumentException.class,
             () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
         );
-        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot override [%s] settings when [%s] is set to [true].",
+                    SETTING_REMOTE_STORE_ENABLED,
+                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
+                )
+            )
+        );
     }
 
     public void testReplicationTypeDocumentByUser() throws Exception {
@@ -197,7 +217,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testRemoteStoreEnabledByUserWithRemoteRepo() throws Exception {
+    public void testRemoteStoreEnabledByUserWithRemoteRepoIllegalArgumentException() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -210,7 +230,18 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             IllegalArgumentException.class,
             () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
         );
-        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot override [%s][%s] settings when [%s] is set to [true].",
+                    SETTING_REMOTE_STORE_ENABLED,
+                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
+                )
+            )
+        );
     }
 
     public void testRemoteStoreOverrideOnlyTranslogRepoIllegalArgumentException() throws Exception {
@@ -249,7 +280,19 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             IllegalArgumentException.class,
             () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
         );
-        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot override [%s][%s][%s] settings when [%s] is set to [true].",
+                    SETTING_REMOTE_STORE_ENABLED,
+                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
+                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
+                )
+            )
+        );
     }
 
     public void testRemoteStoreOverrideReplicationTypeIndexSettings() throws Exception {

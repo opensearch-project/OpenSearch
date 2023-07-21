@@ -856,7 +856,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testUpdateRemoteRepositoryFails() {
         Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
-        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING);
+        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING);
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
         SettingsException error = expectThrows(
             SettingsException.class,
@@ -881,7 +881,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
+            () -> IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
             String.format(
@@ -902,7 +902,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
+            () -> IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
             String.format(

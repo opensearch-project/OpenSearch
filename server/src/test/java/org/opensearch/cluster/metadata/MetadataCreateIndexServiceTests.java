@@ -101,6 +101,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -1280,7 +1281,17 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 Collections.emptySet()
             )
         );
-        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot override [%s] settings when [%s] is set to [true].",
+                    SETTING_REMOTE_STORE_ENABLED,
+                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
+                )
+            )
+        );
     }
 
     public void testRemoteStoreOverrideSegmentRepoIndexSettings() {
@@ -1311,7 +1322,18 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 Collections.emptySet()
             )
         );
-        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot override [%s][%s] settings when [%s] is set to [true].",
+                    SETTING_REMOTE_STORE_ENABLED,
+                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
+                )
+            )
+        );
     }
 
     public void testRemoteStoreOverrideTranslogRepoIndexSettings() {
@@ -1340,7 +1362,17 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 Collections.emptySet()
             )
         );
-        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot override [%s] settings when [%s] is set to [true].",
+                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
+                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
+                )
+            )
+        );
     }
 
     public void testBuildIndexMetadata() {

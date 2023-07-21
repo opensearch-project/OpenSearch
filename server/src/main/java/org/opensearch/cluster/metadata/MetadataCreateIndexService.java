@@ -114,12 +114,13 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
@@ -949,27 +950,33 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
-        if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings) == true) {
-            // User should not be able to override remote store index settings
-            if (canCreateRemoteStoreIndex(requestSettings) == false) {
-                throw new IllegalArgumentException("Cannot override settings related to remote store.");
-            }
+        boolean isRemoteStoreClusterEnabled = CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings);
+        List<String> overriddenSettings = getRemoteStoreOverriddenSetting(requestSettings);
+        if (overriddenSettings.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot override [%s] settings when [%s] is set to [%s].",
+                    String.join("][", overriddenSettings),
+                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(),
+                    isRemoteStoreClusterEnabled
+                )
+            );
+        }
 
+        if (isRemoteStoreClusterEnabled == true) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                 .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.get(clusterSettings))
                 .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(clusterSettings));
-        } else {
-            // User should not be able to create remote indices
-            if (canCreateRemoteStoreIndex(requestSettings) == false) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT, "Cannot create remote store indices where [%s] is not set", CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()));
-            }
         }
     }
 
-    private static boolean canCreateRemoteStoreIndex(Settings requestSettings) {
-        return INDEX_REMOTE_STORE_ENABLED_SETTING.exists(requestSettings) == false
-            && INDEX_REMOTE_STORE_REPOSITORY_SETTING.exists(requestSettings) == false
-            && INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.exists(requestSettings) == false;
+    private static List<String> getRemoteStoreOverriddenSetting(Settings requestSettings) {
+        return Stream.of(
+            INDEX_REMOTE_STORE_ENABLED_SETTING,
+            INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+            INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING
+        ).filter(setting -> setting.exists(requestSettings)).map(Setting::getKey).collect(toList());
     }
 
     public static void validateStoreTypeSettings(Settings settings) {
