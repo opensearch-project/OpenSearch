@@ -8,11 +8,7 @@
 
 package org.opensearch.index.remote;
 
-import org.apache.lucene.index.CorruptIndexException;
-
 import java.util.Arrays;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Utils for remote store
@@ -54,23 +50,23 @@ public class RemoteStoreUtils {
     }
 
     /**
-     * Extracts the Lucene major version from the provided DocValuesUpdates file name
-     * @param filename DocValuesUpdates file name to parse
-     * @return Lucene major version that wrote the DocValuesUpdates file
-     * @throws CorruptIndexException If the Lucene major version cannot be inferred
+     * Extracts the segment name from the provided segment file name
+     * @param filename Segment file name to parse
+     * @return Name of the segment that the segment file belongs to
      */
-    public static int getLuceneVersionForDocValuesUpdates(String filename) throws CorruptIndexException {
-        // TODO: The following regex could work incorrectly if both major and minor versions are double-digits.
-        // This is because the major and minor versions do not have a separator in the filename currently
-        // (Lucence<major><minor>).
-        // We may need to revisit this if the filename pattern is updated in future Lucene versions.
-        Pattern docValuesUpdatesFileNamePattern = Pattern.compile("_\\d+_\\d+_Lucene(\\d+)\\d+_\\d+");
-
-        Matcher matcher = docValuesUpdatesFileNamePattern.matcher(filename);
-        if (matcher.find()) {
-            return Integer.parseInt(matcher.group(1));
-        } else {
-            throw new CorruptIndexException("Unable to infer Lucene version for segment file " + filename, filename);
+    public static String getSegmentName(String filename) {
+        // Segment file names follow patterns like "_0.cfe" or "_0_1_Lucene90_0.dvm".
+        // Here, the segment name is "_0", which is the set of characters
+        // starting with "_" until the next "_" or first ".".
+        int endIdx = filename.indexOf('_', 1);
+        if (endIdx == -1) {
+            endIdx = filename.indexOf('.');
         }
+
+        if (endIdx == -1) {
+            throw new IllegalArgumentException("Unable to infer segment name for segment file " + filename);
+        }
+
+        return filename.substring(0, endIdx);
     }
 }

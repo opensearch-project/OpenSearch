@@ -8,7 +8,6 @@
 
 package org.opensearch.index.remote;
 
-import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class RemoteStoreUtilsTests extends OpenSearchTestCase {
@@ -40,11 +39,25 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         }
     }
 
-    public void testGetLuceneVersionForDocValuesUpdates() throws CorruptIndexException {
-        assertEquals(9, RemoteStoreUtils.getLuceneVersionForDocValuesUpdates("_0_1_Lucene90_0.dvm"));
+    public void testGetSegmentNameForCfeFile() {
+        assertEquals("_foo", RemoteStoreUtils.getSegmentName("_foo.cfe"));
     }
 
-    public void testGetLuceneVersionForDocValuesUpdatesException() {
-        assertThrows(CorruptIndexException.class, () -> RemoteStoreUtils.getLuceneVersionForDocValuesUpdates("_0_1_Asserting_0.dvm"));
+    public void testGetSegmentNameForDvmFile() {
+        assertEquals("_bar", RemoteStoreUtils.getSegmentName("_bar_1_Lucene90_0.dvm"));
+    }
+
+    public void testGetSegmentNameWeirdSegmentNameOnlyUnderscore() {
+        // Validate behaviour when segment name contains delimiters only
+        assertEquals("_", RemoteStoreUtils.getSegmentName("_.dvm"));
+    }
+
+    public void testGetSegmentNameUnderscoreDelimiterOverrides() {
+        // Validate behaviour when segment name contains delimiters only
+        assertEquals("_", RemoteStoreUtils.getSegmentName("___.dvm"));
+    }
+
+    public void testGetSegmentNameException() {
+        assertThrows(IllegalArgumentException.class, () -> RemoteStoreUtils.getSegmentName("dvd"));
     }
 }
