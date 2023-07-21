@@ -74,7 +74,7 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
 
         // Start data nodes and create index
         internalCluster().startDataOnlyNodes(2, clusterSettings);
-        createIndex(INDEX_NAME, remoteTranslogIndexSettings(1));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
