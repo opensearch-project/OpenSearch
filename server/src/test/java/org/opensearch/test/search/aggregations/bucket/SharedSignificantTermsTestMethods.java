@@ -113,4 +113,41 @@ public class SharedSignificantTermsTestMethods {
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("7").setSource(TEXT_FIELD, "0", CLASS_FIELD, "0"));
         testCase.indexRandom(true, false, indexRequestBuilderList);
     }
+
+    public static void index01DocsWithRouting(String type, String settings, OpenSearchIntegTestCase testCase) throws ExecutionException,
+        InterruptedException {
+        String textMappings = "type=" + type;
+        if (type.equals("text")) {
+            textMappings += ",fielddata=true";
+        }
+        assertAcked(
+            testCase.prepareCreate(INDEX_NAME)
+                .setSettings(settings, XContentType.JSON)
+                .setMapping("text", textMappings, CLASS_FIELD, "type=keyword")
+        );
+        String[] gb = { "0", "1" };
+        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
+        indexRequestBuilderList.add(
+            client().prepareIndex(INDEX_NAME).setId("1").setSource(TEXT_FIELD, "1", CLASS_FIELD, "1").setRouting("0")
+        );
+        indexRequestBuilderList.add(
+            client().prepareIndex(INDEX_NAME).setId("2").setSource(TEXT_FIELD, "1", CLASS_FIELD, "1").setRouting("0")
+        );
+        indexRequestBuilderList.add(
+            client().prepareIndex(INDEX_NAME).setId("3").setSource(TEXT_FIELD, "0", CLASS_FIELD, "0").setRouting("0")
+        );
+        indexRequestBuilderList.add(
+            client().prepareIndex(INDEX_NAME).setId("4").setSource(TEXT_FIELD, "0", CLASS_FIELD, "0").setRouting("1")
+        );
+        indexRequestBuilderList.add(
+            client().prepareIndex(INDEX_NAME).setId("5").setSource(TEXT_FIELD, gb, CLASS_FIELD, "1").setRouting("1")
+        );
+        indexRequestBuilderList.add(
+            client().prepareIndex(INDEX_NAME).setId("6").setSource(TEXT_FIELD, gb, CLASS_FIELD, "0").setRouting("0")
+        );
+        indexRequestBuilderList.add(
+            client().prepareIndex(INDEX_NAME).setId("7").setSource(TEXT_FIELD, "0", CLASS_FIELD, "0").setRouting("0")
+        );
+        testCase.indexRandom(true, false, indexRequestBuilderList);
+    }
 }
