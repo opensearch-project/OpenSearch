@@ -1296,24 +1296,20 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REMOTE_STORE_ENABLED, false);
         request.settings(requestSettings.build());
-        Settings indexSettings = aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            settings,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                settings,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet()
+            )
         );
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "false",
-            null,
-            null,
-            ReplicationType.SEGMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
-        );
+        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
     }
 
     public void testRemoteStoreOverrideSegmentRepoIndexSettings() {
@@ -1331,24 +1327,20 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(SETTING_REMOTE_STORE_ENABLED, true)
             .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-custom-repo");
         request.settings(requestSettings.build());
-        Settings indexSettings = aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            settings,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                settings,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet()
+            )
         );
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "true",
-            "my-custom-repo",
-            "my-translog-repo-1",
-            ReplicationType.SEGMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
-        );
+        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
     }
 
     public void testRemoteStoreOverrideTranslogRepoIndexSettings() {
@@ -1364,24 +1356,20 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo");
         request.settings(requestSettings.build());
-        Settings indexSettings = aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            settings,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                settings,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet()
+            )
         );
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "true",
-            "my-segment-repo-1",
-            "my-custom-repo",
-            ReplicationType.SEGMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
-        );
+        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
     }
 
     public void testRemoteStoreOverrideReplicationTypeIndexSettings() {
@@ -1397,24 +1385,20 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
         request.settings(requestSettings.build());
-        Settings indexSettings = aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            settings,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                settings,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet()
+            )
         );
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            null,
-            null,
-            null,
-            ReplicationType.DOCUMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
-        );
+        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
     }
 
     public void testBuildIndexMetadata() {

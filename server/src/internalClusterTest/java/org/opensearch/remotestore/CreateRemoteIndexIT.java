@@ -26,14 +26,13 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
-import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
@@ -111,20 +110,12 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(SETTING_REMOTE_STORE_ENABLED, false)
             .build();
-        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
-            .get();
-        Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "false",
-            null,
-            null,
-            client().settings().get(CLUSTER_SETTING_REPLICATION_TYPE),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
         );
+        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
     }
 
     public void testRemoteStoreEnabledByUserWithoutRemoteRepoAndSegmentReplicationIllegalArgumentException() throws Exception {
@@ -156,16 +147,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             IllegalArgumentException.class,
             () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
         );
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                String.format(
-                    Locale.ROOT,
-                    "Setting %s should be provided with non-empty repository ID",
-                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY
-                )
-            )
-        );
+        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
     }
 
     public void testReplicationTypeDocumentByUser() throws Exception {
@@ -174,19 +156,21 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
             .build();
-        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
-            .get();
-        Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            null,
-            null,
-            null,
-            ReplicationType.DOCUMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "To enable %s, %s should be set to %s",
+                    SETTING_REMOTE_STORE_ENABLED,
+                    SETTING_REPLICATION_TYPE,
+                    ReplicationType.SEGMENT
+                )
+            )
         );
     }
 
@@ -222,20 +206,11 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-custom-repo")
             .build();
 
-        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
-            .get();
-        Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "true",
-            "my-custom-repo",
-            "my-translog-repo-1",
-            ReplicationType.SEGMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
         );
+        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
     }
 
     public void testRemoteStoreOverrideOnlyTranslogRepoIllegalArgumentException() throws Exception {
@@ -270,20 +245,11 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-custom-repo")
             .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo")
             .build();
-        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
-            .get();
-        Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "true",
-            "my-custom-repo",
-            "my-custom-repo",
-            ReplicationType.SEGMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
         );
+        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
     }
 
     public void testRemoteStoreOverrideReplicationTypeIndexSettings() throws Exception {
@@ -292,19 +258,21 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
             .build();
-        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
-            .get();
-        Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            null,
-            null,
-            null,
-            ReplicationType.DOCUMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "To enable %s, %s should be set to %s",
+                    SETTING_REMOTE_STORE_ENABLED,
+                    SETTING_REPLICATION_TYPE,
+                    ReplicationType.SEGMENT
+                )
+            )
         );
     }
 
