@@ -14,6 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
@@ -22,6 +24,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.UUIDs;
@@ -217,6 +220,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         private final String checksum;
         private final long length;
 
+        /**
+         * The Lucene major version that wrote the original segment files.
+         * As part of the Lucene version compatibility check, this version information stored in the metadata
+         * will be used to skip downloading the segment files unnecessarily
+         * if they were written by an incompatible Lucene version.
+         */
+        private int writtenByMajor;
+
         UploadedSegmentMetadata(String originalFilename, String uploadedFilename, String checksum, long length) {
             this.originalFilename = originalFilename;
             this.uploadedFilename = uploadedFilename;
@@ -226,7 +237,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         @Override
         public String toString() {
-            return String.join(SEPARATOR, originalFilename, uploadedFilename, checksum, String.valueOf(length));
+            return String.join(
+                SEPARATOR,
+                originalFilename,
+                uploadedFilename,
+                checksum,
+                String.valueOf(length),
+                String.valueOf(writtenByMajor)
+            );
         }
 
         public String getChecksum() {
@@ -239,11 +257,34 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         public static UploadedSegmentMetadata fromString(String uploadedFilename) {
             String[] values = uploadedFilename.split(SEPARATOR);
-            return new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
+            UploadedSegmentMetadata metadata = new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
+            if (values.length < 5) {
+                logger.error("Lucene version is missing for UploadedSegmentMetadata: " + uploadedFilename);
+            }
+
+            metadata.setWrittenByMajor(Integer.parseInt(values[4]));
+
+            return metadata;
         }
 
         public String getOriginalFilename() {
             return originalFilename;
+        }
+
+        public void setWrittenByMajor(int writtenByMajor) {
+            if (writtenByMajor <= Version.LATEST.major && writtenByMajor >= Version.MIN_SUPPORTED_MAJOR) {
+                this.writtenByMajor = writtenByMajor;
+            } else {
+                throw new IllegalArgumentException(
+                    "Lucene major version supplied ("
+                        + writtenByMajor
+                        + ") is incorrect. Should be between Version.LATEST ("
+                        + Version.LATEST.major
+                        + ") and Version.MIN_SUPPORTED_MAJOR ("
+                        + Version.MIN_SUPPORTED_MAJOR
+                        + ")."
+                );
+            }
         }
     }
 
@@ -582,10 +623,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             );
             try {
                 try (IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT)) {
+                    Map<String, Integer> segmentToLuceneVersion = getSegmentToLuceneVersion(segmentFiles, segmentInfosSnapshot);
                     Map<String, String> uploadedSegments = new HashMap<>();
                     for (String file : segmentFiles) {
                         if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                            uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
+                            UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
+                            metadata.setWrittenByMajor(segmentToLuceneVersion.get(metadata.originalFilename));
+                            uploadedSegments.put(file, metadata.toString());
                         } else {
                             throw new NoSuchFileException(file);
                         }
@@ -613,6 +657,38 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 tryAndDeleteLocalFile(metadataFilename, storeDirectory);
             }
         }
+    }
+
+    /**
+     * Parses the provided SegmentInfos to retrieve a mapping of the provided segment files to
+     * the respective Lucene major version that wrote the segments
+     * @param segmentFiles List of segment files for which the Lucene major version is needed
+     * @param segmentInfosSnapshot SegmentInfos instance to parse
+     * @return Map of the segment file to its Lucene major version
+     */
+    private Map<String, Integer> getSegmentToLuceneVersion(Collection<String> segmentFiles, SegmentInfos segmentInfosSnapshot) {
+        Map<String, Integer> segmentToLuceneVersion = new HashMap<>();
+        for (SegmentCommitInfo segmentCommitInfo : segmentInfosSnapshot) {
+            SegmentInfo info = segmentCommitInfo.info;
+            Set<String> segFiles = info.files();
+            for (String file : segFiles) {
+                segmentToLuceneVersion.put(file, info.getVersion().major);
+            }
+        }
+
+        for (String file : segmentFiles) {
+            if (segmentToLuceneVersion.containsKey(file) == false) {
+                if (file.equals(segmentInfosSnapshot.getSegmentsFileName())) {
+                    segmentToLuceneVersion.put(file, segmentInfosSnapshot.getCommitLuceneVersion().major);
+                } else {
+                    // Fallback to the Lucene major version of the respective segment's .si file
+                    String segmentInfoFileName = RemoteStoreUtils.getSegmentName(file) + ".si";
+                    segmentToLuceneVersion.put(file, segmentToLuceneVersion.get(segmentInfoFileName));
+                }
+            }
+        }
+
+        return segmentToLuceneVersion;
     }
 
     /**
