@@ -1794,12 +1794,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(tracker.getReplicationGroup().getInSyncAllocationIds(), equalTo(ids(activeAllocationIds)));
         assertThat(tracker.getReplicationGroup().getRoutingTable(), equalTo(routingTable));
         assertTrue(activeAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
-        // get insync ids, filter out the primary.
-        final Set<String> inSyncAllocationIds = tracker.getReplicationGroup()
-            .getInSyncAllocationIds()
-            .stream()
-            .filter(id -> tracker.shardAllocationId.equals(id) == false)
-            .collect(Collectors.toSet());
+
+        initializingIds.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED));
 
         final ReplicationCheckpoint initialCheckpoint = new ReplicationCheckpoint(
             tracker.shardId(),
@@ -1830,8 +1826,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         tracker.setLatestReplicationCheckpoint(secondCheckpoint);
         tracker.setLatestReplicationCheckpoint(thirdCheckpoint);
 
+        final Set<String> expectedIds = ids(initializingIds);
+
         Set<SegmentReplicationShardStats> groupStats = tracker.getSegmentReplicationStats();
-        assertEquals(inSyncAllocationIds.size(), groupStats.size());
+        assertEquals(expectedIds.size(), groupStats.size());
         for (SegmentReplicationShardStats shardStat : groupStats) {
             assertEquals(3, shardStat.getCheckpointsBehindCount());
             assertEquals(100L, shardStat.getBytesBehindCount());
@@ -1839,7 +1837,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
         // simulate replicas moved up to date.
         final Map<String, ReplicationTracker.CheckpointState> checkpoints = tracker.checkpoints;
-        for (String id : inSyncAllocationIds) {
+        for (String id : expectedIds) {
             final ReplicationTracker.CheckpointState checkpointState = checkpoints.get(id);
             assertEquals(3, checkpointState.checkpointTimers.size());
             tracker.updateVisibleCheckpointForShard(id, initialCheckpoint);
@@ -1847,13 +1845,13 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         }
 
         groupStats = tracker.getSegmentReplicationStats();
-        assertEquals(inSyncAllocationIds.size(), groupStats.size());
+        assertEquals(expectedIds.size(), groupStats.size());
         for (SegmentReplicationShardStats shardStat : groupStats) {
             assertEquals(2, shardStat.getCheckpointsBehindCount());
             assertEquals(99L, shardStat.getBytesBehindCount());
         }
 
-        for (String id : inSyncAllocationIds) {
+        for (String id : expectedIds) {
             final ReplicationTracker.CheckpointState checkpointState = checkpoints.get(id);
             assertEquals(2, checkpointState.checkpointTimers.size());
             tracker.updateVisibleCheckpointForShard(id, thirdCheckpoint);
@@ -1861,7 +1859,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         }
 
         groupStats = tracker.getSegmentReplicationStats();
-        assertEquals(inSyncAllocationIds.size(), groupStats.size());
+        assertEquals(expectedIds.size(), groupStats.size());
         for (SegmentReplicationShardStats shardStat : groupStats) {
             assertEquals(0, shardStat.getCheckpointsBehindCount());
             assertEquals(0L, shardStat.getBytesBehindCount());
@@ -1882,19 +1880,24 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         AllocationId primaryId = activeAllocationIds.iterator().next();
         IndexShardRoutingTable routingTable = routingTable(initializingIds, primaryId);
         final ReplicationTracker tracker = newTracker(primaryId, settings);
-
         tracker.updateFromClusterManager(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
-        assertThat(tracker.getReplicationGroup().getInSyncAllocationIds(), equalTo(ids(activeAllocationIds)));
-        assertThat(tracker.getReplicationGroup().getRoutingTable(), equalTo(routingTable));
-        assertTrue(activeAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
 
-        // get insync ids, filter out the primary.
-        final Set<String> inSyncAllocationIds = tracker.getReplicationGroup()
-            .getInSyncAllocationIds()
-            .stream()
-            .filter(id -> tracker.shardAllocationId.equals(id) == false)
-            .collect(Collectors.toSet());
+        initializingIds.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED));
+
+        assertEquals(tracker.getReplicationGroup().getRoutingTable(), routingTable);
+        assertEquals(
+            "All active & initializing ids are now marked in-sync",
+            Sets.union(ids(activeAllocationIds), ids(initializingIds)),
+            tracker.getReplicationGroup().getInSyncAllocationIds()
+        );
+
+        assertEquals(
+            "Active ids are in-sync but still unavailable",
+            tracker.getReplicationGroup().getUnavailableInSyncShards(),
+            Sets.difference(ids(activeAllocationIds), Set.of(primaryId.getId()))
+        );
+        assertTrue(activeAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
 
         final ReplicationCheckpoint initialCheckpoint = new ReplicationCheckpoint(
             tracker.shardId(),
@@ -1906,15 +1909,20 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         );
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
 
+        // we expect that the only returned ids from getSegmentReplicationStats will be the initializing ids we marked with
+        // markAsTrackingAndInSyncQuietly.
+        // This is because the ids marked active initially are still unavailable (don't have an associated routing entry).
+        final Set<String> expectedIds = ids(initializingIds);
         Set<SegmentReplicationShardStats> groupStats = tracker.getSegmentReplicationStats();
-        assertEquals(inSyncAllocationIds.size(), groupStats.size());
+        final Set<String> actualIds = groupStats.stream().map(SegmentReplicationShardStats::getAllocationId).collect(Collectors.toSet());
+        assertEquals(expectedIds, actualIds);
         for (SegmentReplicationShardStats shardStat : groupStats) {
             assertEquals(1, shardStat.getCheckpointsBehindCount());
         }
 
         // simulate replicas moved up to date.
         final Map<String, ReplicationTracker.CheckpointState> checkpoints = tracker.checkpoints;
-        for (String id : inSyncAllocationIds) {
+        for (String id : expectedIds) {
             final ReplicationTracker.CheckpointState checkpointState = checkpoints.get(id);
             assertEquals(1, checkpointState.checkpointTimers.size());
             tracker.updateVisibleCheckpointForShard(id, initialCheckpoint);
