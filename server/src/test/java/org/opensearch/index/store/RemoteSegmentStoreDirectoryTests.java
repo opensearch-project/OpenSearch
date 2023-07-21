@@ -678,7 +678,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         IndexOutput indexOutput = mock(IndexOutput.class);
         when(storeDirectory.createOutput(startsWith("metadata__12__o"), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
 
-        Collection<String> segmentFiles = List.of("s1", "s2", "s3");
+        Collection<String> segmentFiles = List.of("_s1.si", "_s1.cfe", "_s3.cfs");
         assertThrows(
             NoSuchFileException.class,
             () -> remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, segmentInfos, storeDirectory, 12L, 34L)
