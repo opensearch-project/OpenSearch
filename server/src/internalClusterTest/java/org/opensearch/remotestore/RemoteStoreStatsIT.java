@@ -36,11 +36,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
         // Step 1 - We create cluster, create an index, and then index documents into. We also do multiple refreshes/flushes
         // during this time frame. This ensures that the segment upload has started.
-        if (randomBoolean()) {
-            createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
-        } else {
-            createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
-        }
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -71,7 +67,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
         // Step 1 - We create cluster, create an index, and then index documents into. We also do multiple refreshes/flushes
         // during this time frame. This ensures that the segment upload has started.
-        createIndex(INDEX_NAME, remoteTranslogIndexSettings(0, 3));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 3));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -98,7 +94,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
         // Step 1 - We create cluster, create an index, and then index documents into. We also do multiple refreshes/flushes
         // during this time frame. This ensures that the segment upload has started.
-        createIndex(INDEX_NAME, remoteTranslogIndexSettings(0, 3));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 3));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
