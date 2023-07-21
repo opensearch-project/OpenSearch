@@ -681,7 +681,6 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
-    private volatile boolean searchSegmentOrderReversed;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -922,10 +921,6 @@ public final class IndexSettings {
         );
     }
 
-    private void setSearchSegmentOrderReversed(boolean reversed) {
-        this.searchSegmentOrderReversed = reversed;
-    }
-
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
         if (this.replicationType == ReplicationType.SEGMENT && this.getNumberOfReplicas() > 0) {
             logger.warn("Search idle is not supported for indices with replicas using 'replication.type: SEGMENT'");
@@ -1106,13 +1101,6 @@ public final class IndexSettings {
      */
     public Settings getNodeSettings() {
         return nodeSettings;
-    }
-
-    /**
-     * Returns true if index level setting for leaf reverse order search optimization is enabled
-     */
-    public boolean getSearchSegmentOrderReversed() {
-        return this.searchSegmentOrderReversed;
     }
 
     /**
