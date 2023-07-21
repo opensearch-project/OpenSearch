@@ -949,8 +949,8 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
-        if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings)) {
-            // Verify if we can create a remote store based index based on user provided settings
+        if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings) == true) {
+            // User should not be able to override remote store index settings
             if (canCreateRemoteStoreIndex(requestSettings) == false) {
                 throw new IllegalArgumentException("Cannot override settings related to remote store.");
             }
@@ -958,6 +958,11 @@ public class MetadataCreateIndexService {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                 .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.get(clusterSettings))
                 .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(clusterSettings));
+        } else {
+            // User should not be able to create remote indices
+            if (canCreateRemoteStoreIndex(requestSettings) == false) {
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "Cannot create remote store indices where [%s] is not set", CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()));
+            }
         }
     }
 

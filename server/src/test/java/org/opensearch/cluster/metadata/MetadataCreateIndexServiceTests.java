@@ -1191,35 +1191,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         threadPool.shutdown();
     }
 
-    public void testRemoteStoreNoUserOverrideConflictingReplicationTypeIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> aggregateIndexSettings(
-                ClusterState.EMPTY_STATE,
-                request,
-                Settings.EMPTY,
-                null,
-                settings,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                randomShardLimitService(),
-                Collections.emptySet()
-            )
-        );
-        assertThat(
-            exc.getMessage(),
-            containsString("Cannot enable [index.remote_store.enabled] when [index.replication.type] is DOCUMENT")
-        );
-    }
-
     public void testRemoteStoreNoUserOverrideExceptReplicationTypeSegmentIndexSettings() {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
@@ -1355,35 +1326,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo");
-        request.settings(requestSettings.build());
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> aggregateIndexSettings(
-                ClusterState.EMPTY_STATE,
-                request,
-                Settings.EMPTY,
-                null,
-                settings,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                randomShardLimitService(),
-                Collections.emptySet()
-            )
-        );
-        assertThat(exc.getMessage(), containsString("Cannot override settings related to remote store."));
-    }
-
-    public void testRemoteStoreOverrideReplicationTypeIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        final Settings.Builder requestSettings = Settings.builder();
-        requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
         request.settings(requestSettings.build());
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,

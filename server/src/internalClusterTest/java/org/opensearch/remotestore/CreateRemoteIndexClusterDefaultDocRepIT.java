@@ -25,7 +25,7 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SET
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
-public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
+public class CreateRemoteIndexClusterDefaultDocRepIT extends CreateRemoteIndexIT {
 
     @Override
     protected Settings nodeSettings(int nodeOriginal) {
