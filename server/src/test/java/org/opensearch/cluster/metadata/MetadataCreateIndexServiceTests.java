@@ -144,7 +144,7 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
@@ -1196,7 +1196,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
@@ -1229,7 +1229,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
@@ -1259,7 +1259,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
@@ -1298,7 +1298,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
@@ -1340,7 +1340,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);

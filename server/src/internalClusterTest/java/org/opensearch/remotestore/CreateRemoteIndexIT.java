@@ -29,10 +29,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGME
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
@@ -49,10 +47,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
     protected Settings nodeSettings(int nodeOriginal) {
         Settings settings = super.nodeSettings(nodeOriginal);
         Settings.Builder builder = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
+            .put(remoteStoreClusterSettings("my-segment-repo-1", "my-translog-repo-1", true))
             .put(settings);
         return builder.build();
     }

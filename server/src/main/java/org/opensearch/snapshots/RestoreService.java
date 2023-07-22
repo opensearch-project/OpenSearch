@@ -227,7 +227,12 @@ public class RestoreService implements ClusterStateApplier {
 
                 List<String> indicesToBeRestored = new ArrayList<>();
                 int totalShards = 0;
-                for (String index : request.indices()) {
+                List<String> filteredIndices = filterIndices(
+                    Arrays.asList(request.indices()),
+                    currentState.metadata().indices().keySet().toArray(new String[0]),
+                    IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN
+                );
+                for (String index : filteredIndices) {
                     IndexMetadata currentIndexMetadata = currentState.metadata().index(index);
                     if (currentIndexMetadata == null) {
                         // ToDo: Handle index metadata does not exist case. (GitHub #3457)

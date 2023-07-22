@@ -133,7 +133,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGME
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
@@ -966,7 +966,7 @@ public class MetadataCreateIndexService {
 
         if (isRemoteStoreClusterEnabled == true) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
-                .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.get(clusterSettings))
+                .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(clusterSettings))
                 .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(clusterSettings));
         }
     }
@@ -974,8 +974,8 @@ public class MetadataCreateIndexService {
     private static List<String> getRemoteStoreOverriddenSetting(Settings requestSettings) {
         return Stream.of(
             INDEX_REMOTE_STORE_ENABLED_SETTING,
-            INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
-            INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING
+            INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
+            INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING
         ).filter(setting -> setting.exists(requestSettings)).map(Setting::getKey).collect(toList());
     }
 
