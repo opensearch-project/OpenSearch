@@ -42,26 +42,39 @@ import java.util.Map;
  * @opensearch.internal
  */
 public final class MediaTypeParserRegistry {
-    private static Map<String, MediaType> formatToMediaType;
-    private static Map<String, MediaType> typeWithSubtypeToMediaType;
+    private static Map<String, MediaType> formatToMediaType = new HashMap<>();
+    private static Map<String, MediaType> typeWithSubtypeToMediaType = new HashMap<>();
 
     // Default mediaType singleton
     private static MediaType DEFAULT_MEDIA_TYPE;
 
     public static void register(MediaType[] acceptedMediaTypes, Map<String, MediaType> additionalMediaTypes) {
-        final int size = acceptedMediaTypes.length + additionalMediaTypes.size();
-        Map<String, MediaType> typeMap = new HashMap<>(size);
-        Map<String, MediaType> formatMap = new HashMap<>(size);
+        // ensures the map is not overwritten:
+        Map<String, MediaType> typeMap = new HashMap<>(typeWithSubtypeToMediaType);
+        Map<String, MediaType> formatMap = new HashMap<>(formatToMediaType);
         for (MediaType mediaType : acceptedMediaTypes) {
+            if (formatMap.containsKey(mediaType.format())) {
+                throw new IllegalArgumentException("unable to register mediaType: [" + mediaType.format() + "]. Type already exists.");
+            }
             typeMap.put(mediaType.typeWithSubtype(), mediaType);
             formatMap.put(mediaType.format(), mediaType);
         }
         for (Map.Entry<String, MediaType> entry : additionalMediaTypes.entrySet()) {
-            String typeWithSubtype = entry.getKey();
-            MediaType mediaType = entry.getValue();
+            String typeWithSubtype = entry.getKey().toLowerCase(Locale.ROOT);
+            if (typeMap.containsKey(typeWithSubtype)) {
+                throw new IllegalArgumentException(
+                    "unable to register mediaType: ["
+                        + entry.getKey()
+                        + "]. "
+                        + "Type already exists and is mapped to: [."
+                        + entry.getValue().format()
+                        + "]"
+                );
+            }
 
-            typeMap.put(typeWithSubtype.toLowerCase(Locale.ROOT), mediaType);
-            formatMap.put(mediaType.format(), mediaType);
+            MediaType mediaType = entry.getValue();
+            typeMap.put(typeWithSubtype, mediaType);
+            formatMap.putIfAbsent(mediaType.format(), mediaType); // ignore if the additional type mapping already exists
         }
 
         formatToMediaType = Map.copyOf(formatMap);

@@ -53,12 +53,10 @@ import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.xcontent.MediaType;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.NotSerializableException;
 import java.io.OutputStream;
 import java.math.BigInteger;
 import java.nio.file.AccessDeniedException;
@@ -495,14 +493,6 @@ public abstract class StreamOutput extends OutputStream {
 
     public final void writeBigInteger(BigInteger v) throws IOException {
         writeString(v.toString());
-    }
-
-    public final void writeMediaType(final MediaType v) throws IOException {
-        if (v.getClass().isEnum()) {
-            writeString(v.mediaType());
-        } else {
-            throw new NotSerializableException("unable to serialize MediaType [" + v.getClass().getSimpleName() + "]");
-        }
     }
 
     private static byte ZERO = 0;
