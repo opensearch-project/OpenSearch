@@ -178,10 +178,6 @@ public class TransportGetFieldAliasesMappingsIndexAction extends TransportSingle
 
     /**
      * This method searches the field's aliases within the DocumentMapper
-     * @param fieldPredicate
-     * @param documentMapper
-     * @param request
-     * @return
      */
     private static Map<String, FieldAliasesMappingMetadata> findFieldAliasesMappings(
         Predicate<String> fieldPredicate,
@@ -230,10 +226,6 @@ public class TransportGetFieldAliasesMappingsIndexAction extends TransportSingle
 
     /**
      * find all the alias fields which have a path = name
-     *
-     * @param field
-     * @param aliasesLookup
-     * @return
      */
     private static List<Mapper> getFieldAliases(Mapper field, FieldTypeLookup aliasesLookup, MappingLookup mapper) {
         return mapper.getMappers(aliasesLookup.getAliases(field.name()));
