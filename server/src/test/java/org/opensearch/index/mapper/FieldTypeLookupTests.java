@@ -91,12 +91,13 @@ public class FieldTypeLookupTests extends OpenSearchTestCase {
         FieldAliasMapper alias1 = new FieldAliasMapper("food", "food", "foo");
         FieldAliasMapper alias2 = new FieldAliasMapper("barometer", "barometer", "bar");
 
-        FieldCorrelationMapper correlation1 = new FieldCorrelationMapper("food_relation", "food", "foo", "schema", "barFK");
-        FieldCorrelationMapper correlation2 = new FieldCorrelationMapper("barometer_relation", "barometer", "bar", "schema", "barFK");
+        FieldCorrelationMapper correlation1 = new FieldCorrelationMapper("food_relation", "food_relation", "foo", "schema", "barFK");
+        FieldCorrelationMapper correlation2 = new FieldCorrelationMapper("barometer_relation", "barometer_relation", "bar", "schema", "barFK");
 
         FieldTypeLookup lookup = new FieldTypeLookup(
             Arrays.asList(field1, field2),
-            Arrays.asList(alias1, alias2, correlation1, correlation2)
+            Arrays.asList(alias1, alias2),
+            Arrays.asList(correlation1, correlation2)
         );
 
         Collection<String> names = lookup.simpleMatchToFullName("b*");

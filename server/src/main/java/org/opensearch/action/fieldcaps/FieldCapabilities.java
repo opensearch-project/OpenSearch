@@ -407,10 +407,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             } else {
                 indices = null;
             }
-            final String[] indexAliases = indicesList.stream()
+
+            List<String> aliasesCollection = indicesList.stream()
                 .flatMap(caps -> caps.aliases.stream().map(alias -> String.format(Locale.ROOT, "%s:%s", caps.name, alias)))
-                .collect(Collectors.toList())
-                .toArray(String[]::new);
+                .collect(Collectors.toList());
+            final String[] indexAliases = aliasesCollection.isEmpty()? null : aliasesCollection.toArray(String[]::new);
 
             final String[] nonSearchableIndices;
             if (isSearchable == false && indicesList.stream().anyMatch((caps) -> caps.isSearchable)) {

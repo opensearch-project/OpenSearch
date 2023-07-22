@@ -46,14 +46,12 @@ public class FieldCorrelationMapperTests extends MapperServiceTestCase {
                 .startObject("_doc")
                 .startObject("properties")
                 .startObject("correlation-field")
-                .field("type", "correlation")
-                .field("path", "concrete-field")
-                .field("target_field", "remote_field")
-                .field("target_schema", "schema")
+                    .field("type", "correlation")
+                    .field("path", "first-field")
+                    .field("schema_pattern", "schema")
+                    .field("remote_path", "remote_field")
                 .endObject()
-                .startObject("concrete-field")
-                .field("type", "keyword")
-                .endObject()
+                .startObject("first-field").field("type", "keyword").endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -68,17 +66,53 @@ public class FieldCorrelationMapperTests extends MapperServiceTestCase {
             () -> createDocumentMapper(mapping(b -> b.startObject("correlation-field").field("type", "correlation").endObject()))
         );
         assertEquals(
-            "Failed to parse mapping [_doc]: The [path] property must be specified for field [alias-field].",
+            "Failed to parse mapping [_doc]: The [path] property must be specified for field [correlation-field].",
             exception.getMessage()
         );
     }
 
-    public void testParsingWithExtraArgument() {
+    public void testParsingWithoutSchemaFieldArgument() {
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
             b.startObject("correlation-field");
             {
                 b.field("type", "correlation");
                 b.field("path", "concrete-field");
+                b.field("extra-field", "extra-value");
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping [_doc]: "
+                + "The [targetSchema] property must be specified for field [correlation-field].",
+            exception.getMessage()
+        );
+    }
+
+    public void testParsingWithoutTargetFieldArgument() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
+            b.startObject("correlation-field");
+            {
+                b.field("type", "correlation");
+                b.field("path", "concrete-field");
+                b.field("schema_pattern", "concrete-schema-pattern");
+                b.field("extra-field", "extra-value");
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping [_doc]: "
+                + "The [targetField] property must be specified for field [correlation-field].",
+            exception.getMessage()
+        );
+    }
+    public void testParsingWitExtraFieldArgument() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
+            b.startObject("correlation-field");
+            {
+                b.field("type", "correlation");
+                b.field("path", "concrete-field");
+                b.field("schema_pattern", "concrete-schema-pattern");
+                b.field("remote_path", "concrete-schema-pattern");
                 b.field("extra-field", "extra-value");
             }
             b.endObject();
@@ -97,6 +131,8 @@ public class FieldCorrelationMapperTests extends MapperServiceTestCase {
             {
                 b.field("type", "correlation");
                 b.field("path", "first-field");
+                b.field("schema_pattern", "index1*");
+                b.field("remote_path", "remote-field1");
             }
             b.endObject();
         }));
@@ -111,6 +147,8 @@ public class FieldCorrelationMapperTests extends MapperServiceTestCase {
             {
                 b.field("type", "correlation");
                 b.field("path", "second-field");
+                b.field("schema_pattern", "index2*");
+                b.field("remote_path", "remote-field2");
             }
             b.endObject();
         }));
@@ -128,6 +166,8 @@ public class FieldCorrelationMapperTests extends MapperServiceTestCase {
             {
                 b.field("type", "correlation");
                 b.field("path", "concrete-field");
+                b.field("remote_path", "remote-field");
+                b.field("schema_pattern", "index*");
             }
             b.endObject();
         }));

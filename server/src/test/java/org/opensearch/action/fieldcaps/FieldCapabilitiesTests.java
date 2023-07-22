@@ -200,11 +200,11 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
+            aliases,
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
             aliasIndices,
-            aliases,
             meta
         );
     }

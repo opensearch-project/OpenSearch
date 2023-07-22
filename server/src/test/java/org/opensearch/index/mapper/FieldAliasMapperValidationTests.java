@@ -61,7 +61,7 @@ public class FieldAliasMapperValidationTests extends OpenSearchTestCase {
                 Lucene.STANDARD_ANALYZER
             )
         );
-        assertEquals("Alias [some.path] is defined both as an object and an alias", e.getMessage());
+        assertEquals("alias [some.path] is defined both as an object and an alias", e.getMessage());
     }
 
     public void testDuplicateFieldAliasAndConcreteField() {
@@ -80,7 +80,7 @@ public class FieldAliasMapperValidationTests extends OpenSearchTestCase {
             )
         );
 
-        assertEquals("Alias [invalid] is defined both as an alias and a concrete field", e.getMessage());
+        assertEquals("alias [invalid] is defined both as an alias and a concrete field", e.getMessage());
     }
 
     public void testAliasThatRefersToAlias() {
