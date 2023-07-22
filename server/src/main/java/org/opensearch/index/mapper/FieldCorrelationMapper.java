@@ -53,8 +53,8 @@ import java.util.Map;
  *       "http_ip_addr_fk": {
  *          "type": "correlation",
  *          "path": "ip_addr",
- *          "target_schema" : "logs*",
- *          "target_field" : "ip"
+ *          "schema_pattern" : "logs*",
+ *          "remote_path" : "ip"
  *       }
  *     }
  *   }
@@ -72,8 +72,8 @@ public final class FieldCorrelationMapper extends FieldAliasMapper {
      * @opensearch.internal
      */
     public static class Names {
-        public static final String TARGET_SCHEMA = "target_schema";
-        public static final String TARGET_FIELD = "target_field";
+        public static final String TARGET_SCHEMA = "schema_pattern";
+        public static final String TARGET_FIELD = "remote_path";
     }
 
     private final String targetSchema;
@@ -181,7 +181,7 @@ public final class FieldCorrelationMapper extends FieldAliasMapper {
 
         public FieldCorrelationMapper build(BuilderContext context) {
             String fullName = context.path().pathAsText(name());
-            return new FieldCorrelationMapper(name(), path, fullName, targetSchema, targetField);
+            return new FieldCorrelationMapper(name(), fullName, path, targetSchema, targetField);
         }
     }
 }
