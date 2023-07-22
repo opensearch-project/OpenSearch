@@ -117,23 +117,11 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(statsGranularity) + 1);
     }
 
-    private void prepareCluster(
-        int numClusterManagerNodes,
-        int numDataOnlyNodes,
-        boolean remoteTranslogEnabled,
-        String indices,
-        int replicaCount,
-        int shardCount
-    ) {
+    private void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
         internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
         internalCluster().startDataOnlyNodes(numDataOnlyNodes);
         for (String index : indices.split(",")) {
-            if (remoteTranslogEnabled) {
-                createIndex(index, remoteTranslogIndexSettings(replicaCount, shardCount));
-            } else {
-                createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
-            }
-
+            createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
             ensureYellowAndNoInitializingShards(index);
             ensureGreen(index);
         }
@@ -141,13 +129,12 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     /**
      * Helper function to test restoring an index with no replication from remote store. Only primary node is dropped.
-     * @param remoteTranslog If true, Remote Translog Store is also enabled in addition to Remote Segment Store.
      * @param numberOfIterations Number of times a refresh/flush should be invoked, followed by indexing some data.
      * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
      * @throws IOException IO Exception.
      */
-    private void testRestoreFlow(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush, int shardCount) throws IOException {
-        prepareCluster(0, 3, remoteTranslog, INDEX_NAME, 0, shardCount);
+    private void testRestoreFlow(int numberOfIterations, boolean invokeFlush, int shardCount) throws IOException {
+        prepareCluster(0, 3, INDEX_NAME, 0, shardCount);
         Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
 
@@ -159,7 +146,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
         ensureGreen(INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
-        verifyRestoredData(indexStats, remoteTranslog, INDEX_NAME);
+        verifyRestoredData(indexStats, true, INDEX_NAME);
     }
 
     /**
@@ -171,7 +158,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      */
     private void testRestoreFlowBothPrimaryReplicasDown(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush, int shardCount)
         throws IOException {
-        prepareCluster(1, 2, remoteTranslog, INDEX_NAME, 1, shardCount);
+        prepareCluster(1, 2, INDEX_NAME, 1, shardCount);
         Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
 
@@ -184,21 +171,20 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
 
         ensureGreen(INDEX_NAME);
+
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         assertEquals(0, getNumShards(INDEX_NAME).numReplicas);
-        verifyRestoredData(indexStats, remoteTranslog, INDEX_NAME);
+        verifyRestoredData(indexStats, true, INDEX_NAME);
     }
 
     /**
      * Helper function to test restoring multiple indices from remote store when all the nodes housing the primary/replica drop.
-     * @param remoteTranslog If true, Remote Translog Store is also enabled in addition to Remote Segment Store.
      * @param numberOfIterations Number of times a refresh/flush should be invoked, followed by indexing some data.
      * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
      * @throws IOException IO Exception.
      */
-    private void testRestoreFlowMultipleIndices(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush, int shardCount)
-        throws IOException {
-        prepareCluster(1, 3, remoteTranslog, INDEX_NAMES, 1, shardCount);
+    private void testRestoreFlowMultipleIndices(int numberOfIterations, boolean invokeFlush, int shardCount) throws IOException {
+        prepareCluster(1, 3, INDEX_NAMES, 1, shardCount);
         String[] indices = INDEX_NAMES.split(",");
         Map<String, Map<String, Long>> indicesStats = new HashMap<>();
         for (String index : indices) {
@@ -230,7 +216,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureGreen(indices);
         for (String index : indices) {
             assertEquals(shardCount, getNumShards(index).totalNumShards);
-            verifyRestoredData(indicesStats.get(index), remoteTranslog, index);
+            verifyRestoredData(indicesStats.get(index), true, index);
         }
     }
 
@@ -240,7 +226,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
     public void testRemoteTranslogRestoreWithNoDataPostCommit() throws IOException {
-        testRestoreFlow(true, 1, true, randomIntBetween(1, 5));
+        testRestoreFlow(1, true, randomIntBetween(1, 5));
     }
 
     /**
@@ -248,7 +234,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * @throws IOException IO Exception.
      */
     public void testRemoteTranslogRestoreWithNoDataPostRefresh() throws IOException {
-        testRestoreFlow(true, 1, false, randomIntBetween(1, 5));
+        testRestoreFlow(1, false, randomIntBetween(1, 5));
     }
 
     /**
@@ -257,7 +243,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * @throws IOException IO Exception.
      */
     public void testRemoteTranslogRestoreWithRefreshedData() throws IOException {
-        testRestoreFlow(true, randomIntBetween(2, 5), false, randomIntBetween(1, 5));
+        testRestoreFlow(randomIntBetween(2, 5), false, randomIntBetween(1, 5));
     }
 
     /**
@@ -266,7 +252,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * @throws IOException IO Exception.
      */
     public void testRemoteTranslogRestoreWithCommittedData() throws IOException {
-        testRestoreFlow(true, randomIntBetween(2, 5), true, randomIntBetween(1, 5));
+        testRestoreFlow(randomIntBetween(2, 5), true, randomIntBetween(1, 5));
     }
 
     /**
@@ -316,7 +302,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     public void testRTSRestoreWithCommittedDataMultipleIndicesPatterns() throws IOException {
-        testRestoreFlowMultipleIndices(true, 2, true, randomIntBetween(1, 5));
+        testRestoreFlowMultipleIndices(2, true, randomIntBetween(1, 5));
     }
 
     /**
@@ -328,7 +314,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     public void testRTSRestoreWithCommittedDataDefaultAllIndices() throws IOException {
         int shardCount = randomIntBetween(1, 5);
-        prepareCluster(1, 3, true, INDEX_NAMES, 1, shardCount);
+        prepareCluster(1, 3, INDEX_NAMES, 1, shardCount);
         String[] indices = INDEX_NAMES.split(",");
         Map<String, Map<String, Long>> indicesStats = new HashMap<>();
         for (String index : indices) {
@@ -372,7 +358,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      */
     public void testRTSRestoreWithCommittedDataNotAllRedRemoteIndices() throws IOException {
         int shardCount = randomIntBetween(1, 5);
-        prepareCluster(1, 3, true, INDEX_NAMES, 0, shardCount);
+        prepareCluster(1, 3, INDEX_NAMES, 0, shardCount);
         String[] indices = INDEX_NAMES.split(",");
         Map<String, Map<String, Long>> indicesStats = new HashMap<>();
         for (String index : indices) {
@@ -414,7 +400,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     public void testRTSRestoreWithCommittedDataExcludeIndicesPatterns() throws IOException {
         int shardCount = randomIntBetween(1, 5);
-        prepareCluster(1, 3, true, INDEX_NAMES, 1, shardCount);
+        prepareCluster(1, 3, INDEX_NAMES, 1, shardCount);
         String[] indices = INDEX_NAMES.split(",");
         Map<String, Map<String, Long>> indicesStats = new HashMap<>();
         for (String index : indices) {
@@ -457,18 +443,14 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
     public void testRTSRestoreNoData() throws IOException {
-        testRestoreFlow(true, 0, true, randomIntBetween(1, 5));
+        testRestoreFlow(0, true, randomIntBetween(1, 5));
     }
 
     // TODO: Restore flow - index aliases
 
-    private void testPeerRecovery(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush) throws Exception {
+    private void testPeerRecovery(int numberOfIterations, boolean invokeFlush) throws Exception {
         internalCluster().startDataOnlyNodes(3);
-        if (remoteTranslog) {
-            createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
-        } else {
-            createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
-        }
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -515,45 +497,25 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         );
     }
 
-    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogNoDataFlush() throws Exception {
-        testPeerRecovery(false, 1, true);
-    }
-
-    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogFlush() throws Exception {
-        testPeerRecovery(false, randomIntBetween(2, 5), true);
-    }
-
-    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogNoDataRefresh() throws Exception {
-        testPeerRecovery(false, 1, false);
-    }
-
-    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogRefresh() throws Exception {
-        testPeerRecovery(false, randomIntBetween(2, 5), false);
-    }
-
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataFlush() throws Exception {
-        testPeerRecovery(true, 1, true);
+        testPeerRecovery(1, true);
     }
 
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogFlush() throws Exception {
-        testPeerRecovery(true, randomIntBetween(2, 5), true);
+        testPeerRecovery(randomIntBetween(2, 5), true);
     }
 
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataRefresh() throws Exception {
-        testPeerRecovery(true, 1, false);
+        testPeerRecovery(1, false);
     }
 
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogRefresh() throws Exception {
-        testPeerRecovery(true, randomIntBetween(2, 5), false);
+        testPeerRecovery(randomIntBetween(2, 5), false);
     }
 
-    private void verifyRemoteStoreCleanup(boolean remoteTranslog) throws Exception {
+    private void verifyRemoteStoreCleanup() throws Exception {
         internalCluster().startDataOnlyNodes(3);
-        if (remoteTranslog) {
-            createIndex(INDEX_NAME, remoteTranslogIndexSettings(1));
-        } else {
-            createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
-        }
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
 
         indexData(5, randomBoolean(), INDEX_NAME);
         String indexUUID = client().admin()
@@ -572,12 +534,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    public void testRemoteSegmentCleanup() throws Exception {
-        verifyRemoteStoreCleanup(false);
-    }
-
     public void testRemoteTranslogCleanup() throws Exception {
-        verifyRemoteStoreCleanup(true);
+        verifyRemoteStoreCleanup();
     }
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8658")
