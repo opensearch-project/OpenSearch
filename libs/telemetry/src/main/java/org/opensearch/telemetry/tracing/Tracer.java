@@ -9,6 +9,7 @@
 package org.opensearch.telemetry.tracing;
 
 import java.io.Closeable;
+import org.opensearch.common.lease.Releasable;
 
 /**
  * Tracer is the interface used to create a {@link Span}
@@ -25,5 +26,11 @@ public interface Tracer extends Closeable {
      * @return scope of the span, must be closed with explicit close or with try-with-resource
      */
     SpanScope startSpan(String spanName);
+
+    /**
+     * Creates new TracerContextStorage.
+     * @return returns {@link Releasable} which should be able to release this TracerContextStorage.
+     */
+    Releasable newTracerContextStorage();
 
 }

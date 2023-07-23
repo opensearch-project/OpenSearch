@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
@@ -38,6 +39,11 @@ final class WrappedTracer implements Tracer {
     public SpanScope startSpan(String spanName) {
         Tracer delegateTracer = getDelegateTracer();
         return delegateTracer.startSpan(spanName);
+    }
+
+    @Override
+    public Releasable newTracerContextStorage() {
+        return defaultTracer.newTracerContextStorage();
     }
 
     @Override

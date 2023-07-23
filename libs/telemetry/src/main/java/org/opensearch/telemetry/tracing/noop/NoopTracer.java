@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing.noop;
 
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 
@@ -33,5 +34,10 @@ public class NoopTracer implements Tracer {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public Releasable newTracerContextStorage() {
+        return () -> {};
     }
 }

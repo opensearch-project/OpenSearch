@@ -8,6 +8,8 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.lease.Releasable;
+
 /**
  * Storage interface used for storing tracing context
  * @param <K> key type
@@ -34,4 +36,10 @@ public interface TracerContextStorage<K, V> {
      * @param value of the tracing context
      */
     void put(K key, V value);
+
+    /**
+     * Creates new TracerContextStorage.
+     * @return returns {@link Releasable} which should be able to release this TracerContextStorage.
+     */
+    Releasable newTracerContextStorage();
 }
