@@ -162,7 +162,7 @@ public final class CryptoDirectory extends NIOFSDirectory {
         ensureOpen();
         ensureCanRead(name);
         Path path = getDirectory().resolve(name);
-        FileChannel fc = FileChannel.open(path, StandardOpenOption.READ);
+        FileChannel fc = null;
         boolean success = false;
         try {
             Cipher cipher = CipherFactory.getCipher(provider);
@@ -180,12 +180,13 @@ public final class CryptoDirectory extends NIOFSDirectory {
                 );
                 success = true;
             } else {
+                fc = FileChannel.open(path, StandardOpenOption.READ);
                 indexInput = new DecryptingFSIndexInput("DecryptingFSIndexInput(path=\"" + path + "\")", fc, context, cipher, this);
                 success = true;
             }
             return indexInput;
         } finally {
-            if (success == false) {
+            if (success == false && fc != null) {
                 IOUtils.closeWhileHandlingException(fc);
             }
         }
@@ -258,6 +259,7 @@ public final class CryptoDirectory extends NIOFSDirectory {
         out.close();
         isOpen = false;
         deletePendingFiles();
+        IOUtils.close(delegate);
         dataKey = null;
     }
 

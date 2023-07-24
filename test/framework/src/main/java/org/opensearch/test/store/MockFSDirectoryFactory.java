@@ -44,6 +44,7 @@ import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -60,13 +61,23 @@ import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import javax.crypto.SecretKey;
+import java.security.cert.CertificateException;
+import java.security.NoSuchAlgorithmException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 
 public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     public static final List<IndexModule.Type> FILE_SYSTEM_BASED_STORE_TYPES = Arrays.stream(IndexModule.Type.values())
@@ -165,6 +176,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
     }
 
     private Directory randomDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
+        final String KEYSTORE_PATH = OpenSearchTestCase.createTempDir().toString() + "/keystore.ks";
         final IndexMetadata build = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(
                 Settings.builder()
@@ -175,10 +187,36 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                         IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
                         RandomPicks.randomFrom(random, FILE_SYSTEM_BASED_STORE_TYPES).getSettingsKey()
                     )
+                    .put(FsDirectoryFactory.INDEX_KMS_ALIAS_SETTING.getKey(), "cryptotest")
+                    .put(FsDirectoryFactory.INDEX_KMS_PASSWORD_SETTING.getKey(), "cryptopass")
+                    .put(FsDirectoryFactory.INDEX_KMS_PATH_SETTING.getKey(), KEYSTORE_PATH)
             )
             .build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
+        if (newIndexSettings.getValue(IndexModule.INDEX_STORE_TYPE_SETTING).equals("cryptofs")) {
+            createCryptoKeystore(KEYSTORE_PATH);
+        }
         return new FsDirectoryFactory().newDirectory(newIndexSettings, path);
+    }
+
+    private void createCryptoKeystore(String keyStorePath) throws IOException {
+        try {
+            KeyStore keystore = KeyStore.getInstance("PKCS12");
+            byte[] keyMaterial = new byte[32];
+            java.util.Random rnd = Randomness.get();
+            rnd.nextBytes(keyMaterial);
+            SecretKey master = new javax.crypto.spec.SecretKeySpec(keyMaterial, "AES");
+            String alias = "cryptotest";
+            String keyPass = "cryptopass";
+            keystore.load(null, keyPass.toCharArray());
+            keystore.setEntry(alias, new KeyStore.SecretKeyEntry(master), new KeyStore.PasswordProtection(keyPass.toCharArray()));
+            try (OutputStream os = Files.newOutputStream(Path.of(keyStorePath), StandardOpenOption.CREATE)) {
+                keystore.store(os, keyPass.toCharArray());
+            }
+
+        } catch (java.security.AccessControlException | KeyStoreException | CertificateException | NoSuchAlgorithmException e) {
+            throw new IOException(e.getMessage());
+        }
     }
 
     public static final class OpenSearchMockDirectoryWrapper extends MockDirectoryWrapper {

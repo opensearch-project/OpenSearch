@@ -33,6 +33,7 @@ package org.opensearch.index.store;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.cert.CertificateException;
@@ -80,7 +81,8 @@ public class LocalKeyStoreManager implements KeyStoreManager {
             keystore.load(in, pass.get().toCharArray());
             this.alias = alias;
             this.keyPass = pass;
-        } catch (java.security.AccessControlException | KeyStoreException | CertificateException | NoSuchAlgorithmException e) {
+        } catch (java.security.AccessControlException | KeyStoreException | CertificateException | NoSuchAlgorithmException
+            | NoSuchFileException e) {
             throw new IOException("Failed to open local keystore.", e);
         }
     }
