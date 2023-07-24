@@ -65,7 +65,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 4
 
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      setting 'opensearch.experimental.feature.search_pipeline.enabled', 'true'
     }
   }
 

@@ -31,7 +31,6 @@
 
 package org.opensearch.index.store;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -674,9 +673,9 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
 
         final IndicesShardStoresResponse stores = client().admin().indices().prepareShardStores(index.getName()).get();
 
-        for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shards : stores.getStoreStatuses().get(index.getName())) {
-            for (IndicesShardStoresResponse.StoreStatus store : shards.value) {
-                final ShardId shardId = new ShardId(index, shards.key);
+        for (var shards : stores.getStoreStatuses().get(index.getName()).entrySet()) {
+            for (IndicesShardStoresResponse.StoreStatus store : shards.getValue()) {
+                final ShardId shardId = new ShardId(index, shards.getKey());
                 if (store.getAllocationStatus().equals(IndicesShardStoresResponse.StoreStatus.AllocationStatus.UNUSED)) {
                     for (Path path : findFilesToCorruptOnNode(store.getNode().getName(), shardId)) {
                         try (OutputStream os = Files.newOutputStream(path)) {

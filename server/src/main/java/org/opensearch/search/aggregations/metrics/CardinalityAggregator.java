@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -44,6 +43,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BitArray;
+import org.opensearch.common.util.BitMixer;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.ObjectArray;
 import org.opensearch.common.lease.Releasable;

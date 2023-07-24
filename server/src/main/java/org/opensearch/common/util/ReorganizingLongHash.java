@@ -8,7 +8,6 @@
 
 package org.opensearch.common.util;
 
-import org.apache.lucene.util.hppc.BitMixer;
 import org.opensearch.common.lease.Releasable;
 
 /**

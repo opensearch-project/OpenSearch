@@ -21,6 +21,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Version;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -124,14 +125,42 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             "123456",
             1234
         );
-        assertEquals("abc::pqr::123456::1234", metadata.toString());
+        metadata.setWrittenByMajor(Version.LATEST.major);
+        assertEquals("abc::pqr::123456::1234::" + Version.LATEST.major, metadata.toString());
+    }
+
+    public void testUploadedSegmentMetadataToStringExceptionTooNew() {
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = new RemoteSegmentStoreDirectory.UploadedSegmentMetadata(
+            "abc",
+            "pqr",
+            "123456",
+            1234
+        );
+        assertThrows(IllegalArgumentException.class, () -> metadata.setWrittenByMajor(Version.LATEST.major + 1));
+    }
+
+    public void testUploadedSegmentMetadataToStringExceptionTooOld() {
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = new RemoteSegmentStoreDirectory.UploadedSegmentMetadata(
+            "abc",
+            "pqr",
+            "123456",
+            1234
+        );
+        assertThrows(IllegalArgumentException.class, () -> metadata.setWrittenByMajor(Version.LATEST.major - 2));
     }
 
     public void testUploadedSegmentMetadataFromString() {
         RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(
-            "_0.cfe::_0.cfe__uuidxyz::4567::372000"
+            "_0.cfe::_0.cfe__uuidxyz::4567::372000::" + Version.LATEST.major
         );
-        assertEquals("_0.cfe::_0.cfe__uuidxyz::4567::372000", metadata.toString());
+        assertEquals("_0.cfe::_0.cfe__uuidxyz::4567::372000::" + Version.LATEST.major, metadata.toString());
+    }
+
+    public void testUploadedSegmentMetadataFromStringException() {
+        assertThrows(
+            ArrayIndexOutOfBoundsException.class,
+            () -> RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString("_0.cfe::_0.cfe__uuidxyz::4567::372000")
+        );
     }
 
     public void testGetPrimaryTermGenerationUuid() {
@@ -176,6 +205,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 + randomIntBetween(1000, 5000)
                 + "::"
                 + randomIntBetween(512000, 1024000)
+                + "::"
+                + Version.MIN_SUPPORTED_MAJOR
         );
         metadata.put(
             prefix + ".cfs",
@@ -188,6 +219,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 + randomIntBetween(1000, 5000)
                 + "::"
                 + randomIntBetween(512000, 1024000)
+                + "::"
+                + Version.MIN_SUPPORTED_MAJOR
         );
         metadata.put(
             prefix + ".si",
@@ -200,6 +233,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 + randomIntBetween(1000, 5000)
                 + "::"
                 + randomIntBetween(512000, 1024000)
+                + "::"
+                + Version.LATEST.major
         );
         metadata.put(
             "segments_" + commitGeneration,
@@ -213,6 +248,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 + randomIntBetween(1000, 5000)
                 + "::"
                 + randomIntBetween(1024, 5120)
+                + "::"
+                + Version.LATEST.major
         );
         return metadata;
     }
@@ -611,8 +648,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ).thenReturn(metadataFiles);
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512");
-        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024");
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512::" + Version.LATEST.major);
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024::" + Version.LATEST.major);
 
         when(remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)).thenReturn(createMetadataFileBytes(metadata, 1, 5));
 
@@ -641,7 +678,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         IndexOutput indexOutput = mock(IndexOutput.class);
         when(storeDirectory.createOutput(startsWith("metadata__12__o"), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
 
-        Collection<String> segmentFiles = List.of("s1", "s2", "s3");
+        Collection<String> segmentFiles = List.of("_s1.si", "_s1.cfe", "_s3.cfs");
         assertThrows(
             NoSuchFileException.class,
             () -> remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, segmentInfos, storeDirectory, 12L, 34L)
@@ -649,29 +686,45 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     }
 
     public void testUploadMetadataNonEmpty() throws IOException {
-        populateMetadata();
+        indexDocs(142364, 5);
+        flushShard(indexShard, true);
+        SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
+        long primaryTerm = 12;
+        String primaryTermLong = RemoteStoreUtils.invertLong(primaryTerm);
+        long generation = segInfos.getGeneration();
+        String generationLong = RemoteStoreUtils.invertLong(generation);
+        String latestMetadataFileName = "metadata__" + primaryTermLong + "__" + generationLong + "__abc";
+        List<String> metadataFiles = List.of(latestMetadataFileName);
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                1
+            )
+        ).thenReturn(metadataFiles);
+        Map<String, Map<String, String>> metadataFilenameContentMapping = Map.of(
+            latestMetadataFileName,
+            getDummyMetadata("_0", (int) generation)
+        );
+        when(remoteMetadataDirectory.openInput(latestMetadataFileName, IOContext.DEFAULT)).thenReturn(
+            createMetadataFileBytes(metadataFilenameContentMapping.get(latestMetadataFileName), generation, primaryTerm)
+        );
+
         remoteSegmentStoreDirectory.init();
 
         Directory storeDirectory = mock(Directory.class);
         BytesStreamOutput output = new BytesStreamOutput();
         IndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
+        when(storeDirectory.createOutput(startsWith("metadata__" + primaryTermLong + "__" + generationLong), eq(IOContext.DEFAULT)))
+            .thenReturn(indexOutput);
 
-        String generation = RemoteStoreUtils.invertLong(segmentInfos.getGeneration());
-        String primaryTerm = RemoteStoreUtils.invertLong(12);
-        when(storeDirectory.createOutput(startsWith("metadata__" + primaryTerm + "__" + generation), eq(IOContext.DEFAULT))).thenReturn(
-            indexOutput
-        );
-
-        Collection<String> segmentFiles = List.of("_0.si", "_0.cfe", "_0.cfs", "segments_1");
-        remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, segmentInfos, storeDirectory, 12L, 34L);
+        remoteSegmentStoreDirectory.uploadMetadata(segInfos.files(true), segInfos, storeDirectory, primaryTerm, generation);
 
         verify(remoteMetadataDirectory).copyFrom(
             eq(storeDirectory),
-            startsWith("metadata__" + primaryTerm + "__" + generation),
-            startsWith("metadata__" + primaryTerm + "__" + generation),
+            startsWith("metadata__" + primaryTermLong + "__" + generationLong),
+            startsWith("metadata__" + primaryTermLong + "__" + generationLong),
             eq(IOContext.DEFAULT)
         );
-
         VersionedCodecStreamWrapper<RemoteSegmentMetadata> streamWrapper = new VersionedCodecStreamWrapper<>(
             new RemoteSegmentMetadataHandler(),
             RemoteSegmentMetadata.CURRENT_VERSION,
@@ -680,14 +733,23 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         RemoteSegmentMetadata remoteSegmentMetadata = streamWrapper.readStream(
             new ByteArrayIndexInput("expected", BytesReference.toBytes(output.bytes()))
         );
-
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> actual = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore();
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> expected = remoteSegmentMetadata.getMetadata();
-
         for (String filename : expected.keySet()) {
             assertEquals(expected.get(filename).toString(), actual.get(filename).toString());
         }
+    }
+
+    public void testUploadMetadataNoSegmentCommitInfos() throws IOException {
+        SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
+        int numSegCommitInfos = segInfos.size();
+        assertEquals(
+            "For a fresh index, the number of SegmentCommitInfo instances associated with the SegmentInfos instance should be 0, but were found to be "
+                + numSegCommitInfos,
+            0,
+            numSegCommitInfos
+        );
     }
 
     public void testNoMetadataHeaderCorruptIndexException() throws IOException {
@@ -700,8 +762,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ).thenReturn(metadataFiles);
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234");
-        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345");
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::" + Version.LATEST.major);
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::" + Version.LATEST.major);
 
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
@@ -723,8 +785,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ).thenReturn(metadataFiles);
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234");
-        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345");
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::" + Version.LATEST.major);
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::" + Version.LATEST.major);
 
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
@@ -748,8 +810,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ).thenReturn(metadataFiles);
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234");
-        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345");
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::" + Version.LATEST.major);
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::" + Version.LATEST.major);
 
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
@@ -773,8 +835,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ).thenReturn(metadataFiles);
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234");
-        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345");
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::" + Version.LATEST.major);
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::" + Version.LATEST.major);
 
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
@@ -798,8 +860,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ).thenReturn(metadataFiles);
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512");
-        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024");
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512::" + Version.LATEST.major);
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024::" + Version.LATEST.major);
 
         BytesStreamOutput output = new BytesStreamOutput();
         IndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
@@ -945,6 +1007,12 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
           After taking appropriate action, fix this test by setting the correct version here
          */
         assertEquals(RemoteSegmentMetadata.CURRENT_VERSION, 1);
+    }
+
+    private void indexDocs(int startDocId, int numberOfDocs) throws IOException {
+        for (int i = startDocId; i < startDocId + numberOfDocs; i++) {
+            indexDoc(indexShard, "_doc", Integer.toString(i));
+        }
     }
 
     public void testMetadataFileNameOrder() {

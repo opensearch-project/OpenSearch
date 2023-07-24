@@ -42,7 +42,6 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shard_count)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
             .build();
     }

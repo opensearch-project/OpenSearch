@@ -32,8 +32,6 @@
 
 package org.opensearch.search.aggregations;
 
-import com.carrotsearch.hppc.IntIntHashMap;
-import com.carrotsearch.hppc.IntIntMap;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -43,7 +41,9 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
@@ -67,7 +67,7 @@ public class CombiIT extends OpenSearchIntegTestCase {
 
         createIndex("idx");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
-        IntIntMap values = new IntIntHashMap();
+        final Map<Integer, Integer> values = new HashMap<>();
         long missingValues = 0;
         for (int i = 0; i < builders.length; i++) {
             String name = "name_" + randomIntBetween(1, 10);

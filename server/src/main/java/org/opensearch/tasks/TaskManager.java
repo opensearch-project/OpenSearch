@@ -32,8 +32,6 @@
 
 package org.opensearch.tasks;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -80,7 +78,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -584,7 +581,7 @@ public class TaskManager implements ClusterStateApplier {
         private final CancellableTask task;
         private boolean finished = false;
         private List<Runnable> cancellationListeners = null;
-        private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
+        private Map<DiscoveryNode, Integer> childTasksPerNode = null;
         private boolean banChildren = false;
         private List<Runnable> childTaskCompletedListeners = null;
 
@@ -666,15 +663,15 @@ public class TaskManager implements ClusterStateApplier {
                 throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
             }
             if (childTasksPerNode == null) {
-                childTasksPerNode = new ObjectIntHashMap<>();
+                childTasksPerNode = new HashMap<>();
             }
-            childTasksPerNode.addTo(node, 1);
+            childTasksPerNode.merge(node, 1, Integer::sum);
         }
 
         void unregisterChildNode(DiscoveryNode node) {
             final List<Runnable> listeners;
             synchronized (this) {
-                if (childTasksPerNode.addTo(node, -1) == 0) {
+                if (childTasksPerNode.merge(node, -1, Integer::sum) == 0) {
                     childTasksPerNode.remove(node);
                 }
                 if (childTasksPerNode.isEmpty() && this.childTaskCompletedListeners != null) {
@@ -695,9 +692,7 @@ public class TaskManager implements ClusterStateApplier {
                 if (childTasksPerNode == null) {
                     pendingChildNodes = Collections.emptySet();
                 } else {
-                    pendingChildNodes = StreamSupport.stream(childTasksPerNode.spliterator(), false)
-                        .map(e -> e.key)
-                        .collect(Collectors.toSet());
+                    pendingChildNodes = Set.copyOf(childTasksPerNode.keySet());
                 }
                 if (pendingChildNodes.isEmpty()) {
                     assert childTaskCompletedListeners == null;
