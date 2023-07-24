@@ -36,11 +36,11 @@ import org.opensearch.client.Response;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,8 +57,8 @@ public class ObjectPath {
     public static ObjectPath createFromResponse(Response response) throws IOException {
         byte[] bytes = EntityUtils.toByteArray(response.getEntity());
         String contentType = response.getHeader("Content-Type");
-        XContentType xContentType = XContentType.fromMediaType(contentType);
-        return ObjectPath.createFromXContent(xContentType.xContent(), new BytesArray(bytes));
+        MediaType mediaType = MediaType.fromMediaType(contentType);
+        return ObjectPath.createFromXContent(mediaType.xContent(), new BytesArray(bytes));
     }
 
     public static ObjectPath createFromXContent(XContent xContent, BytesReference input) throws IOException {

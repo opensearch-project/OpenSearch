@@ -497,6 +497,7 @@ public class XContentHelper {
      * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
      * by the {@link ToXContent#isFragment()} method returns.
      */
+    @Deprecated
     public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, boolean humanReadable) throws IOException {
         return toXContent(toXContent, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
     }
