@@ -749,7 +749,7 @@ public class Node implements Closeable {
                 remoteDirectoryFactory,
                 repositoriesServiceReference::get,
                 fileCacheCleaner,
-                    requestStats
+                requestStats
             );
 
             final AliasValidator aliasValidator = new AliasValidator();

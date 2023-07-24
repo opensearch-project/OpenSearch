@@ -830,9 +830,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         return new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
     }
 
-    private SearchRequestOperationsListener createSearchRequestOperationsListener(
-        SearchRequestStatsTesting searchCoordinatorStatsTesting
-    ) {
+    private SearchRequestOperationsListener createSearchRequestOperationsListener(SearchRequestStatsTesting searchCoordinatorStatsTesting) {
         return new SearchRequestOperationsListener() {
             @Override
             public void onDFSPreQueryPhaseStart(SearchPhaseContext context) {

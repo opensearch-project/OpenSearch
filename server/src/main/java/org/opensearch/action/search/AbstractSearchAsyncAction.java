@@ -192,12 +192,48 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             instanceStartMap.put("fetch", () -> searchRequestOperationsListener.onFetchPhaseStart(this));
             instanceStartMap.put("expand", () -> searchRequestOperationsListener.onExpandSearchPhaseStart(this));
 
-            instanceEndMap.put("dfs", () -> searchRequestOperationsListener.onDFSPreQueryPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
-            instanceEndMap.put("can_match", () -> searchRequestOperationsListener.onCanMatchPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
-            instanceEndMap.put("dfs_query", () -> searchRequestOperationsListener.onQueryPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
-            instanceEndMap.put("query", () -> searchRequestOperationsListener.onQueryPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
-            instanceEndMap.put("fetch", () -> searchRequestOperationsListener.onFetchPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
-            instanceEndMap.put("expand", () -> searchRequestOperationsListener.onExpandSearchPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
+            instanceEndMap.put(
+                "dfs",
+                () -> searchRequestOperationsListener.onDFSPreQueryPhaseEnd(
+                    this,
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+            );
+            instanceEndMap.put(
+                "can_match",
+                () -> searchRequestOperationsListener.onCanMatchPhaseEnd(
+                    this,
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+            );
+            instanceEndMap.put(
+                "dfs_query",
+                () -> searchRequestOperationsListener.onQueryPhaseEnd(
+                    this,
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+            );
+            instanceEndMap.put(
+                "query",
+                () -> searchRequestOperationsListener.onQueryPhaseEnd(
+                    this,
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+            );
+            instanceEndMap.put(
+                "fetch",
+                () -> searchRequestOperationsListener.onFetchPhaseEnd(
+                    this,
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+            );
+            instanceEndMap.put(
+                "expand",
+                () -> searchRequestOperationsListener.onExpandSearchPhaseEnd(
+                    this,
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+            );
 
             instanceFailMap.put("dfs", () -> searchRequestOperationsListener.onDFSPreQueryPhaseFailure(this));
             instanceFailMap.put("can_match", () -> searchRequestOperationsListener.onCanMatchPhaseFailure(this));
@@ -467,6 +503,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         instanceEndMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
     }
+
     private void onPhaseStart(SearchPhase phase, SearchPhaseContext searchPhaseContext) {
         setCurrentPhase(phase);
         phase.setStartTimeInNanos(System.nanoTime());

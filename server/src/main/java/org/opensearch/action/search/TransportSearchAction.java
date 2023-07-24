@@ -1009,7 +1009,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteLocalIndices,
             localShardIterators.size() + remoteShardIterators.size()
         );
-        long test1 = timeProvider.buildTookInMillis();
         AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncActionProvider.asyncSearchAction(
             task,
             searchRequest,
@@ -1026,7 +1025,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             threadPool,
             clusters
         );
-        long test10 = timeProvider.buildTookInMillis();
         action.start();
     }
 
@@ -1172,7 +1170,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchListenersList
             );
         } else {
-            long test4 = timeProvider.buildTookInMillis();
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
                 executor,
                 circuitBreaker,
@@ -1181,7 +1178,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shardIterators.size(),
                 exc -> cancelTask(task, exc)
             );
-            long test5 = timeProvider.buildTookInMillis();
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
@@ -1206,7 +1202,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                     break;
                 case QUERY_THEN_FETCH:
-                    long test6 = timeProvider.buildTookInMillis();
                     searchAsyncAction = new SearchQueryThenFetchAsyncAction(
                         logger,
                         searchTransportService,
@@ -1226,7 +1221,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         searchListenersList
                     );
-                    long test7 = timeProvider.buildTookInMillis();
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
