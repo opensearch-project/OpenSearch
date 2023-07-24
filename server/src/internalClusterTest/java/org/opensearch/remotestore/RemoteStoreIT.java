@@ -11,6 +11,7 @@ package org.opensearch.remotestore;
 import org.hamcrest.MatcherAssert;
 import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.index.IndexResponse;
@@ -33,6 +34,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.comparesEqualTo;
@@ -237,6 +239,38 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             assertEquals(shardCount, getNumShards(index).totalNumShards);
             verifyRestoredData(indicesStats.get(index), true, index);
         }
+    }
+
+    public void testRestoreFlowAllShardsNoRedIndex() throws InterruptedException {
+        int shardCount = randomIntBetween(1, 5);
+        prepareCluster(0, 3, INDEX_NAME, 0, shardCount);
+        assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
+
+        PlainActionFuture<RestoreRemoteStoreResponse> future = PlainActionFuture.newFuture();
+        client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(true), future);
+        try {
+            future.get();
+        } catch (ExecutionException e) {
+            // If the request goes to co-ordinator, e.getCause() can be RemoteTransportException
+            assertTrue(e.getCause() instanceof IllegalStateException || e.getCause().getCause() instanceof IllegalStateException);
+        }
+    }
+
+    public void testRestoreFlowNoRedIndex() {
+        int shardCount = randomIntBetween(1, 5);
+        prepareCluster(0, 3, INDEX_NAME, 0, shardCount);
+        Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true, INDEX_NAME);
+        assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
+
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(false), PlainActionFuture.newFuture());
+
+        ensureGreen(INDEX_NAME);
+        // This is required to get updated number from already active shards which were not restored
+        refresh(INDEX_NAME);
+        assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
+        verifyRestoredData(indexStats, true, INDEX_NAME);
     }
 
     /**

@@ -522,18 +522,21 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
             Version.CURRENT,
             new IndexId(TEST_INDEX_1, "1")
         );
-        Map<ShardId, ShardRouting> activeShards = new HashMap<>();
+        Map<ShardId, ShardRouting> activeInitializingShards = new HashMap<>();
         for (int i = 0; i < randomIntBetween(1, this.numberOfShards); i++) {
-            activeShards.put(new ShardId(indexMetadata.getIndex(), i), mock(ShardRouting.class));
+            activeInitializingShards.put(new ShardId(indexMetadata.getIndex(), i), mock(ShardRouting.class));
         }
         final RoutingTable routingTable = new RoutingTable.Builder().addAsRemoteStoreRestore(
             indexMetadata,
             remoteStoreRecoverySource,
-            activeShards
+            activeInitializingShards
         ).build();
         assertTrue(routingTable.hasIndex(TEST_INDEX_1));
         assertEquals(this.numberOfShards, routingTable.allShards(TEST_INDEX_1).size());
-        assertEquals(this.numberOfShards - activeShards.size(), routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size());
+        assertEquals(
+            this.numberOfShards - activeInitializingShards.size(),
+            routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size()
+        );
     }
 
     /** reverse engineer the in sync aid based on the given indexRoutingTable **/

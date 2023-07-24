@@ -62,6 +62,7 @@ import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
@@ -235,6 +236,7 @@ public class RestoreService implements ClusterStateApplier {
                     }
                     if (currentIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
                         IndexMetadata updatedIndexMetadata = currentIndexMetadata;
+                        Map<ShardId, ShardRouting> activeInitializingShards = new HashMap<>();
                         if (request.restoreAllShards()) {
                             if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
                                 throw new IllegalStateException(
@@ -251,6 +253,15 @@ public class RestoreService implements ClusterStateApplier {
                                 .settingsVersion(1 + currentIndexMetadata.getSettingsVersion())
                                 .aliasesVersion(1 + currentIndexMetadata.getAliasesVersion())
                                 .build();
+                        } else {
+                            activeInitializingShards = currentState.routingTable()
+                                .index(index)
+                                .shards()
+                                .values()
+                                .stream()
+                                .map(IndexShardRoutingTable::primaryShard)
+                                .filter(shardRouting -> shardRouting.unassigned() == false)
+                                .collect(Collectors.toMap(ShardRouting::shardId, Function.identity()));
                         }
 
                         IndexId indexId = new IndexId(index, updatedIndexMetadata.getIndexUUID());
@@ -260,13 +271,7 @@ public class RestoreService implements ClusterStateApplier {
                             updatedIndexMetadata.getCreationVersion(),
                             indexId
                         );
-                        Map<ShardId, ShardRouting> activeShards = currentState.routingTable()
-                            .index(index)
-                            .randomAllActiveShardsIt()
-                            .getShardRoutings()
-                            .stream()
-                            .collect(Collectors.toMap(ShardRouting::shardId, Function.identity()));
-                        rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource, activeShards);
+                        rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource, activeInitializingShards);
                         blocks.updateBlocks(updatedIndexMetadata);
                         mdBuilder.put(updatedIndexMetadata, true);
                         indicesToBeRestored.add(index);

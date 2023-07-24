@@ -453,7 +453,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         public Builder initializeAsRemoteStoreRestore(
             IndexMetadata indexMetadata,
             RemoteStoreRecoverySource recoverySource,
-            Map<ShardId, ShardRouting> activeShards
+            Map<ShardId, ShardRouting> activeInitializingShards
         ) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(
                 UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
@@ -466,8 +466,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
-                if (activeShards.containsKey(shardId)) {
-                    indexShardRoutingBuilder.addShard(activeShards.get(shardId));
+                if (activeInitializingShards.containsKey(shardId)) {
+                    indexShardRoutingBuilder.addShard(activeInitializingShards.get(shardId));
                 } else {
                     indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, true, recoverySource, unassignedInfo));
                 }
