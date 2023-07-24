@@ -845,7 +845,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @param tmpToFileName Map of temporary replication file to actual file name
      * @param infosBytes bytes[] of SegmentInfos supposed to be sent over by primary excluding segment_N file
      * @param segmentsGen segment generation number
-     * @param finalizeConsumer consumer for generated SegmentInfos
+     * @param finalizeConsumer consumer for action on passed in SegmentInfos
+     * @param renameConsumer consumer for action on temporary copied over files
      * @throws IOException Exception while reading store and building segment infos
      */
     public void buildInfosFromBytes(

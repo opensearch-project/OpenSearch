@@ -40,9 +40,13 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
     private static final Logger logger = LogManager.getLogger(RemoteStoreReplicationSource.class);
 
     private final IndexShard indexShard;
+    private final RemoteSegmentStoreDirectory remoteDirectory;
 
     public RemoteStoreReplicationSource(IndexShard indexShard) {
         this.indexShard = indexShard;
+        FilterDirectory remoteStoreDirectory = (FilterDirectory) indexShard.remoteStore().directory();
+        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+        this.remoteDirectory = (RemoteSegmentStoreDirectory) byteSizeCachingStoreDirectory.getDelegate();
     }
 
     @Override
@@ -51,15 +55,11 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         ReplicationCheckpoint checkpoint,
         ActionListener<CheckpointInfoResponse> listener
     ) {
-        FilterDirectory remoteStoreDirectory = (FilterDirectory) indexShard.remoteStore().directory();
-        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
-        RemoteSegmentStoreDirectory remoteDirectory = (RemoteSegmentStoreDirectory) byteSizeCachingStoreDirectory.getDelegate();
-
         Map<String, StoreFileMetadata> metadataMap;
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
         final Version version = indexShard.getSegmentInfosSnapshot().get().getCommitLuceneVersion();
         try {
-            RemoteSegmentMetadata mdFile = remoteDirectory.readLatestMetadataFile();
+            RemoteSegmentMetadata mdFile = remoteDirectory.init();
             // During initial recovery flow, the remote store might not have metadata as primary hasn't uploaded anything yet.
             if (mdFile == null && indexShard.state().equals(IndexShardState.STARTED) == false) {
                 listener.onResponse(new CheckpointInfoResponse(checkpoint, Collections.emptyMap(), null));
@@ -96,12 +96,12 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         ActionListener<GetSegmentFilesResponse> listener
     ) {
         try {
+            if (filesToFetch.isEmpty()) {
+                listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+                return;
+            }
             logger.trace("Downloading segments files from remote store {}", filesToFetch);
-            FilterDirectory remoteStoreDirectory = (FilterDirectory) indexShard.remoteStore().directory();
-            FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
-            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) byteSizeCachingStoreDirectory
-                .getDelegate();
-            RemoteSegmentMetadata remoteSegmentMetadata = remoteSegmentStoreDirectory.init();
+            RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
             List<StoreFileMetadata> downloadedSegments = new ArrayList<>();
             if (remoteSegmentMetadata != null) {
                 try {
@@ -111,7 +111,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                     String segmentNFile = null;
                     for (StoreFileMetadata fileMetadata : filesToFetch) {
                         String file = fileMetadata.name();
-                        storeDirectory.copyFrom(remoteSegmentStoreDirectory, file, file, IOContext.DEFAULT);
+                        storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                         downloadedSegments.add(fileMetadata);
                         if (file.startsWith(IndexFileNames.SEGMENTS)) {
                             assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
