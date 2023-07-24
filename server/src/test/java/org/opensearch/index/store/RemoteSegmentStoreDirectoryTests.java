@@ -700,7 +700,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         indexDocs(142364, 5);
         flushShard(indexShard, true);
         SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
-        long primaryTerm = 12;
+        long primaryTerm = indexShard.getLatestReplicationCheckpoint().getPrimaryTerm();
         String primaryTermLong = RemoteStoreUtils.invertLong(primaryTerm);
         long generation = segInfos.getGeneration();
         String generationLong = RemoteStoreUtils.invertLong(generation);
@@ -717,7 +717,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             getDummyMetadata("_0", (int) generation)
         );
         when(remoteMetadataDirectory.openInput(latestMetadataFileName, IOContext.DEFAULT)).thenReturn(
-            createMetadataFileBytes(metadataFilenameContentMapping.get(latestMetadataFileName), generation, primaryTerm)
+            createMetadataFileBytes(metadataFilenameContentMapping.get(latestMetadataFileName), indexShard.getLatestReplicationCheckpoint())
         );
 
         remoteSegmentStoreDirectory.init();
