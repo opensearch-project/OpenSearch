@@ -18,13 +18,14 @@ import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 
 public class TracerTests extends OpenSearchTestCase {
 
+    List<SpanScope> spansToBeClosed = new ArrayList<>();
     private final ThreadContextBasedTracerContextStorage contextStorage = new ThreadContextBasedTracerContextStorage(
         new ThreadContext(Settings.EMPTY),
         new MockTracingTelemetry()
     );
 
     public void testIterationScenarioFail() throws Exception {
-        List<SpanScope> spansToBeClosed = new ArrayList<>();
+
         DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), contextStorage);
         try (SpanScope parentSpanScope = defaultTracer.startSpan("parentSpan")) {
             Span parentSpan = defaultTracer.getCurrentSpan();
@@ -41,6 +42,7 @@ public class TracerTests extends OpenSearchTestCase {
                 newWrongParent = defaultTracer.getCurrentSpan();
             }
         }
+        // closing at the end to mimic the async task submission behaviour.
         spansToBeClosed.forEach(a -> a.close());
     }
 
@@ -51,13 +53,14 @@ public class TracerTests extends OpenSearchTestCase {
             Span parentSpan = defaultTracer.getCurrentSpan();
             for (int i = 0; i < 3; i++) {
                 String spanName = "childSpan_" + i;
-                try (Releasable releasable = contextStorage.newTracerContextStorage()) {
+                try (Releasable releasable = defaultTracer.newTracerContextStorage()) {
                     SpanScope child = defaultTracer.startSpan(spanName);
                     spansToBeClosed.add(child);
                     assertEquals(parentSpan, defaultTracer.getCurrentSpan().getParentSpan());
                 }
             }
         }
+        // closing at the end to mimic the async task submission behaviour.
         spansToBeClosed.forEach(a -> a.close());
     }
 }

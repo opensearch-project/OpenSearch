@@ -28,8 +28,10 @@ public interface Tracer extends Closeable {
     SpanScope startSpan(String spanName);
 
     /**
-     * Creates new TracerContextStorage.
-     * @return returns {@link Releasable} which should be able to release this TracerContextStorage.
+     * Creates new {@link TracerContextStorage}. This method should only be used cautiously for corner scenarios where
+     * multiple independent tasks/async work needs to be submitted from a loop, etc. This is the caller's responsibility
+     * to release the newly created storage to restore the parent {@link TracerContextStorage}.
+     * @return returns {@link Releasable}, resets the {@link TracerContextStorage} to previous one.
      */
     Releasable newTracerContextStorage();
 

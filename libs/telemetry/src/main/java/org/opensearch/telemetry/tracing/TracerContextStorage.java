@@ -39,7 +39,7 @@ public interface TracerContextStorage<K, V> {
 
     /**
      * Creates new TracerContextStorage.
-     * @return returns {@link Releasable} which should be able to release this TracerContextStorage.
+     * @return returns {@link Releasable} resets the {@link TracerContextStorage} to previous one.
      */
     Releasable newTracerContextStorage();
 }
