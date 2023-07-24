@@ -99,7 +99,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
             defaultPipeline,
             defaultRequireAlias,
             true,
-            request.getXContentType()
+            request.getMediaType()
         );
 
         // short circuit the call to the transport layer
