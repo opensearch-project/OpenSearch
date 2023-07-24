@@ -32,7 +32,9 @@ import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.tokens.StandardTokenClaims;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.OnBehalfOfClaims;
+import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
@@ -236,7 +238,13 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
         try {
 
+            // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
+
             Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);
+
+            TokenManager tokenManager = identityService.getTokenManager();
+            Subject subject = this.identityService.getSubject();
+            OnBehalfOfClaims claims = new OnBehalfOfClaims(discoveryExtensionNode.getId(), subject.getPrincipal().getName());
 
             transportService.sendRequest(
                 discoveryExtensionNode,
@@ -251,12 +259,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     filteredHeaders,
                     contentType,
                     content,
-                    identityService.getTokenManager()
-                        .issueOnBehalfOfToken(Map.of(StandardTokenClaims.AUDIENCE.getName(), discoveryExtensionNode.getId())) // This gets
-                                                                                                                              // an
-                                                                                                                              // extensions
-                                                                                                                              // uniqueId
-                        .getTokenValue(),
+                    tokenManager.issueOnBehalfOfToken(subject, claims).getTokenValue(),
                     httpVersion
                 ),
                 restExecuteOnExtensionResponseHandler

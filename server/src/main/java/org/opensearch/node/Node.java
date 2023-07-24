@@ -115,9 +115,6 @@ import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.ModulesBuilder;
 import org.opensearch.common.lease.Releasables;
-
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.NodeAndClusterIdStateListener;
@@ -142,6 +139,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
@@ -247,6 +245,7 @@ import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.telemetry.TelemetryModule;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;

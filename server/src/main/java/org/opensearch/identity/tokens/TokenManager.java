@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.tokens;
 
-import java.util.Map;
 import org.opensearch.identity.Subject;
 
 /**
@@ -22,7 +21,7 @@ public interface TokenManager {
      * @param claims: A list of claims for the token to be generated with
      * @return A new auth token
      */
-    public AuthToken issueOnBehalfOfToken(Map<String, Object> claims);
+    public AuthToken issueOnBehalfOfToken(final Subject subject, final OnBehalfOfClaims claims);
 
     /**
      * Authenticates a provided authToken

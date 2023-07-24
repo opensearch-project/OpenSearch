@@ -26,6 +26,7 @@ import org.opensearch.identity.Subject;
 import org.opensearch.identity.noop.NoopSubject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
+import org.opensearch.identity.tokens.OnBehalfOfClaims;
 import org.opensearch.identity.tokens.TokenManager;
 import org.passay.CharacterRule;
 import org.passay.EnglishCharacterData;
@@ -57,12 +58,12 @@ class ShiroTokenManager implements TokenManager {
     }
 
     @Override
-    public AuthToken issueOnBehalfOfToken(Map<String, Object> claims) {
+    public AuthToken issueOnBehalfOfToken(Subject subject, OnBehalfOfClaims claims) {
 
         String password = generatePassword();
-        final byte[] rawEncoded = Base64.getEncoder().encode((claims.get("aud") + ":" + password).getBytes(UTF_8)); // Make a new
-                                                                                                                    // ShiroSubject w/
-                                                                                                                    // audience as name
+        final byte[] rawEncoded = Base64.getEncoder().encode((claims.getAudience() + ":" + password).getBytes(UTF_8)); // Make a new
+                                                                                                                       // ShiroSubject w/
+                                                                                                                       // audience as name
         final String usernamePassword = new String(rawEncoded, UTF_8);
         final String header = "Basic " + usernamePassword;
         BasicAuthToken token = new BasicAuthToken(header);
