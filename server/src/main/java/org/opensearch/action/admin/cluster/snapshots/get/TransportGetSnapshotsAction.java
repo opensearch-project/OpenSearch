@@ -141,14 +141,15 @@ public class TransportGetSnapshotsAction extends TransportClusterManagerNodeActi
             final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
             if (isCurrentSnapshotsOnly(request.snapshots()) == false) {
                 repositoriesService.getRepositoryData(repository, repositoryDataListener);
+            } else {
+                // Setting repositoryDataListener response to be null if the request has only current snapshot
+                repositoryDataListener.onResponse(null);
             }
             repositoryDataListener.whenComplete(repositoryData -> {
-                if (isCurrentSnapshotsOnly(request.snapshots()) == false) {
+                if (repositoryData != null) {
                     for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
                         allSnapshotIds.put(snapshotId.getName(), snapshotId);
                     }
-                } else {
-                    repositoryData = null;
                 }
 
                 final Set<SnapshotId> toResolve = new HashSet<>();
