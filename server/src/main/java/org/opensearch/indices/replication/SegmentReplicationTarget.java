@@ -198,7 +198,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         try {
             store = store();
             store.incRef();
-            Map<String, String> tempFileNames = null;
+            Map<String, String> tempFileNames;
             if (this.indexShard.indexSettings().isRemoteStoreEnabled() == true) {
                 tempFileNames = getSegmentFilesResponse.getFiles() != null
                     ? getSegmentFilesResponse.getFiles()

@@ -39,10 +39,6 @@ public class RemoteSegmentMetadata {
 
     private final byte[] segmentInfosBytes;
 
-    public ReplicationCheckpoint getReplicationCheckpoint() {
-        return replicationCheckpoint;
-    }
-
     private final ReplicationCheckpoint replicationCheckpoint;
 
     public RemoteSegmentMetadata(
@@ -73,6 +69,10 @@ public class RemoteSegmentMetadata {
 
     public long getPrimaryTerm() {
         return replicationCheckpoint.getPrimaryTerm();
+    }
+
+    public ReplicationCheckpoint getReplicationCheckpoint() {
+        return replicationCheckpoint;
     }
 
     /**
