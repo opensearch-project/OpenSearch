@@ -28,6 +28,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.http.HttpRequest;
@@ -178,7 +179,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         String uri = httpRequest.uri();
         Map<String, String> params = request.params();
         Map<String, List<String>> headers = request.getHeaders();
-        XContentType contentType = request.getXContentType();
+        MediaType contentType = request.getMediaType();
         BytesReference content = request.content();
         HttpRequest.HttpVersion httpVersion = httpRequest.protocolVersion();
 

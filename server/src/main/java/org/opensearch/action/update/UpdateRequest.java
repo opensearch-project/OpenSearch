@@ -48,6 +48,7 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -922,13 +923,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             builder.field("doc_as_upsert", docAsUpsert);
         }
         if (doc != null) {
-            XContentType xContentType = doc.getContentType();
+            MediaType mediaType = doc.getContentType();
             try (
                 XContentParser parser = XContentHelper.createParser(
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,
                     doc.source(),
-                    xContentType
+                    mediaType
                 )
             ) {
                 builder.field("doc");
@@ -945,13 +946,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             builder.field("script", script);
         }
         if (upsertRequest != null) {
-            XContentType xContentType = upsertRequest.getContentType();
+            MediaType mediaType = upsertRequest.getContentType();
             try (
                 XContentParser parser = XContentHelper.createParser(
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,
                     upsertRequest.source(),
-                    xContentType
+                    mediaType
                 )
             ) {
                 builder.field("upsert");

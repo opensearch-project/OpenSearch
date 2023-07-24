@@ -259,7 +259,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         } else {
             pipelines = new HashMap<>();
         }
-        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getXContentType()));
+        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getMediaType()));
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metadata(
             Metadata.builder(currentState.getMetadata())
@@ -273,7 +273,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         if (searchPipelineInfos.isEmpty()) {
             throw new IllegalStateException("Search pipeline info is empty");
         }
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();
         Pipeline pipeline = PipelineWithMetrics.create(
             request.getId(),
             pipelineConfig,
