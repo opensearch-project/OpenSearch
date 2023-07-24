@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -107,14 +106,14 @@ public class RestFielddataAction extends AbstractCatAction {
 
         for (NodeStats nodeStats : nodeStatses.getNodes()) {
             if (nodeStats.getIndices().getFieldData().getFields() != null) {
-                for (ObjectLongCursor<String> cursor : nodeStats.getIndices().getFieldData().getFields()) {
+                for (var cursor : nodeStats.getIndices().getFieldData().getFields()) {
                     table.startRow();
                     table.addCell(nodeStats.getNode().getId());
                     table.addCell(nodeStats.getNode().getHostName());
                     table.addCell(nodeStats.getNode().getHostAddress());
                     table.addCell(nodeStats.getNode().getName());
-                    table.addCell(cursor.key);
-                    table.addCell(new ByteSizeValue(cursor.value));
+                    table.addCell(cursor.getKey());
+                    table.addCell(new ByteSizeValue(cursor.getValue()));
                     table.endRow();
                 }
             }

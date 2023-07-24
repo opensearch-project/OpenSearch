@@ -70,7 +70,7 @@ class AggregationCollectorManager implements CollectorManager<Collector, Reducea
             // using reduce is fine here instead of topLevelReduce as pipeline aggregation is evaluated on the coordinator after all
             // documents are collected across shards for an aggregation
             return new AggregationReduceableSearchResult(
-                InternalAggregations.reduce(Collections.singletonList(internalAggregations), context.partial())
+                InternalAggregations.reduce(Collections.singletonList(internalAggregations), context.partialOnShard())
             );
         } else {
             return new AggregationReduceableSearchResult(internalAggregations);

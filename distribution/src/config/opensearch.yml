@@ -92,10 +92,7 @@ ${path.logs}
 # cluster.remote_store.enabled: true
 #
 # Repository to use for segment upload while enforcing remote store for an index
-# cluster.remote_store.repository: my-repo-1
-#
-# Controls whether cluster imposes index creation only with translog remote store enabled
-# cluster.remote_store.translog.enabled: true
+# cluster.remote_store.segment.repository: my-repo-1
 #
 # Repository to use for translog upload while enforcing remote store for an index
 # cluster.remote_store.translog.repository: my-repo-1
@@ -126,12 +123,6 @@ ${path.logs}
 # the core.
 #
 #opensearch.experimental.feature.extensions.enabled: false
-#
-#
-# Gates the search pipeline feature. This feature enables configurable processors
-# for search requests and search responses, similar to ingest pipelines.
-#
-#opensearch.experimental.feature.search_pipeline.enabled: false
 #
 #
 # Gates the concurrent segment search feature. This feature enables concurrent segment search in a separate

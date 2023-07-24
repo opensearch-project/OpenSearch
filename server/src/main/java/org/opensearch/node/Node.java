@@ -261,7 +261,41 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
-import org.opensearch.watcher.ResourceWatcherService;
+
+import javax.net.ssl.SNIHostName;
+import java.io.BufferedWriter;
+import java.io.Closeable;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toList;
+import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
+import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
+import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -380,7 +414,7 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
-    private final TracerFactory tracerFactory;
+    private final Tracer tracer;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
     private FileCache fileCache;
@@ -992,8 +1026,7 @@ public class Node implements Closeable {
                 xContentRegistry,
                 namedWriteableRegistry,
                 pluginsService.filterPlugins(SearchPipelinePlugin.class),
-                client,
-                FeatureFlags.isEnabled(SEARCH_PIPELINE)
+                client
             );
             final TaskCancellationMonitoringSettings taskCancellationMonitoringSettings = new TaskCancellationMonitoringSettings(
                 settings,
@@ -1041,6 +1074,7 @@ public class Node implements Closeable {
                 searchModule.getIndexSearcherExecutor(threadPool)
             );
 
+            TracerFactory tracerFactory;
             if (FeatureFlags.isEnabled(TELEMETRY)) {
                 final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
                 List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
@@ -1049,7 +1083,8 @@ public class Node implements Closeable {
             } else {
                 tracerFactory = new NoopTracerFactory();
             }
-            resourcesToClose.add(tracerFactory::close);
+            tracer = tracerFactory.getTracer();
+            resourcesToClose.add(tracer::close);
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
@@ -1156,7 +1191,7 @@ public class Node implements Closeable {
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);
-                b.bind(TracerFactory.class).toInstance(this.tracerFactory);
+                b.bind(Tracer.class).toInstance(tracer);
             });
             injector = modules.createInjector();
 
@@ -1514,7 +1549,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(NodeEnvironment.class));
         toClose.add(stopWatch::stop);
         if (FeatureFlags.isEnabled(TELEMETRY)) {
-            toClose.add(injector.getInstance(TracerFactory.class));
+            toClose.add(injector.getInstance(Tracer.class));
         }
 
         if (logger.isTraceEnabled()) {
