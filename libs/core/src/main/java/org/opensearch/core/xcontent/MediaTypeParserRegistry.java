@@ -42,8 +42,8 @@ import java.util.Map;
  * @opensearch.internal
  */
 public final class MediaTypeParserRegistry {
-    private static Map<String, MediaType> formatToMediaType = new HashMap<>();
-    private static Map<String, MediaType> typeWithSubtypeToMediaType = new HashMap<>();
+    private static Map<String, MediaType> formatToMediaType = Map.of();
+    private static Map<String, MediaType> typeWithSubtypeToMediaType = Map.of();
 
     // Default mediaType singleton
     private static MediaType DEFAULT_MEDIA_TYPE;
