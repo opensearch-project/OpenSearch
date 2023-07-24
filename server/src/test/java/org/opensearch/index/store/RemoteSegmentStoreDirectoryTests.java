@@ -728,7 +728,13 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         when(storeDirectory.createOutput(startsWith("metadata__" + primaryTermLong + "__" + generationLong), eq(IOContext.DEFAULT)))
             .thenReturn(indexOutput);
 
-        remoteSegmentStoreDirectory.uploadMetadata(segInfos.files(true), segInfos, storeDirectory, generation, indexShard.getLatestReplicationCheckpoint());
+        remoteSegmentStoreDirectory.uploadMetadata(
+            segInfos.files(true),
+            segInfos,
+            storeDirectory,
+            generation,
+            indexShard.getLatestReplicationCheckpoint()
+        );
 
         verify(remoteMetadataDirectory).copyFrom(
             eq(storeDirectory),
