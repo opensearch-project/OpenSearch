@@ -50,9 +50,9 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.DocumentMapperForType;
@@ -390,13 +390,13 @@ public class TermVectorsService {
         IndexShard indexShard,
         String index,
         BytesReference doc,
-        XContentType xContentType,
+        MediaType mediaType,
         String routing
     ) {
         MapperService mapperService = indexShard.mapperService();
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate();
         ParsedDocument parsedDocument = docMapper.getDocumentMapper()
-            .parse(new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing));
+            .parse(new SourceToParse(index, "_id_for_tv_api", doc, mediaType, routing));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
         }

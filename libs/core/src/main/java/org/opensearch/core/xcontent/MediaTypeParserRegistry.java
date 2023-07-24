@@ -41,40 +41,52 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class MediaTypeParser<T extends MediaType> {
-    private final Map<String, T> formatToMediaType;
-    private final Map<String, T> typeWithSubtypeToMediaType;
+public final class MediaTypeParserRegistry {
+    private static Map<String, MediaType> formatToMediaType = Map.of();
+    private static Map<String, MediaType> typeWithSubtypeToMediaType = Map.of();
 
-    public MediaTypeParser(T[] acceptedMediaTypes) {
-        this(acceptedMediaTypes, Map.of());
-    }
+    // Default mediaType singleton
+    private static MediaType DEFAULT_MEDIA_TYPE;
 
-    public MediaTypeParser(T[] acceptedMediaTypes, Map<String, T> additionalMediaTypes) {
-        final int size = acceptedMediaTypes.length + additionalMediaTypes.size();
-        Map<String, T> formatMap = new HashMap<>(size);
-        Map<String, T> typeMap = new HashMap<>(size);
-        for (T mediaType : acceptedMediaTypes) {
+    public static void register(MediaType[] acceptedMediaTypes, Map<String, MediaType> additionalMediaTypes) {
+        // ensures the map is not overwritten:
+        Map<String, MediaType> typeMap = new HashMap<>(typeWithSubtypeToMediaType);
+        Map<String, MediaType> formatMap = new HashMap<>(formatToMediaType);
+        for (MediaType mediaType : acceptedMediaTypes) {
+            if (formatMap.containsKey(mediaType.format())) {
+                throw new IllegalArgumentException("unable to register mediaType: [" + mediaType.format() + "]. Type already exists.");
+            }
             typeMap.put(mediaType.typeWithSubtype(), mediaType);
             formatMap.put(mediaType.format(), mediaType);
         }
-        for (Map.Entry<String, T> entry : additionalMediaTypes.entrySet()) {
-            String typeWithSubtype = entry.getKey();
-            T mediaType = entry.getValue();
+        for (Map.Entry<String, MediaType> entry : additionalMediaTypes.entrySet()) {
+            String typeWithSubtype = entry.getKey().toLowerCase(Locale.ROOT);
+            if (typeMap.containsKey(typeWithSubtype)) {
+                throw new IllegalArgumentException(
+                    "unable to register mediaType: ["
+                        + entry.getKey()
+                        + "]. "
+                        + "Type already exists and is mapped to: [."
+                        + entry.getValue().format()
+                        + "]"
+                );
+            }
 
-            typeMap.put(typeWithSubtype.toLowerCase(Locale.ROOT), mediaType);
-            formatMap.put(mediaType.format(), mediaType);
+            MediaType mediaType = entry.getValue();
+            typeMap.put(typeWithSubtype, mediaType);
+            formatMap.putIfAbsent(mediaType.format(), mediaType); // ignore if the additional type mapping already exists
         }
 
-        this.formatToMediaType = Map.copyOf(formatMap);
-        this.typeWithSubtypeToMediaType = Map.copyOf(typeMap);
+        formatToMediaType = Map.copyOf(formatMap);
+        typeWithSubtypeToMediaType = Map.copyOf(typeMap);
     }
 
-    public T fromMediaType(String mediaType) {
+    public static MediaType fromMediaType(String mediaType) {
         ParsedMediaType parsedMediaType = parseMediaType(mediaType);
         return parsedMediaType != null ? parsedMediaType.getMediaType() : null;
     }
 
-    public T fromFormat(String format) {
+    public static MediaType fromFormat(String format) {
         if (format == null) {
             return null;
         }
@@ -86,7 +98,7 @@ public class MediaTypeParser<T extends MediaType> {
      * @param headerValue a header value from Accept or Content-Type
      * @return a parsed media-type
      */
-    public ParsedMediaType parseMediaType(String headerValue) {
+    public static ParsedMediaType parseMediaType(String headerValue) {
         if (headerValue != null) {
             String[] split = headerValue.toLowerCase(Locale.ROOT).split(";");
 
@@ -94,8 +106,8 @@ public class MediaTypeParser<T extends MediaType> {
             if (typeSubtype.length == 2) {
                 String type = typeSubtype[0];
                 String subtype = typeSubtype[1];
-                T xContentType = typeWithSubtypeToMediaType.get(type + "/" + subtype);
-                if (xContentType != null) {
+                MediaType mediaType = typeWithSubtypeToMediaType.get(type + "/" + subtype);
+                if (mediaType != null) {
                     Map<String, String> parameters = new HashMap<>();
                     for (int i = 1; i < split.length; i++) {
                         // spaces are allowed between parameters, but not between '=' sign
@@ -105,7 +117,7 @@ public class MediaTypeParser<T extends MediaType> {
                         }
                         parameters.put(keyValueParam[0], keyValueParam[1]);
                     }
-                    return new ParsedMediaType(xContentType, parameters);
+                    return new ParsedMediaType(mediaType, parameters);
                 }
             }
 
@@ -113,28 +125,42 @@ public class MediaTypeParser<T extends MediaType> {
         return null;
     }
 
-    private boolean hasSpaces(String s) {
+    private static boolean hasSpaces(String s) {
         return s.trim().equals(s) == false;
     }
 
     /**
      * A media type object that contains all the information provided on a Content-Type or Accept header
      */
-    public class ParsedMediaType {
+    public static class ParsedMediaType {
         private final Map<String, String> parameters;
-        private final T mediaType;
+        private final MediaType mediaType;
 
-        public ParsedMediaType(T mediaType, Map<String, String> parameters) {
+        public ParsedMediaType(MediaType mediaType, Map<String, String> parameters) {
             this.parameters = parameters;
             this.mediaType = mediaType;
         }
 
-        public T getMediaType() {
+        public MediaType getMediaType() {
             return mediaType;
         }
 
         public Map<String, String> getParameters() {
             return parameters;
         }
+    }
+
+    public static void setDefaultMediaType(final MediaType mediaType) {
+        if (DEFAULT_MEDIA_TYPE != null) {
+            throw new RuntimeException(
+                "unable to reset the default media type from current default [" + DEFAULT_MEDIA_TYPE + "] to [" + mediaType + "]"
+            );
+        } else {
+            DEFAULT_MEDIA_TYPE = mediaType;
+        }
+    }
+
+    public static MediaType getDefaultMediaType() {
+        return DEFAULT_MEDIA_TYPE;
     }
 }
