@@ -42,7 +42,6 @@ import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
@@ -67,7 +66,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.lease.Releasable;
@@ -78,8 +77,9 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.index.Index;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
 import org.opensearch.index.VersionType;
@@ -650,7 +650,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         BlobStore blobStore = Mockito.mock(BlobStore.class);
         BlobContainer blobContainer = Mockito.mock(BlobContainer.class);
         doAnswer(invocation -> {
-            LatchedActionListener<List<BlobMetadata>> listener = invocation.getArgument(3);
+            ActionListener<List<BlobMetadata>> listener = invocation.getArgument(3);
             listener.onResponse(new ArrayList<>());
             return null;
         }).when(blobContainer)

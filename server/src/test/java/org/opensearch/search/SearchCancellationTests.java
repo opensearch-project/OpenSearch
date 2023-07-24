@@ -48,6 +48,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
+import org.junit.Before;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.search.internal.ContextIndexSearcher;
@@ -71,6 +72,7 @@ public class SearchCancellationTests extends OpenSearchTestCase {
 
     private static Directory dir;
     private static IndexReader reader;
+    private SearchContext searchContext;
 
     @BeforeClass
     public static void setup() throws IOException {
@@ -106,6 +108,12 @@ public class SearchCancellationTests extends OpenSearchTestCase {
         reader = null;
     }
 
+    @Before
+    public void testSetup() {
+        searchContext = mock(SearchContext.class);
+        when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+    }
+
     public void testAddingCancellationActions() throws IOException {
         ContextIndexSearcher searcher = new ContextIndexSearcher(
             reader,
@@ -114,7 +122,7 @@ public class SearchCancellationTests extends OpenSearchTestCase {
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
             null,
-            mock(SearchContext.class)
+            searchContext
         );
         NullPointerException npe = expectThrows(NullPointerException.class, () -> searcher.addQueryCancellation(null));
         assertEquals("cancellation runnable should not be null", npe.getMessage());
@@ -128,7 +136,6 @@ public class SearchCancellationTests extends OpenSearchTestCase {
     public void testCancellableCollector() throws IOException {
         TotalHitCountCollector collector1 = new TotalHitCountCollector();
         Runnable cancellation = () -> { throw new TaskCancelledException("cancelled"); };
-        SearchContext searchContext = mock(SearchContext.class);
         IndexShard indexShard = mock(IndexShard.class);
         when(searchContext.indexShard()).thenReturn(indexShard);
         ContextIndexSearcher searcher = new ContextIndexSearcher(
@@ -167,7 +174,7 @@ public class SearchCancellationTests extends OpenSearchTestCase {
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
             null,
-            mock(SearchContext.class)
+            searchContext
         );
         searcher.addQueryCancellation(cancellation);
         CompiledAutomaton automaton = new CompiledAutomaton(new RegExp("a.*").toAutomaton());

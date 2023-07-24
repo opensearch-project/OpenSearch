@@ -47,7 +47,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.hamcrest.Matchers;

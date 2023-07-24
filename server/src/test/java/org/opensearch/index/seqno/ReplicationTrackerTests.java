@@ -35,6 +35,7 @@ package org.opensearch.index.seqno;
 import org.apache.lucene.codecs.Codec;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -43,12 +44,12 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.SegmentReplicationShardStats;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
@@ -1292,7 +1293,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(allocations.size(), equalTo(active.size() + initializing.size()));
 
         final AllocationId primaryId = active.iterator().next();
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final ReplicationTracker tracker = newTracker(primaryId, settings);
         assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
@@ -1367,7 +1368,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertThat(allocations.size(), equalTo(active.size() + initializing.size()));
 
         final AllocationId primaryId = active.iterator().next();
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final ReplicationTracker tracker = newTracker(primaryId, settings);
         assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
@@ -1437,7 +1438,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
      */
     public void testUpdateGlobalCheckpointOnReplicaWithRemoteTranslogEnabled() {
         final AllocationId active = AllocationId.newInitializing();
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final ReplicationTracker tracker = newTracker(active, settings);
         final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE - 1);
         tracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
@@ -1459,7 +1460,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Set<AllocationId> initializing = new HashSet<>(initializingWithCheckpoints.keySet());
         final AllocationId primaryId = active.iterator().next();
         final AllocationId replicaId = initializing.iterator().next();
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final ReplicationTracker tracker = newTracker(primaryId, settings);
         tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
         final long localCheckpoint = randomLongBetween(0, Long.MAX_VALUE - 1);
@@ -1484,7 +1485,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assigned.putAll(active);
         assigned.putAll(initializing);
         AllocationId primaryId = active.keySet().iterator().next();
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final ReplicationTracker tracker = newTracker(primaryId, settings);
         tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
@@ -1514,7 +1515,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         logger.info("active: {}, initializing: {}", active, initializing);
 
         AllocationId primaryId = active.keySet().iterator().next();
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final ReplicationTracker tracker = newTracker(primaryId, settings);
         tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
@@ -1539,7 +1540,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final Map<AllocationId, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<AllocationId, Long> nonApproved = randomAllocationsWithLocalCheckpoints(1, 5);
         final AllocationId primaryId = active.keySet().iterator().next();
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final ReplicationTracker tracker = newTracker(primaryId, settings);
         tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
@@ -1577,7 +1578,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         if (randomBoolean()) {
             allocations.putAll(initializingToBeRemoved);
         }
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final ReplicationTracker tracker = newTracker(primaryId, settings);
         tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
@@ -1623,7 +1624,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final Set<AllocationId> initializingIds = activeAndInitializingAllocationIds.v2();
         AllocationId primaryId = activeAllocationIds.iterator().next();
         IndexShardRoutingTable routingTable = routingTable(initializingIds, primaryId);
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final ReplicationTracker tracker = newTracker(primaryId, settings);
         tracker.updateFromClusterManager(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
@@ -1927,7 +1928,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     }
 
     public void testPrimaryContextHandoffWithRemoteTranslogEnabled() throws IOException {
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         final ShardId shardId = new ShardId("test", "_na_", 0);
 
@@ -2106,7 +2107,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     public void testIllegalStateExceptionIfUnknownAllocationIdWithRemoteTranslogEnabled() {
         final AllocationId active = AllocationId.newInitializing();
         final AllocationId initializing = AllocationId.newInitializing();
-        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         final ReplicationTracker tracker = newTracker(active, settings);
         tracker.updateFromClusterManager(
             randomNonNegativeLong(),

@@ -8,7 +8,7 @@
 
 package org.opensearch.search.backpressure.stats;
 
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 

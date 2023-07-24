@@ -32,9 +32,9 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -89,6 +89,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         private final ScriptService scriptService;
         private final IntConsumer multiBucketConsumer;
         private final PipelineTree pipelineTreeRoot;
+
+        private boolean isSliceLevel;
         /**
          * Supplies the pipelines when the result of the reduce is serialized
          * to node versions that need pipeline aggregators to be serialized
@@ -138,6 +140,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             this.multiBucketConsumer = multiBucketConsumer;
             this.pipelineTreeRoot = pipelineTreeRoot;
             this.pipelineTreeForBwcSerialization = pipelineTreeForBwcSerialization;
+            this.isSliceLevel = false;
         }
 
         /**
@@ -147,6 +150,14 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          */
         public boolean isFinalReduce() {
             return pipelineTreeRoot != null;
+        }
+
+        public void setSliceLevel(boolean sliceLevel) {
+            this.isSliceLevel = sliceLevel;
+        }
+
+        public boolean isSliceLevel() {
+            return this.isSliceLevel;
         }
 
         public BigArrays bigArrays() {

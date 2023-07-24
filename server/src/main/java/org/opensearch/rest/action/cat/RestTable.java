@@ -36,7 +36,7 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Table;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.UTF8StreamWriter;
-import org.opensearch.common.io.stream.BytesStream;
+import org.opensearch.core.common.io.stream.BytesStream;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.SizeValue;
@@ -48,7 +48,7 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;

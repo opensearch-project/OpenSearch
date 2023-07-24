@@ -36,14 +36,17 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
+import org.opensearch.indices.replication.SegmentReplicationSource;
+import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -51,6 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.mockito.Mockito.mock;
 
 public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationTestCase {
     static final ReplicationListener listener = new ReplicationListener() {
@@ -108,7 +112,30 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
         }
     }
 
-    public void testMultiReplicationsForSingleShard() throws Exception {
+    public void testStartMultipleReplicationsForSingleShard() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            shards.startAll();
+            final ReplicationCollection<ReplicationTarget> collection = new ReplicationCollection<>(logger, threadPool);
+            final IndexShard shard = shards.addReplica();
+            shards.recoverReplica(shard);
+            final SegmentReplicationTarget target1 = new SegmentReplicationTarget(
+                shard,
+                mock(SegmentReplicationSource.class),
+                mock(ReplicationListener.class)
+            );
+            final SegmentReplicationTarget target2 = new SegmentReplicationTarget(
+                shard,
+                mock(SegmentReplicationSource.class),
+                mock(ReplicationListener.class)
+            );
+            collection.startSafe(target1, TimeValue.timeValueMinutes(30));
+            assertThrows(ReplicationFailedException.class, () -> collection.startSafe(target2, TimeValue.timeValueMinutes(30)));
+            target1.decRef();
+            target2.decRef();
+        }
+    }
+
+    public void testGetReplicationTargetMultiReplicationsForSingleShard() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             final ReplicationCollection<RecoveryTarget> collection = new ReplicationCollection<>(logger, threadPool);
             final IndexShard shard1 = shards.addReplica();

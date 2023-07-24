@@ -32,7 +32,6 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.ObjectFloatHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.FailedNodeException;
@@ -41,9 +40,11 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -81,7 +82,7 @@ public class Gateway {
             }
         }
 
-        final ObjectFloatHashMap<Index> indices = new ObjectFloatHashMap<>();
+        final Map<Index, Float> indices = new HashMap<>();
         Metadata electedGlobalState = null;
         int found = 0;
         for (final TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
@@ -95,7 +96,7 @@ public class Gateway {
                 electedGlobalState = nodeState.metadata();
             }
             for (final IndexMetadata cursor : nodeState.metadata().indices().values()) {
-                indices.addTo(cursor.getIndex(), 1);
+                indices.merge(cursor.getIndex(), 1f, Float::sum);
             }
         }
         if (found < requiredAllocation) {
@@ -106,7 +107,7 @@ public class Gateway {
         final Metadata.Builder metadataBuilder = Metadata.builder(electedGlobalState).removeAllIndices();
 
         assert !indices.containsKey(null);
-        final Object[] keys = indices.keys;
+        final Object[] keys = indices.keySet().toArray();
         for (int i = 0; i < keys.length; i++) {
             if (keys[i] != null) {
                 final Index index = (Index) keys[i];

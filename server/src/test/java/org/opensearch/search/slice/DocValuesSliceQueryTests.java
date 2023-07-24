@@ -32,7 +32,6 @@
 
 package org.opensearch.search.slice;
 
-import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -49,6 +48,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.util.BitMixer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

@@ -34,7 +34,7 @@ package org.opensearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;

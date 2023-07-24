@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.opensearch.core.Assertions;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
@@ -48,9 +47,9 @@ import org.opensearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -62,17 +61,18 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -291,9 +291,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
 
-    public static final String SETTING_REMOTE_STORE_REPOSITORY = "index.remote_store.repository";
-
-    public static final String SETTING_REMOTE_TRANSLOG_STORE_ENABLED = "index.remote_store.translog.enabled";
+    public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
 
     public static final String SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY = "index.remote_store.translog.repository";
 
@@ -337,7 +335,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * Used to specify remote store repository to use for this index.
      */
     public static final Setting<String> INDEX_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
-        SETTING_REMOTE_STORE_REPOSITORY,
+        SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
         new Setting.Validator<>() {
 
             @Override
@@ -377,34 +375,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
     }
 
-    /**
-     * Used to specify if the index translog operations should be persisted in the remote store.
-     */
-    public static final Setting<Boolean> INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING = Setting.boolSetting(
-        SETTING_REMOTE_TRANSLOG_STORE_ENABLED,
-        false,
-        new Setting.Validator<>() {
-
-            @Override
-            public void validate(final Boolean value) {}
-
-            @Override
-            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
-                if (value == true) {
-                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
-                return settings.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final
-    );
-
     public static final Setting<String> INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING = Setting.simpleString(
         SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
         new Setting.Validator<>() {
@@ -419,13 +389,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         "Setting " + INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey() + " should be provided with non-empty repository ID"
                     );
                 } else {
-                    final Boolean isRemoteTranslogStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                    final Boolean isRemoteTranslogStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
                     if (isRemoteTranslogStoreEnabled == null || isRemoteTranslogStoreEnabled == false) {
                         throw new IllegalArgumentException(
                             "Settings "
                                 + INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey()
                                 + " can only be set/enabled when "
-                                + INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()
+                                + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
                                 + " is set to true"
                         );
                     }
@@ -434,7 +404,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
                 return settings.iterator();
             }
         },
@@ -1796,7 +1766,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             }
                         }
                     } else if (KEY_PRIMARY_TERMS.equals(currentFieldName)) {
-                        LongArrayList list = new LongArrayList();
+                        final List<Long> list = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_NUMBER) {
                                 list.add(parser.longValue());
@@ -1804,7 +1774,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                                 throw new IllegalStateException("found a non-numeric value under [" + KEY_PRIMARY_TERMS + "]");
                             }
                         }
-                        builder.primaryTerms(list.toArray());
+                        builder.primaryTerms(list.stream().mapToLong(i -> i).toArray());
                     } else {
                         throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
                     }

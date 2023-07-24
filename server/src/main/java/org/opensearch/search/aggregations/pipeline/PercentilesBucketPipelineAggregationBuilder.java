@@ -32,16 +32,16 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import com.carrotsearch.hppc.DoubleArrayList;
-
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -175,11 +175,11 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
         protected boolean token(XContentParser parser, String field, XContentParser.Token token, Map<String, Object> params)
             throws IOException {
             if (PERCENTS_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.START_ARRAY) {
-                DoubleArrayList percents = new DoubleArrayList(10);
+                final List<Double> percents = new ArrayList<>(10);
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                     percents.add(parser.doubleValue());
                 }
-                params.put(PERCENTS_FIELD.getPreferredName(), percents.toArray());
+                params.put(PERCENTS_FIELD.getPreferredName(), percents.stream().mapToDouble(Double::doubleValue).toArray());
                 return true;
             } else if (KEYED_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.VALUE_BOOLEAN) {
                 params.put(KEYED_FIELD.getPreferredName(), parser.booleanValue());

@@ -34,7 +34,7 @@ package org.opensearch.client.core.tasks;
 
 import org.opensearch.client.Requests;
 import org.opensearch.client.tasks.GetTaskResponse;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.RawTaskStatus;

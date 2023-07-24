@@ -39,7 +39,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.Mockito;
 

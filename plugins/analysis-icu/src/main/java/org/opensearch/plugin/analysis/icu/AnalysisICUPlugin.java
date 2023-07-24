@@ -35,7 +35,7 @@ package org.opensearch.plugin.analysis.icu;
 import static java.util.Collections.singletonMap;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.analysis.AnalyzerProvider;
 import org.opensearch.index.analysis.CharFilterFactory;
 import org.opensearch.index.analysis.IcuAnalyzerProvider;

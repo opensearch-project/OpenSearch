@@ -32,15 +32,13 @@
 
 package org.opensearch.index.translog;
 
-import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.procedures.LongProcedure;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Channels;
@@ -53,7 +51,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.Assertions;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -62,7 +60,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -105,7 +105,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> try(Releasable lock = writeLock.acquire()) -> synchronized(this)
     private final Object syncLock = new Object();
 
-    private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
+    private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
     private ReleasableBytesStreamOutput buffer;
@@ -511,7 +511,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
-                    final LongArrayList flushedSequenceNumbers;
+                    final List<Long> flushedSequenceNumbers;
                     final ReleasableBytesReference toWrite;
                     try (ReleasableLock toClose = writeLock.acquire()) {
                         synchronized (this) {
@@ -519,7 +519,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             checkpointToSync = getCheckpoint();
                             toWrite = pollOpsToWrite();
                             flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                            nonFsyncedSequenceNumbers = new LongArrayList(64);
+                            nonFsyncedSequenceNumbers = new ArrayList<>(64);
                         }
 
                         try {
@@ -541,7 +541,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         closeWithTragicEvent(ex);
                         throw ex;
                     }
-                    flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
+                    flushedSequenceNumbers.forEach(persistedSequenceNumberConsumer::accept);
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset : "illegal state: "
                         + lastSyncedCheckpoint.offset
                         + " <= "

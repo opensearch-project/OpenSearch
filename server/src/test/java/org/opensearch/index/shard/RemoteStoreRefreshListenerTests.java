@@ -56,12 +56,19 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     public void setup(boolean primary, int numberOfDocs) throws IOException {
         indexShard = newStartedShard(
             primary,
-            Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true).build(),
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "temp-fs")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
+                .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build(),
             new InternalEngineFactory()
         );
 
-        indexDocs(1, numberOfDocs);
-        indexShard.refresh("test");
+        if (primary) {
+            indexDocs(1, numberOfDocs);
+            indexShard.refresh("test");
+        }
 
         clusterService = new ClusterService(
             Settings.EMPTY,
@@ -381,6 +388,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             true,
             Settings.builder()
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "temp-fs")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build(),
             new InternalEngineFactory()

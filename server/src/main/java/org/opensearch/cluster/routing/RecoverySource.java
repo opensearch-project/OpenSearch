@@ -35,9 +35,9 @@ package org.opensearch.cluster.routing;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -490,6 +490,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return Objects.hash(restoreUUID, index, version);
         }
 
+        // TODO: This override should be removed/be updated to return "true",
+        // i.e. we expect no retention leases, once the following issue is fixed:
+        // https://github.com/opensearch-project/OpenSearch/issues/8795
+        @Override
+        public boolean expectEmptyRetentionLeases() {
+            return false;
+        }
     }
 
     /**

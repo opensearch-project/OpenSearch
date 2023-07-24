@@ -9,7 +9,7 @@
 package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -21,6 +21,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 
 import java.io.InputStream;
@@ -53,12 +54,13 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
     /**
      * Constructor that takes a filter query.
      *
-     * @param tag         processor tag
-     * @param description processor description
+     * @param tag            processor tag
+     * @param description    processor description
+     * @param ignoreFailure  option to ignore failure
      * @param filterQuery the query that will be added as a filter to incoming queries
      */
-    public FilterQueryRequestProcessor(String tag, String description, QueryBuilder filterQuery) {
-        super(tag, description);
+    FilterQueryRequestProcessor(String tag, String description, boolean ignoreFailure, QueryBuilder filterQuery) {
+        super(tag, description, ignoreFailure);
         this.filterQuery = filterQuery;
     }
 
@@ -101,6 +103,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
             Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
             String tag,
             String description,
+            boolean ignoreFailure,
             Map<String, Object> config,
             PipelineContext pipelineContext
         ) throws Exception {
@@ -114,7 +117,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
             ) {
-                return new FilterQueryRequestProcessor(tag, description, parseInnerQueryBuilder(parser));
+                return new FilterQueryRequestProcessor(tag, description, ignoreFailure, parseInnerQueryBuilder(parser));
             }
         }
     }

@@ -32,7 +32,7 @@
 package org.opensearch.index.query;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 
 import java.io.IOException;
 import java.util.ArrayList;

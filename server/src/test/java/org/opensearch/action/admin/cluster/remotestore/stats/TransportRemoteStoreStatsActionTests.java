@@ -25,7 +25,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
@@ -46,7 +46,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 
 public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
     private IndicesService indicesService;
@@ -71,7 +71,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             .settings(
                 settings(Version.CURRENT).put(SETTING_INDEX_UUID, INDEX.getUUID())
                     .put(SETTING_REMOTE_STORE_ENABLED, true)
-                    .put(SETTING_REMOTE_STORE_REPOSITORY, "my-test-repo")
+                    .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-test-repo")
                     .build()
             )
             .numberOfShards(2)

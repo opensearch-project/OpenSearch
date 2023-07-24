@@ -11,7 +11,7 @@ package org.opensearch.search.pipeline.common;
 import org.opensearch.action.search.SearchRequest;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -25,6 +25,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.SearchScript;
 import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.common.helpers.SearchRequestMap;
 
@@ -54,6 +55,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
      *
      * @param tag The processor's tag.
      * @param description The processor's description.
+     * @param ignoreFailure The option to ignore failure
      * @param script The {@link Script} to execute.
      * @param precompiledSearchScript The {@link Script} precompiled
      * @param scriptService The {@link ScriptService} used to execute the script.
@@ -61,11 +63,12 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
     ScriptRequestProcessor(
         String tag,
         String description,
+        boolean ignoreFailure,
         Script script,
         @Nullable SearchScript precompiledSearchScript,
         ScriptService scriptService
     ) {
-        super(tag, description);
+        super(tag, description, ignoreFailure);
         this.script = script;
         this.precompiledSearchScript = precompiledSearchScript;
         this.scriptService = scriptService;
@@ -146,6 +149,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
             Map<String, Processor.Factory<SearchRequestProcessor>> registry,
             String processorTag,
             String description,
+            boolean ignoreFailure,
             Map<String, Object> config,
             PipelineContext pipelineContext
         ) throws Exception {
@@ -174,7 +178,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
                 } catch (ScriptException e) {
                     throw newConfigurationException(TYPE, processorTag, null, e);
                 }
-                return new ScriptRequestProcessor(processorTag, description, script, searchScript, scriptService);
+                return new ScriptRequestProcessor(processorTag, description, ignoreFailure, script, searchScript, scriptService);
             }
         }
     }

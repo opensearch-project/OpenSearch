@@ -38,7 +38,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.ReplicationGroup;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;

@@ -61,13 +61,13 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -95,7 +95,7 @@ import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -131,7 +131,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
@@ -257,18 +257,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * Used to specify default repo to use for segment upload for remote store backed indices
      */
     public static final Setting<String> CLUSTER_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
-        "cluster.remote_store.repository",
+        "cluster.remote_store.segment.repository",
         "",
-        Property.NodeScope,
-        Property.Final
-    );
-
-    /**
-     * Used to specify if all indexes are to create with translog remote store enabled by default
-     */
-    public static final Setting<Boolean> CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING = Setting.boolSetting(
-        "cluster.remote_store.translog.enabled",
-        false,
         Property.NodeScope,
         Property.Final
     );

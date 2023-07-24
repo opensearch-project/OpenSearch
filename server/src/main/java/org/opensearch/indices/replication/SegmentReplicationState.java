@@ -10,9 +10,9 @@ package org.opensearch.indices.replication;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -45,8 +45,7 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         GET_CHECKPOINT_INFO((byte) 3),
         FILE_DIFF((byte) 4),
         GET_FILES((byte) 5),
-        FINALIZE_REPLICATION((byte) 6),
-        CANCELLED((byte) 7);
+        FINALIZE_REPLICATION((byte) 6);
 
         private static final Stage[] STAGES = new Stage[Stage.values().length];
 
@@ -242,14 +241,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
             case DONE:
                 validateAndSetStage(Stage.FINALIZE_REPLICATION, stage);
                 // add the overall timing data
-                overallTimer.stop();
-                timingData.put("OVERALL", overallTimer.time());
-                break;
-            case CANCELLED:
-                if (this.stage == Stage.DONE) {
-                    throw new IllegalStateException("can't move replication to Cancelled state from Done.");
-                }
-                this.stage = Stage.CANCELLED;
                 overallTimer.stop();
                 timingData.put("OVERALL", overallTimer.time());
                 break;

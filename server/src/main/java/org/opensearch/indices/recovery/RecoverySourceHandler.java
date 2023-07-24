@@ -835,7 +835,7 @@ public abstract class RecoverySourceHandler {
             } else {
                 // Force round of segment replication to update its checkpoint to primary's
                 if (shard.indexSettings().isSegRepEnabled()) {
-                    recoveryTarget.forceSegmentFileSync();
+                    cancellableThreads.execute(recoveryTarget::forceSegmentFileSync);
                 }
             }
             stopWatch.stop();

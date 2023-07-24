@@ -41,12 +41,12 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -63,7 +63,6 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
-import static org.opensearch.common.util.FeatureFlags.SEARCH_PIPELINE;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
@@ -613,7 +612,6 @@ public final class IndexSettings {
     private final int numberOfShards;
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
-    private final boolean isRemoteTranslogStoreEnabled;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private final String remoteStoreTranslogRepository;
     private final String remoteStoreRepository;
@@ -682,7 +680,6 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
-    private volatile boolean searchSegmentOrderReversed;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -783,10 +780,9 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
-        isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
-        remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
+        remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
         isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
 
         if (isRemoteSnapshot && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
@@ -924,11 +920,10 @@ public final class IndexSettings {
         );
     }
 
-    private void setSearchSegmentOrderReversed(boolean reversed) {
-        this.searchSegmentOrderReversed = reversed;
-    }
-
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
+        if (this.replicationType == ReplicationType.SEGMENT && this.getNumberOfReplicas() > 0) {
+            logger.warn("Search idle is not supported for indices with replicas using 'replication.type: SEGMENT'");
+        }
         this.searchIdleAfter = searchIdleAfter;
     }
 
@@ -1068,7 +1063,9 @@ public final class IndexSettings {
      * Returns if remote translog store is enabled for this index.
      */
     public boolean isRemoteTranslogStoreEnabled() {
-        return isRemoteTranslogStoreEnabled;
+        // Today enabling remote store automatically enables remote translog as well.
+        // which is why isRemoteStoreEnabled is used to represent isRemoteTranslogStoreEnabled
+        return isRemoteStoreEnabled;
     }
 
     /**
@@ -1105,13 +1102,6 @@ public final class IndexSettings {
      */
     public Settings getNodeSettings() {
         return nodeSettings;
-    }
-
-    /**
-     * Returns true if index level setting for leaf reverse order search optimization is enabled
-     */
-    public boolean getSearchSegmentOrderReversed() {
-        return this.searchSegmentOrderReversed;
     }
 
     /**
@@ -1621,16 +1611,6 @@ public final class IndexSettings {
     }
 
     public void setDefaultSearchPipeline(String defaultSearchPipeline) {
-        if (FeatureFlags.isEnabled(SEARCH_PIPELINE)) {
-            this.defaultSearchPipeline = defaultSearchPipeline;
-        } else {
-            throw new SettingsException(
-                "Unable to update setting: "
-                    + DEFAULT_SEARCH_PIPELINE.getKey()
-                    + ". This is an experimental feature that is currently disabled, please enable the "
-                    + SEARCH_PIPELINE
-                    + " feature flag first."
-            );
-        }
+        this.defaultSearchPipeline = defaultSearchPipeline;
     }
 }

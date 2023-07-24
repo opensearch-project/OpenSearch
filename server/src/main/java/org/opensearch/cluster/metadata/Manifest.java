@@ -40,7 +40,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 
 import java.io.IOException;
 import java.util.Collections;
