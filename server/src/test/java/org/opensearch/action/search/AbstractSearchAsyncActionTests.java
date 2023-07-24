@@ -336,7 +336,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     }
 
     public void testOnPhaseListenersFailure() {
-        SearchCoordinatorStatsTesting searchCoordinatorMockStats = new SearchCoordinatorStatsTesting();
+        SearchRequestStatsTesting searchCoordinatorMockStats = new SearchRequestStatsTesting();
         SearchRequestOperationsListener testListener = createSearchRequestOperationsListener(searchCoordinatorMockStats);
         final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
         SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
@@ -593,7 +593,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     }
 
     public void testSearchRequestListeners() throws InterruptedException {
-        SearchCoordinatorStats testListener = new SearchCoordinatorStats();
+        SearchRequestStats testListener = new SearchRequestStats();
         final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
 
         SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
@@ -831,7 +831,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     }
 
     private SearchRequestOperationsListener createSearchRequestOperationsListener(
-        SearchCoordinatorStatsTesting searchCoordinatorStatsTesting
+        SearchRequestStatsTesting searchCoordinatorStatsTesting
     ) {
         return new SearchRequestOperationsListener() {
             @Override
@@ -932,7 +932,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         }
     }
 
-    private static final class SearchCoordinatorStatsTesting {
+    private static final class SearchRequestStatsTesting {
         public AtomicInteger dfsPreQueryPhaseStart = new AtomicInteger();
         public AtomicInteger dfsPreQueryPhaseFailure = new AtomicInteger();
         public AtomicInteger dfsPreQueryPhaseEnd = new AtomicInteger();
@@ -949,6 +949,6 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         public AtomicInteger expandPhaseFailure = new AtomicInteger();
         public AtomicInteger expandPhaseEnd = new AtomicInteger();
 
-        public SearchCoordinatorStatsTesting() {};
+        public SearchRequestStatsTesting() {};
     }
 }

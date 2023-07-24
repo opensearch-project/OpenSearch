@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.action.CoordinatorStats;
+import org.opensearch.action.RequestStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -286,9 +286,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     }
 
     // Add all Coordinator Stats to the Search Stats from here
-    public void addCoordinatorStats(CoordinatorStats coordinatorStats) {
-        if (coordinatorStats.getSearchCoordinatorStats() != null && this.search != null) {
-            search.setSearchCoordinatorStats(coordinatorStats.getSearchCoordinatorStats());
+    public void addRequestStats(RequestStats requestStats) {
+        if (requestStats.getSearchRequestStats() != null && this.search != null) {
+            search.setSearchRequestStats(requestStats.getSearchRequestStats());
         }
     }
 

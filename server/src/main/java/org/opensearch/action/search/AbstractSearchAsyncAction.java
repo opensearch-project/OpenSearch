@@ -63,6 +63,7 @@ import org.opensearch.transport.Transport;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -122,6 +123,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private SearchRequestOperationsListener searchRequestOperationsListener;
     private List<SearchRequestOperationsListener> searchListenersList;
+    Map<String, Runnable> instanceStartMap = new HashMap<String, Runnable>();
+    Map<String, Runnable> instanceEndMap = new HashMap<String, Runnable>();
+    Map<String, Runnable> instanceFailMap = new HashMap<String, Runnable>();
 
     AbstractSearchAsyncAction(
         String name,
@@ -180,6 +184,28 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (searchListenersList != null) {
             this.searchListenersList = searchListenersList;
             this.searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(this.searchListenersList, logger);
+
+            instanceStartMap.put("dfs", () -> searchRequestOperationsListener.onDFSPreQueryPhaseStart(this));
+            instanceStartMap.put("can_match", () -> searchRequestOperationsListener.onCanMatchPhaseStart(this));
+            instanceStartMap.put("dfs_query", () -> searchRequestOperationsListener.onQueryPhaseStart(this));
+            instanceStartMap.put("query", () -> searchRequestOperationsListener.onQueryPhaseStart(this));
+            instanceStartMap.put("fetch", () -> searchRequestOperationsListener.onFetchPhaseStart(this));
+            instanceStartMap.put("expand", () -> searchRequestOperationsListener.onExpandSearchPhaseStart(this));
+
+            instanceEndMap.put("dfs", () -> searchRequestOperationsListener.onDFSPreQueryPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
+            instanceEndMap.put("can_match", () -> searchRequestOperationsListener.onCanMatchPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
+            instanceEndMap.put("dfs_query", () -> searchRequestOperationsListener.onQueryPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
+            instanceEndMap.put("query", () -> searchRequestOperationsListener.onQueryPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
+            instanceEndMap.put("fetch", () -> searchRequestOperationsListener.onFetchPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
+            instanceEndMap.put("expand", () -> searchRequestOperationsListener.onExpandSearchPhaseEnd(this, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())));
+
+            instanceFailMap.put("dfs", () -> searchRequestOperationsListener.onDFSPreQueryPhaseFailure(this));
+            instanceFailMap.put("can_match", () -> searchRequestOperationsListener.onCanMatchPhaseFailure(this));
+            instanceFailMap.put("dfs_query", () -> searchRequestOperationsListener.onQueryPhaseFailure(this));
+            instanceFailMap.put("query", () -> searchRequestOperationsListener.onQueryPhaseFailure(this));
+            instanceFailMap.put("fetch", () -> searchRequestOperationsListener.onFetchPhaseFailure(this));
+            instanceFailMap.put("expand", () -> searchRequestOperationsListener.onExpandSearchPhaseFailure(this));
+
         }
     }
 
@@ -439,42 +465,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (searchRequestOperationsListener == null) {
             return;
         }
-        long tookTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime());
-
-        if (searchPhaseContext.getCurrentPhase() instanceof SearchDfsQueryThenFetchAsyncAction) {
-            searchRequestOperationsListener.onDFSPreQueryPhaseEnd(searchPhaseContext, tookTimeInMillis);
-        } else if (searchPhaseContext.getCurrentPhase() instanceof CanMatchPreFilterSearchPhase) {
-            searchRequestOperationsListener.onCanMatchPhaseEnd(searchPhaseContext, tookTimeInMillis);
-        } else if (searchPhaseContext.getCurrentPhase() instanceof DfsQueryPhase) {
-            searchRequestOperationsListener.onQueryPhaseEnd(searchPhaseContext, tookTimeInMillis);
-        } else if (searchPhaseContext.getCurrentPhase() instanceof SearchQueryThenFetchAsyncAction) {
-            searchRequestOperationsListener.onQueryPhaseEnd(searchPhaseContext, tookTimeInMillis);
-        } else if (searchPhaseContext.getCurrentPhase() instanceof FetchSearchPhase) {
-            searchRequestOperationsListener.onFetchPhaseEnd(searchPhaseContext, tookTimeInMillis);
-        } else if (searchPhaseContext.getCurrentPhase() instanceof ExpandSearchPhase) {
-            searchRequestOperationsListener.onExpandSearchPhaseEnd(searchPhaseContext, tookTimeInMillis);
-        }
+        instanceEndMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
     }
-
     private void onPhaseStart(SearchPhase phase, SearchPhaseContext searchPhaseContext) {
         setCurrentPhase(phase);
         phase.setStartTimeInNanos(System.nanoTime());
         if (searchRequestOperationsListener == null) {
             return;
         }
-        if (searchPhaseContext.getCurrentPhase() instanceof SearchDfsQueryThenFetchAsyncAction) {
-            searchRequestOperationsListener.onDFSPreQueryPhaseStart(searchPhaseContext);
-        } else if (searchPhaseContext.getCurrentPhase() instanceof CanMatchPreFilterSearchPhase) {
-            searchRequestOperationsListener.onCanMatchPhaseStart(searchPhaseContext);
-        } else if (searchPhaseContext.getCurrentPhase() instanceof DfsQueryPhase) {
-            searchRequestOperationsListener.onQueryPhaseStart(searchPhaseContext);
-        } else if (searchPhaseContext.getCurrentPhase() instanceof SearchQueryThenFetchAsyncAction) {
-            searchRequestOperationsListener.onQueryPhaseStart(searchPhaseContext);
-        } else if (searchPhaseContext.getCurrentPhase() instanceof FetchSearchPhase) {
-            searchRequestOperationsListener.onFetchPhaseStart(searchPhaseContext);
-        } else if (searchPhaseContext.getCurrentPhase() instanceof ExpandSearchPhase) {
-            searchRequestOperationsListener.onExpandSearchPhaseStart(searchPhaseContext);
-        }
+        instanceStartMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
     }
 
     private void executePhase(SearchPhase phase) {
@@ -740,19 +739,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         if (searchRequestOperationsListener != null) {
-            if (this.currentPhase instanceof SearchDfsQueryThenFetchAsyncAction) {
-                searchRequestOperationsListener.onDFSPreQueryPhaseFailure(this);
-            } else if (this.currentPhase instanceof CanMatchPreFilterSearchPhase) {
-                searchRequestOperationsListener.onCanMatchPhaseFailure(this);
-            } else if (this.currentPhase instanceof DfsQueryPhase) {
-                searchRequestOperationsListener.onQueryPhaseFailure(this);
-            } else if (this.currentPhase instanceof SearchQueryThenFetchAsyncAction) {
-                searchRequestOperationsListener.onQueryPhaseFailure(this);
-            } else if (this.currentPhase instanceof FetchSearchPhase) {
-                searchRequestOperationsListener.onFetchPhaseFailure(this);
-            } else if (this.currentPhase instanceof ExpandSearchPhase) {
-                searchRequestOperationsListener.onExpandSearchPhaseFailure(this);
-            }
+            instanceFailMap.get(this.getCurrentPhase().getName()).run();
         }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }

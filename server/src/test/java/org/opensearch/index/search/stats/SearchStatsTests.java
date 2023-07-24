@@ -32,7 +32,7 @@
 
 package org.opensearch.index.search.stats;
 
-import org.opensearch.action.search.SearchCoordinatorStats;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -67,26 +67,26 @@ public class SearchStatsTests extends OpenSearchTestCase {
 
         long paramValue = 1;
 
-        // Testing for coordinator stats
-        SearchCoordinatorStats testCoordinatorStats = new SearchCoordinatorStats();
-        testCoordinatorStats.totalStats.dfsPreQueryMetric.inc(paramValue);
-        testCoordinatorStats.totalStats.dfsPreQueryCurrent.inc(paramValue);
-        testCoordinatorStats.totalStats.dfsPreQueryTotal.inc(paramValue);
-        testCoordinatorStats.totalStats.canMatchMetric.inc(paramValue);
-        testCoordinatorStats.totalStats.canMatchCurrent.inc(paramValue);
-        testCoordinatorStats.totalStats.canMatchTotal.inc(paramValue);
-        testCoordinatorStats.totalStats.queryMetric.inc(paramValue);
-        testCoordinatorStats.totalStats.queryCurrent.inc(paramValue);
-        testCoordinatorStats.totalStats.queryTotal.inc(paramValue);
-        testCoordinatorStats.totalStats.fetchMetric.inc(paramValue);
-        testCoordinatorStats.totalStats.fetchCurrent.inc(paramValue);
-        testCoordinatorStats.totalStats.fetchTotal.inc(paramValue);
-        testCoordinatorStats.totalStats.expandSearchMetric.inc(paramValue);
-        testCoordinatorStats.totalStats.expandSearchCurrent.inc(paramValue);
-        testCoordinatorStats.totalStats.expandSearchTotal.inc(paramValue);
+        // Testing for request stats
+        SearchRequestStats testRequestStats = new SearchRequestStats();
+        testRequestStats.totalStats.dfsPreQueryMetric.inc(paramValue);
+        testRequestStats.totalStats.dfsPreQueryCurrent.inc(paramValue);
+        testRequestStats.totalStats.dfsPreQueryTotal.inc(paramValue);
+        testRequestStats.totalStats.canMatchMetric.inc(paramValue);
+        testRequestStats.totalStats.canMatchCurrent.inc(paramValue);
+        testRequestStats.totalStats.canMatchTotal.inc(paramValue);
+        testRequestStats.totalStats.queryMetric.inc(paramValue);
+        testRequestStats.totalStats.queryCurrent.inc(paramValue);
+        testRequestStats.totalStats.queryTotal.inc(paramValue);
+        testRequestStats.totalStats.fetchMetric.inc(paramValue);
+        testRequestStats.totalStats.fetchCurrent.inc(paramValue);
+        testRequestStats.totalStats.fetchTotal.inc(paramValue);
+        testRequestStats.totalStats.expandSearchMetric.inc(paramValue);
+        testRequestStats.totalStats.expandSearchCurrent.inc(paramValue);
+        testRequestStats.totalStats.expandSearchTotal.inc(paramValue);
 
-        searchStats1.setSearchCoordinatorStats(testCoordinatorStats);
-        assertCoordinatorStats(searchStats1.getTotal(), paramValue);
+        searchStats1.setSearchRequestStats(testRequestStats);
+        assertRequestStats(searchStats1.getTotal(), paramValue);
 
     }
 
@@ -108,22 +108,22 @@ public class SearchStatsTests extends OpenSearchTestCase {
         assertEquals(equalTo, stats.getSuggestCurrent());
     }
 
-    private static void assertCoordinatorStats(Stats stats, long equalTo) {
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().dfsPreQueryMetric);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().dfsPreQueryCurrent);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().dfsPreQueryTotal);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().canMatchMetric);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().canMatchCurrent);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().canMatchTotal);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().queryMetric);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().queryCurrent);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().queryTotal);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().fetchMetric);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().fetchCurrent);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().fetchTotal);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().expandSearchMetric);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().expandSearchCurrent);
-        assertEquals(equalTo, stats.getCoordinatorStatsLongHolder().expandSearchTotal);
+    private static void assertRequestStats(Stats stats, long equalTo) {
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().dfsPreQueryMetric);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().dfsPreQueryCurrent);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().dfsPreQueryTotal);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().canMatchMetric);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().canMatchCurrent);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().canMatchTotal);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().queryMetric);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().queryCurrent);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().queryTotal);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().fetchMetric);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().fetchCurrent);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().fetchTotal);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().expandSearchMetric);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().expandSearchCurrent);
+        assertEquals(equalTo, stats.getRequestStatsLongHolder().expandSearchTotal);
     }
 
 }

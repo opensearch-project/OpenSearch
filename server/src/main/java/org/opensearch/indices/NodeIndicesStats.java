@@ -32,7 +32,7 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.action.CoordinatorStats;
+import org.opensearch.action.RequestStats;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
@@ -92,7 +92,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
     }
 
-    public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard, CoordinatorStats coordinatorStats) {
+    public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard, RequestStats requestStats) {
         // this.stats = stats;
         this.statsByShard = statsByShard;
 
@@ -105,7 +105,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
                 }
             }
         }
-        this.stats.addCoordinatorStats(coordinatorStats);
+        this.stats.addRequestStats(requestStats);
     }
 
     @Nullable

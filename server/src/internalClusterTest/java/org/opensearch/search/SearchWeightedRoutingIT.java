@@ -186,11 +186,11 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         for (NodeStats stat : nodeStats.getNodes()) {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
-            if (searchStats.getCoordinatorStatsLongHolder().queryMetric > 0) {
-                assertThat(searchStats.getCoordinatorStatsLongHolder().queryTotal, greaterThan(0L));
-                assertThat(searchStats.getCoordinatorStatsLongHolder().fetchMetric, greaterThan(0L));
-                assertThat(searchStats.getCoordinatorStatsLongHolder().fetchTotal, greaterThan(0L));
-                assertThat(searchStats.getCoordinatorStatsLongHolder().expandSearchTotal, greaterThan(0L));
+            if (searchStats.getRequestStatsLongHolder().queryMetric > 0) {
+                assertThat(searchStats.getRequestStatsLongHolder().queryTotal, greaterThan(0L));
+                assertThat(searchStats.getRequestStatsLongHolder().fetchMetric, greaterThan(0L));
+                assertThat(searchStats.getRequestStatsLongHolder().fetchTotal, greaterThan(0L));
+                assertThat(searchStats.getRequestStatsLongHolder().expandSearchTotal, greaterThan(0L));
                 coordNumber += 1;
             }
             Assert.assertTrue(searchStats.getQueryCount() > 0L);

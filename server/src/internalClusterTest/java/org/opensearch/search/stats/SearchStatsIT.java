@@ -169,11 +169,11 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
 
         for (NodeStats stat : nodeStats.getNodes()) {
             Stats total = stat.getIndices().getSearch().getTotal();
-            if (total.getCoordinatorStatsLongHolder().queryMetric > 0) {
-                assertThat(total.getCoordinatorStatsLongHolder().queryTotal, greaterThan(0L));
-                assertThat(total.getCoordinatorStatsLongHolder().fetchMetric, greaterThan(0L));
-                assertThat(total.getCoordinatorStatsLongHolder().fetchTotal, greaterThan(0L));
-                assertThat(total.getCoordinatorStatsLongHolder().expandSearchTotal, greaterThan(0L));
+            if (total.getRequestStatsLongHolder().queryMetric > 0) {
+                assertThat(total.getRequestStatsLongHolder().queryTotal, greaterThan(0L));
+                assertThat(total.getRequestStatsLongHolder().fetchMetric, greaterThan(0L));
+                assertThat(total.getRequestStatsLongHolder().fetchTotal, greaterThan(0L));
+                assertThat(total.getRequestStatsLongHolder().expandSearchTotal, greaterThan(0L));
                 coordNumber += 1;
             }
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {

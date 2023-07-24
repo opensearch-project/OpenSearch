@@ -15,15 +15,15 @@ import org.opensearch.common.metrics.MeanMetric;
 import java.util.function.Consumer;
 
 /**
- * Coordinator level search stats
+ * Request level search stats
  *
  * @opensearch.internal
  */
-public final class SearchCoordinatorStats implements SearchRequestOperationsListener {
+public final class SearchRequestStats implements SearchRequestOperationsListener {
     public StatsHolder totalStats = new StatsHolder();
 
     @Inject
-    public SearchCoordinatorStats() {}
+    public SearchRequestStats() {}
 
     public long getDFSPreQueryMetric() {
         return totalStats.dfsPreQueryMetric.sum();

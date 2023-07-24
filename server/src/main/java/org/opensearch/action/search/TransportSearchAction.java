@@ -172,7 +172,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchPipelineService searchPipelineService,
-        SearchCoordinatorStats searchCoordinatorStats
+        SearchRequestStats searchCoordinatorStats
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -922,9 +922,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Nullable SearchContextId searchContext,
         SearchAsyncActionProvider searchAsyncActionProvider
     ) {
-
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
-
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
         // of just for the _search api
@@ -978,7 +976,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
-
         // optimize search type for cases where there is only one shard group to search on
         if (shardIterators.size() == 1) {
             // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
@@ -1012,7 +1009,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteLocalIndices,
             localShardIterators.size() + remoteShardIterators.size()
         );
-        searchAsyncActionProvider.asyncSearchAction(
+        long test1 = timeProvider.buildTookInMillis();
+        AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncActionProvider.asyncSearchAction(
             task,
             searchRequest,
             asyncSearchExecutor,
@@ -1027,7 +1025,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             preFilterSearchShards,
             threadPool,
             clusters
-        ).start();
+        );
+        long test10 = timeProvider.buildTookInMillis();
+        action.start();
     }
 
     Executor asyncSearchExecutor(final String[] indices, final ClusterState clusterState) {
@@ -1172,6 +1172,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchListenersList
             );
         } else {
+            long test4 = timeProvider.buildTookInMillis();
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
                 executor,
                 circuitBreaker,
@@ -1180,6 +1181,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shardIterators.size(),
                 exc -> cancelTask(task, exc)
             );
+            long test5 = timeProvider.buildTookInMillis();
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
@@ -1204,6 +1206,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                     break;
                 case QUERY_THEN_FETCH:
+                    long test6 = timeProvider.buildTookInMillis();
                     searchAsyncAction = new SearchQueryThenFetchAsyncAction(
                         logger,
                         searchTransportService,
@@ -1223,6 +1226,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         searchListenersList
                     );
+                    long test7 = timeProvider.buildTookInMillis();
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
