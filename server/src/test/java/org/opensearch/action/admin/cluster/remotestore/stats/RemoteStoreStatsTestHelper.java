@@ -11,7 +11,7 @@ package org.opensearch.action.admin.cluster.remotestore.stats;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Map;
@@ -24,8 +24,8 @@ import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
  * Helper utilities for Remote Store stats tests
  */
 public class RemoteStoreStatsTestHelper {
-    static RemoteRefreshSegmentTracker.Stats createStatsForNewPrimary(ShardId shardId) {
-        return new RemoteRefreshSegmentTracker.Stats(
+    static RemoteSegmentTransferTracker.Stats createStatsForNewPrimary(ShardId shardId) {
+        return new RemoteSegmentTransferTracker.Stats(
             shardId,
             101,
             102,
@@ -59,8 +59,8 @@ public class RemoteStoreStatsTestHelper {
         );
     }
 
-    static RemoteRefreshSegmentTracker.Stats createStatsForNewReplica(ShardId shardId) {
-        return new RemoteRefreshSegmentTracker.Stats(
+    static RemoteSegmentTransferTracker.Stats createStatsForNewReplica(ShardId shardId) {
+        return new RemoteSegmentTransferTracker.Stats(
             shardId,
             0,
             0,
@@ -94,8 +94,8 @@ public class RemoteStoreStatsTestHelper {
         );
     }
 
-    static RemoteRefreshSegmentTracker.Stats createStatsForRemoteStoreRestoredPrimary(ShardId shardId) {
-        return new RemoteRefreshSegmentTracker.Stats(
+    static RemoteSegmentTransferTracker.Stats createStatsForRemoteStoreRestoredPrimary(ShardId shardId) {
+        return new RemoteSegmentTransferTracker.Stats(
             shardId,
             50,
             50,
@@ -135,7 +135,7 @@ public class RemoteStoreStatsTestHelper {
 
     static void compareStatsResponse(
         Map<String, Object> statsObject,
-        RemoteRefreshSegmentTracker.Stats statsTracker,
+        RemoteSegmentTransferTracker.Stats statsTracker,
         ShardRouting routing
     ) {
         assertEquals(

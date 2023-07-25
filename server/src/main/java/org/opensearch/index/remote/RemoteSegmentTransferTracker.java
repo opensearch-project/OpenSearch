@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class RemoteRefreshSegmentTracker {
+public class RemoteSegmentTransferTracker {
 
     /**
      * ShardId for which this instance tracks the remote segment upload metadata.
@@ -225,7 +225,7 @@ public class RemoteRefreshSegmentTracker {
 
     private final int SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE = 20;
 
-    public RemoteRefreshSegmentTracker(
+    public RemoteSegmentTransferTracker(
         ShardId shardId,
         int uploadBytesMovingAverageWindowSize,
         int uploadBytesPerSecMovingAverageWindowSize,
@@ -631,8 +631,8 @@ public class RemoteRefreshSegmentTracker {
         this.downloadTimeMovingAverageReference.record(timeMs);
     }
 
-    public RemoteRefreshSegmentTracker.Stats stats() {
-        return new RemoteRefreshSegmentTracker.Stats(
+    public RemoteSegmentTransferTracker.Stats stats() {
+        return new RemoteSegmentTransferTracker.Stats(
             shardId,
             localRefreshClockTimeMs,
             remoteRefreshClockTimeMs,

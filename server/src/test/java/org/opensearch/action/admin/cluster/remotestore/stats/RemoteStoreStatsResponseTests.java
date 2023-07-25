@@ -14,7 +14,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -48,7 +48,7 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
     }
 
     public void testSerializationForPrimary() throws Exception {
-        RemoteRefreshSegmentTracker.Stats mockPrimaryTrackerStats = createStatsForNewPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats mockPrimaryTrackerStats = createStatsForNewPrimary(shardId);
         ShardRouting primaryShardRouting = createShardRouting(shardId, true);
         RemoteStoreStats primaryShardStats = new RemoteStoreStats(mockPrimaryTrackerStats, primaryShardRouting);
         RemoteStoreStatsResponse statsResponse = new RemoteStoreStatsResponse(
@@ -77,8 +77,8 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
     }
 
     public void testSerializationForBothPrimaryAndReplica() throws Exception {
-        RemoteRefreshSegmentTracker.Stats mockPrimaryTrackerStats = createStatsForNewPrimary(shardId);
-        RemoteRefreshSegmentTracker.Stats mockReplicaTrackerStats = createStatsForNewReplica(shardId);
+        RemoteSegmentTransferTracker.Stats mockPrimaryTrackerStats = createStatsForNewPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats mockReplicaTrackerStats = createStatsForNewReplica(shardId);
         ShardRouting primaryShardRouting = createShardRouting(shardId, true);
         ShardRouting replicaShardRouting = createShardRouting(shardId, false);
         RemoteStoreStats primaryShardStats = new RemoteStoreStats(mockPrimaryTrackerStats, primaryShardRouting);
@@ -117,8 +117,8 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
     }
 
     public void testSerializationForBothRemoteStoreRestoredPrimaryAndReplica() throws Exception {
-        RemoteRefreshSegmentTracker.Stats mockPrimaryTrackerStats = createStatsForRemoteStoreRestoredPrimary(shardId);
-        RemoteRefreshSegmentTracker.Stats mockReplicaTrackerStats = createStatsForNewReplica(shardId);
+        RemoteSegmentTransferTracker.Stats mockPrimaryTrackerStats = createStatsForRemoteStoreRestoredPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats mockReplicaTrackerStats = createStatsForNewReplica(shardId);
         ShardRouting primaryShardRouting = createShardRouting(shardId, true);
         ShardRouting replicaShardRouting = createShardRouting(shardId, false);
         RemoteStoreStats primaryShardStats = new RemoteStoreStats(mockPrimaryTrackerStats, primaryShardRouting);

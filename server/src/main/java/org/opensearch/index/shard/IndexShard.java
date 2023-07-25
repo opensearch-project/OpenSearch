@@ -58,6 +58,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.common.util.SegmentDownloadListener;
 import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
@@ -146,7 +147,7 @@ import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -740,6 +741,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     + this.shardRouting;
             shardStateUpdated.countDown();
         }
+
         if (currentRouting.active() == false && newRouting.active()) {
             indexEventListener.afterIndexShardStarted(this);
         }
@@ -4648,14 +4650,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 storeDirectory = store.directory();
             }
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
-            copySegmentFiles(
-                storeDirectory,
-                remoteDirectory,
-                null,
-                uploadedSegments,
-                remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId),
-                overrideLocal
-            );
+            copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal);
 
             if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
                 try (
@@ -4742,7 +4737,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 sourceRemoteDirectory,
                 remoteDirectory,
                 uploadedSegments,
-                remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId),
                 overrideLocal
             );
             if (segmentsNFile != null) {
@@ -4777,12 +4771,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
-        RemoteRefreshSegmentTracker downloadStatsTracker,
         boolean overrideLocal
     ) throws IOException {
         boolean isRemoteStoreEnabled = indexSettings.isRemoteStoreEnabled();
-        assert !isRemoteStoreEnabled || downloadStatsTracker != null
-            : "Download Stats tracker should not be null for Remote Store backed indices";
+        SegmentDownloadListener segmentDownloadListener = initializeSegmentDownloadListener(
+            remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId)
+        );
         List<String> downloadedSegments = new ArrayList<>();
         List<String> skippedSegments = new ArrayList<>();
         List<String> segmentsToDownload = new ArrayList<>();
@@ -4808,41 +4802,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // Upload stats before starting Segment downloads
             // Adding a check to prevent stats being published for NoOp runs
             if (!segmentsToDownload.isEmpty() && isRemoteStoreEnabled) {
-                downloadStatsTracker.incrementTotalDownloadsStarted();
+                segmentDownloadListener.beforeSync();
             }
             long startTimeInMs = System.currentTimeMillis();
             // Copying segments files to local store directory from remote store directory (Shard Recovery)
             for (String file : segmentsToDownload) {
-                long fileSize = uploadedSegments.get(file).getLength();
-                boolean fileDownloadComplete = false;
-                // Download bytes stats population:
-                // - Increments attempted bytes just before invoking copyFrom method
-                // - Increment succeeded bytes after copyFrom method executes successfully
-                // - Increment failed bytes when copyFrom method fails
-                try {
-                    // Adding file size to the amount of bytes attempted for download
-                    if (isRemoteStoreEnabled) {
-                        downloadStatsTracker.addDownloadBytesStarted(fileSize);
-                    }
-                    storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
-                    fileDownloadComplete = true;
-                    downloadedSegments.add(file);
-                    sizeOfDownloadedSegments += fileSize;
-                    // Adding file size to the amount of bytes completed in download
-                    if (isRemoteStoreEnabled) {
-                        downloadStatsTracker.addDownloadBytesSucceeded(fileSize);
-                    }
-                } finally {
-                    // Increment download failure stats if the `copyFrom` method above throws an exception
-                    if (!fileDownloadComplete && isRemoteStoreEnabled) {
-                        downloadStatsTracker.addDownloadBytesFailed(fileSize);
-                        downloadStatsTracker.incrementTotalDownloadsFailed();
-                    }
-                }
+                sizeOfDownloadedSegments = statsAwareCopyFromRemoteStore(
+                    storeDirectory,
+                    sourceRemoteDirectory,
+                    uploadedSegments,
+                    segmentDownloadListener,
+                    isRemoteStoreEnabled,
+                    downloadedSegments,
+                    sizeOfDownloadedSegments,
+                    file
+                );
             }
             // Update stats after download batch is completed
             if (!segmentsToDownload.isEmpty() && isRemoteStoreEnabled) {
-                afterSyncCompleted(downloadStatsTracker, sizeOfDownloadedSegments, startTimeInMs);
+                segmentDownloadListener.afterSync(sizeOfDownloadedSegments, startTimeInMs);
             }
             // Copying segment files over to target remote directory from local store directory (Snapshot)
             for (String file : uploadedSegments.keySet()) {
@@ -4861,6 +4839,80 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return segmentNFile;
     }
 
+    private SegmentDownloadListener initializeSegmentDownloadListener(RemoteSegmentTransferTracker downloadStatsTracker) {
+        return new SegmentDownloadListener() {
+            @Override
+            public void beforeSync() {
+                downloadStatsTracker.incrementTotalDownloadsStarted();
+            }
+
+            @Override
+            public void afterSync(long downloadedFilesSize, long startTimeInMs) {
+                long currentTimeInMs = System.currentTimeMillis();
+                downloadStatsTracker.updateLastDownloadTimestampMs(currentTimeInMs);
+                downloadStatsTracker.incrementTotalDownloadsSucceeded();
+                downloadStatsTracker.addDownloadBytes(downloadedFilesSize);
+                long timeTakenInMS = Math.max(1, currentTimeInMs - startTimeInMs);
+                downloadStatsTracker.addDownloadTime(timeTakenInMS);
+                downloadStatsTracker.addDownloadBytesPerSec((downloadedFilesSize * 1_000L) / timeTakenInMS);
+            }
+
+            @Override
+            public void beforeFileDownload(long fileSize) {
+                downloadStatsTracker.addDownloadBytesStarted(fileSize);
+            }
+
+            @Override
+            public void afterFileDownload(long fileSize) {
+                downloadStatsTracker.addDownloadBytesSucceeded(fileSize);
+            }
+
+            @Override
+            public void fileDownloadFailed(long fileSize) {
+                downloadStatsTracker.addDownloadBytesFailed(fileSize);
+                downloadStatsTracker.incrementTotalDownloadsFailed();
+            }
+        };
+    }
+
+    private long statsAwareCopyFromRemoteStore(
+        Directory storeDirectory,
+        RemoteSegmentStoreDirectory sourceRemoteDirectory,
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
+        SegmentDownloadListener segmentDownloadListener,
+        boolean isRemoteStoreEnabled,
+        List<String> downloadedSegments,
+        long sizeOfDownloadedSegments,
+        String file
+    ) throws IOException {
+        long fileSize = uploadedSegments.get(file).getLength();
+        boolean fileDownloadComplete = false;
+        // Download bytes stats population:
+        // - Increments attempted bytes just before invoking copyFrom method
+        // - Increment succeeded bytes after copyFrom method executes successfully
+        // - Increment failed bytes when copyFrom method fails
+        try {
+            // Adding file size to the amount of bytes attempted for download
+            if (isRemoteStoreEnabled) {
+                segmentDownloadListener.beforeFileDownload(fileSize);
+            }
+            storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
+            fileDownloadComplete = true;
+            downloadedSegments.add(file);
+            sizeOfDownloadedSegments += fileSize;
+            // Adding file size to the amount of bytes completed in download
+            if (isRemoteStoreEnabled) {
+                segmentDownloadListener.afterFileDownload(fileSize);
+            }
+        } finally {
+            // Increment download failure stats if the `copyFrom` method above throws an exception
+            if (!fileDownloadComplete && isRemoteStoreEnabled) {
+                segmentDownloadListener.fileDownloadFailed(fileSize);
+            }
+        }
+        return sizeOfDownloadedSegments;
+    }
+
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {
         try (IndexInput indexInput = localDirectory.openInput(file, IOContext.DEFAULT)) {
             if (checksum == CodecUtil.retrieveChecksum(indexInput)) {
@@ -4874,16 +4926,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", file);
         }
         return false;
-    }
-
-    private void afterSyncCompleted(RemoteRefreshSegmentTracker downloadStatsTracker, long downloadedFileSize, long startTimeInMs) {
-        long currentTimeInMs = System.currentTimeMillis();
-        downloadStatsTracker.updateLastDownloadTimestampMs(currentTimeInMs);
-        downloadStatsTracker.incrementTotalDownloadsSucceeded();
-        downloadStatsTracker.addDownloadBytes(downloadedFileSize);
-        long timeTakenInMS = Math.max(1, currentTimeInMs - startTimeInMs);
-        downloadStatsTracker.addDownloadTime(timeTakenInMS);
-        downloadStatsTracker.addDownloadBytesPerSec((downloadedFileSize * 1_000L) / timeTakenInMS);
     }
 
     /**

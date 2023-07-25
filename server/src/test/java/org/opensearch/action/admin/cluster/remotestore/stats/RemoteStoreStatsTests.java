@@ -15,7 +15,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -49,7 +49,7 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     }
 
     public void testXContentBuilderWithPrimaryShard() throws IOException {
-        RemoteRefreshSegmentTracker.Stats uploadStats = createStatsForNewPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats uploadStats = createStatsForNewPrimary(shardId);
         ShardRouting routing = createShardRouting(shardId, true);
         RemoteStoreStats stats = new RemoteStoreStats(uploadStats, routing);
 
@@ -60,7 +60,7 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     }
 
     public void testXContentBuilderWithReplicaShard() throws IOException {
-        RemoteRefreshSegmentTracker.Stats downloadStats = createStatsForNewReplica(shardId);
+        RemoteSegmentTransferTracker.Stats downloadStats = createStatsForNewReplica(shardId);
         ShardRouting routing = createShardRouting(shardId, false);
         RemoteStoreStats stats = new RemoteStoreStats(downloadStats, routing);
 
@@ -71,7 +71,7 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     }
 
     public void testXContentBuilderWithRemoteStoreRestoredShard() throws IOException {
-        RemoteRefreshSegmentTracker.Stats remotestoreRestoredShardStats = createStatsForRemoteStoreRestoredPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats remotestoreRestoredShardStats = createStatsForRemoteStoreRestoredPrimary(shardId);
         ShardRouting routing = createShardRouting(shardId, true);
         RemoteStoreStats stats = new RemoteStoreStats(remotestoreRestoredShardStats, routing);
 
@@ -82,12 +82,12 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     }
 
     public void testSerializationForPrimaryShard() throws Exception {
-        RemoteRefreshSegmentTracker.Stats primaryShardStats = createStatsForNewPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats primaryShardStats = createStatsForNewPrimary(shardId);
         RemoteStoreStats stats = new RemoteStoreStats(primaryShardStats, createShardRouting(shardId, true));
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                RemoteRefreshSegmentTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
+                RemoteSegmentTransferTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
                 assertEquals(stats.getStats().refreshTimeLagMs, deserializedStats.refreshTimeLagMs);
                 assertEquals(stats.getStats().localRefreshNumber, deserializedStats.localRefreshNumber);
                 assertEquals(stats.getStats().remoteRefreshNumber, deserializedStats.remoteRefreshNumber);
@@ -116,12 +116,12 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     }
 
     public void testSerializationForReplicaShard() throws Exception {
-        RemoteRefreshSegmentTracker.Stats replicaShardStats = createStatsForNewReplica(shardId);
+        RemoteSegmentTransferTracker.Stats replicaShardStats = createStatsForNewReplica(shardId);
         RemoteStoreStats stats = new RemoteStoreStats(replicaShardStats, createShardRouting(shardId, false));
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                RemoteRefreshSegmentTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
+                RemoteSegmentTransferTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
                 assertEquals(0, deserializedStats.refreshTimeLagMs);
                 assertEquals(0, deserializedStats.localRefreshNumber);
                 assertEquals(0, deserializedStats.remoteRefreshNumber);
@@ -150,12 +150,12 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     }
 
     public void testSerializationForRemoteStoreRestoredPrimaryShard() throws Exception {
-        RemoteRefreshSegmentTracker.Stats primaryShardStats = createStatsForRemoteStoreRestoredPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats primaryShardStats = createStatsForRemoteStoreRestoredPrimary(shardId);
         RemoteStoreStats stats = new RemoteStoreStats(primaryShardStats, createShardRouting(shardId, true));
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                RemoteRefreshSegmentTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
+                RemoteSegmentTransferTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
                 assertEquals(stats.getStats().refreshTimeLagMs, deserializedStats.refreshTimeLagMs);
                 assertEquals(stats.getStats().localRefreshNumber, deserializedStats.localRefreshNumber);
                 assertEquals(stats.getStats().remoteRefreshNumber, deserializedStats.remoteRefreshNumber);

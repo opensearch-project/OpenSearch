@@ -29,7 +29,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.FeatureFlagSetter;
@@ -86,7 +86,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             Collections.emptySet()
         );
 
-        when(pressureService.getRemoteRefreshSegmentTracker(any())).thenReturn(mock(RemoteRefreshSegmentTracker.class));
+        when(pressureService.getRemoteRefreshSegmentTracker(any())).thenReturn(mock(RemoteSegmentTransferTracker.class));
         when(indicesService.indexService(INDEX)).thenReturn(indexService);
         when(indexService.getIndexSettings()).thenReturn(new IndexSettings(remoteStoreIndexMetadata, Settings.EMPTY));
         statsAction = new TransportRemoteStoreStatsAction(

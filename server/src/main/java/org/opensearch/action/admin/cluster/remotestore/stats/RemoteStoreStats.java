@@ -14,7 +14,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 
 import java.io.IOException;
 
@@ -25,21 +25,21 @@ import java.io.IOException;
  */
 public class RemoteStoreStats implements Writeable, ToXContentFragment {
 
-    private final RemoteRefreshSegmentTracker.Stats remoteSegmentShardStats;
+    private final RemoteSegmentTransferTracker.Stats remoteSegmentShardStats;
 
     private final ShardRouting shardRouting;
 
-    public RemoteStoreStats(RemoteRefreshSegmentTracker.Stats remoteSegmentUploadShardStats, ShardRouting shardRouting) {
+    public RemoteStoreStats(RemoteSegmentTransferTracker.Stats remoteSegmentUploadShardStats, ShardRouting shardRouting) {
         this.remoteSegmentShardStats = remoteSegmentUploadShardStats;
         this.shardRouting = shardRouting;
     }
 
     public RemoteStoreStats(StreamInput in) throws IOException {
-        this.remoteSegmentShardStats = in.readOptionalWriteable(RemoteRefreshSegmentTracker.Stats::new);
+        this.remoteSegmentShardStats = in.readOptionalWriteable(RemoteSegmentTransferTracker.Stats::new);
         this.shardRouting = new ShardRouting(in);
     }
 
-    public RemoteRefreshSegmentTracker.Stats getStats() {
+    public RemoteSegmentTransferTracker.Stats getStats() {
         return remoteSegmentShardStats;
     }
 
@@ -50,71 +50,18 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(Fields.ROUTING);
-        builder.field(RoutingFields.STATE, shardRouting.state());
-        builder.field(RoutingFields.PRIMARY, shardRouting.primary());
-        builder.field(RoutingFields.NODE_ID, shardRouting.currentNodeId());
-        builder.endObject();
+        buildShardRouting(builder);
         builder.startObject(Fields.SEGMENT);
         builder.startObject(SubFields.DOWNLOAD);
         // Ensuring that we are not showing 0 metrics to the user
         if (remoteSegmentShardStats.totalDownloadsStarted != 0) {
-            builder.field(DownloadStatsFields.LAST_SYNC_TIMESTAMP, remoteSegmentShardStats.lastDownloadTimestampMs);
-            builder.startObject(DownloadStatsFields.TOTAL_SYNCS_FROM_REMOTE)
-                .field(SubFields.STARTED, remoteSegmentShardStats.totalDownloadsStarted)
-                .field(SubFields.SUCCEEDED, remoteSegmentShardStats.totalDownloadsSucceeded)
-                .field(SubFields.FAILED, remoteSegmentShardStats.totalDownloadsFailed);
-            builder.endObject();
-            builder.startObject(DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)
-                .field(SubFields.STARTED, remoteSegmentShardStats.downloadBytesStarted)
-                .field(SubFields.SUCCEEDED, remoteSegmentShardStats.downloadBytesSucceeded)
-                .field(SubFields.FAILED, remoteSegmentShardStats.downloadBytesFailed);
-            builder.endObject();
-            builder.startObject(DownloadStatsFields.DOWNLOAD_SIZE_IN_BYTES)
-                .field(SubFields.LAST_SUCCESSFUL, remoteSegmentShardStats.lastSuccessfulSegmentDownloadBytes)
-                .field(SubFields.MOVING_AVG, remoteSegmentShardStats.downloadBytesMovingAverage);
-            builder.endObject();
-            builder.startObject(DownloadStatsFields.DOWNLOAD_SPEED_IN_BYTES_PER_SEC)
-                .field(SubFields.MOVING_AVG, remoteSegmentShardStats.downloadBytesPerSecMovingAverage);
-            builder.endObject();
-            builder.startObject(DownloadStatsFields.DOWNLOAD_LATENCY_IN_MILLIS)
-                .field(SubFields.MOVING_AVG, remoteSegmentShardStats.downloadTimeMovingAverage);
-            builder.endObject();
+            buildDownloadStats(builder);
         }
         builder.endObject();
         builder.startObject(SubFields.UPLOAD);
         // Ensuring that we are not showing 0 metrics to the user
         if (remoteSegmentShardStats.totalUploadsStarted != 0) {
-            builder.field(UploadStatsFields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentShardStats.localRefreshClockTimeMs)
-                .field(UploadStatsFields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentShardStats.remoteRefreshClockTimeMs)
-                .field(UploadStatsFields.REFRESH_TIME_LAG_IN_MILLIS, remoteSegmentShardStats.refreshTimeLagMs)
-                .field(
-                    UploadStatsFields.REFRESH_LAG,
-                    remoteSegmentShardStats.localRefreshNumber - remoteSegmentShardStats.remoteRefreshNumber
-                )
-                .field(UploadStatsFields.BYTES_LAG, remoteSegmentShardStats.bytesLag)
-                .field(UploadStatsFields.BACKPRESSURE_REJECTION_COUNT, remoteSegmentShardStats.rejectionCount)
-                .field(UploadStatsFields.CONSECUTIVE_FAILURE_COUNT, remoteSegmentShardStats.consecutiveFailuresCount);
-            builder.startObject(UploadStatsFields.TOTAL_SYNCS_TO_REMOTE)
-                .field(SubFields.STARTED, remoteSegmentShardStats.totalUploadsStarted)
-                .field(SubFields.SUCCEEDED, remoteSegmentShardStats.totalUploadsSucceeded)
-                .field(SubFields.FAILED, remoteSegmentShardStats.totalUploadsFailed);
-            builder.endObject();
-            builder.startObject(UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)
-                .field(SubFields.STARTED, remoteSegmentShardStats.uploadBytesStarted)
-                .field(SubFields.SUCCEEDED, remoteSegmentShardStats.uploadBytesSucceeded)
-                .field(SubFields.FAILED, remoteSegmentShardStats.uploadBytesFailed);
-            builder.endObject();
-            builder.startObject(UploadStatsFields.REMOTE_REFRESH_SIZE_IN_BYTES)
-                .field(SubFields.LAST_SUCCESSFUL, remoteSegmentShardStats.lastSuccessfulRemoteRefreshBytes)
-                .field(SubFields.MOVING_AVG, remoteSegmentShardStats.uploadBytesMovingAverage);
-            builder.endObject();
-            builder.startObject(UploadStatsFields.UPLOAD_LATENCY_IN_BYTES_PER_SEC)
-                .field(SubFields.MOVING_AVG, remoteSegmentShardStats.uploadBytesPerSecMovingAverage);
-            builder.endObject();
-            builder.startObject(UploadStatsFields.REMOTE_REFRESH_LATENCY_IN_MILLIS)
-                .field(SubFields.MOVING_AVG, remoteSegmentShardStats.uploadTimeMovingAverage);
-            builder.endObject();
+            buildUploadStats(builder);
         }
         builder.endObject();
         builder.endObject();
@@ -125,6 +72,68 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(remoteSegmentShardStats);
         shardRouting.writeTo(out);
+    }
+
+    private void buildUploadStats(XContentBuilder builder) throws IOException {
+        builder.field(UploadStatsFields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentShardStats.localRefreshClockTimeMs)
+            .field(UploadStatsFields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentShardStats.remoteRefreshClockTimeMs)
+            .field(UploadStatsFields.REFRESH_TIME_LAG_IN_MILLIS, remoteSegmentShardStats.refreshTimeLagMs)
+            .field(UploadStatsFields.REFRESH_LAG, remoteSegmentShardStats.localRefreshNumber - remoteSegmentShardStats.remoteRefreshNumber)
+            .field(UploadStatsFields.BYTES_LAG, remoteSegmentShardStats.bytesLag)
+            .field(UploadStatsFields.BACKPRESSURE_REJECTION_COUNT, remoteSegmentShardStats.rejectionCount)
+            .field(UploadStatsFields.CONSECUTIVE_FAILURE_COUNT, remoteSegmentShardStats.consecutiveFailuresCount);
+        builder.startObject(UploadStatsFields.TOTAL_SYNCS_TO_REMOTE)
+            .field(SubFields.STARTED, remoteSegmentShardStats.totalUploadsStarted)
+            .field(SubFields.SUCCEEDED, remoteSegmentShardStats.totalUploadsSucceeded)
+            .field(SubFields.FAILED, remoteSegmentShardStats.totalUploadsFailed);
+        builder.endObject();
+        builder.startObject(UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)
+            .field(SubFields.STARTED, remoteSegmentShardStats.uploadBytesStarted)
+            .field(SubFields.SUCCEEDED, remoteSegmentShardStats.uploadBytesSucceeded)
+            .field(SubFields.FAILED, remoteSegmentShardStats.uploadBytesFailed);
+        builder.endObject();
+        builder.startObject(UploadStatsFields.REMOTE_REFRESH_SIZE_IN_BYTES)
+            .field(SubFields.LAST_SUCCESSFUL, remoteSegmentShardStats.lastSuccessfulRemoteRefreshBytes)
+            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.uploadBytesMovingAverage);
+        builder.endObject();
+        builder.startObject(UploadStatsFields.UPLOAD_LATENCY_IN_BYTES_PER_SEC)
+            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.uploadBytesPerSecMovingAverage);
+        builder.endObject();
+        builder.startObject(UploadStatsFields.REMOTE_REFRESH_LATENCY_IN_MILLIS)
+            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.uploadTimeMovingAverage);
+        builder.endObject();
+    }
+
+    private void buildDownloadStats(XContentBuilder builder) throws IOException {
+        builder.field(DownloadStatsFields.LAST_SYNC_TIMESTAMP, remoteSegmentShardStats.lastDownloadTimestampMs);
+        builder.startObject(DownloadStatsFields.TOTAL_SYNCS_FROM_REMOTE)
+            .field(SubFields.STARTED, remoteSegmentShardStats.totalDownloadsStarted)
+            .field(SubFields.SUCCEEDED, remoteSegmentShardStats.totalDownloadsSucceeded)
+            .field(SubFields.FAILED, remoteSegmentShardStats.totalDownloadsFailed);
+        builder.endObject();
+        builder.startObject(DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)
+            .field(SubFields.STARTED, remoteSegmentShardStats.downloadBytesStarted)
+            .field(SubFields.SUCCEEDED, remoteSegmentShardStats.downloadBytesSucceeded)
+            .field(SubFields.FAILED, remoteSegmentShardStats.downloadBytesFailed);
+        builder.endObject();
+        builder.startObject(DownloadStatsFields.DOWNLOAD_SIZE_IN_BYTES)
+            .field(SubFields.LAST_SUCCESSFUL, remoteSegmentShardStats.lastSuccessfulSegmentDownloadBytes)
+            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.downloadBytesMovingAverage);
+        builder.endObject();
+        builder.startObject(DownloadStatsFields.DOWNLOAD_SPEED_IN_BYTES_PER_SEC)
+            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.downloadBytesPerSecMovingAverage);
+        builder.endObject();
+        builder.startObject(DownloadStatsFields.DOWNLOAD_LATENCY_IN_MILLIS)
+            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.downloadTimeMovingAverage);
+        builder.endObject();
+    }
+
+    private void buildShardRouting(XContentBuilder builder) throws IOException {
+        builder.startObject(Fields.ROUTING);
+        builder.field(RoutingFields.STATE, shardRouting.state());
+        builder.field(RoutingFields.PRIMARY, shardRouting.primary());
+        builder.field(RoutingFields.NODE_ID, shardRouting.currentNodeId());
+        builder.endObject();
     }
 
     static final class Fields {
