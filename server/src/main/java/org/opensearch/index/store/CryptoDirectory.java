@@ -125,25 +125,31 @@ public final class CryptoDirectory extends NIOFSDirectory {
     }
 
     private void storeWrappedKey(byte[] wrappedKey) {
+        IndexOutput out = null;
         try {
-            IndexOutput out = super.createOutput("keyfile", new IOContext());
+            out = super.createOutput("keyfile", new IOContext());
             out.writeInt(wrappedKey.length);
             out.writeBytes(wrappedKey, 0, wrappedKey.length);
             out.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
+        } finally {
+            if (out != null) IOUtils.closeWhileHandlingException(out);
         }
     }
 
     private byte[] getWrappedKey() {
+        IndexInput in = null;
         try {
-            IndexInput in = super.openInput("keyfile", new IOContext());
+            in = super.openInput("keyfile", new IOContext());
             int size = in.readInt();
             byte[] ret = new byte[size];
             in.readBytes(ret, 0, size);
             return ret;
         } catch (IOException e) {
             throw new RuntimeException(e);
+        } finally {
+            if (in != null) IOUtils.closeWhileHandlingException(in);
         }
     }
 
