@@ -212,10 +212,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     /** Additional settings to add when creating the node. Also allows overriding the default settings. */
     protected Settings nodeSettings() {
-        // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
-        // when tests are run with concurrent segment search enabled. When concurrent segment search is disabled then it's a no-op as
-        // slices are not used
-        return Settings.builder().put(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2).build();
+        return Settings.EMPTY;
     }
 
     /** True if a dummy http transport should be used, or false if the real http transport should be used. */
@@ -251,6 +248,10 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
             .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true)
             .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
+            // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
+            // when tests are run with concurrent segment search enabled. When concurrent segment search is disabled then it's a no-op as
+            // slices are not used
+            .put(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
 
