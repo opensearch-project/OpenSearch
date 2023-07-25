@@ -108,37 +108,22 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         "cluster.routing.allocation.move.primary_first",
         false,
         Property.Dynamic,
-        Property.NodeScope
-    );
-
-    public static final Setting<ShardMovementStrategy> SHARD_MOVEMENT_STRATEGY_SETTING = new Setting<ShardMovementStrategy>(
-        "cluster.routing.allocation.shard_movement_strategy",
-        ShardMovementStrategy.NO_PREFERENCE.toString(),
-        ShardMovementStrategy::parse,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-    public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
-        "cluster.routing.allocation.balance.threshold",
-        1.0f,
-        0.0f,
-        Property.Dynamic,
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     /**
-     * This setting governs whether primary shards balance is desired during allocation. This is used by {@link ConstraintTypes#isPerIndexPrimaryShardsPerNodeBreached()}
-     * and {@link ConstraintTypes#isPrimaryShardsPerNodeBreached} which is used during unassigned shard allocation
-     * {@link LocalShardsBalancer#allocateUnassigned()} and shard re-balance/relocation to a different node via {@link LocalShardsBalancer#balance()} .
+     * ShardMovementStrategy defines the order in which shard movement occurs.
+     * <p>
+     * Allocation settings can have the following values (non-casesensitive):
+     *  <ul>
+     *      <li> <code>NO_PREFERENCE</code> - default behavior in which order of shard movement doesn't matter.
+     *      <li> <code>PRIMARY_FIRST</code> - primary shards are moved first.
+     *      <li> <code>REPLICA_FIRST</code> - replica shards are moved first.
+     *  </ul>
+     * ShardMovementStrategy values or rather their string representation to be used with
+     * {@link BalancedShardsAllocator#SHARD_MOVEMENT_STRATEGY_SETTING} via cluster settings.
      */
-
-    public static final Setting<Boolean> PREFER_PRIMARY_SHARD_BALANCE = Setting.boolSetting(
-        "cluster.routing.allocation.balance.prefer_primary",
-        false,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
     public enum ShardMovementStrategy {
         NO_PREFERENCE,
         PRIMARY_FIRST,
@@ -163,6 +148,39 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
     }
+
+    /**
+     * Decides order in which to move shards from node when shards can not stay on node anymore. {@link LocalShardsBalancer#moveShards()}
+     * Encapsulates behavior of above SHARD_MOVE_PRIMARY_FIRST_SETTING.
+     */
+    public static final Setting<ShardMovementStrategy> SHARD_MOVEMENT_STRATEGY_SETTING = new Setting<ShardMovementStrategy>(
+        "cluster.routing.allocation.shard_movement_strategy",
+        ShardMovementStrategy.NO_PREFERENCE.toString(),
+        ShardMovementStrategy::parse,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.threshold",
+        1.0f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * This setting governs whether primary shards balance is desired during allocation. This is used by {@link ConstraintTypes#isPerIndexPrimaryShardsPerNodeBreached()}
+     * and {@link ConstraintTypes#isPrimaryShardsPerNodeBreached} which is used during unassigned shard allocation
+     * {@link LocalShardsBalancer#allocateUnassigned()} and shard re-balance/relocation to a different node via {@link LocalShardsBalancer#balance()} .
+     */
+
+    public static final Setting<Boolean> PREFER_PRIMARY_SHARD_BALANCE = Setting.boolSetting(
+        "cluster.routing.allocation.balance.prefer_primary",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private volatile boolean movePrimaryFirst;
     private volatile ShardMovementStrategy shardMovementStrategy;

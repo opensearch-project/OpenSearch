@@ -190,20 +190,6 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
         startInitializingShards(TEST_INDEX_2);
         startInitializingShards(TEST_INDEX_2);
 
-        // Create primary shard count imbalance between two nodes
-        final RoutingNode node0 = this.clusterState.getRoutingNodes().node("node0");
-        final RoutingNode node1 = this.clusterState.getRoutingNodes().node("node1");
-        final List<ShardRouting> shardRoutingList = node0.shardsWithState(TEST_INDEX_1, ShardRoutingState.STARTED);
-        for (ShardRouting routing : shardRoutingList) {
-            if (routing.primary()) {
-                node0.remove(routing);
-                ShardRouting swap = node1.getByShardId(routing.shardId());
-                node0.add(swap);
-                node1.remove(swap);
-                node1.add(routing);
-            }
-        }
-
         // Get replica first shard iterator and assert replica shards are iterated over first
         final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes()
             .nodeInterleavedShardIterator(BalancedShardsAllocator.ShardMovementStrategy.REPLICA_FIRST);

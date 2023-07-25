@@ -593,8 +593,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 continue;
             }
 
-            // Ensure that replicas don't relocate if primaries are being throttled and primary first is enabled
-            if ((movePrimaryFirst || shardMovementStrategy == BalancedShardsAllocator.ShardMovementStrategy.PRIMARY_FIRST)
+            // Ensure that replicas don't relocate if primaries are being throttled and primary first shard movement strategy is enabled
+            if ((shardMovementStrategy == BalancedShardsAllocator.ShardMovementStrategy.PRIMARY_FIRST)
                 && primariesThrottled
                 && !shardRouting.primary()) {
                 logger.info(
