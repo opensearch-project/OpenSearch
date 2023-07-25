@@ -49,12 +49,43 @@ public class ShardMovementStrategyTests extends OpenSearchIntegTestCase {
         flushAndRefresh(index);
     }
 
-    public void testClusterGreenAfterPartialRelocationPrimaryFirstShardMovementStrategy() throws InterruptedException {
-        testClusterGreenAfterPartialRelocation(BalancedShardsAllocator.ShardMovementStrategy.PRIMARY_FIRST);
+    private static Settings.Builder getSettings(
+        BalancedShardsAllocator.ShardMovementStrategy shardMovementStrategy,
+        boolean movePrimaryFirst
+    ) {
+        return Settings.builder()
+            .put("cluster.routing.allocation.shard_movement_strategy", shardMovementStrategy)
+            .put("cluster.routing.allocation.move.primary_first", movePrimaryFirst);
     }
 
-    public void testClusterGreenAfterPartialRelocationReplicaFirstShardMovementStrategy() throws InterruptedException {
-        testClusterGreenAfterPartialRelocation(BalancedShardsAllocator.ShardMovementStrategy.REPLICA_FIRST);
+    public void testClusterGreenAfterPartialRelocationPrimaryFirstShardMovementMovePrimarySettingEnabled() throws InterruptedException {
+        testClusterGreenAfterPartialRelocation(BalancedShardsAllocator.ShardMovementStrategy.PRIMARY_FIRST, true);
+    }
+
+    public void testClusterGreenAfterPartialRelocationPrimaryFirstShardMovementMovePrimarySettingDisabled() throws InterruptedException {
+        testClusterGreenAfterPartialRelocation(BalancedShardsAllocator.ShardMovementStrategy.PRIMARY_FIRST, false);
+    }
+
+    public void testClusterGreenAfterPartialRelocationReplicaFirstShardMovementPrimaryFirstEnabled() throws InterruptedException {
+        testClusterGreenAfterPartialRelocation(BalancedShardsAllocator.ShardMovementStrategy.REPLICA_FIRST, true);
+    }
+
+    public void testClusterGreenAfterPartialRelocationReplicaFirstShardMovementPrimaryFirstDisabled() throws InterruptedException {
+        testClusterGreenAfterPartialRelocation(BalancedShardsAllocator.ShardMovementStrategy.REPLICA_FIRST, false);
+    }
+
+    public void testClusterGreenAfterPartialRelocationNoPreferenceShardMovementPrimaryFirstEnabled() throws InterruptedException {
+        testClusterGreenAfterPartialRelocation(BalancedShardsAllocator.ShardMovementStrategy.NO_PREFERENCE, true);
+    }
+
+    private boolean shouldMovePrimaryShardsFirst(
+        BalancedShardsAllocator.ShardMovementStrategy shardMovementStrategy,
+        boolean movePrimaryFirst
+    ) {
+        if (shardMovementStrategy == BalancedShardsAllocator.ShardMovementStrategy.NO_PREFERENCE && movePrimaryFirst) {
+            return true;
+        }
+        return shardMovementStrategy == BalancedShardsAllocator.ShardMovementStrategy.PRIMARY_FIRST;
     }
 
     /**
@@ -64,8 +95,10 @@ public class ShardMovementStrategyTests extends OpenSearchIntegTestCase {
      * nodes in zone1. Depending on the shard movement strategy, we check whether the
      * primary or replica shards are moved first, and zone2 nodes have all the shards
      */
-    private void testClusterGreenAfterPartialRelocation(BalancedShardsAllocator.ShardMovementStrategy shardMovementStrategy)
-        throws InterruptedException {
+    private void testClusterGreenAfterPartialRelocation(
+        BalancedShardsAllocator.ShardMovementStrategy shardMovementStrategy,
+        boolean movePrimaryFirst
+    ) throws InterruptedException {
         internalCluster().startClusterManagerOnlyNodes(1);
         final String z1 = "zone-1", z2 = "zone-2";
         final int primaryShardCount = 6;
@@ -83,9 +116,7 @@ public class ShardMovementStrategyTests extends OpenSearchIntegTestCase {
         // zone nodes excluded to prevent any shard relocation
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
         settingsRequest.persistentSettings(
-            Settings.builder()
-                .put("cluster.routing.allocation.shard_movement_strategy", shardMovementStrategy)
-                .put("cluster.routing.allocation.exclude.zone", z2)
+            getSettings(shardMovementStrategy, movePrimaryFirst).put("cluster.routing.allocation.exclude.zone", z2)
         );
         client().admin().cluster().updateSettings(settingsRequest).actionGet();
 
@@ -107,8 +138,7 @@ public class ShardMovementStrategyTests extends OpenSearchIntegTestCase {
                         for (ShardRouting shardEntry : routingNode) {
                             // If shard movement strategy is primary first, asserting that primary shards are moved first; else assert
                             // shards are replicas
-                            if ((shardEntry
-                                .primary() == (shardMovementStrategy == BalancedShardsAllocator.ShardMovementStrategy.PRIMARY_FIRST))
+                            if ((shardEntry.primary() == shouldMovePrimaryShardsFirst(shardMovementStrategy, movePrimaryFirst))
                                 && shardEntry.state() == ShardRoutingState.STARTED) {
                                 count++;
                             }
