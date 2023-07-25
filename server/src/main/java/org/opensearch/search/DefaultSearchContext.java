@@ -917,8 +917,10 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public InternalAggregation.ReduceContext partial() {
-        return requestToAggReduceContextBuilder.apply(request.source()).forPartialReduction();
+    public InternalAggregation.ReduceContext partialOnShard() {
+        InternalAggregation.ReduceContext rc = requestToAggReduceContextBuilder.apply(request.source()).forPartialReduction();
+        rc.setSliceLevel(isConcurrentSegmentSearchEnabled());
+        return rc;
     }
 
     @Override

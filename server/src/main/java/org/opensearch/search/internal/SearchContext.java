@@ -465,7 +465,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ReaderContext readerContext();
 
-    public abstract InternalAggregation.ReduceContext partial();
+    public abstract InternalAggregation.ReduceContext partialOnShard();
 
     // processor used for bucket collectors
     public abstract void setBucketCollectorProcessor(BucketCollectorProcessor bucketCollectorProcessor);

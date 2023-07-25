@@ -97,7 +97,7 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
 
     private void testRestoreWithMergeFlow(int numberOfIterations, boolean invokeFlush, boolean flushAfterMerge, long deletedDocs)
         throws IOException {
-        createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 

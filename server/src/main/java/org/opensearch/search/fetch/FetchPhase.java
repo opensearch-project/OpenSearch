@@ -52,6 +52,7 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
@@ -377,7 +378,7 @@ public class FetchPhase {
 
         String rootId;
         Map<String, Object> rootSourceAsMap = null;
-        XContentType rootSourceContentType = null;
+        MediaType rootSourceContentType = null;
 
         int nestedDocId = nestedTopDocId - subReaderContext.docBase;
 

@@ -47,6 +47,7 @@ import org.opensearch.common.path.PathTrie;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentType;
@@ -282,17 +283,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
         final int contentLength = request.content().length();
         if (contentLength > 0) {
-            final XContentType xContentType = request.getXContentType();
-            if (xContentType == null) {
+            final MediaType mediaType = request.getMediaType();
+            if (mediaType == null) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
-            if (handler.supportsContentStream() && xContentType != XContentType.JSON && xContentType != XContentType.SMILE) {
+            if (handler.supportsContentStream() && mediaType != XContentType.JSON && mediaType != XContentType.SMILE) {
                 channel.sendResponse(
                     BytesRestResponse.createSimpleErrorResponse(
                         channel,
                         RestStatus.NOT_ACCEPTABLE,
-                        "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"
+                        "Content-Type [" + mediaType + "] does not support stream parsing. Use JSON or SMILE instead"
                     )
                 );
                 return;
@@ -592,14 +593,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(xContentType, useFiltering);
+        public XContentBuilder newBuilder(@Nullable MediaType mediaType, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(mediaType, useFiltering);
         }
 
         @Override
-        public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
-            throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
+        public XContentBuilder newBuilder(MediaType mediaType, MediaType responseContentType, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(mediaType, responseContentType, useFiltering);
         }
 
         @Override

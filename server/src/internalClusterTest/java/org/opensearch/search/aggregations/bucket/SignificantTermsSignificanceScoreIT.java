@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
@@ -42,6 +43,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.MockScriptPlugin;
@@ -208,6 +210,34 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
             + "}]}}]}}";
         assertThat(Strings.toString(responseBuilder), equalTo(result));
 
+    }
+
+    public void testConsistencyWithDifferentShardCounts() throws Exception {
+        // The purpose of this test is to validate that the aggregation results do not change with shard count.
+        // bg_count for significant term agg is summed up across shards, so in this test we compare a 1 shard and 2 shard search request
+        String type = randomBoolean() ? "text" : "long";
+        String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
+        SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
+
+        SearchRequestBuilder request = client().prepareSearch(INDEX_NAME)
+            .setQuery(new TermQueryBuilder(CLASS_FIELD, "0"))
+            .addAggregation((significantTerms("sig_terms").field(TEXT_FIELD)));
+
+        SearchResponse response1 = request.get();
+
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest("*")).get());
+
+        settings = "{\"index.number_of_shards\": 2, \"index.number_of_replicas\": 0}";
+        // We use a custom routing strategy here to ensure that each shard will have at least 1 bucket.
+        // If there are no buckets collected for a shard, then that will affect the scoring and bg_count and our assertion will not be
+        // valid.
+        SharedSignificantTermsTestMethods.index01DocsWithRouting(type, settings, this);
+        SearchResponse response2 = request.get();
+
+        assertEquals(
+            response1.getAggregations().asMap().get("sig_terms").toString(),
+            response2.getAggregations().asMap().get("sig_terms").toString()
+        );
     }
 
     public void testPopularTermManyDeletedDocs() throws Exception {
