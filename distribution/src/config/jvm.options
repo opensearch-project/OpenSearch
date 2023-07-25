@@ -78,3 +78,6 @@ ${error.file}
 
 # Explicitly allow security manager (https://bugs.openjdk.java.net/browse/JDK-8270380)
 18-:-Djava.security.manager=allow
+
+# HDFS ForkJoinPool.common() support by SecurityManager
+-Djava.util.concurrent.ForkJoinPool.common.threadFactory=org.opensearch.secure_sm.SecuredForkJoinWorkerThreadFactory

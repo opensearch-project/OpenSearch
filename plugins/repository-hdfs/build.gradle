@@ -48,7 +48,7 @@ opensearchplugin {
 }
 
 versions << [
-  'hadoop3': '3.3.4'
+  'hadoop3': '3.3.6'
 ]
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
@@ -439,4 +439,8 @@ thirdPartyAudit {
     'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
     'org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField',
   )
+}
+
+tasks.withType(JavaForkOptions) {
+  systemProperty "java.util.concurrent.ForkJoinPool.common.threadFactory", "org.opensearch.secure_sm.SecuredForkJoinWorkerThreadFactory"
 }
