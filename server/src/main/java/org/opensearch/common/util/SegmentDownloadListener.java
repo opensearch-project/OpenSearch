@@ -8,6 +8,11 @@
 
 package org.opensearch.common.util;
 
+/**
+ * Interface for populating download stats of segments from remote store
+ *
+ * @opensearch.internal
+ */
 public interface SegmentDownloadListener {
     void beforeSync();
 
