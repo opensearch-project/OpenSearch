@@ -1177,6 +1177,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPitCreatedOnReplica() throws Exception {
+        assumeFalse(
+            "Skipping the test as its not compatible with segment replication with remote store yet.",
+            segmentReplicationWithRemoteEnabled()
+        );
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
