@@ -46,6 +46,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -296,7 +297,7 @@ public abstract class ScrollableHitSource {
          * The content type of the hit source. Returns null if the source didn't come back from the search.
          */
         @Nullable
-        XContentType getXContentType();
+        MediaType getMediaType();
 
         /**
          * The routing on the hit if there is any or null if there isn't.
@@ -316,7 +317,7 @@ public abstract class ScrollableHitSource {
         private final long version;
 
         private BytesReference source;
-        private XContentType xContentType;
+        private MediaType mediaType;
         private String routing;
         private long seqNo;
         private long primaryTerm;
@@ -358,13 +359,13 @@ public abstract class ScrollableHitSource {
         }
 
         @Override
-        public XContentType getXContentType() {
-            return xContentType;
+        public MediaType getMediaType() {
+            return mediaType;
         }
 
-        public BasicHit setSource(BytesReference source, XContentType xContentType) {
+        public BasicHit setSource(BytesReference source, MediaType mediaType) {
             this.source = source;
-            this.xContentType = xContentType;
+            this.mediaType = mediaType;
             return this;
         }
 

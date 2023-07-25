@@ -36,11 +36,12 @@ import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeParser;
+import org.opensearch.core.xcontent.MediaTypeParserRegistry;
 import org.opensearch.core.xcontent.XContent;
 
-import java.util.Locale;
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -130,53 +131,9 @@ public enum XContentType implements MediaType {
         }
     };
 
-    /** a parser of media types */
-    private static final MediaTypeParser<XContentType> MEDIA_TYPE_PARSER = new MediaTypeParser<>(
-        XContentType.values(),
-        Map.of("application/*", JSON, "application/x-ndjson", JSON)
-    );
-
-    /** gets the {@link MediaTypeParser} singleton for use outside class */
-    @SuppressWarnings("rawtypes")
-    public static MediaTypeParser getMediaTypeParser() {
-        return MEDIA_TYPE_PARSER;
-    }
-
-    /**
-     * Accepts a format string, which is most of the time is equivalent to {@link XContentType#subtype()}
-     * and attempts to match the value to an {@link XContentType}.
-     * The comparisons are done in lower case format.
-     * This method will return {@code null} if no match is found
-     */
-    public static XContentType fromFormat(String mediaType) {
-        return MEDIA_TYPE_PARSER.fromFormat(mediaType);
-    }
-
-    /**
-     * Attempts to match the given media type with the known {@link XContentType} values. This match is done in a case-insensitive manner.
-     * The provided media type can optionally has parameters.
-     * This method is suitable for parsing of the {@code Content-Type} and {@code Accept} HTTP headers.
-     * This method will return {@code null} if no match is found
-     */
-    public static XContentType fromMediaType(String mediaTypeHeaderValue) {
-        mediaTypeHeaderValue = removeVersionInMediaType(mediaTypeHeaderValue);
-        return MEDIA_TYPE_PARSER.fromMediaType(mediaTypeHeaderValue);
-    }
-
-    /**
-     * Clients compatible with ES 7.x might start sending media types with versioned media type
-     * in a form of application/vnd.elasticsearch+json;compatible-with=7.
-     * This has to be removed in order to be used in 7.x server.
-     * The same client connecting using that media type will be able to communicate with ES 8 thanks to compatible API.
-     * @param mediaType - a media type used on Content-Type header, might contain versioned media type.
-     *
-     * @return a media type string without
-     */
-    private static String removeVersionInMediaType(String mediaType) {
-        if (mediaType != null && (mediaType = mediaType.toLowerCase(Locale.ROOT)).contains("vnd.opensearch")) {
-            return mediaType.replaceAll("vnd.opensearch\\+", "").replaceAll("\\s*;\\s*compatible-with=\\d+", "");
-        }
-        return mediaType;
+    static {
+        /** a parser of media types */
+        MediaTypeParserRegistry.register(XContentType.values(), Map.of("application/*", JSON, "application/x-ndjson", JSON));
     }
 
     private int index;
@@ -199,12 +156,8 @@ public enum XContentType implements MediaType {
         return subtype();
     }
 
-    /** Converts from a {@link MediaType} to an explicit {@link XContentType} */
-    public static XContentType fromMediaType(MediaType mediaType) {
-        if (mediaType instanceof XContentType) {
-            return (XContentType) mediaType;
-        } else {
-            return mediaType != null ? MEDIA_TYPE_PARSER.fromMediaType(mediaType.mediaTypeWithoutParameters()) : null;
-        }
+    @Override
+    public void writeTo(StreamOutput output) throws IOException {
+        output.writeString(this.mediaType());
     }
 }

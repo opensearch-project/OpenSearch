@@ -25,6 +25,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Sachin Kale              | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
 | Sarat Vemulapalli        | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
 | Shweta Thareja           | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
+| Sorabh Hamirwasia        | [sohami](https://github.com/sohami)                     | Amazon      |
 | Suraj Singh              | [dreamer-89](https://github.com/dreamer-89)             | Amazon      |
 | Tianli Feng              | [tlfeng](https://github.com/tlfeng)                     | Amazon      |
 | Vacha Shah               | [VachaShah](https://github.com/VachaShah)               | Amazon      |

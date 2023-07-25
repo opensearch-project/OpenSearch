@@ -41,12 +41,12 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.reindex.ScrollableHitSource.BasicHit;
 import org.opensearch.index.reindex.ScrollableHitSource.Hit;
 import org.opensearch.index.reindex.ScrollableHitSource.Response;
@@ -72,7 +72,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for an individual {@code hit} element.
      */
-    public static final ConstructingObjectParser<BasicHit, XContentType> HIT_PARSER = new ConstructingObjectParser<>("hit", true, a -> {
+    public static final ConstructingObjectParser<BasicHit, MediaType> HIT_PARSER = new ConstructingObjectParser<>("hit", true, a -> {
         int i = 0;
         String index = (String) a[i++];
         String id = (String) a[i++];
@@ -106,7 +106,7 @@ final class RemoteResponseParsers {
         class Fields {
             String routing;
         }
-        ObjectParser<Fields, XContentType> fieldsParser = new ObjectParser<>("fields", Fields::new);
+        ObjectParser<Fields, MediaType> fieldsParser = new ObjectParser<>("fields", Fields::new);
         HIT_PARSER.declareObject((hit, fields) -> { hit.setRouting(fields.routing); }, fieldsParser, new ParseField("fields"));
         fieldsParser.declareString((fields, routing) -> fields.routing = routing, routingField);
         fieldsParser.declareLong((fields, ttl) -> {}, ttlField); // ignore ttls since they have been removed
@@ -116,7 +116,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for the {@code hits} element. Parsed to an array of {@code [total (Long), hits (List<Hit>)]}.
      */
-    public static final ConstructingObjectParser<Object[], XContentType> HITS_PARSER = new ConstructingObjectParser<>("hits", true, a -> a);
+    public static final ConstructingObjectParser<Object[], MediaType> HITS_PARSER = new ConstructingObjectParser<>("hits", true, a -> a);
     static {
         HITS_PARSER.declareField(constructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -184,7 +184,7 @@ final class RemoteResponseParsers {
         SHARDS_PARSER.declareObjectArray(optionalConstructorArg(), SEARCH_FAILURE_PARSER, new ParseField("failures"));
     }
 
-    public static final ConstructingObjectParser<Response, XContentType> RESPONSE_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Response, MediaType> RESPONSE_PARSER = new ConstructingObjectParser<>(
         "search_response",
         true,
         a -> {
@@ -296,13 +296,13 @@ final class RemoteResponseParsers {
     /**
      * Parses the main action to return just the {@linkplain Version} that it returns. We throw everything else out.
      */
-    public static final ConstructingObjectParser<Version, XContentType> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Version, MediaType> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
         "/",
         true,
         a -> (Version) a[0]
     );
     static {
-        ConstructingObjectParser<Version, XContentType> versionParser = new ConstructingObjectParser<>(
+        ConstructingObjectParser<Version, MediaType> versionParser = new ConstructingObjectParser<>(
             "version",
             true,
             a -> a[0] == null

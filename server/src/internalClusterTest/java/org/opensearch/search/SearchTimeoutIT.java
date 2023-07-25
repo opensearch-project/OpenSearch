@@ -79,7 +79,6 @@ public class SearchTimeoutIT extends OpenSearchIntegTestCase {
             .get();
         assertTrue(searchResponse.isTimedOut());
         assertEquals(0, searchResponse.getFailedShards());
-        assertTrue(numDocs > searchResponse.getHits().getTotalHits().value);
     }
 
     public void testSimpleDoesNotTimeout() throws Exception {

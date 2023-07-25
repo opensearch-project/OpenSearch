@@ -40,10 +40,11 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -352,7 +353,7 @@ public class UpdateHelper {
         long primaryTerm,
         long version,
         final Map<String, Object> source,
-        XContentType sourceContentType,
+        MediaType sourceContentType,
         @Nullable final BytesReference sourceAsBytes
     ) {
         if (request.fetchSource() == null || request.fetchSource().fetchSource() == false) {
