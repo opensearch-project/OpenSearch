@@ -95,6 +95,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
@@ -177,6 +178,35 @@ public final class IndexModule {
         "index.store.hybrid.nio.extensions",
         Collections.emptyList(),
         Function.identity(),
+        new Setting.Validator<List<String>>() {
+
+            @Override
+            public void validate(final List<String> value) {}
+
+            @Override
+            public void validate(final List<String> value, final Map<Setting<?>, Object> settings) {
+                if (!value.isEmpty()) {
+                    final List<String> mmapExtensions = (List<String>) settings.get(INDEX_STORE_HYBRID_MMAP_EXTENSIONS);
+                    if (!mmapExtensions.equals(List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"))) {
+                        throw new IllegalArgumentException(
+                            "Settings "
+                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
+                                + " & "
+                                + INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey()
+                                + " cannot both be set. Use "
+                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
+                                + " only."
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_STORE_HYBRID_MMAP_EXTENSIONS);
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
         Property.NodeScope
     );

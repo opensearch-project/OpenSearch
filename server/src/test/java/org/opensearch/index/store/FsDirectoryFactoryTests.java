@@ -154,8 +154,8 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             newDirectory(build);
         } catch (final Exception e) {
             assertEquals(
-                e.getMessage(),
-                "INDEX_STORE_HYBRID_MMAP_EXTENSIONS and INDEX_STORE_HYBRID_NIO_EXTENSIONS are both defined. Use INDEX_STORE_HYBRID_NIO_EXTENSIONS only"
+                "Settings index.store.hybrid.nio.extensions & index.store.hybrid.mmap.extensions cannot both be set. Use index.store.hybrid.nio.extensions only.",
+                e.getMessage()
             );
         }
     }

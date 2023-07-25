@@ -105,12 +105,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                     List<String> allExtensions = new ArrayList<>(INDEX_STORE_HYBRID_ALL_EXTENSIONS);
                     allExtensions.removeAll(mmapExtensions);
                     nioExtensions = new HashSet<>(allExtensions);
-                } else {
-                    if (!mmapExtensions.equals(List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"))) {
-                        throw new IllegalArgumentException(
-                            "INDEX_STORE_HYBRID_MMAP_EXTENSIONS and INDEX_STORE_HYBRID_NIO_EXTENSIONS are both defined. Use INDEX_STORE_HYBRID_NIO_EXTENSIONS only"
-                        );
-                    }
                 }
                 if (primaryDirectory instanceof MMapDirectory) {
                     MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
