@@ -213,6 +213,9 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         );
         ensureGreen(INDEX_NAME);
 
+        // Manually invoke a refresh
+        refresh(INDEX_NAME);
+
         // Get zero state values
         // Extract and assert zero state primary stats
         RemoteStoreStatsResponse zeroStateResponse = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
@@ -525,6 +528,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         // Create an index with one primary and one replica shard
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 1));
         ensureGreen(INDEX_NAME);
+        refresh(INDEX_NAME);
 
         // Ensure that the index has 0 documents in it
         assertEquals(0, client().admin().indices().prepareStats(INDEX_NAME).get().getTotal().docs.getCount());
