@@ -179,8 +179,18 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
             assertThat(hit.getExplanation().toString(), containsString(Double.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(), containsString("1 = n"));
-            assertThat(hit.getExplanation().toString(), containsString("1 = N"));
+
+            // Since Apache Lucene 9.8, the scores are not computed because script (see please ExplainableScriptPlugin)
+            // says "needs_score() == false"
+            // 19.0 = min of:
+            // 19.0 = This script returned 19.0
+            // 0.0 = _score:
+            // 0.0 = weight(text:text in 0) [PerFieldSimilarity], result of:
+            // 0.0 = score(freq=1.0), with freq of:
+            // 1.0 = freq, occurrences of term within document
+            // 3.4028235E38 = maxBoost
+
+            assertThat(hit.getExplanation().toString(), containsString("1.0 = freq, occurrences of term within document"));
             assertThat(hit.getExplanation().getDetails().length, equalTo(2));
             idCounter--;
         }
