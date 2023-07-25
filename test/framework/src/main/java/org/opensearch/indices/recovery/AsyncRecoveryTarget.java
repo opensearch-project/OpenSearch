@@ -90,7 +90,10 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
 
     @Override
     public void forceSegmentFileSync() {
-        this.replicatePrimaryFunction.apply(List.of(primary, replica));
+        // skip force sync for remote store enabled indices
+        if (primary.indexSettings().isRemoteStoreEnabled() == false) {
+            this.replicatePrimaryFunction.apply(List.of(primary, replica));
+        }
     }
 
     @Override

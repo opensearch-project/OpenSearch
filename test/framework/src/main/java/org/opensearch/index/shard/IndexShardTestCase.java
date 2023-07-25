@@ -1326,6 +1326,21 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         };
     }
 
+    private SegmentReplicationTargetService getSegmentReplicationTargetService(TransportService transportService,
+                                                                               IndicesService indicesService,
+                                                                               ClusterService clusterService,
+                                                                               SegmentReplicationSourceFactory sourceFactory
+                                                                               ) {
+        return new SegmentReplicationTargetService(
+            threadPool,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            transportService,
+            sourceFactory,
+            indicesService,
+            clusterService
+        );
+    }
+
     /**
      * Segment Replication specific test method - Creates a {@link SegmentReplicationTargetService} to perform replications that has
      * been configured to return the given primaryShard's current segments. In order to do so, it mimics the replication
@@ -1341,7 +1356,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      *                             which are desired right after files are copied. e.g. To work with temp files
      * @return Returns SegmentReplicationTargetService
      */
-    protected SegmentReplicationTargetService prepareForReplication(
+    private SegmentReplicationTargetService prepareForReplication(
         IndexShard primaryShard,
         IndexShard target,
         TransportService transportService,
@@ -1349,23 +1364,28 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ClusterService clusterService,
         Consumer<IndexShard> postGetFilesRunnable
     ) {
-        final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
-        final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
-            threadPool,
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            transportService,
-            sourceFactory,
-            indicesService,
-            clusterService
-        );
-        final SegmentReplicationSource replicationSource = getSegmentReplicationSource(
-            primaryShard,
-            (repId) -> targetService.get(repId),
-            postGetFilesRunnable
-        );
-        when(sourceFactory.get(any())).thenReturn(replicationSource);
-        // This is needed for force segment sync call. Remote store uses a different recovery mechanism
-        when(indicesService.getShardOrNull(any())).thenReturn(target);
+
+        SegmentReplicationSourceFactory sourceFactory = null;
+        SegmentReplicationTargetService targetService;
+        if (primaryShard.indexSettings.isRemoteStoreEnabled()) {
+            RecoverySettings recoverySettings = new RecoverySettings(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            sourceFactory = new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService);
+            targetService = getSegmentReplicationTargetService(transportService, indicesService, clusterService, sourceFactory);
+        } else {
+            sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            targetService = getSegmentReplicationTargetService(transportService, indicesService, clusterService, sourceFactory);
+            final SegmentReplicationSource replicationSource = getSegmentReplicationSource(
+                primaryShard,
+                (repId) -> targetService.get(repId),
+                postGetFilesRunnable
+            );
+            when(sourceFactory.get(any())).thenReturn(replicationSource);
+            // This is needed for force segment sync call. Remote store uses a different recovery mechanism
+            when(indicesService.getShardOrNull(any())).thenReturn(target);
+        }
         return targetService;
     }
 

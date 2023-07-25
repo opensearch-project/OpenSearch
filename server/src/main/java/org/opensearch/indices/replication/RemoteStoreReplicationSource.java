@@ -25,6 +25,7 @@ import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -101,12 +102,13 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 return;
             }
             logger.trace("Downloading segments files from remote store {}", filesToFetch);
-            RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readLatestMetadataFile();
+            RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
             List<StoreFileMetadata> downloadedSegments = new ArrayList<>();
             if (remoteSegmentMetadata != null) {
                 try {
                     indexShard.store().incRef();
                     indexShard.remoteStore().incRef();
+                    Store store = indexShard.store();
                     final Directory storeDirectory = indexShard.store().directory();
                     String segmentNFile = null;
                     for (StoreFileMetadata fileMetadata : filesToFetch) {
@@ -119,10 +121,10 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                         }
                     }
                     storeDirectory.sync(downloadedSegments.stream().map(metadata -> metadata.name()).collect(Collectors.toList()));
+                    logger.trace("Downloaded segments from remote store {}", downloadedSegments);
                 } finally {
                     indexShard.store().decRef();
                     indexShard.remoteStore().decRef();
-                    logger.trace("Downloaded segments from remote store {}", downloadedSegments);
                 }
             }
             listener.onResponse(new GetSegmentFilesResponse(downloadedSegments));

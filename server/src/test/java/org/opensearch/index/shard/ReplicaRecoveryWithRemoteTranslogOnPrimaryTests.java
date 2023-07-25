@@ -25,6 +25,7 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -60,14 +61,15 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
     }
 
     public void testStartSequenceForReplicaRecovery() throws Exception {
-        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
-
+        final Path remoteDir = createTempDir();
+        final String indexMapping = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": {} }";
+        try (ReplicationGroup shards = createGroup(0, settings, indexMapping, new NRTReplicationEngineFactory(), remoteDir)) {
             shards.startPrimary();
             final IndexShard primary = shards.getPrimary();
             int numDocs = shards.indexDocs(randomIntBetween(10, 100));
             shards.flush();
 
-            final IndexShard replica = shards.addReplica();
+            final IndexShard replica = shards.addReplica(remoteDir);
             shards.startAll();
 
             allowShardFailures();
@@ -83,6 +85,14 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             int moreDocs = shards.indexDocs(randomIntBetween(20, 100));
             shards.flush();
 
+            final ShardRouting replicaRouting2 = newShardRouting(
+                replicaRouting.shardId(),
+                replicaRouting.currentNodeId(),
+                false,
+                ShardRoutingState.INITIALIZING,
+                RecoverySource.PeerRecoverySource.INSTANCE
+            );
+            Store remoteStore = createRemoteStore(remoteDir, replicaRouting2, newIndexMetadata);
             IndexShard newReplicaShard = newShard(
                 newShardRouting(
                     replicaRouting.shardId(),
@@ -100,7 +110,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                 replica.getGlobalCheckpointSyncer(),
                 replica.getRetentionLeaseSyncer(),
                 EMPTY_EVENT_LISTENER,
-                null
+                remoteStore
             );
             shards.addReplica(newReplicaShard);
             AtomicBoolean assertDone = new AtomicBoolean(false);
@@ -123,7 +133,6 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                     return idxShard;
                 }
             });
-
             shards.flush();
             replicateSegments(primary, shards.getReplicas());
             shards.assertAllEqual(numDocs + moreDocs);
@@ -163,33 +172,5 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             replicateSegments(primary, shards.getReplicas());
             shards.assertAllEqual(numDocs + moreDocs);
         }
-    }
-
-    protected SegmentReplicationTargetService prepareForReplication(
-        IndexShard primaryShard,
-        IndexShard target,
-        TransportService transportService,
-        IndicesService indicesService,
-        ClusterService clusterService,
-        Consumer<IndexShard> postGetFilesRunnable
-    ) {
-        RecoverySettings recoverySettings = new RecoverySettings(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
-        SegmentReplicationSourceFactory sourceFactory = new SegmentReplicationSourceFactory(
-            transportService,
-            recoverySettings,
-            clusterService
-        );
-        final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
-            threadPool,
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            transportService,
-            sourceFactory,
-            indicesService,
-            clusterService
-        );
-        return targetService;
     }
 }

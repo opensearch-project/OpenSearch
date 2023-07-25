@@ -40,20 +40,9 @@ public class SegmentReplicationWithRemoteIndexShardTests extends SegmentReplicat
         .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, REPOSITORY_NAME)
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
         .build();
-    TransportService transportService;
-    IndicesService indicesService;
-    RecoverySettings recoverySettings;
-    SegmentReplicationSourceFactory sourceFactory;
 
     @Before
     public void setup() {
-        recoverySettings = new RecoverySettings(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
-        transportService = mock(TransportService.class);
-        indicesService = mock(IndicesService.class);
-        sourceFactory = new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService);
         // Todo: Remove feature flag once remote store integration with segrep goes GA
         FeatureFlags.initializeFeatureFlags(
             Settings.builder().put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING.getKey(), "true").build()
@@ -66,25 +55,6 @@ public class SegmentReplicationWithRemoteIndexShardTests extends SegmentReplicat
 
     protected ReplicationGroup getReplicationGroup(int numberOfReplicas) throws IOException {
         return createGroup(numberOfReplicas, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir());
-    }
-
-    protected SegmentReplicationTargetService prepareForReplication(
-        IndexShard primaryShard,
-        IndexShard target,
-        TransportService transportService,
-        IndicesService indicesService,
-        ClusterService clusterService,
-        Consumer<IndexShard> postGetFilesRunnable
-    ) {
-        final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
-            threadPool,
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            transportService,
-            sourceFactory,
-            indicesService,
-            clusterService
-        );
-        return targetService;
     }
 
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshRefresh() throws Exception {
@@ -146,6 +116,8 @@ public class SegmentReplicationWithRemoteIndexShardTests extends SegmentReplicat
             assertTrue(nextPrimary.translogStats().estimatedNumberOfOperations() >= additonalDocs);
             assertTrue(nextPrimary.translogStats().getUncommittedOperations() >= additonalDocs);
 
+            int prevOperationCount = nextPrimary.translogStats().estimatedNumberOfOperations();
+
             // promote the replica
             shards.promoteReplicaToPrimary(nextPrimary).get();
 
@@ -158,7 +130,7 @@ public class SegmentReplicationWithRemoteIndexShardTests extends SegmentReplicat
 
             // As we are downloading segments from remote segment store on failover, there should not be
             // any operations replayed from translog
-            assertEquals(0, nextPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(prevOperationCount, nextPrimary.translogStats().estimatedNumberOfOperations());
 
             // refresh and push segments to our other replica.
             nextPrimary.refresh("test");

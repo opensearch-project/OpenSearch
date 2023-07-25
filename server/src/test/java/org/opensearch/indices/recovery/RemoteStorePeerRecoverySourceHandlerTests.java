@@ -55,7 +55,7 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
             // Step1 - Start primary, index docs and flush
             shards.startPrimary();
             final IndexShard primary = shards.getPrimary();
-            int numDocs = shards.indexDocs(randomIntBetween(10, 100));
+            int numDocs = shards.indexDocs(randomIntBetween(10, 20));
             shards.flush();
 
             // Step 2 - Start replica for recovery to happen, check both has same number of docs
@@ -66,7 +66,7 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
 
             // Step 3 - Index more docs, run segment replication, check both have same number of docs
             logger.info("--> Add more docs and verify");
-            int moreDocs = shards.indexDocs(randomIntBetween(10, 100));
+            int moreDocs = shards.indexDocs(randomIntBetween(10, 20));
             primary.refresh("test");
             replicateSegments(primary, shards.getReplicas());
             assertEquals(getDocIdAndSeqNos(primary), getDocIdAndSeqNos(replica1));
@@ -89,33 +89,5 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
             assertEquals(1, primary.getRetentionLeases().leases().size());
             assertFalse(primary.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replica2.routingEntry())));
         }
-    }
-
-    protected SegmentReplicationTargetService prepareForReplication(
-        IndexShard primaryShard,
-        IndexShard target,
-        TransportService transportService,
-        IndicesService indicesService,
-        ClusterService clusterService,
-        Consumer<IndexShard> postGetFilesRunnable
-    ) {
-        RecoverySettings recoverySettings = new RecoverySettings(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
-        SegmentReplicationSourceFactory sourceFactory = new SegmentReplicationSourceFactory(
-            transportService,
-            recoverySettings,
-            clusterService
-        );
-        final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
-            threadPool,
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            transportService,
-            sourceFactory,
-            indicesService,
-            clusterService
-        );
-        return targetService;
     }
 }

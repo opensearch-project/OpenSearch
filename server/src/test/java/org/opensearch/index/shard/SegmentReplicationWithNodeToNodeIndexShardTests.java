@@ -10,14 +10,17 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.junit.Assert;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.InternalEngine;
@@ -28,6 +31,7 @@ import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
 import org.opensearch.indices.replication.SegmentReplicationSource;
@@ -35,6 +39,9 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -57,6 +64,180 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentReplicationIndexShardTests {
+
+    public void testReplicaClosesWhileReplicating_AfterGetSegmentFiles() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            final int numDocs = shards.indexDocs(randomInt(10));
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            SegmentReplicationSource source = new TestReplicationSource() {
+                @Override
+                public void getCheckpointMetadata(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    ActionListener<CheckpointInfoResponse> listener
+                ) {
+                    resolveCheckpointInfoResponseListener(listener, primary);
+                }
+
+                @Override
+                public void getSegmentFiles(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    List<StoreFileMetadata> filesToFetch,
+                    IndexShard indexShard,
+                    ActionListener<GetSegmentFilesResponse> listener
+                ) {
+                    // randomly resolve the listener, indicating the source has resolved.
+                    listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+                    targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
+                }
+            };
+            when(sourceFactory.get(any())).thenReturn(source);
+            startReplicationAndAssertCancellation(replica, targetService);
+
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
+    }
+
+    public void testReplicaClosesWhileReplicating_AfterGetCheckpoint() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            final int numDocs = shards.indexDocs(randomInt(10));
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            SegmentReplicationSource source = new TestReplicationSource() {
+                @Override
+                public void getCheckpointMetadata(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    ActionListener<CheckpointInfoResponse> listener
+                ) {
+                    // trigger a cancellation by closing the replica.
+                    targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
+                    resolveCheckpointInfoResponseListener(listener, primary);
+                }
+
+                @Override
+                public void getSegmentFiles(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    List<StoreFileMetadata> filesToFetch,
+                    IndexShard indexShard,
+                    ActionListener<GetSegmentFilesResponse> listener
+                ) {
+                    Assert.fail("Should not be reached");
+                }
+            };
+            when(sourceFactory.get(any())).thenReturn(source);
+            startReplicationAndAssertCancellation(replica, targetService);
+
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
+    }
+
+    public void testCloseShardWhileGettingCheckpoint() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            SegmentReplicationSource source = new TestReplicationSource() {
+
+                ActionListener<CheckpointInfoResponse> listener;
+
+                @Override
+                public void getCheckpointMetadata(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    ActionListener<CheckpointInfoResponse> listener
+                ) {
+                    // set the listener, we will only fail it once we cancel the source.
+                    this.listener = listener;
+                    // shard is closing while we are copying files.
+                    targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
+                }
+
+                @Override
+                public void getSegmentFiles(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    List<StoreFileMetadata> filesToFetch,
+                    IndexShard indexShard,
+                    ActionListener<GetSegmentFilesResponse> listener
+                ) {
+                    Assert.fail("Unreachable");
+                }
+
+                @Override
+                public void cancel() {
+                    // simulate listener resolving, but only after we have issued a cancel from beforeIndexShardClosed .
+                    final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("retryable action was cancelled");
+                    listener.onFailure(exception);
+                }
+            };
+            when(sourceFactory.get(any())).thenReturn(source);
+            startReplicationAndAssertCancellation(replica, targetService);
+
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
+    }
+
+    public void testPrimaryCancelsExecution() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            final int numDocs = shards.indexDocs(randomInt(10));
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            SegmentReplicationSource source = new TestReplicationSource() {
+                @Override
+                public void getCheckpointMetadata(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    ActionListener<CheckpointInfoResponse> listener
+                ) {
+                    listener.onFailure(new CancellableThreads.ExecutionCancelledException("Cancelled"));
+                }
+
+                @Override
+                public void getSegmentFiles(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    List<StoreFileMetadata> filesToFetch,
+                    IndexShard indexShard,
+                    ActionListener<GetSegmentFilesResponse> listener
+                ) {}
+            };
+            when(sourceFactory.get(any())).thenReturn(source);
+            startReplicationAndAssertCancellation(replica, targetService);
+
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
+    }
 
     public void testReplicaPromotedWhileReplicating() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
@@ -465,5 +646,104 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
             }
         }
     }
+
+    // Todo: Move this test to SegmentReplicationIndexShardTests so that it runs for both node-node & remote store
+    public void testPrimaryRelocationWithSegRepFailure() throws Exception {
+        final IndexShard primarySource = newStartedShard(true, getIndexSettings());
+        int totalOps = randomInt(10);
+        for (int i = 0; i < totalOps; i++) {
+            indexDoc(primarySource, "_doc", Integer.toString(i));
+        }
+        IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
+        final IndexShard primaryTarget = newShard(
+            primarySource.routingEntry().getTargetRelocatingShard(),
+            getIndexSettings(),
+            new NRTReplicationEngineFactory()
+        );
+        updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
+
+        Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction = (shardList) -> {
+            try {
+                throw new IOException("Expected failure");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        Exception e = expectThrows(
+            Exception.class,
+            () -> recoverReplica(
+                primaryTarget,
+                primarySource,
+                (primary, sourceNode) -> new RecoveryTarget(primary, sourceNode, new ReplicationListener() {
+                    @Override
+                    public void onDone(ReplicationState state) {
+                        throw new AssertionError("recovery must fail");
+                    }
+
+                    @Override
+                    public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                        assertEquals(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), "Expected failure");
+                    }
+                }),
+                true,
+                true,
+                replicatePrimaryFunction
+            )
+        );
+        closeShards(primarySource, primaryTarget);
+    }
+
+    // Todo: Move this test to SegmentReplicationIndexShardTests so that it runs for both node-node & remote store
+    public void testSegmentReplication_Index_Update_Delete() throws Exception {
+        String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
+        try (ReplicationGroup shards = createGroup(2, getIndexSettings(), mappings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+
+            final int numDocs = randomIntBetween(100, 200);
+            for (int i = 0; i < numDocs; i++) {
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+            }
+
+            assertEqualTranslogOperations(shards, primaryShard);
+            primaryShard.refresh("Test");
+            replicateSegments(primaryShard, shards.getReplicas());
+
+            shards.assertAllEqual(numDocs);
+
+            for (int i = 0; i < numDocs; i++) {
+                // randomly update docs.
+                if (randomBoolean()) {
+                    shards.index(
+                        new IndexRequest(index.getName()).id(String.valueOf(i)).source("{ \"foo\" : \"baz\" }", XContentType.JSON)
+                    );
+                }
+            }
+            assertEqualTranslogOperations(shards, primaryShard);
+            primaryShard.refresh("Test");
+            replicateSegments(primaryShard, shards.getReplicas());
+            shards.assertAllEqual(numDocs);
+
+            final List<DocIdSeqNoAndSource> docs = getDocIdAndSeqNos(primaryShard);
+            for (IndexShard shard : shards.getReplicas()) {
+                assertEquals(getDocIdAndSeqNos(shard), docs);
+            }
+            for (int i = 0; i < numDocs; i++) {
+                // randomly delete.
+                if (randomBoolean()) {
+                    shards.delete(new DeleteRequest(index.getName()).id(String.valueOf(i)));
+                }
+            }
+            assertEqualTranslogOperations(shards, primaryShard);
+            primaryShard.refresh("Test");
+            replicateSegments(primaryShard, shards.getReplicas());
+            final List<DocIdSeqNoAndSource> docsAfterDelete = getDocIdAndSeqNos(primaryShard);
+            for (IndexShard shard : shards.getReplicas()) {
+                assertEquals(getDocIdAndSeqNos(shard), docsAfterDelete);
+            }
+        }
+    }
+
+
 
 }
