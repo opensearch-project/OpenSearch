@@ -12,7 +12,9 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.store.IOContext;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -28,6 +30,7 @@ import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -366,5 +369,69 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
     private NRTReplicationEngine buildNrtReplicaEngine(AtomicLong globalCheckpoint, Store store) throws IOException {
         return buildNrtReplicaEngine(globalCheckpoint, store, defaultSettings);
+    }
+
+    public void testGetSegmentInfosSnapshotPreservesFilesUntilRelease() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        // TODO: Remove this divergent commit logic and copy Segments_N from primary with node-node.
+        // randomly toggle commit / no commit.
+        IndexSettings settings = REMOTE_STORE_INDEX_SETTINGS;
+        final boolean shouldCommit = randomBoolean();
+        if (shouldCommit) {
+            settings = INDEX_SETTINGS;
+        }
+        try (
+            final Store nrtEngineStore = createStore(REMOTE_STORE_INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, settings)
+        ) {
+            List<Engine.Operation> operations = generateHistoryOnReplica(
+                between(10, 20),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            for (Engine.Operation op : operations) {
+                applyOperation(engine, op);
+                applyOperation(nrtEngine, op);
+                // refresh to create a lot of segments.
+                engine.refresh("test");
+            }
+            // wipe the nrt directory initially so we can sync with primary.
+            Lucene.cleanLuceneIndex(nrtEngineStore.directory());
+            for (String file : engine.getLatestSegmentInfos().files(true)) {
+                nrtEngineStore.directory().copyFrom(store.directory(), file, file, IOContext.DEFAULT);
+            }
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
+            assertEquals(engine.getLatestSegmentInfos(), nrtEngine.getLatestSegmentInfos());
+            final GatedCloseable<SegmentInfos> snapshot = nrtEngine.getSegmentInfosSnapshot();
+            final Collection<String> replica_snapshotFiles = snapshot.get().files(true);
+            List<String> replicaFiles = List.of(nrtEngine.store.directory().listAll());
+
+            // merge primary down to 1 segment
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
+            final Collection<String> files = engine.getLatestSegmentInfos().files(true);
+
+            // copy new segments in and load reader.
+            for (String file : files) {
+                if (replicaFiles.contains(file) == false) {
+                    nrtEngineStore.directory().copyFrom(store.directory(), file, file, IOContext.DEFAULT);
+                }
+            }
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
+
+            replicaFiles = List.of(nrtEngine.store.directory().listAll());
+            assertTrue(replicaFiles.containsAll(replica_snapshotFiles));
+
+            // close snapshot, files should be cleaned up
+            snapshot.close();
+
+            replicaFiles = List.of(nrtEngine.store.directory().listAll());
+            assertFalse(replicaFiles.containsAll(replica_snapshotFiles));
+
+            // Ensure we still have all the active files. Note - we exclude the infos file here if we aren't committing
+            // the nrt reader will still reference segments_n-1 after being loaded until a local commit occurs.
+            assertTrue(replicaFiles.containsAll(nrtEngine.getLatestSegmentInfos().files(shouldCommit)));
+        }
     }
 }

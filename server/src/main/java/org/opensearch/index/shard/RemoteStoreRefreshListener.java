@@ -185,7 +185,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             return true;
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
-        indexShard.onCheckpointPublished(checkpoint);
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();

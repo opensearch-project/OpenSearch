@@ -1483,10 +1483,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 ActionListener<CheckpointInfoResponse> listener
             ) {
                 try {
-                    final CopyState copyState = new CopyState(
-                        ReplicationCheckpoint.empty(primaryShard.shardId, primaryShard.getLatestReplicationCheckpoint().getCodec()),
-                        primaryShard
-                    );
+                    final CopyState copyState = new CopyState(primaryShard.getLatestReplicationCheckpoint(), primaryShard);
                     listener.onResponse(
                         new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                     );
@@ -1541,6 +1538,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
             final SegmentReplicationTarget target = targetService.startReplication(
                 replica,
+                primaryShard.getLatestReplicationCheckpoint(),
                 getTargetListener(primaryShard, replica, primaryMetadata, countDownLatch)
             );
             ids.add(target);
