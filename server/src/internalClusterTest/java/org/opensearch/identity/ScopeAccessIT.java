@@ -74,11 +74,65 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ApplicationScopeIT extends OpenSearchIntegTestCase {
+
+public class ScopeAccessIT extends OpenSearchIntegTestCase {
     
     // TODO: Test case, verify that application with no scopes cannot SEARCH
+    public void testApplicationWithNoScopes() {
+        // Prepare cluster
+
+        // Setup identity plugin that will return originator of request as APP_NO_ACCESS
+
+        // Create an extension with id APP_NO_ACCESS
+
+        // Register extension with Extension Manager so ApplicationManager can find it
+
+        // Perform SEARCH so identity is tied to APP_NO_ACCESS
+        // Expect response to be rejected 403
+    }
 
     // TODO: Test case, verify that allowed application can SEARCH
+    public void testApplicationWithLimitedScope() {
+        // Same as ^^^ testApplicationWithNoScopes ^^^, minor edits:
+        // - extension registration is APP_WITH_SEARCH, it has the 'Action.Index.READ'
+        // - SEARCH request should succeed
+        // - Add additional request to GET, should succeed
+        // - Add additional request to INDEX, should fail
+    }
 
     // TODO: Test case, verify that SUPER_USER access application can SEARCH,...
+    public void testApplicationWithLimitedScope() {
+        // Same as ^^^ above ^^^, minor edits:
+        // - extension registration is APP_WITH_SEARCH, it has 'Application.SuperUser.All'
+        // - SEARCH request should succeed
+        // - Add additional request to GET, should succeed
+        // - Add additional request to INDEX, should succeed
+        // - Add additional request to CAT, should succeed
+        // - Add additional request to DELETE INDEX, should succeed
+    }
+
+
+
+
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.EXTENSIONS, "true").build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(new Extension.class);
+    }
+
+    /**
+     * Validates that we properly split fields using the word delimiter filter in query_string.
+     */
+    public void testCustomWordDelimiterQueryString() {
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(queryStringQuery("foo.baz").defaultOperator(Operator.AND).field("field1").field("field2"))
+            .get();
+        assertHitCount(response, 1L);
+    }
 }
