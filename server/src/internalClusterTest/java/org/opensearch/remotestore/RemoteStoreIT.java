@@ -37,7 +37,9 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -169,8 +171,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
      * @throws IOException IO Exception.
      */
-    private void testRestoreFlowBothPrimaryReplicasDown(int numberOfIterations, boolean invokeFlush, int shardCount)
-        throws IOException {
+    private void testRestoreFlowBothPrimaryReplicasDown(int numberOfIterations, boolean invokeFlush, int shardCount) throws IOException {
         prepareCluster(1, 2, INDEX_NAME, 1, shardCount);
         Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
