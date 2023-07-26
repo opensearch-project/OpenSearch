@@ -187,7 +187,8 @@ public final class IndexModule {
             public void validate(final List<String> value, final Map<Setting<?>, Object> settings) {
                 if (!value.isEmpty()) {
                     final List<String> mmapExtensions = (List<String>) settings.get(INDEX_STORE_HYBRID_MMAP_EXTENSIONS);
-                    if (!mmapExtensions.equals(List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"))) {
+                    final List<String> defaultMmapExtensions = INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY);
+                    if (!mmapExtensions.equals(defaultMmapExtensions)) {
                         throw new IllegalArgumentException(
                             "Settings "
                                 + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
@@ -203,8 +204,7 @@ public final class IndexModule {
 
             @Override
             public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Collections.singletonList(INDEX_STORE_HYBRID_MMAP_EXTENSIONS);
-                return settings.iterator();
+                return List.<Setting<?>>of(INDEX_STORE_HYBRID_MMAP_EXTENSIONS).iterator();
             }
         },
         Property.IndexScope,

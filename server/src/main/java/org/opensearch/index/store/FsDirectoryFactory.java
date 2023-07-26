@@ -55,7 +55,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -100,11 +99,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
-                final List<String> mmapExtensions = new ArrayList<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
                 if (nioExtensions.isEmpty()) {
-                    List<String> allExtensions = new ArrayList<>(INDEX_STORE_HYBRID_ALL_EXTENSIONS);
-                    allExtensions.removeAll(mmapExtensions);
-                    nioExtensions = new HashSet<>(allExtensions);
+                    nioExtensions.addAll(INDEX_STORE_HYBRID_ALL_EXTENSIONS);
+                    nioExtensions.removeAll(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
                 }
                 if (primaryDirectory instanceof MMapDirectory) {
                     MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
