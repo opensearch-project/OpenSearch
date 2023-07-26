@@ -4808,6 +4808,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 return true;
             } else {
                 logger.warn("Checksum mismatch between local and remote segment file: {}, will override local file", file);
+                // If there is a checksum mismatch and we are not serving reads it is safe to go ahead and delete the file now.
+                // Outside of engine resets this method will be invoked during recovery so this is safe.
+                if (isReadAllowed() == false) {
+                    localDirectory.deleteFile(file);
+                } else {
+                    // segment conflict with remote store while the shard is serving reads.
+                    failShard("Local copy of segment " + file + " has a different checksum than the version in remote store", null);
+                }
             }
         } catch (NoSuchFileException | FileNotFoundException e) {
             logger.debug("File {} does not exist in local FS, downloading from remote store", file);
