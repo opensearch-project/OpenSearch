@@ -48,7 +48,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.geo.builders.CoordinatesBuilder;
@@ -406,9 +406,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
             .endObject();
 
         client().admin().indices().prepareCreate("countries").setSettings(settings).setMapping(xContentBuilder).get();
-        BulkResponse bulk = client().prepareBulk()
-            .add(bulkAction, 0, bulkAction.length, null, XContentType.fromMediaType(xContentBuilder.contentType()))
-            .get();
+        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {
             assertFalse("unable to index data", item.isFailed());

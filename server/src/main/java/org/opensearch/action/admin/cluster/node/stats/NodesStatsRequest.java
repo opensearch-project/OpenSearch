@@ -34,8 +34,8 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -210,7 +210,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SEARCH_BACKPRESSURE("search_backpressure"),
         CLUSTER_MANAGER_THROTTLING("cluster_manager_throttling"),
         WEIGHTED_ROUTING_STATS("weighted_routing"),
-        FILE_CACHE_STATS("file_cache");
+        FILE_CACHE_STATS("file_cache"),
+        TASK_CANCELLATION("task_cancellation"),
+        SEARCH_PIPELINE("search_pipeline");
 
         private String metricName;
 

@@ -48,6 +48,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
@@ -55,7 +56,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesService;
@@ -66,6 +67,8 @@ import org.opensearch.node.NodeValidationException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.test.telemetry.MockTelemetryPlugin;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -242,6 +245,8 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
+            .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true)
+            .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
 
@@ -254,6 +259,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+        plugins.add(MockTelemetryPlugin.class);
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
             node.start();

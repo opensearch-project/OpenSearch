@@ -33,7 +33,7 @@ package org.opensearch.gateway;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
@@ -45,7 +45,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.ArrayList;
@@ -251,7 +251,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                         );
                     } else if (nodeEntry.isFailed() == false) {
                         // if the entry is there, for the right fetching round and not marked as failed already, process it
-                        Throwable unwrappedCause = BaseExceptionsHelper.unwrapCause(failure.getCause());
+                        Throwable unwrappedCause = ExceptionsHelper.unwrapCause(failure.getCause());
                         // if the request got rejected or timed out, we need to try it again next time...
                         if (unwrappedCause instanceof OpenSearchRejectedExecutionException
                             || unwrappedCause instanceof ReceiveTimeoutTransportException

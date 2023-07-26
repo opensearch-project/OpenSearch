@@ -32,10 +32,10 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.LongHash;
+import org.opensearch.common.util.ReorganizingLongHash;
 import org.opensearch.common.util.LongLongHash;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 
 /**
@@ -148,10 +148,10 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      * @opensearch.internal
      */
     public static class FromSingle extends LongKeyedBucketOrds {
-        private final LongHash ords;
+        private final ReorganizingLongHash ords;
 
         public FromSingle(BigArrays bigArrays) {
-            ords = new LongHash(1, bigArrays);
+            ords = new ReorganizingLongHash(bigArrays);
         }
 
         @Override

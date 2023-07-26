@@ -38,9 +38,12 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.bytes.AbstractBytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.ByteArray;
+import org.opensearch.core.common.util.ByteArray;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -476,6 +479,45 @@ public abstract class AbstractBytesReferenceTestCase extends OpenSearchTestCase 
         BytesReference pbr = newBytesReference(0);
         assertEquals("", pbr.utf8ToString());
         // TODO: good way to test?
+    }
+
+    public void testUTF8toString_ExceedsMaxLength() {
+        AbstractBytesReference abr = new TestAbstractBytesReference();
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, abr::utf8ToString);
+        assertTrue(e.getMessage().contains("UTF16 String size is"));
+        assertTrue(e.getMessage().contains("should be less than"));
+    }
+
+    static class TestAbstractBytesReference extends AbstractBytesReference {
+        @Override
+        public byte get(int index) {
+            return 0;
+        }
+
+        @Override
+        public int length() {
+            return 0;
+        }
+
+        @Override
+        public BytesReference slice(int from, int length) {
+            return null;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public BytesRef toBytesRef() {
+            return new BytesRef("UTF16 length exceed test");
+        }
+
+        @Override
+        public int getMaxUTF16Length() {
+            return 1;
+        }
     }
 
     public void testToBytesRef() throws IOException {

@@ -31,6 +31,13 @@ public class InternalProfileCollectorManager
     private final String reason;
     private final List<InternalProfileCollectorManager> children;
     private long time = 0;
+    private long reduceTime = 0;
+    private long maxSliceEndTime = Long.MIN_VALUE;
+    private long minSliceStartTime = Long.MAX_VALUE;
+    private long maxSliceTime = 0;
+    private long minSliceTime = Long.MAX_VALUE;
+    private long avgSliceTime = 0;
+    private int sliceCount = 0;
 
     public InternalProfileCollectorManager(
         CollectorManager<? extends Collector, ReduceableSearchResult> manager,
@@ -50,14 +57,27 @@ public class InternalProfileCollectorManager
     @SuppressWarnings("unchecked")
     @Override
     public ReduceableSearchResult reduce(Collection<InternalProfileCollector> collectors) throws IOException {
-        final Collection<Collector> subs = new ArrayList<>();
+        final long reduceStart = System.nanoTime();
+        try {
+            final Collection<Collector> subs = new ArrayList<>();
 
-        for (final InternalProfileCollector collector : collectors) {
-            subs.add(collector.getCollector());
-            time += collector.getTime();
+            for (final InternalProfileCollector collector : collectors) {
+                subs.add(collector.getCollector());
+                maxSliceEndTime = Math.max(maxSliceEndTime, collector.getSliceStartTime() + collector.getTime());
+                minSliceStartTime = Math.min(minSliceStartTime, collector.getSliceStartTime());
+                maxSliceTime = Math.max(maxSliceTime, collector.getTime());
+                minSliceTime = Math.min(minSliceTime, collector.getTime());
+                avgSliceTime += collector.getTime();
+            }
+            time = maxSliceEndTime - minSliceStartTime;
+            sliceCount = collectors.size();
+            avgSliceTime = sliceCount == 0 ? 0 : avgSliceTime / sliceCount;
+
+            return ((CollectorManager<Collector, ReduceableSearchResult>) manager).reduce(subs);
+        } finally {
+            reduceTime = Math.max(1, System.nanoTime() - reduceStart);
         }
 
-        return ((CollectorManager<Collector, ReduceableSearchResult>) manager).reduce(subs);
     }
 
     @Override
@@ -68,6 +88,26 @@ public class InternalProfileCollectorManager
     @Override
     public long getTime() {
         return time;
+    }
+
+    public long getReduceTime() {
+        return reduceTime;
+    }
+
+    public long getMaxSliceTime() {
+        return maxSliceTime;
+    }
+
+    public long getMinSliceTime() {
+        return minSliceTime;
+    }
+
+    public long getAvgSliceTime() {
+        return avgSliceTime;
+    }
+
+    public int getSliceCount() {
+        return sliceCount;
     }
 
     @Override
@@ -82,7 +122,26 @@ public class InternalProfileCollectorManager
 
     @Override
     public CollectorResult getCollectorTree() {
-        return InternalProfileCollector.doGetCollectorTree(this);
+        return doGetCollectorManagerTree(this);
+    }
+
+    static CollectorResult doGetCollectorManagerTree(InternalProfileCollectorManager collector) {
+        List<CollectorResult> childResults = new ArrayList<>(collector.children().size());
+        for (InternalProfileComponent child : collector.children()) {
+            CollectorResult result = doGetCollectorManagerTree((InternalProfileCollectorManager) child);
+            childResults.add(result);
+        }
+        return new CollectorResult(
+            collector.getName(),
+            collector.getReason(),
+            collector.getTime(),
+            collector.getReduceTime(),
+            collector.getMaxSliceTime(),
+            collector.getMinSliceTime(),
+            collector.getAvgSliceTime(),
+            collector.getSliceCount(),
+            childResults
+        );
     }
 
     @Override

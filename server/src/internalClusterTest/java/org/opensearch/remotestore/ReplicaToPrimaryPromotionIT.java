@@ -9,6 +9,7 @@
 package org.opensearch.remotestore;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.junit.Before;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -31,12 +32,16 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     private int shard_count = 5;
 
+    @Before
+    public void setup() {
+        setupRepo();
+    }
+
     @Override
     public Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shard_count)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
             .build();
     }

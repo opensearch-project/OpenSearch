@@ -9,7 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -119,5 +119,12 @@ public class NoOpTranslogManager implements TranslogManager {
     @Override
     public Translog.Snapshot newChangesSnapshot(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         throw new UnsupportedOperationException("Translog snapshot unsupported with no-op translogs");
+    }
+
+    public void onDelete() {}
+
+    @Override
+    public Translog.TranslogGeneration getTranslogGeneration() {
+        return null;
     }
 }

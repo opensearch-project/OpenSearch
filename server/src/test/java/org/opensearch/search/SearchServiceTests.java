@@ -31,7 +31,6 @@
 
 package org.opensearch.search;
 
-import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
@@ -56,15 +55,16 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -80,12 +80,12 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
@@ -227,7 +227,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put("search.default_search_timeout", "5s").build();
+        return Settings.builder().put("search.default_search_timeout", "5s").put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
     }
 
     public void testClearOnClose() {
@@ -359,7 +359,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                             result
                         );
                         SearchPhaseResult searchPhaseResult = result.get();
-                        IntArrayList intCursors = new IntArrayList(1);
+                        List<Integer> intCursors = new ArrayList(1);
                         intCursors.add(0);
                         ShardFetchRequest req = new ShardFetchRequest(searchPhaseResult.getContextId(), intCursors, null/* not a scroll */);
                         PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
@@ -1129,7 +1129,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testCreateReduceContext() {
         SearchService service = getInstanceFromNode(SearchService.class);
-        InternalAggregation.ReduceContextBuilder reduceContextBuilder = service.aggReduceContextBuilder(new SearchRequest());
+        InternalAggregation.ReduceContextBuilder reduceContextBuilder = service.aggReduceContextBuilder(new SearchSourceBuilder());
         {
             InternalAggregation.ReduceContext reduceContext = reduceContextBuilder.forFinalReduction();
             expectThrows(
@@ -1175,6 +1175,109 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             assertSame(searchShardTarget, searchContext.queryResult().getSearchShardTarget());
             assertSame(searchShardTarget, searchContext.fetchResult().getSearchShardTarget());
         }
+    }
+
+    /**
+     * Test that the Search Context for concurrent segment search enabled is set correctly based on both
+     * index and cluster settings.
+     */
+    public void testConcurrentSegmentSearchSearchContext() throws IOException {
+        Boolean[][] scenarios = {
+            // cluster setting, index setting, concurrent search enabled?
+            { null, null, true },
+            { null, false, false },
+            { null, true, true },
+            { true, null, true },
+            { true, false, false },
+            { true, true, true },
+            { false, null, false },
+            { false, false, false },
+            { false, true, true } };
+
+        String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        IndexService indexService = createIndex(index);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        ShardId shardId = new ShardId(indexService.index(), 0);
+        long nowInMillis = System.currentTimeMillis();
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            shardId,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            nowInMillis,
+            clusterAlias,
+            Strings.EMPTY_ARRAY
+        );
+
+        for (Boolean[] scenario : scenarios) {
+            Boolean clusterSetting = scenario[0];
+            Boolean indexSetting = scenario[1];
+            Boolean concurrentSearchEnabled = scenario[2];
+
+            if (clusterSetting == null) {
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()))
+                    .get();
+            } else {
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), clusterSetting)
+                    )
+                    .get();
+            }
+
+            if (indexSetting == null) {
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(index)
+                    .setSettings(Settings.builder().putNull(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()))
+                    .get();
+            } else {
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(index)
+                    .setSettings(Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), indexSetting))
+                    .get();
+            }
+
+            try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+                assertEquals(
+                    clusterSetting,
+                    client().admin()
+                        .cluster()
+                        .prepareState()
+                        .get()
+                        .getState()
+                        .getMetadata()
+                        .transientSettings()
+                        .getAsBoolean(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), null)
+                );
+                assertEquals(
+                    indexSetting == null ? null : indexSetting.toString(),
+                    client().admin()
+                        .indices()
+                        .prepareGetSettings(index)
+                        .get()
+                        .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey())
+                );
+                assertEquals(concurrentSearchEnabled, searchContext.isConcurrentSegmentSearchEnabled());
+            }
+        }
+        // Cleanup
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()))
+            .get();
     }
 
     /**
@@ -1642,6 +1745,23 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+    }
+
+    /**
+     * Test canMatchSearchAfter with missing value, even if min/max is out of range
+     * Min = 0L, Max = 9L, search_after = -1L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterWithMissing() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.DESC);
+        // Should be false without missing values
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
+        primarySort.missing("_last");
+        // Should be true with missing values
         assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
     }
 }

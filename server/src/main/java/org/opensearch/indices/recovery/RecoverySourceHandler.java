@@ -48,8 +48,6 @@ import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.StopWatch;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -58,6 +56,8 @@ import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
@@ -835,7 +835,7 @@ public abstract class RecoverySourceHandler {
             } else {
                 // Force round of segment replication to update its checkpoint to primary's
                 if (shard.indexSettings().isSegRepEnabled()) {
-                    recoveryTarget.forceSegmentFileSync();
+                    cancellableThreads.execute(recoveryTarget::forceSegmentFileSync);
                 }
             }
             stopWatch.stop();

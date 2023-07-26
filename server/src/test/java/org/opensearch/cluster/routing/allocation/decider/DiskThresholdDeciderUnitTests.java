@@ -56,8 +56,8 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -127,7 +127,7 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
 
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        final ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, Map.of(), Map.of());
+        final ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, Map.of(), Map.of(), Map.of());
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState.getRoutingNodes(),
@@ -203,7 +203,7 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
         // way bigger than available space
         final long shardSize = randomIntBetween(110, 1000);
         shardSizes.put("[test][0][p]", shardSize);
-        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, Map.of(), Map.of());
+        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, Map.of(), Map.of(), Map.of());
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState.getRoutingNodes(),
@@ -320,7 +320,14 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
         shardSizes.put("[test][1][p]", 10L);
         shardSizes.put("[test][2][p]", 10L);
 
-        final ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, shardRoutingMap, Map.of());
+        final ClusterInfo clusterInfo = new ClusterInfo(
+            leastAvailableUsages,
+            mostAvailableUsage,
+            shardSizes,
+            shardRoutingMap,
+            Map.of(),
+            Map.of()
+        );
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState.getRoutingNodes(),

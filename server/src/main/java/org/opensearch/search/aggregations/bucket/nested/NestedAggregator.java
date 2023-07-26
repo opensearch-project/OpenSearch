@@ -31,7 +31,6 @@
 
 package org.opensearch.search.aggregations.bucket.nested;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -58,6 +57,8 @@ import org.opensearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -169,7 +170,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         final BitSet parentDocs;
         final LeafBucketCollector sub;
         final DocIdSetIterator childDocs;
-        final LongArrayList bucketBuffer = new LongArrayList();
+        final List<Long> bucketBuffer = new ArrayList<>();
 
         Scorable scorer;
         int currentParentDoc = -1;
@@ -221,10 +222,8 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
             for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
                 cachedScorer.doc = childDocId;
-                final long[] buffer = bucketBuffer.buffer;
-                final int size = bucketBuffer.size();
-                for (int i = 0; i < size; i++) {
-                    collectBucket(sub, childDocId, buffer[i]);
+                for (var bucket : bucketBuffer) {
+                    collectBucket(sub, childDocId, bucket);
                 }
             }
             bucketBuffer.clear();

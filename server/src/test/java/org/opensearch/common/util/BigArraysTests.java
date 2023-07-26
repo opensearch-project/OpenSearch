@@ -38,6 +38,8 @@ import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.util.BigArray;
+import org.opensearch.core.common.util.ByteArray;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;

@@ -35,10 +35,9 @@ package org.opensearch.search;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -406,7 +405,7 @@ public class RandomSearchRequestGenerator {
             }
             builder.pointInTimeBuilder(pit);
         }
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE) && randomBoolean()) {
+        if (randomBoolean()) {
             builder.searchPipelineSource(new HashMap<>());
         }
         return builder;

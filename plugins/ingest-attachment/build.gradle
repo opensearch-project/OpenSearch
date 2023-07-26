@@ -57,7 +57,7 @@ dependencies {
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   // Other dependencies
   api 'org.tukaani:xz:1.9'
-  api 'commons-io:commons-io:2.12.0'
+  api 'commons-io:commons-io:2.13.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -71,9 +71,9 @@ dependencies {
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
   api "org.apache.pdfbox:jempbox:1.8.17"
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcmail-jdk15to18:${versions.bouncycastle}"
+  api "org.bouncycastle:bcprov-jdk15to18:${versions.bouncycastle}"
+  api "org.bouncycastle:bcpkix-jdk15to18:${versions.bouncycastle}"
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
@@ -126,7 +126,6 @@ thirdPartyAudit {
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'com.google.common.hash.Striped64',
     'com.google.common.hash.Striped64$1',
     'com.google.common.hash.Striped64$Cell',

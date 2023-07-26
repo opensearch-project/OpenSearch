@@ -42,12 +42,13 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -58,7 +59,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -231,6 +232,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (doc == null && docAsUpsert) {
             validationException = addValidationError("doc must be specified if doc_as_upsert is enabled", validationException);
         }
+
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
+
         return validationException;
     }
 
@@ -919,13 +923,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             builder.field("doc_as_upsert", docAsUpsert);
         }
         if (doc != null) {
-            XContentType xContentType = doc.getContentType();
+            MediaType mediaType = doc.getContentType();
             try (
                 XContentParser parser = XContentHelper.createParser(
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,
                     doc.source(),
-                    xContentType
+                    mediaType
                 )
             ) {
                 builder.field("doc");
@@ -942,13 +946,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             builder.field("script", script);
         }
         if (upsertRequest != null) {
-            XContentType xContentType = upsertRequest.getContentType();
+            MediaType mediaType = upsertRequest.getContentType();
             try (
                 XContentParser parser = XContentHelper.createParser(
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,
                     upsertRequest.source(),
-                    xContentType
+                    mediaType
                 )
             ) {
                 builder.field("upsert");

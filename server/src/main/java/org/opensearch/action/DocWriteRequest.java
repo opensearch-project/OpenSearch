@@ -32,16 +32,17 @@
 package org.opensearch.action;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.index.VersionType;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -246,6 +247,25 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
             throw new IllegalStateException("invalid request type [" + type + " ]");
         }
         return docWriteRequest;
+    }
+
+    /**
+     * Validates whether the doc id length is under the limit.
+     * @param id DocId to verify
+     * @param validationException containing all the validation errors.
+     * @return validationException
+     */
+    static ActionRequestValidationException validateDocIdLength(String id, ActionRequestValidationException validationException) {
+        if (id != null) {
+            int docIdLength = UnicodeUtil.calcUTF16toUTF8Length(id, 0, id.length());
+            if (docIdLength > 512) {
+                return addValidationError(
+                    "id [" + id + "] is too long, must be no longer than 512 bytes but was: " + docIdLength,
+                    validationException
+                );
+            }
+        }
+        return validationException;
     }
 
     /** write a document write (index/delete/update) request*/

@@ -57,7 +57,9 @@ import java.util.Set;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assume.assumeThat;
 
 /**
  * Tests relating to the loss of the cluster-manager.
@@ -70,6 +72,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testClusterManagerNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
+        assumeThat("Thread::resume / Thread::suspend are not supported anymore", Runtime.version(), lessThan(Runtime.Version.parse("20")));
 
         String oldClusterManagerNode = internalCluster().getClusterManagerName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
@@ -81,6 +84,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
             30000,
             60000
         );
+
         internalCluster().setDisruptionScheme(clusterManagerNodeDisruption);
         clusterManagerNodeDisruption.startDisrupting();
 

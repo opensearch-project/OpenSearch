@@ -21,7 +21,6 @@ import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -123,7 +122,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             REPLICATION_ID,
             checkpoint,
             Arrays.asList(testMetadata),
-            mock(Store.class),
+            mock(IndexShard.class),
             mock(ActionListener.class)
         );
         CapturingTransport.CapturedRequest[] requestList = transport.getCapturedRequestsAndClear();
@@ -151,7 +150,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             REPLICATION_ID,
             checkpoint,
             Arrays.asList(testMetadata),
-            mock(Store.class),
+            mock(IndexShard.class),
             mock(ActionListener.class)
         );
         CapturingTransport.CapturedRequest[] requestList = transport.getCapturedRequestsAndClear();
@@ -176,7 +175,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             REPLICATION_ID,
             checkpoint,
             Arrays.asList(testMetadata),
-            mock(Store.class),
+            mock(IndexShard.class),
             new ActionListener<>() {
                 @Override
                 public void onResponse(GetSegmentFilesResponse getSegmentFilesResponse) {

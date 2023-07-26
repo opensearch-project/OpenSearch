@@ -16,13 +16,13 @@ import java.util.Base64;
  */
 public final class BasicAuthToken implements AuthToken {
 
-    public final static String TOKEN_IDENIFIER = "Basic";
+    public final static String TOKEN_IDENTIFIER = "Basic";
 
     private String user;
     private String password;
 
     public BasicAuthToken(final String headerValue) {
-        final String base64Encoded = headerValue.substring(TOKEN_IDENIFIER.length()).trim();
+        final String base64Encoded = headerValue.substring(TOKEN_IDENTIFIER.length()).trim();
         final byte[] rawDecoded = Base64.getDecoder().decode(base64Encoded);
         final String usernamepassword = new String(rawDecoded, StandardCharsets.UTF_8);
 
@@ -40,5 +40,15 @@ public final class BasicAuthToken implements AuthToken {
 
     public String getPassword() {
         return password;
+    }
+
+    @Override
+    public String toString() {
+        return "Basic auth token with user=" + user + ", password=" + password;
+    }
+
+    public void revoke() {
+        this.password = "";
+        this.user = "";
     }
 }

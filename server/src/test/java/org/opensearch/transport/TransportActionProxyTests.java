@@ -31,12 +31,12 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -196,7 +196,7 @@ public class TransportActionProxyTests extends OpenSearchTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     try {
-                        Throwable cause = BaseExceptionsHelper.unwrapCause(exp);
+                        Throwable cause = ExceptionsHelper.unwrapCause(exp);
                         assertEquals("greetings from TS_C", cause.getMessage());
                     } finally {
                         latch.countDown();

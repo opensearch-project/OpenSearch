@@ -188,6 +188,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
                 Store.FORCE_RAM_TERM_DICT,
                 EngineConfig.INDEX_CODEC_SETTING,
+                EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING,
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
                 IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
                 IndexSettings.DEFAULT_PIPELINE,
@@ -204,6 +205,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,
                 IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME,
                 IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID,
+
+                // Settings for remote translog
+                IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -232,10 +236,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         List.of(
             IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
             IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING,
-            IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
-            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
-            IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
-        )
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING
+        ),
+        FeatureFlags.CONCURRENT_SEGMENT_SEARCH,
+        List.of(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING)
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

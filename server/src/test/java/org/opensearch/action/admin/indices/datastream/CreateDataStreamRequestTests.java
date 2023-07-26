@@ -33,7 +33,7 @@ package org.opensearch.action.admin.indices.datastream;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction.Request;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;

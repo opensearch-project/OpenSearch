@@ -88,9 +88,9 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.rankeval.RankEvalRequest;
 import org.opensearch.index.rankeval.RankEvalResponse;
 import org.opensearch.index.reindex.BulkByScrollResponse;
@@ -99,7 +99,7 @@ import org.opensearch.index.reindex.ReindexRequest;
 import org.opensearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.plugins.spi.NamedXContentProvider;
 import org.opensearch.rest.BytesRestResponse;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
 import org.opensearch.script.mustache.MultiSearchTemplateResponse;
 import org.opensearch.script.mustache.SearchTemplateRequest;
@@ -2227,11 +2227,11 @@ public class RestHighLevelClient implements Closeable {
         if (entity.getContentType() == null) {
             throw new IllegalStateException("OpenSearch didn't return the [Content-Type] header, unable to parse response body");
         }
-        XContentType xContentType = XContentType.fromMediaType(entity.getContentType());
-        if (xContentType == null) {
+        MediaType medaiType = MediaType.fromMediaType(entity.getContentType());
+        if (medaiType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
+        try (XContentParser parser = medaiType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }

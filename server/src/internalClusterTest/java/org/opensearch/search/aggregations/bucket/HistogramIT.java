@@ -31,8 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket;
 
-import com.carrotsearch.hppc.LongHashSet;
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -61,8 +60,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -396,7 +397,7 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        LongHashSet buckets = new LongHashSet();
+        final Set<Long> buckets = new HashSet<>();
         List<Histogram.Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
         long previousCount = Long.MIN_VALUE;
         for (int i = 0; i < numValueBuckets; ++i) {
@@ -423,7 +424,7 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        LongHashSet buckets = new LongHashSet();
+        final Set<Long> buckets = new HashSet<>();
         List<Histogram.Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
         long previousCount = Long.MAX_VALUE;
         for (int i = 0; i < numValueBuckets; ++i) {
@@ -497,7 +498,7 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        LongHashSet visited = new LongHashSet();
+        final Set<Long> visited = new HashSet<>();
         double previousSum = Double.NEGATIVE_INFINITY;
         List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
@@ -539,7 +540,7 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        LongHashSet visited = new LongHashSet();
+        final Set<Long> visited = new HashSet<>();
         double previousSum = Double.POSITIVE_INFINITY;
         List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
@@ -581,7 +582,7 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        LongHashSet visited = new LongHashSet();
+        final Set<Long> visited = new HashSet<>();
         double previousSum = Double.POSITIVE_INFINITY;
 
         List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
@@ -625,7 +626,7 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        LongHashSet visited = new LongHashSet();
+        final Set<Long> visited = new HashSet<>();
         double prevMax = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
         List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
@@ -689,9 +690,9 @@ public class HistogramIT extends OpenSearchIntegTestCase {
                 .get();
             fail("Expected an exception");
         } catch (SearchPhaseExecutionException e) {
-            BaseOpenSearchException[] rootCauses = e.guessRootCauses();
+            OpenSearchException[] rootCauses = e.guessRootCauses();
             if (rootCauses.length == 1) {
-                BaseOpenSearchException rootCause = rootCauses[0];
+                OpenSearchException rootCause = rootCauses[0];
                 if (rootCause instanceof AggregationExecutionException) {
                     AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
                     assertThat(aggException.getMessage(), Matchers.startsWith("Invalid aggregation order path"));

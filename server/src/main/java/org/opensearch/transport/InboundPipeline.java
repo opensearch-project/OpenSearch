@@ -34,11 +34,11 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.bytes.CompositeBytesReference;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 import java.util.ArrayDeque;

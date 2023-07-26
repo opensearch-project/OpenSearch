@@ -34,7 +34,7 @@ package org.opensearch.client.core.tasks;
 
 import org.opensearch.client.Requests;
 import org.opensearch.client.tasks.GetTaskResponse;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.RawTaskStatus;
@@ -43,6 +43,7 @@ import org.opensearch.tasks.TaskResourceUsage;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskThreadUsage;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -138,12 +139,12 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
     }
 
     private static TaskResourceStats randomResourceStats() {
-        return randomBoolean() ? null : new TaskResourceStats(new HashMap<String, TaskResourceUsage>() {
+        return randomBoolean() ? null : new TaskResourceStats(new HashMap<>() {
             {
                 for (int i = 0; i < randomInt(5); i++) {
                     put(randomAlphaOfLength(5), new TaskResourceUsage(randomNonNegativeLong(), randomNonNegativeLong()));
                 }
             }
-        });
+        }, new TaskThreadUsage(randomInt(10), randomInt(10)));
     }
 }

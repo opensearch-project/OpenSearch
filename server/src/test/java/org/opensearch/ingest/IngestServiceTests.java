@@ -57,9 +57,10 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.cbor.CborXContent;
@@ -1739,14 +1740,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertStats(getPipelineStats(pipelineStats, pipelineId), count, failed, time);
     }
 
-    private void assertStats(IngestStats.Stats stats, long count, long failed, long time) {
-        assertThat(stats.getIngestCount(), equalTo(count));
-        assertThat(stats.getIngestCurrent(), equalTo(0L));
-        assertThat(stats.getIngestFailedCount(), equalTo(failed));
-        assertThat(stats.getIngestTimeInMillis(), greaterThanOrEqualTo(time));
+    private void assertStats(OperationStats stats, long count, long failed, long time) {
+        assertThat(stats.getCount(), equalTo(count));
+        assertThat(stats.getCurrent(), equalTo(0L));
+        assertThat(stats.getFailedCount(), equalTo(failed));
+        assertThat(stats.getTotalTimeInMillis(), greaterThanOrEqualTo(time));
     }
 
-    private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
+    private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
         return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
     }
 }

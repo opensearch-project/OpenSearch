@@ -33,8 +33,8 @@
 package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;

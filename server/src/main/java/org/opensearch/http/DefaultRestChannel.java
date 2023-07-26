@@ -32,23 +32,23 @@
 
 package org.opensearch.http;
 
+import org.opensearch.Build;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.RestStatus;
-
+import org.opensearch.core.rest.RestStatus;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +69,12 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String CONTENT_TYPE = "content-type";
     static final String CONTENT_LENGTH = "content-length";
     static final String SET_COOKIE = "set-cookie";
+    static final String SERVER_VERSION = "X-OpenSearch-Version";
+    static final String SERVER_VERSION_VALUE = "OpenSearch/"
+        + Build.CURRENT.getQualifiedVersion()
+        + " ("
+        + Build.CURRENT.getDistribution()
+        + ")";
 
     private final HttpRequest httpRequest;
     private final BigArrays bigArrays;
@@ -76,6 +82,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
+    private final Map<String, List<String>> SERVER_VERSION_HEADER = Map.of(SERVER_VERSION, List.of(SERVER_VERSION_VALUE));
 
     @Nullable
     private final HttpTracer tracerLog;
@@ -146,6 +153,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             // Add all custom headers
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
+
+            addCustomHeaders(httpResponse, SERVER_VERSION_HEADER);
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);

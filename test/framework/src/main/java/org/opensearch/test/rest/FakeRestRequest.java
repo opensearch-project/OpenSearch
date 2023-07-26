@@ -33,15 +33,15 @@
 package org.opensearch.test.rest;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -231,10 +231,10 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withContent(BytesReference content, XContentType xContentType) {
+        public Builder withContent(BytesReference content, MediaType mediaType) {
             this.content = content;
-            if (xContentType != null) {
-                headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
+            if (mediaType != null) {
+                headers.put("Content-Type", Collections.singletonList(mediaType.mediaType()));
             }
             return this;
         }

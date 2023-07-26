@@ -32,24 +32,18 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.index.IndexService;
-import org.opensearch.search.internal.SearchContext;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
+import org.opensearch.search.aggregations.bucket.terms.NumericTermsAggregator;
 
 import java.io.IOException;
+import java.util.List;
 
-public class AggregationCollectorTests extends OpenSearchSingleNodeTestCase {
+public class AggregationCollectorTests extends AggregationSetupTests {
 
     public void testNeedsScores() throws Exception {
-        IndexService index = createIndex("idx");
-        client().prepareIndex("idx").setId("1").setSource("f", 5).execute().get();
-        client().admin().indices().prepareRefresh("idx").get();
-
         // simple field aggregation, no scores needed
         String fieldAgg = "{ \"my_terms\": {\"terms\": {\"field\": \"f\"}}}";
-        assertFalse(needsScores(index, fieldAgg));
+        assertFalse(needsScores(fieldAgg));
 
         // agg on a script => scores are needed
         // TODO: can we use a mock script service here?
@@ -61,23 +55,50 @@ public class AggregationCollectorTests extends OpenSearchSingleNodeTestCase {
 
         // make sure the information is propagated to sub aggregations
         String subFieldAgg = "{ \"my_outer_terms\": { \"terms\": { \"field\": \"f\" }, \"aggs\": " + fieldAgg + "}}";
-        assertFalse(needsScores(index, subFieldAgg));
+        assertFalse(needsScores(subFieldAgg));
 
         // top_hits is a particular example of an aggregation that needs scores
         String topHitsAgg = "{ \"my_hits\": {\"top_hits\": {}}}";
-        assertTrue(needsScores(index, topHitsAgg));
+        assertTrue(needsScores(topHitsAgg));
     }
 
-    private boolean needsScores(IndexService index, String agg) throws IOException {
-        try (XContentParser aggParser = createParser(JsonXContent.jsonXContent, agg)) {
-            aggParser.nextToken();
-            SearchContext context = createSearchContext(index);
-            final AggregatorFactories factories = AggregatorFactories.parseAggregators(aggParser)
-                .build(context.getQueryShardContext(), null);
-            final Aggregator[] aggregators = factories.createTopLevelAggregators(context);
-            assertEquals(1, aggregators.length);
-            return aggregators[0].scoreMode().needsScores();
-        }
+    public void testNonGlobalTopLevelAggregators() throws Exception {
+        // simple field aggregation
+        String fieldAgg = "{ \"my_terms\": {\"terms\": {\"field\": \"f\"}}}";
+        final List<Aggregator> aggregators = createNonGlobalAggregators(fieldAgg);
+        final List<Aggregator> topLevelAggregators = createTopLevelAggregators(fieldAgg);
+        assertEquals(topLevelAggregators.size(), aggregators.size());
+        assertEquals(topLevelAggregators.get(0).name(), aggregators.get(0).name());
+        assertTrue(aggregators.get(0) instanceof NumericTermsAggregator);
     }
 
+    public void testGlobalAggregators() throws Exception {
+        // global aggregation
+        final List<Aggregator> aggregators = createGlobalAggregators(globalAgg);
+        final List<Aggregator> topLevelAggregators = createTopLevelAggregators(globalAgg);
+        assertEquals(topLevelAggregators.size(), aggregators.size());
+        assertEquals(topLevelAggregators.get(0).name(), aggregators.get(0).name());
+        assertTrue(aggregators.get(0) instanceof GlobalAggregator);
+    }
+
+    private boolean needsScores(String agg) throws IOException {
+        final List<Aggregator> aggregators = createTopLevelAggregators(agg);
+        assertEquals(1, aggregators.size());
+        return aggregators.get(0).scoreMode().needsScores();
+    }
+
+    private List<Aggregator> createTopLevelAggregators(String agg) throws IOException {
+        final AggregatorFactories factories = getAggregationFactories(agg);
+        return factories.createTopLevelAggregators(context);
+    }
+
+    private List<Aggregator> createNonGlobalAggregators(String agg) throws IOException {
+        final AggregatorFactories factories = getAggregationFactories(agg);
+        return factories.createTopLevelNonGlobalAggregators(context);
+    }
+
+    private List<Aggregator> createGlobalAggregators(String agg) throws IOException {
+        final AggregatorFactories factories = getAggregationFactories(agg);
+        return factories.createTopLevelGlobalAggregators(context);
+    }
 }

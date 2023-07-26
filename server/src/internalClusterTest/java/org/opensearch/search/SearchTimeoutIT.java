@@ -51,7 +51,6 @@ import java.util.function.Function;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.index.query.QueryBuilders.scriptQuery;
 import static org.opensearch.search.SearchTimeoutIT.ScriptedTimeoutPlugin.SCRIPT_NAME;
-import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
 public class SearchTimeoutIT extends OpenSearchIntegTestCase {
@@ -67,17 +66,36 @@ public class SearchTimeoutIT extends OpenSearchIntegTestCase {
     }
 
     public void testSimpleTimeout() throws Exception {
-        for (int i = 0; i < 32; i++) {
+        final int numDocs = 1000;
+        for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
         }
         refresh("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
+            .setTimeout(new TimeValue(5, TimeUnit.MILLISECONDS))
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .setAllowPartialSearchResults(true)
             .get();
-        assertThat(searchResponse.isTimedOut(), equalTo(true));
+        assertTrue(searchResponse.isTimedOut());
+        assertEquals(0, searchResponse.getFailedShards());
+    }
+
+    public void testSimpleDoesNotTimeout() throws Exception {
+        final int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
+        }
+        refresh("test");
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setTimeout(new TimeValue(10000, TimeUnit.SECONDS))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+            .setAllowPartialSearchResults(true)
+            .get();
+        assertFalse(searchResponse.isTimedOut());
+        assertEquals(0, searchResponse.getFailedShards());
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
     }
 
     public void testPartialResultsIntolerantTimeout() throws Exception {
@@ -91,7 +109,7 @@ public class SearchTimeoutIT extends OpenSearchIntegTestCase {
                 .setAllowPartialSearchResults(false) // this line causes timeouts to report failures
                 .get()
         );
-        assertTrue(ex.toString().contains("Time exceeded"));
+        assertTrue(ex.toString().contains("QueryPhaseExecutionException[Time exceeded]"));
     }
 
     public static class ScriptedTimeoutPlugin extends MockScriptPlugin {

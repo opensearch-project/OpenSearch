@@ -33,7 +33,7 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -367,9 +367,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
                 .field("quux", "3.2") // float detected through numeric detection
                 .endObject()
         );
-        ParsedDocument parsedDocument = mapper.parse(
-            new SourceToParse("index", "id", source, XContentType.fromMediaType(builder.contentType()))
-        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("index", "id", source, builder.contentType()));
         Mapping update = parsedDocument.dynamicMappingsUpdate();
         assertNotNull(update);
         assertThat(((FieldMapper) update.root().getMapper("foo")).fieldType().typeName(), equalTo("float"));

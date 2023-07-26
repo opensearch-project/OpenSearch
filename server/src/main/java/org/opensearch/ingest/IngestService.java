@@ -60,6 +60,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -114,7 +115,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     private volatile Map<String, PipelineHolder> pipelines = Collections.emptyMap();
     private final ThreadPool threadPool;
-    private final IngestMetric totalMetrics = new IngestMetric();
+    private final OperationMetrics totalMetrics = new OperationMetrics();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private final ClusterManagerTaskThrottler.ThrottlingKey putPipelineTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey deletePipelineTaskKey;
@@ -440,17 +441,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Recursive method to obtain all of the non-failure processors for given compoundProcessor. Since conditionals are implemented as
      * wrappers to the actual processor, always prefer the actual processor's metric over the conditional processor's metric.
      * @param compoundProcessor The compound processor to start walking the non-failure processors
-     * @param processorMetrics The list of {@link Processor} {@link IngestMetric} tuples.
+     * @param processorMetrics The list of {@link Processor} {@link OperationMetrics} tuples.
      * @return the processorMetrics for all non-failure processor that belong to the original compoundProcessor
      */
-    private static List<Tuple<Processor, IngestMetric>> getProcessorMetrics(
+    private static List<Tuple<Processor, OperationMetrics>> getProcessorMetrics(
         CompoundProcessor compoundProcessor,
-        List<Tuple<Processor, IngestMetric>> processorMetrics
+        List<Tuple<Processor, OperationMetrics>> processorMetrics
     ) {
         // only surface the top level non-failure processors, on-failure processor times will be included in the top level non-failure
-        for (Tuple<Processor, IngestMetric> processorWithMetric : compoundProcessor.getProcessorsWithMetrics()) {
+        for (Tuple<Processor, OperationMetrics> processorWithMetric : compoundProcessor.getProcessorsWithMetrics()) {
             Processor processor = processorWithMetric.v1();
-            IngestMetric metric = processorWithMetric.v2();
+            OperationMetrics metric = processorWithMetric.v2();
             if (processor instanceof CompoundProcessor) {
                 getProcessorMetrics((CompoundProcessor) processor, processorMetrics);
             } else {
@@ -473,7 +474,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             pipelines = new HashMap<>();
         }
 
-        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getXContentType()));
+        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getMediaType()));
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metadata(
             Metadata.builder(currentState.getMetadata()).putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines)).build()
@@ -486,7 +487,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             throw new IllegalStateException("Ingest info is empty");
         }
 
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();
         Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
@@ -614,7 +615,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                     if (Objects.equals(originalIndex, newIndex) == false) {
                         if (hasFinalPipeline && it.hasNext() == false) {
-                            totalMetrics.ingestFailed();
+                            totalMetrics.failed();
                             onFailure.accept(
                                 slot,
                                 new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index")
@@ -680,11 +681,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             Pipeline pipeline = holder.pipeline;
             CompoundProcessor rootProcessor = pipeline.getCompoundProcessor();
             statsBuilder.addPipelineMetrics(id, pipeline.getMetrics());
-            List<Tuple<Processor, IngestMetric>> processorMetrics = new ArrayList<>();
+            List<Tuple<Processor, OperationMetrics>> processorMetrics = new ArrayList<>();
             getProcessorMetrics(rootProcessor, processorMetrics);
             processorMetrics.forEach(t -> {
                 Processor processor = t.v1();
-                IngestMetric processorMetric = t.v2();
+                OperationMetrics processorMetric = t.v2();
                 statsBuilder.addProcessorMetrics(id, getProcessorName(processor), processor.getType(), processorMetric);
             });
         });
@@ -739,7 +740,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         long startTimeInNanos = System.nanoTime();
         // the pipeline specific stat holder may not exist and that is fine:
         // (e.g. the pipeline may have been removed while we're ingesting a document
-        totalMetrics.preIngest();
+        totalMetrics.before();
         String index = indexRequest.index();
         String id = indexRequest.id();
         String routing = indexRequest.routing();
@@ -749,9 +750,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, sourceAsMap);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
-            totalMetrics.postIngest(ingestTimeInMillis);
+            totalMetrics.after(ingestTimeInMillis);
             if (e != null) {
-                totalMetrics.ingestFailed();
+                totalMetrics.failed();
                 handler.accept(e);
             } else if (result == null) {
                 itemDroppedHandler.accept(slot);
@@ -835,22 +836,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
                 Pipeline oldPipeline = previous.pipeline;
                 newPipeline.getMetrics().add(oldPipeline.getMetrics());
-                List<Tuple<Processor, IngestMetric>> oldPerProcessMetrics = new ArrayList<>();
-                List<Tuple<Processor, IngestMetric>> newPerProcessMetrics = new ArrayList<>();
+                List<Tuple<Processor, OperationMetrics>> oldPerProcessMetrics = new ArrayList<>();
+                List<Tuple<Processor, OperationMetrics>> newPerProcessMetrics = new ArrayList<>();
                 getProcessorMetrics(oldPipeline.getCompoundProcessor(), oldPerProcessMetrics);
                 getProcessorMetrics(newPipeline.getCompoundProcessor(), newPerProcessMetrics);
                 // Best attempt to populate new processor metrics using a parallel array of the old metrics. This is not ideal since
                 // the per processor metrics may get reset when the arrays don't match. However, to get to an ideal model, unique and
                 // consistent id's per processor and/or semantic equals for each processor will be needed.
                 if (newPerProcessMetrics.size() == oldPerProcessMetrics.size()) {
-                    Iterator<Tuple<Processor, IngestMetric>> oldMetricsIterator = oldPerProcessMetrics.iterator();
-                    for (Tuple<Processor, IngestMetric> compositeMetric : newPerProcessMetrics) {
+                    Iterator<Tuple<Processor, OperationMetrics>> oldMetricsIterator = oldPerProcessMetrics.iterator();
+                    for (Tuple<Processor, OperationMetrics> compositeMetric : newPerProcessMetrics) {
                         String type = compositeMetric.v1().getType();
-                        IngestMetric metric = compositeMetric.v2();
+                        OperationMetrics metric = compositeMetric.v2();
                         if (oldMetricsIterator.hasNext()) {
-                            Tuple<Processor, IngestMetric> oldCompositeMetric = oldMetricsIterator.next();
+                            Tuple<Processor, OperationMetrics> oldCompositeMetric = oldMetricsIterator.next();
                             String oldType = oldCompositeMetric.v1().getType();
-                            IngestMetric oldMetric = oldCompositeMetric.v2();
+                            OperationMetrics oldMetric = oldCompositeMetric.v2();
                             if (type.equals(oldType)) {
                                 metric.add(oldMetric);
                             }

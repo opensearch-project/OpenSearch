@@ -34,8 +34,8 @@ package org.opensearch.rest.action.document;
 
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.get.GetResponse;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -48,7 +48,7 @@ import org.junit.Before;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.opensearch.rest.RestStatus.OK;
+import static org.opensearch.core.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RestGetSourceActionTests extends RestActionTestCase {

@@ -32,15 +32,15 @@
 
 package org.opensearch.cluster.routing;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -390,7 +390,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (message == null) {
             return null;
         }
-        return message + (failure == null ? "" : ", failure " + BaseExceptionsHelper.detailedMessage(failure));
+        return message + (failure == null ? "" : ", failure " + ExceptionsHelper.detailedMessage(failure));
     }
 
     /**

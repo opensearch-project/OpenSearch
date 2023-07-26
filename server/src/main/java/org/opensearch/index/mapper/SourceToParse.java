@@ -35,9 +35,9 @@ package org.opensearch.index.mapper;
 import java.util.Objects;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
 
 /**
  * Stores the document source
@@ -54,20 +54,20 @@ public class SourceToParse {
 
     private final @Nullable String routing;
 
-    private final XContentType xContentType;
+    private final MediaType mediaType;
 
-    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
+    public SourceToParse(String index, String id, BytesReference source, MediaType mediaType, @Nullable String routing) {
         this.index = Objects.requireNonNull(index);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
-        this.xContentType = Objects.requireNonNull(xContentType);
+        this.mediaType = Objects.requireNonNull(mediaType);
         this.routing = routing;
     }
 
-    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType) {
-        this(index, id, source, xContentType, null);
+    public SourceToParse(String index, String id, BytesReference source, MediaType mediaType) {
+        this(index, id, source, mediaType, null);
     }
 
     public BytesReference source() {
@@ -86,8 +86,8 @@ public class SourceToParse {
         return this.routing;
     }
 
-    public XContentType getXContentType() {
-        return this.xContentType;
+    public MediaType getMediaType() {
+        return this.mediaType;
     }
 
     /**

@@ -22,14 +22,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheTests;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.Node;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
@@ -85,7 +85,7 @@ public class TransportClearIndicesCacheActionTests extends OpenSearchTestCase {
             when(shardRouting.shardId()).thenReturn(shardId);
             final ShardPath shardPath = ShardPath.loadFileCachePath(nodeEnvironment, shardId);
             final Path cacheEntryPath = shardPath.getDataPath();
-            final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(1024 * 1024 * 1024, 16, new NoopCircuitBreaker(""));
+            final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(1024 * 1024, 16, new NoopCircuitBreaker(""));
 
             when(testNode.fileCache()).thenReturn(fileCache);
             when(testNode.getNodeEnvironment()).thenReturn(nodeEnvironment);

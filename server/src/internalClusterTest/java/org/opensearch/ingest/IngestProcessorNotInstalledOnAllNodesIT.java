@@ -34,7 +34,7 @@ package org.opensearch.ingest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.node.NodeService;
 import org.opensearch.plugins.Plugin;

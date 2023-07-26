@@ -45,9 +45,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 
+import static org.junit.Assume.assumeThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class LongGCDisruptionTests extends OpenSearchTestCase {
 
@@ -65,6 +67,8 @@ public class LongGCDisruptionTests extends OpenSearchTestCase {
     }
 
     public void testBlockingTimeout() throws Exception {
+        assumeThat("Thread::resume / Thread::suspend are not supported anymore", Runtime.version(), lessThan(Runtime.Version.parse("20")));
+
         final String nodeName = "test_node";
         LongGCDisruption disruption = new LongGCDisruption(random(), nodeName) {
             @Override
@@ -125,6 +129,8 @@ public class LongGCDisruptionTests extends OpenSearchTestCase {
      * but does keep retrying until all threads can be safely paused
      */
     public void testNotBlockingUnsafeStackTraces() throws Exception {
+        assumeThat("Thread::resume / Thread::suspend are not supported anymore", Runtime.version(), lessThan(Runtime.Version.parse("20")));
+
         final String nodeName = "test_node";
         LongGCDisruption disruption = new LongGCDisruption(random(), nodeName) {
             @Override
@@ -179,6 +185,8 @@ public class LongGCDisruptionTests extends OpenSearchTestCase {
     }
 
     public void testBlockDetection() throws Exception {
+        assumeThat("Thread::resume / Thread::suspend are not supported anymore", Runtime.version(), lessThan(Runtime.Version.parse("20")));
+
         final String disruptedNodeName = "disrupted_node";
         final String blockedNodeName = "blocked_node";
         CountDownLatch waitForBlockDetectionResult = new CountDownLatch(1);

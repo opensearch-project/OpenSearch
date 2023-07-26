@@ -37,13 +37,14 @@ versions << [
 ]
 
 dependencies {
-  api("org.apache.hadoop:hadoop-minicluster:3.3.5") {
+  api("org.apache.hadoop:hadoop-minicluster:3.3.6") {
     exclude module: 'websocket-client'
     exclude module: 'jettison'
     exclude module: 'netty'
     exclude module: 'guava'
     exclude module: 'protobuf-java'
     exclude group: 'org.codehaus.jackson'
+    exclude group: "org.bouncycastle"
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:1.23.0"
@@ -51,18 +52,18 @@ dependencies {
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api "io.netty:netty-all:${versions.netty}"
   api 'com.google.code.gson:gson:2.10.1'
-  api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
-  api 'net.minidev:json-smart:2.4.11'
+  api 'net.minidev:json-smart:2.5.0'
   api "org.mockito:mockito-core:${versions.mockito}"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
-  api 'org.apache.zookeeper:zookeeper:3.8.1'
+  api 'org.apache.zookeeper:zookeeper:3.8.2'
   api "org.apache.commons:commons-text:1.10.0"
   api "commons-net:commons-net:3.9.0"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
+
 }

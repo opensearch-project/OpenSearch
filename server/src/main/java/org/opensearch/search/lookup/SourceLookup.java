@@ -36,7 +36,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -75,8 +75,8 @@ public class SourceLookup implements Map {
         return source;
     }
 
-    public XContentType sourceContentType() {
-        return XContentType.fromMediaType(sourceContentType);
+    public MediaType sourceContentType() {
+        return sourceContentType;
     }
 
     public int docId() {
@@ -155,7 +155,7 @@ public class SourceLookup implements Map {
         this.sourceAsBytes = source;
     }
 
-    public void setSourceContentType(XContentType sourceContentType) {
+    public void setSourceContentType(MediaType sourceContentType) {
         this.sourceContentType = sourceContentType;
     }
 

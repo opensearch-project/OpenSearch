@@ -41,9 +41,11 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.IndexMetaDataGenerations;
 import org.opensearch.repositories.Repository;
@@ -201,6 +203,18 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         SnapshotId target,
         RepositoryShardId repositoryShardId,
         String shardGeneration,
+        ActionListener<String> listener
+    ) {
+        throw new UnsupportedOperationException("Unsupported for restore-only repository");
+    }
+
+    @Override
+    public void cloneRemoteStoreIndexShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        String shardGeneration,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<String> listener
     ) {
         throw new UnsupportedOperationException("Unsupported for restore-only repository");

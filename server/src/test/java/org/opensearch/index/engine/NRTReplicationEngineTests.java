@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -44,6 +45,14 @@ public class NRTReplicationEngineTests extends EngineTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
         Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
+    );
+
+    private static final IndexSettings REMOTE_STORE_INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
+        "index",
+        Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .build()
     );
 
     public void testCreateEngine() throws IOException {
@@ -131,6 +140,29 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
+    public void testUpdateSegments_replicaReceivesSISWithHigherGen_remoteStoreEnabled() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        try (
+            final Store nrtEngineStore = createStore(REMOTE_STORE_INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, REMOTE_STORE_INDEX_SETTINGS)
+        ) {
+            // assume we start at the same gen.
+            assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
+            assertEquals(nrtEngine.getLatestSegmentInfos().getGeneration(), nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+            assertEquals(engine.getLatestSegmentInfos().getGeneration(), nrtEngine.getLatestSegmentInfos().getGeneration());
+
+            // flush the primary engine - we don't need any segments, just force a new commit point.
+            engine.flush(true, true);
+            assertEquals(3, engine.getLatestSegmentInfos().getGeneration());
+
+            // When remote store is enabled, we don't commit on replicas since all segments are durably persisted in the store
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
+            assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+            assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
+        }
+    }
+
     public void testUpdateSegments_replicaReceivesSISWithLowerGen() throws IOException {
         // if the replica is already at segments_N that is received, it will commit segments_N+1.
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -157,6 +189,38 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
             nrtEngine.close();
             assertEquals(5, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+        }
+    }
+
+    public void testSimultaneousEngineCloseAndCommit() throws IOException, InterruptedException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (
+            final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+        ) {
+            CountDownLatch latch = new CountDownLatch(1);
+            Thread commitThread = new Thread(() -> {
+                try {
+                    nrtEngine.updateSegments(store.readLastCommittedSegmentsInfo());
+                    latch.countDown();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            Thread closeThread = new Thread(() -> {
+                try {
+                    latch.await();
+                    nrtEngine.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            commitThread.start();
+            closeThread.start();
+            commitThread.join();
+            closeThread.join();
         }
     }
 
@@ -282,18 +346,11 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
-    private NRTReplicationEngine buildNrtReplicaEngine(AtomicLong globalCheckpoint, Store store) throws IOException {
+    private NRTReplicationEngine buildNrtReplicaEngine(AtomicLong globalCheckpoint, Store store, IndexSettings settings)
+        throws IOException {
         Lucene.cleanLuceneIndex(store.directory());
         final Path translogDir = createTempDir();
-        final EngineConfig replicaConfig = config(
-            defaultSettings,
-            store,
-            translogDir,
-            NoMergePolicy.INSTANCE,
-            null,
-            null,
-            globalCheckpoint::get
-        );
+        final EngineConfig replicaConfig = config(settings, store, translogDir, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
         if (Lucene.indexExists(store.directory()) == false) {
             store.createEmpty(replicaConfig.getIndexSettings().getIndexVersionCreated().luceneVersion);
             final String translogUuid = Translog.createEmptyTranslog(
@@ -305,5 +362,9 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             store.associateIndexWithNewTranslog(translogUuid);
         }
         return new NRTReplicationEngine(replicaConfig);
+    }
+
+    private NRTReplicationEngine buildNrtReplicaEngine(AtomicLong globalCheckpoint, Store store) throws IOException {
+        return buildNrtReplicaEngine(globalCheckpoint, store, defaultSettings);
     }
 }

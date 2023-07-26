@@ -9,13 +9,15 @@
 package org.opensearch.extensions.rest;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.Version;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.transport.TransportRequest;
@@ -42,7 +44,7 @@ public class ExtensionRestRequest extends TransportRequest {
     private String path;
     private Map<String, String> params;
     private Map<String, List<String>> headers;
-    private XContentType xContentType = null;
+    private MediaType mediaType = null;
     private BytesReference content;
     // The owner of this request object
     // Will be replaced with PrincipalIdentifierToken class from feature/identity
@@ -56,15 +58,15 @@ public class ExtensionRestRequest extends TransportRequest {
     /**
      * This object can be instantiated given method, uri, params, content and identifier
      *
-     * @param method of type {@link Method}
-     * @param uri the REST uri string (excluding the query)
-     * @param path the REST path
-     * @param params the REST params
-     * @param headers the REST headers
-     * @param xContentType the content type, or null for plain text or no content
-     * @param content the REST request content
+     * @param method              of type {@link Method}
+     * @param uri                 the REST uri string (excluding the query)
+     * @param path                the REST path
+     * @param params              the REST params
+     * @param headers             the REST headers
+     * @param mediaType           the content type, or null for plain text or no content
+     * @param content             the REST request content
      * @param principalIdentifier the owner of this request
-     * @param httpVersion the REST HTTP protocol version
+     * @param httpVersion         the REST HTTP protocol version
      */
     public ExtensionRestRequest(
         Method method,
@@ -72,7 +74,7 @@ public class ExtensionRestRequest extends TransportRequest {
         String path,
         Map<String, String> params,
         Map<String, List<String>> headers,
-        XContentType xContentType,
+        MediaType mediaType,
         BytesReference content,
         String principalIdentifier,
         HttpRequest.HttpVersion httpVersion
@@ -82,7 +84,7 @@ public class ExtensionRestRequest extends TransportRequest {
         this.path = path;
         this.params = params;
         this.headers = headers;
-        this.xContentType = xContentType;
+        this.mediaType = mediaType;
         this.content = content;
         this.principalIdentifierToken = principalIdentifier;
         this.httpVersion = httpVersion;
@@ -102,7 +104,11 @@ public class ExtensionRestRequest extends TransportRequest {
         params = in.readMap(StreamInput::readString, StreamInput::readString);
         headers = in.readMap(StreamInput::readString, StreamInput::readStringList);
         if (in.readBoolean()) {
-            xContentType = in.readEnum(XContentType.class);
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                mediaType = in.readMediaType();
+            } else {
+                mediaType = in.readEnum(XContentType.class);
+            }
         }
         content = in.readBytesReference();
         principalIdentifierToken = in.readString();
@@ -117,9 +123,13 @@ public class ExtensionRestRequest extends TransportRequest {
         out.writeString(path);
         out.writeMap(params, StreamOutput::writeString, StreamOutput::writeString);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
-        out.writeBoolean(xContentType != null);
-        if (xContentType != null) {
-            out.writeEnum(xContentType);
+        out.writeBoolean(mediaType != null);
+        if (mediaType != null) {
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                mediaType.writeTo(out);
+            } else {
+                out.writeEnum((XContentType) mediaType);
+            }
         }
         out.writeBytesReference(content);
         out.writeString(principalIdentifierToken);
@@ -237,8 +247,8 @@ public class ExtensionRestRequest extends TransportRequest {
      *
      * @return the content type of the {@link #content()}, or null if the context is plain text or if there is no content.
      */
-    public XContentType getXContentType() {
-        return xContentType;
+    public MediaType getXContentType() {
+        return mediaType;
     }
 
     /**
@@ -311,7 +321,7 @@ public class ExtensionRestRequest extends TransportRequest {
             + ", headers="
             + headers.toString()
             + ", xContentType="
-            + xContentType
+            + mediaType
             + ", contentLength="
             + content.length()
             + ", requester="
@@ -331,7 +341,7 @@ public class ExtensionRestRequest extends TransportRequest {
             && Objects.equals(path, that.path)
             && Objects.equals(params, that.params)
             && Objects.equals(headers, that.headers)
-            && Objects.equals(xContentType, that.xContentType)
+            && Objects.equals(mediaType, that.mediaType)
             && Objects.equals(content, that.content)
             && Objects.equals(principalIdentifierToken, that.principalIdentifierToken)
             && Objects.equals(httpVersion, that.httpVersion);
@@ -339,6 +349,6 @@ public class ExtensionRestRequest extends TransportRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, uri, path, params, headers, xContentType, content, principalIdentifierToken, httpVersion);
+        return Objects.hash(method, uri, path, params, headers, mediaType, content, principalIdentifierToken, httpVersion);
     }
 }

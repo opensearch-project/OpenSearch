@@ -44,8 +44,8 @@ import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo.Failure;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
@@ -54,9 +54,9 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.IndexShardRecoveringException;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -98,7 +98,7 @@ public final class RandomObjects {
         List<Object> originalValues = randomStoredFieldValues(random, numValues);
         List<Object> expectedParsedValues = new ArrayList<>(numValues);
         for (Object originalValue : originalValues) {
-            expectedParsedValues.add(getExpectedParsedValue(XContentType.fromMediaType(mediaType), originalValue));
+            expectedParsedValues.add(getExpectedParsedValue(mediaType, originalValue));
         }
         return Tuple.tuple(originalValues, expectedParsedValues);
     }
@@ -154,15 +154,15 @@ public final class RandomObjects {
      * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
      * {@link org.opensearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
      */
-    public static Object getExpectedParsedValue(XContentType xContentType, Object value) {
+    public static Object getExpectedParsedValue(MediaType mediaType, Object value) {
         if (value instanceof BytesArray) {
-            if (xContentType == XContentType.JSON) {
+            if (mediaType == XContentType.JSON) {
                 // JSON writes base64 format
                 return Base64.getEncoder().encodeToString(((BytesArray) value).toBytesRef().bytes);
             }
         }
         if (value instanceof Float) {
-            if (xContentType == XContentType.CBOR || xContentType == XContentType.SMILE) {
+            if (mediaType == XContentType.CBOR || mediaType == XContentType.SMILE) {
                 // with binary content types we pass back the object as is
                 return value;
             }

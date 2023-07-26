@@ -31,7 +31,9 @@
 
 package org.opensearch.repositories.s3;
 
+import org.junit.Before;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.MockSecureSettings;
@@ -40,6 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import java.util.Collection;
 import java.util.Map;
@@ -51,6 +54,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
+
+    @Override
+    @Before
+    @SuppressForbidden(reason = "Need to set system property here for AWS SDK v2")
+    public void setUp() throws Exception {
+        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
+        super.setUp();
+    }
+
+    @Override
+    @SuppressForbidden(reason = "Need to reset system property here for AWS SDK v2")
+    public void tearDown() throws Exception {
+        SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        super.tearDown();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -73,6 +91,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     protected void createRepository(String repoName) {
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
+            .put("region", System.getProperty("test.s3.region", "us-west-2"))
             .put("base_path", System.getProperty("test.s3.base", "testpath"));
         final String endpoint = System.getProperty("test.s3.endpoint");
         if (endpoint != null) {
@@ -81,12 +100,12 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             // only test different storage classes when running against the default endpoint, i.e. a genuine S3 service
             if (randomBoolean()) {
                 final String storageClass = randomFrom(
-                    "standard",
-                    "reduced_redundancy",
-                    "standard_ia",
-                    "onezone_ia",
-                    "intelligent_tiering"
-                );
+                    StorageClass.STANDARD,
+                    StorageClass.REDUCED_REDUNDANCY,
+                    StorageClass.STANDARD_IA,
+                    StorageClass.ONEZONE_IA,
+                    StorageClass.INTELLIGENT_TIERING
+                ).toString();
                 logger.info("--> using storage_class [{}]", storageClass);
                 settings.put("storage_class", storageClass);
             }

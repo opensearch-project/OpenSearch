@@ -32,15 +32,15 @@
 
 package org.opensearch.action.admin.cluster.node.reload;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -83,7 +83,7 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
             final Exception e = node.reloadException();
             if (e != null) {
                 builder.startObject("reload_exception");
-                BaseExceptionsHelper.generateThrowableXContent(builder, params, e);
+                OpenSearchException.generateThrowableXContent(builder, params, e);
                 builder.endObject();
             }
             builder.endObject();

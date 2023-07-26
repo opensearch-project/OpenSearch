@@ -32,7 +32,6 @@
 
 package org.opensearch.action.support;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -43,7 +42,7 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.io.stream.ByteBufferStreamInput;
+import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -231,8 +230,8 @@ public class ActiveShardCountTests extends OpenSearchTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final ObjectCursor<IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().values()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.value;
+        for (final var shardEntry : indexRoutingTable.getShards().values()) {
+            final IndexShardRoutingTable shardRoutingTable = shardEntry;
             for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
                 if (shardRouting.primary()) {
                     shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
@@ -249,8 +248,8 @@ public class ActiveShardCountTests extends OpenSearchTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final ObjectCursor<IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().values()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.value;
+        for (final var shardEntry : indexRoutingTable.getShards().values()) {
+            final IndexShardRoutingTable shardRoutingTable = shardEntry;
             assert shardRoutingTable.getSize() > 2;
             int numToStart = numShardsToStart;
             // want less than half, and primary is already started
@@ -275,8 +274,8 @@ public class ActiveShardCountTests extends OpenSearchTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final ObjectCursor<IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().values()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.value;
+        for (final var shardEntry : indexRoutingTable.getShards().values()) {
+            final IndexShardRoutingTable shardRoutingTable = shardEntry;
             assert shardRoutingTable.getSize() > 2;
             int numToStart = numShardsToStart;
             for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
@@ -304,8 +303,8 @@ public class ActiveShardCountTests extends OpenSearchTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final ObjectCursor<IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().values()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.value;
+        for (final var shardEntry : indexRoutingTable.getShards().values()) {
+            final IndexShardRoutingTable shardRoutingTable = shardEntry;
             for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());

@@ -38,8 +38,8 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
                 FeatureFlags.REMOTE_STORE_SETTING,
                 FeatureFlags.EXTENSIONS_SETTING,
                 FeatureFlags.IDENTITY_SETTING,
-                FeatureFlags.SEARCH_PIPELINE_SETTING,
-                FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING
+                FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING,
+                FeatureFlags.TELEMETRY_SETTING
             )
         )
     );

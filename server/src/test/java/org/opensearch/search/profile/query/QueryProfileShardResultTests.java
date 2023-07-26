@@ -32,10 +32,10 @@
 
 package org.opensearch.search.profile.query;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileResultTests;
@@ -56,7 +56,7 @@ public class QueryProfileShardResultTests extends OpenSearchTestCase {
         for (int i = 0; i < size; i++) {
             queryProfileResults.add(ProfileResultTests.createTestItem(1));
         }
-        CollectorResult profileCollector = CollectorResultTests.createTestItem(2);
+        CollectorResult profileCollector = CollectorResultTests.createTestItem(2, false);
         long rewriteTime = randomNonNegativeLong();
         if (randomBoolean()) {
             rewriteTime = rewriteTime % 1000; // make sure to often test this with small values too

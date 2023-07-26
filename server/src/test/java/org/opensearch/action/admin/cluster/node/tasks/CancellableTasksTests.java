@@ -33,6 +33,7 @@ package org.opensearch.action.admin.cluster.node.tasks;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -44,8 +45,8 @@ import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
@@ -563,6 +564,19 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     public void testCancelConcurrently() throws Exception {
         setupTestNodes(Settings.EMPTY);
         final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
+        AtomicBoolean onTaskCancelled = new AtomicBoolean();
+        AtomicBoolean onTaskCompleted = new AtomicBoolean();
+        taskManager.addTaskEventListeners(new TaskManager.TaskEventListeners() {
+            @Override
+            public void onTaskCancelled(CancellableTask task) {
+                onTaskCancelled.set(true);
+            }
+
+            @Override
+            public void onTaskCompleted(Task task) {
+                onTaskCompleted.set(true);
+            }
+        });
         int numTasks = randomIntBetween(1, 10);
         List<CancellableTask> tasks = new ArrayList<>(numTasks);
         for (int i = 0; i < numTasks; i++) {
@@ -577,11 +591,13 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             threads[i] = new Thread(() -> {
                 phaser.arriveAndAwaitAdvance();
                 taskManager.cancel(cancellingTask, "test", () -> assertTrue(notified.compareAndSet(idx, 0, 1)));
+                assertTrue(onTaskCancelled.get());
             });
             threads[i].start();
         }
         phaser.arriveAndAwaitAdvance();
         taskManager.unregister(cancellingTask);
+        assertTrue(onTaskCompleted.get());
         for (int i = 0; i < threads.length; i++) {
             threads[i].join();
             assertThat(notified.get(i), equalTo(1));
@@ -589,6 +605,21 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         AtomicBoolean called = new AtomicBoolean();
         taskManager.cancel(cancellingTask, "test", () -> assertTrue(called.compareAndSet(false, true)));
         assertTrue(called.get());
+    }
+
+    public void testCancelWithCancellationListenerThrowingException() {
+        setupTestNodes(Settings.EMPTY);
+        final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
+        taskManager.addTaskEventListeners(new TaskManager.TaskEventListeners() {
+            @Override
+            public void onTaskCancelled(CancellableTask task) {
+                throw new OpenSearchException("Exception");
+            }
+        });
+        CancellableTask cancellableTask = (CancellableTask) taskManager.register("type-0", "action-0", new CancellableNodeRequest());
+        AtomicBoolean taskCompleted = new AtomicBoolean();
+        assertThrows(OpenSearchException.class, () -> taskManager.cancel(cancellableTask, "test", () -> taskCompleted.set(true)));
+        assertFalse(taskCompleted.get());
     }
 
     private static void debugDelay(String name) {

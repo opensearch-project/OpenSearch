@@ -35,7 +35,6 @@ package org.opensearch.cluster.action.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
@@ -59,11 +58,11 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -630,7 +629,7 @@ public class ShardStateAction {
             components.add("primary term [" + primaryTerm + "]");
             components.add("message [" + message + "]");
             if (failure != null) {
-                components.add("failure [" + BaseExceptionsHelper.detailedMessage(failure) + "]");
+                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
             }
             components.add("markAsStale [" + markAsStale + "]");
             return String.join(", ", components);

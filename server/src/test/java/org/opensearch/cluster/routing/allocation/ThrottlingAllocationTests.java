@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.IntHashSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -56,8 +55,8 @@ import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.Snapshot;
@@ -804,7 +803,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
                             Version.CURRENT,
                             new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
                         ),
-                        new IntHashSet()
+                        new HashSet<>()
                     );
                     break;
                 case 4:

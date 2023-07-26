@@ -10,7 +10,11 @@ package org.opensearch.common.io;
 
 import java.io.IOException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -22,6 +26,8 @@ import org.apache.lucene.store.IndexOutput;
  * @opensearch.internal
  */
 public class VersionedCodecStreamWrapper<T> {
+    private static final Logger logger = LogManager.getLogger(VersionedCodecStreamWrapper.class);
+
     // TODO This can be updated to hold a streamReadWriteHandlerFactory and get relevant handler based on the stream versions
     private final IndexIOStreamHandler<T> indexIOStreamHandler;
     private final int currentVersion;
@@ -46,10 +52,21 @@ public class VersionedCodecStreamWrapper<T> {
      * @return stream content parsed into {@link T}
      */
     public T readStream(IndexInput indexInput) throws IOException {
-        CodecUtil.checksumEntireFile(indexInput);
-        int readStreamVersion = checkHeader(indexInput);
-        T content = getHandlerForVersion(readStreamVersion).readContent(indexInput);
-        return content;
+        logger.debug("Reading input stream [{}] of length - [{}]", indexInput.toString(), indexInput.length());
+        try {
+            CodecUtil.checksumEntireFile(indexInput);
+            int readStreamVersion = checkHeader(indexInput);
+            return getHandlerForVersion(readStreamVersion).readContent(indexInput);
+        } catch (CorruptIndexException cie) {
+            logger.error(
+                () -> new ParameterizedMessage(
+                    "Error while validating header/footer for [{}]. Total data length [{}]",
+                    indexInput.toString(),
+                    indexInput.length()
+                )
+            );
+            throw cie;
+        }
     }
 
     /**

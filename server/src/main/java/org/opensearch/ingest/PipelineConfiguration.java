@@ -32,13 +32,14 @@
 
 package org.opensearch.ingest;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ObjectParser;
@@ -77,7 +78,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
         private String id;
         private BytesReference config;
-        private XContentType xContentType;
+        private MediaType mediaType;
 
         void setId(String id) {
             this.id = id;
@@ -88,11 +89,11 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
                 throw new IllegalArgumentException("PipelineConfiguration does not support media type [" + mediaType.getClass() + "]");
             }
             this.config = config;
-            this.xContentType = XContentType.fromMediaType(mediaType);
+            this.mediaType = mediaType;
         }
 
         PipelineConfiguration build() {
-            return new PipelineConfiguration(id, config, xContentType);
+            return new PipelineConfiguration(id, config, mediaType);
         }
     }
 
@@ -101,16 +102,12 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     // and the way the map of maps config is read requires a deep copy (it removes instead of gets entries to check for unused options)
     // also the get pipeline api just directly returns this to the caller
     private final BytesReference config;
-    private final XContentType xContentType;
-
-    public PipelineConfiguration(String id, BytesReference config, XContentType xContentType) {
-        this.id = Objects.requireNonNull(id);
-        this.config = Objects.requireNonNull(config);
-        this.xContentType = Objects.requireNonNull(xContentType);
-    }
+    private final MediaType mediaType;
 
     public PipelineConfiguration(String id, BytesReference config, MediaType mediaType) {
-        this(id, config, XContentType.fromMediaType(mediaType));
+        this.id = Objects.requireNonNull(id);
+        this.config = Objects.requireNonNull(config);
+        this.mediaType = Objects.requireNonNull(mediaType);
     }
 
     public String getId() {
@@ -118,12 +115,12 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public Map<String, Object> getConfigAsMap() {
-        return XContentHelper.convertToMap(config, true, xContentType).v2();
+        return XContentHelper.convertToMap(config, true, mediaType).v2();
     }
 
     // pkg-private for tests
-    XContentType getXContentType() {
-        return xContentType;
+    MediaType getMediaType() {
+        return mediaType;
     }
 
     // pkg-private for tests
@@ -141,7 +138,11 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
+        return new PipelineConfiguration(
+            in.readString(),
+            in.readBytesReference(),
+            in.getVersion().onOrAfter(Version.V_3_0_0) ? in.readMediaType() : in.readEnum(XContentType.class)
+        );
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -157,7 +158,11 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
-        out.writeEnum(xContentType);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            mediaType.writeTo(out);
+        } else {
+            out.writeEnum((XContentType) mediaType);
+        }
     }
 
     @Override

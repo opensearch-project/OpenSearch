@@ -42,7 +42,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
@@ -111,7 +111,8 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
                     Map.of(),
                     null,
                     SnapshotInfoTests.randomUserMetadata(),
-                    VersionUtils.randomVersion(random())
+                    VersionUtils.randomVersion(random()),
+                    false
                 )
             )
         );

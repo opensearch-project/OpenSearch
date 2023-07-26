@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.memory.breaker;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -56,7 +56,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.indices.breaker.CircuitBreakerStats;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -421,7 +421,7 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
             } else {
                 // each item must have failed with CircuitBreakingException
                 for (BulkItemResponse bulkItemResponse : response) {
-                    Throwable cause = BaseExceptionsHelper.unwrapCause(bulkItemResponse.getFailure().getCause());
+                    Throwable cause = ExceptionsHelper.unwrapCause(bulkItemResponse.getFailure().getCause());
                     assertThat(cause, instanceOf(CircuitBreakingException.class));
                     assertEquals(((CircuitBreakingException) cause).getByteLimit(), inFlightRequestsLimit.getBytes());
                 }

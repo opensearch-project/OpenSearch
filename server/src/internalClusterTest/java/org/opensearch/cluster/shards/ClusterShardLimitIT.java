@@ -246,6 +246,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         assertFalse(clusterState.getMetadata().hasIndex(".test-index"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6287")
     public void testCreateIndexWithMaxClusterShardSetting() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();

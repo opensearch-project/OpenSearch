@@ -32,8 +32,6 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
@@ -50,10 +48,10 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.MaxScoreCollector;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.LongObjectPagedHashMap;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.Aggregator;
@@ -68,6 +66,7 @@ import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -129,7 +128,7 @@ class TopHitsAggregator extends MetricsAggregator {
         // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
         // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
         // then causes assertions to trip or incorrect top docs to be computed.
-        final LongObjectHashMap<LeafCollector> leafCollectors = new LongObjectHashMap<>(1);
+        final Map<Long, LeafCollector> leafCollectors = new HashMap<>(1);
         return new LeafBucketCollectorBase(sub, null) {
 
             Scorable scorer;
@@ -138,8 +137,8 @@ class TopHitsAggregator extends MetricsAggregator {
             public void setScorer(Scorable scorer) throws IOException {
                 this.scorer = scorer;
                 super.setScorer(scorer);
-                for (ObjectCursor<LeafCollector> cursor : leafCollectors.values()) {
-                    cursor.value.setScorer(scorer);
+                for (var collector : leafCollectors.values()) {
+                    collector.setScorer(scorer);
                 }
             }
 
@@ -170,16 +169,13 @@ class TopHitsAggregator extends MetricsAggregator {
                     topDocsCollectors.put(bucket, collectors);
                 }
 
-                final LeafCollector leafCollector;
-                final int key = leafCollectors.indexOf(bucket);
-                if (key < 0) {
+                LeafCollector leafCollector = leafCollectors.get(bucket);
+                if (leafCollector == null) {
                     leafCollector = collectors.collector.getLeafCollector(ctx);
                     if (scorer != null) {
                         leafCollector.setScorer(scorer);
                     }
-                    leafCollectors.indexInsert(key, bucket, leafCollector);
-                } else {
-                    leafCollector = leafCollectors.indexGet(key);
+                    leafCollectors.put(bucket, leafCollector);
                 }
                 leafCollector.collect(docId);
             }

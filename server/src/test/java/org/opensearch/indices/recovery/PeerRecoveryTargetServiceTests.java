@@ -45,7 +45,7 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
@@ -380,7 +380,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         );
         IndexShard shard = newStartedShard(false);
         final SeqNoStats seqNoStats = populateRandomData(shard);
-        shard.close("test", false);
+        shard.close("test", false, false);
         if (randomBoolean()) {
             shard.store().associateIndexWithNewTranslog(UUIDs.randomBase64UUID());
         } else if (randomBoolean()) {

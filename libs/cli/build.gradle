@@ -28,7 +28,6 @@
  * under the License.
  */
 apply plugin: 'opensearch.build'
-apply plugin: 'com.netflix.nebula.optional-base'
 apply plugin: 'opensearch.publish'
 
 dependencies {

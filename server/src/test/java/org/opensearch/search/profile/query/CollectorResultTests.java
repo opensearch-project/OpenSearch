@@ -33,7 +33,7 @@
 package org.opensearch.search.profile.query;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -47,13 +47,13 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class CollectorResultTests extends OpenSearchTestCase {
 
-    public static CollectorResult createTestItem(int depth) {
+    public static CollectorResult createTestItem(int depth, boolean concurrentSearchEnabled) {
         String name = randomAlphaOfLengthBetween(5, 10);
         String reason = randomAlphaOfLengthBetween(5, 10);
         long time = randomNonNegativeLong();
@@ -61,26 +61,47 @@ public class CollectorResultTests extends OpenSearchTestCase {
             // also often use relatively "small" values, otherwise we will mostly test huge longs
             time = time % 100000;
         }
+        long reduceTime = time;
+        long maxSliceTime = time;
+        long minSliceTime = time;
+        long avgSliceTime = time;
+        int sliceCount = randomIntBetween(1, 10);
         int size = randomIntBetween(0, 5);
         List<CollectorResult> children = new ArrayList<>(size);
         if (depth > 0) {
             for (int i = 0; i < size; i++) {
-                children.add(createTestItem(depth - 1));
+                children.add(createTestItem(depth - 1, concurrentSearchEnabled));
             }
+        }
+
+        if (concurrentSearchEnabled) {
+            return new CollectorResult(
+                "defaultCollectorManager",
+                "some reason",
+                time,
+                reduceTime,
+                maxSliceTime,
+                minSliceTime,
+                avgSliceTime,
+                sliceCount,
+                children
+            );
         }
         return new CollectorResult(name, reason, time, children);
     }
 
     public void testFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
+        doFromXContentTestWithRandomFields(false, false);
+        doFromXContentTestWithRandomFields(false, true);
     }
 
     public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
+        doFromXContentTestWithRandomFields(true, false);
+        doFromXContentTestWithRandomFields(true, true);
     }
 
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        CollectorResult collectorResult = createTestItem(1);
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields, boolean concurrentSearchEnabled) throws IOException {
+        CollectorResult collectorResult = createTestItem(1, concurrentSearchEnabled);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(collectorResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -174,6 +195,34 @@ public class CollectorResultTests extends OpenSearchTestCase {
                 + "  \"reason\" : \"some reason\",\n"
                 + "  \"time\" : \"1.2s\",\n"
                 + "  \"time_in_nanos\" : 1234567890\n"
+                + "}",
+            Strings.toString(builder)
+        );
+
+        result = new CollectorResult(
+            "defaultCollectorManager",
+            "some reason",
+            123456789L,
+            123456789L,
+            123456789L,
+            123456789L,
+            123456789L,
+            3,
+            Collections.emptyList()
+        );
+        builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
+        result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(
+            "{\n"
+                + "  \"name\" : \"defaultCollectorManager\",\n"
+                + "  \"reason\" : \"some reason\",\n"
+                + "  \"time\" : \"123.4ms\",\n"
+                + "  \"time_in_nanos\" : 123456789,\n"
+                + "  \"reduce_time_in_nanos\" : 123456789,\n"
+                + "  \"max_slice_time_in_nanos\" : 123456789,\n"
+                + "  \"min_slice_time_in_nanos\" : 123456789,\n"
+                + "  \"avg_slice_time_in_nanos\" : 123456789,\n"
+                + "  \"slice_count\" : 3\n"
                 + "}",
             Strings.toString(builder)
         );

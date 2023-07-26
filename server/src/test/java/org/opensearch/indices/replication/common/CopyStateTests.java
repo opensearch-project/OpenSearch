@@ -15,13 +15,16 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.Map;
@@ -52,7 +55,10 @@ public class CopyStateTests extends IndexShardTestCase {
     public void testCopyStateCreation() throws IOException {
         final IndexShard mockIndexShard = createMockIndexShard();
         CopyState copyState = new CopyState(
-            ReplicationCheckpoint.empty(mockIndexShard.shardId(), new CodecService(null, null).codec("default").getName()),
+            ReplicationCheckpoint.empty(
+                mockIndexShard.shardId(),
+                new CodecService(null, mockIndexShard.indexSettings(), null).codec("default").getName()
+            ),
             mockIndexShard
         );
         ReplicationCheckpoint checkpoint = copyState.getCheckpoint();
@@ -70,6 +76,9 @@ public class CopyStateTests extends IndexShardTestCase {
 
         Store mockStore = mock(Store.class);
         when(mockShard.store()).thenReturn(mockStore);
+
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        when(mockShard.indexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("_na", nodeSettings));
 
         SegmentInfos testSegmentInfos = new SegmentInfos(Version.LATEST.major);
         ReplicationCheckpoint testCheckpoint = new ReplicationCheckpoint(

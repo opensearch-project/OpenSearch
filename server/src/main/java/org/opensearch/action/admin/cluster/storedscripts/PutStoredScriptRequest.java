@@ -32,12 +32,14 @@
 
 package org.opensearch.action.admin.cluster.storedscripts;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -59,14 +61,18 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     private String id;
     private String context;
     private BytesReference content;
-    private XContentType xContentType;
+    private MediaType mediaType;
     private StoredScriptSource source;
 
     public PutStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readOptionalString();
         content = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            mediaType = in.readMediaType();
+        } else {
+            mediaType = in.readEnum(XContentType.class);
+        }
         context = in.readOptionalString();
         source = new StoredScriptSource(in);
     }
@@ -75,12 +81,12 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         super();
     }
 
-    public PutStoredScriptRequest(String id, String context, BytesReference content, XContentType xContentType, StoredScriptSource source) {
+    public PutStoredScriptRequest(String id, String context, BytesReference content, MediaType mediaType, StoredScriptSource source) {
         super();
         this.id = id;
         this.context = context;
         this.content = content;
-        this.xContentType = Objects.requireNonNull(xContentType);
+        this.mediaType = Objects.requireNonNull(mediaType);
         this.source = source;
     }
 
@@ -123,8 +129,8 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return content;
     }
 
-    public XContentType xContentType() {
-        return xContentType;
+    public MediaType mediaType() {
+        return mediaType;
     }
 
     public StoredScriptSource source() {
@@ -136,7 +142,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
      */
     public PutStoredScriptRequest content(BytesReference content, XContentType xContentType) {
         this.content = content;
-        this.xContentType = Objects.requireNonNull(xContentType);
+        this.mediaType = Objects.requireNonNull(xContentType);
         this.source = StoredScriptSource.parse(content, xContentType);
         return this;
     }
@@ -146,7 +152,11 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         super.writeTo(out);
         out.writeOptionalString(id);
         out.writeBytesReference(content);
-        out.writeEnum(xContentType);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            mediaType.writeTo(out);
+        } else {
+            out.writeEnum((XContentType) mediaType);
+        }
         out.writeOptionalString(context);
         source.writeTo(out);
     }
@@ -156,7 +166,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         String source = Strings.UNKNOWN_UUID_VALUE;
 
         try {
-            source = XContentHelper.convertToJson(content, false, xContentType);
+            source = XContentHelper.convertToJson(content, false, mediaType);
         } catch (Exception e) {
             // ignore
         }

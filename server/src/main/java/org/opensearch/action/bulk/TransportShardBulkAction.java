@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ActionRunnable;
@@ -67,20 +67,20 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.engine.Engine;
@@ -92,7 +92,7 @@ import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
@@ -719,7 +719,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private static boolean isConflictException(final Exception e) {
-        return BaseExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException;
+        return ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException;
     }
 
     /**
@@ -752,7 +752,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                 if (updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) {
                     final BytesReference indexSourceAsBytes = updateIndexRequest.source();
-                    final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
+                    final Tuple<? extends MediaType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
                         indexSourceAsBytes,
                         true,
                         updateIndexRequest.getContentType()

@@ -40,10 +40,10 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BytesRefHash;
 import org.opensearch.common.util.ObjectArray;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -148,7 +148,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             : includeExclude.convertToStringFilter(DocValueFormat.RAW, maxRegexLength);
 
         MapStringTermsAggregator.CollectorSource collectorSource = new SignificantTextCollectorSource(
-            queryShardContext.lookup().source(),
             queryShardContext.bigArrays(),
             fieldType,
             sourceFieldNames,
@@ -186,13 +185,14 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private ObjectArray<DuplicateByteSequenceSpotter> dupSequenceSpotters;
 
         SignificantTextCollectorSource(
-            SourceLookup sourceLookup,
             BigArrays bigArrays,
             MappedFieldType fieldType,
             String[] sourceFieldNames,
             boolean filterDuplicateText
         ) {
-            this.sourceLookup = sourceLookup;
+            // Create a new SourceLookup instance per aggregator instead of use the shared one from SearchLookup. This is fine because it
+            // will only be accessed by this Aggregator instance and not anywhere else.
+            this.sourceLookup = new SourceLookup();
             this.bigArrays = bigArrays;
             this.fieldType = fieldType;
             this.sourceFieldNames = sourceFieldNames;

@@ -36,19 +36,19 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Table;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.UTF8StreamWriter;
-import org.opensearch.common.io.stream.BytesStream;
+import org.opensearch.core.common.io.stream.BytesStream;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,18 +69,18 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        XContentType xContentType = getXContentType(request);
+        MediaType xContentType = getXContentType(request);
         if (xContentType != null) {
             return buildXContentBuilder(table, channel);
         }
         return buildTextPlainResponse(table, channel);
     }
 
-    private static XContentType getXContentType(RestRequest request) {
+    private static MediaType getXContentType(RestRequest request) {
         if (request.hasParam("format")) {
-            return XContentType.fromFormat(request.param("format"));
+            return MediaType.fromFormat(request.param("format"));
         }
-        return XContentType.fromMediaType(request.header("Accept"));
+        return MediaType.fromMediaType(request.header("Accept"));
     }
 
     public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {

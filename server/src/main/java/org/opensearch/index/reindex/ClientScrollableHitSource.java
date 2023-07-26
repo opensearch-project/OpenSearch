@@ -45,12 +45,12 @@ import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.client.Client;
 import org.opensearch.client.ParentTaskAssigningClient;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.search.SearchHit;
 import org.opensearch.threadpool.ThreadPool;
@@ -209,7 +209,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         }
 
         @Override
-        public XContentType getXContentType() {
+        public MediaType getMediaType() {
             return XContentHelper.xContentType(source);
         }
 

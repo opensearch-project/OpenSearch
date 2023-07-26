@@ -59,17 +59,17 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.common.Strings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.query.Rewriteable;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
@@ -390,13 +390,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             relativeStartNanos,
             System::nanoTime
         );
-        SearchRequest searchRequest;
+        PipelinedRequest searchRequest;
         ActionListener<SearchResponse> listener;
         try {
-            PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(originalSearchRequest);
-            searchRequest = pipelinedRequest.transformedRequest();
+            searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest);
             listener = ActionListener.wrap(
-                r -> originalListener.onResponse(pipelinedRequest.transformResponse(r)),
+                r -> originalListener.onResponse(searchRequest.transformResponse(r)),
                 originalListener::onFailure
             );
         } catch (Exception e) {
@@ -443,7 +442,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         localIndices,
                         remoteClusterIndices,
                         timeProvider,
-                        searchService.aggReduceContextBuilder(searchRequest),
+                        searchService.aggReduceContextBuilder(searchRequest.source()),
                         remoteClusterService,
                         threadPool,
                         listener,

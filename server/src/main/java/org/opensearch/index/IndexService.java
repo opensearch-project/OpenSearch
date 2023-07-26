@@ -49,7 +49,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -83,7 +83,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
@@ -603,6 +603,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store, IndexEventListener listener) {
         final int shardId = sId.id();
         final Settings indexSettings = this.getIndexSettings().getSettings();
+        Store remoteStore = null;
+        if (indexShard != null) {
+            remoteStore = indexShard.remoteStore();
+        }
         if (store != null) {
             store.beforeClose();
         }
@@ -616,7 +620,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     try {
                         // only flush if we are closed (closed index or shutdown) and if we are not deleted
                         final boolean flushEngine = deleted.get() == false && closed.get();
-                        indexShard.close(reason, flushEngine);
+                        indexShard.close(reason, flushEngine, deleted.get());
                     } catch (Exception e) {
                         logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
                         // ignore
@@ -632,6 +636,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 } else {
                     logger.trace("[{}] store not initialized prior to closing shard, nothing to close", shardId);
                 }
+
+                if (remoteStore != null && indexShard.isPrimaryMode() && deleted.get()) {
+                    remoteStore.close();
+                }
+
             } catch (Exception e) {
                 logger.warn(
                     () -> new ParameterizedMessage("[{}] failed to close store on shard removal (reason: [{}])", shardId, reason),

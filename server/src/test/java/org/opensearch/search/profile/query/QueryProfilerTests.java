@@ -60,7 +60,9 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -78,6 +80,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class QueryProfilerTests extends OpenSearchTestCase {
     private Directory dir;
@@ -112,13 +116,19 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         }
         reader = w.getReader();
         w.close();
+
+        SearchContext searchContext = mock(SearchContext.class);
+        IndexShard indexShard = mock(IndexShard.class);
+        when(searchContext.indexShard()).thenReturn(indexShard);
+        when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
         searcher = new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             ALWAYS_CACHE_POLICY,
             true,
-            executor
+            executor,
+            searchContext
         );
     }
 
@@ -238,14 +248,19 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         TotalHitCountCollector collector = new TotalHitCountCollector();
         ProfileCollector profileCollector = new ProfileCollector(collector);
         assertEquals(0, profileCollector.getTime());
+        assertEquals(0, profileCollector.getSliceStartTime());
         final LeafCollector leafCollector = profileCollector.getLeafCollector(reader.leaves().get(0));
         assertThat(profileCollector.getTime(), greaterThan(0L));
+        assertThat(profileCollector.getSliceStartTime(), greaterThan(0L));
         long time = profileCollector.getTime();
+        long sliceStartTime = profileCollector.getSliceStartTime();
         leafCollector.setScorer(null);
         assertThat(profileCollector.getTime(), greaterThan(time));
+        assertEquals(sliceStartTime, profileCollector.getSliceStartTime());
         time = profileCollector.getTime();
         leafCollector.collect(0);
         assertThat(profileCollector.getTime(), greaterThan(time));
+        assertEquals(sliceStartTime, profileCollector.getSliceStartTime());
     }
 
     private static class DummyQuery extends Query {

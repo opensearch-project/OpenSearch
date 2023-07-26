@@ -67,7 +67,7 @@ yamlRestTest.enabled = false
  * Test using various credential providers (see also https://docs.aws.amazon.com/sdk-for-java/v2/developer-guide/credentials.html):
  * - Elasticsearch Keystore (secure settings discovery.ec2.access_key and discovery.ec2.secret_key)
  * - Java system properties (aws.accessKeyId and aws.secretAccessKey)
- * - Environment variables (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
+ * - Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION)
  * - ECS container credentials (loaded from ECS if the environment variable AWS_CONTAINER_CREDENTIALS_RELATIVE_URI is set)
  * - Instance profile credentials (delivered through the EC2 metadata service)
  *
@@ -100,8 +100,9 @@ yamlRestTest.enabled = false
     setting 'discovery.seed_providers', 'ec2'
     setting 'network.host', '_ec2_'
     setting 'discovery.ec2.endpoint', { "http://${-> fixture.addressAndPort}" }, IGNORE_VALUE
+    setting 'discovery.ec2.region', 'us-east-1'
 
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> fixture.addressAndPort}" }, IGNORE_VALUE
+    systemProperty "aws.ec2MetadataServiceEndpoint", { "http://${-> fixture.addressAndPort}" }, IGNORE_VALUE
   }
 }
 
@@ -115,12 +116,14 @@ testClusters.yamlRestTestKeyStore {
 testClusters.yamlRestTestEnvVariables {
   environment 'AWS_ACCESS_KEY_ID', 'ec2_integration_test_access_key'
   environment 'AWS_SECRET_ACCESS_KEY', 'ec2_integration_test_secret_key'
+  environment 'AWS_REGION', 'ec2_integration_test_region'
 }
 
 // Extra config for SystemProperties
 testClusters.yamlRestTestSystemProperties {
   systemProperty 'aws.accessKeyId', 'ec2_integration_test_access_key'
-  systemProperty 'aws.secretKey', 'ec2_integration_test_secret_key'
+  systemProperty 'aws.secretAccessKey', 'ec2_integration_test_secret_key'
+  systemProperty 'aws.region', 'ec2_integration_test_region'
 }
 
 // Extra config for ContainerCredentials

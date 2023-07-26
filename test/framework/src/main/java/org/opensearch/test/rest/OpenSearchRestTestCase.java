@@ -66,6 +66,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -76,7 +77,7 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
@@ -143,10 +144,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * Convert the entity from a {@link Response} into a map of maps.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType());
+        MediaType mediaType = MediaType.fromMediaType(response.getEntity().getContentType());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (
-            XContentParser parser = xContentType.xContent()
+            XContentParser parser = mediaType.xContent()
                 .createParser(
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -161,10 +162,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * Convert the entity from a {@link Response} into a list of maps.
      */
     public static List<Object> entityAsList(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType());
+        MediaType mediaType = MediaType.fromMediaType(response.getEntity().getContentType());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (
-            XContentParser parser = xContentType.xContent()
+            XContentParser parser = mediaType.xContent()
                 .createParser(
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -1074,7 +1075,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
-        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType());
+        MediaType entityContentType = MediaType.fromMediaType(response.getEntity().getContentType());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(
             entityContentType.xContent(),
             response.getEntity().getContent(),

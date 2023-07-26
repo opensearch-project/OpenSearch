@@ -32,10 +32,10 @@
 
 package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -56,13 +56,13 @@ public class PutStoredScriptRequestTests extends OpenSearchTestCase {
             new StoredScriptSource("foo", "bar", Collections.emptyMap())
         );
 
-        assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
+        assertEquals(XContentType.JSON, storedScriptRequest.mediaType());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             storedScriptRequest.writeTo(output);
 
             try (StreamInput in = output.bytes().streamInput()) {
                 PutStoredScriptRequest serialized = new PutStoredScriptRequest(in);
-                assertEquals(XContentType.JSON, serialized.xContentType());
+                assertEquals(XContentType.JSON, serialized.mediaType());
                 assertEquals(storedScriptRequest.id(), serialized.id());
                 assertEquals(storedScriptRequest.context(), serialized.context());
             }

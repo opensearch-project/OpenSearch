@@ -311,10 +311,6 @@ public class Environment {
         return pluginsDir;
     }
 
-    public Path extensionDir() {
-        return extensionsDir;
-    }
-
     public Path binDir() {
         return binDir;
     }

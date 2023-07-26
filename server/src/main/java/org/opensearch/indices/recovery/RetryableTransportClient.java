@@ -9,13 +9,13 @@
 package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.breaker.CircuitBreakingException;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -127,10 +127,10 @@ public final class RetryableTransportClient {
         if (e instanceof ConnectTransportException) {
             return true;
         } else if (e instanceof SendRequestTransportException) {
-            final Throwable cause = BaseExceptionsHelper.unwrapCause(e);
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
             return cause instanceof ConnectTransportException;
         } else if (e instanceof RemoteTransportException) {
-            final Throwable cause = BaseExceptionsHelper.unwrapCause(e);
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
             return cause instanceof CircuitBreakingException || cause instanceof OpenSearchRejectedExecutionException;
         }
         return false;

@@ -214,8 +214,8 @@ public final class Grok {
                 name.getBytes(StandardCharsets.UTF_8).length,
                 region
             );
-            int begin = region.beg[number];
-            int end = region.end[number];
+            int begin = region.getBeg(number);
+            int end = region.getEnd(number);
             return new String(pattern.getBytes(StandardCharsets.UTF_8), begin, end - begin, StandardCharsets.UTF_8);
         } catch (StringIndexOutOfBoundsException e) {
             return null;
@@ -270,7 +270,12 @@ public final class Grok {
                 grokPart = String.format(Locale.US, "(?<%s>%s)", patternName + "_" + result, pattern);
             }
             String start = new String(grokPatternBytes, 0, result, StandardCharsets.UTF_8);
-            String rest = new String(grokPatternBytes, region.end[0], grokPatternBytes.length - region.end[0], StandardCharsets.UTF_8);
+            String rest = new String(
+                grokPatternBytes,
+                region.getEnd(0),
+                grokPatternBytes.length - region.getEnd(0),
+                StandardCharsets.UTF_8
+            );
             grokPattern = grokPart + rest;
             res.append(start);
         }

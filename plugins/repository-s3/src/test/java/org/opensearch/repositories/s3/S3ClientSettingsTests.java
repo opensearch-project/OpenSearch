@@ -32,27 +32,33 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
-import com.amazonaws.services.s3.AmazonS3Client;
-
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.repositories.s3.utils.AwsRequestSigner;
+import org.opensearch.repositories.s3.utils.Protocol;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.signer.Signer;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
-public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigPathSupport {
+public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
     public void testThereIsADefaultClientByDefault() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.EMPTY, configPath());
         assertThat(settings.keySet(), contains("default"));
@@ -62,9 +68,13 @@ public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigP
         assertThat(defaultSettings.endpoint, is(emptyString()));
         assertThat(defaultSettings.protocol, is(Protocol.HTTPS));
         assertThat(defaultSettings.proxySettings, is(ProxySettings.NO_PROXY_SETTINGS));
-        assertThat(defaultSettings.readTimeoutMillis, is(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT));
-        assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
-        assertThat(defaultSettings.throttleRetries, is(ClientConfiguration.DEFAULT_THROTTLE_RETRIES));
+        assertThat(defaultSettings.readTimeoutMillis, is(50 * 1000));
+        assertThat(defaultSettings.requestTimeoutMillis, is(120 * 1000));
+        assertThat(defaultSettings.connectionTimeoutMillis, is(10 * 1000));
+        assertThat(defaultSettings.connectionTTLMillis, is(5 * 1000));
+        assertThat(defaultSettings.maxConnections, is(100));
+        assertThat(defaultSettings.maxRetries, is(3));
+        assertThat(defaultSettings.throttleRetries, is(true));
     }
 
     public void testDefaultClientSettingsCanBeSet() {
@@ -86,7 +96,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigP
         assertThat(settings.keySet(), contains("default", "another_client"));
 
         final S3ClientSettings defaultSettings = settings.get("default");
-        assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
+        assertThat(defaultSettings.maxRetries, is(3));
 
         final S3ClientSettings anotherClientSettings = settings.get("another_client");
         assertThat(anotherClientSettings.maxRetries, is(10));
@@ -200,9 +210,9 @@ public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigP
             configPath()
         );
         final S3ClientSettings defaultSettings = settings.get("default");
-        S3BasicCredentials credentials = defaultSettings.credentials;
-        assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
-        assertThat(credentials.getAWSSecretKey(), is("secret_key"));
+        AwsCredentials credentials = defaultSettings.credentials;
+        assertThat(credentials.accessKeyId(), is("access_key"));
+        assertThat(credentials.secretAccessKey(), is("secret_key"));
     }
 
     public void testCredentialsTypeWithAccessKeyAndSecretKeyAndSessionToken() {
@@ -215,10 +225,10 @@ public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigP
             configPath()
         );
         final S3ClientSettings defaultSettings = settings.get("default");
-        S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) defaultSettings.credentials;
-        assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
-        assertThat(credentials.getAWSSecretKey(), is("secret_key"));
-        assertThat(credentials.getSessionToken(), is("session_token"));
+        AwsSessionCredentials credentials = (AwsSessionCredentials) defaultSettings.credentials;
+        assertThat(credentials.accessKeyId(), is("access_key"));
+        assertThat(credentials.secretAccessKey(), is("secret_key"));
+        assertThat(credentials.sessionToken(), is("session_token"));
     }
 
     public void testRefineWithRepoSettings() {
@@ -240,19 +250,19 @@ public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigP
             final String endpoint = "some.host";
             final S3ClientSettings refinedSettings = baseSettings.refine(Settings.builder().put("endpoint", endpoint).build());
             assertThat(refinedSettings.endpoint, is(endpoint));
-            S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;
-            assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
-            assertThat(credentials.getAWSSecretKey(), is("secret_key"));
-            assertThat(credentials.getSessionToken(), is("session_token"));
+            AwsSessionCredentials credentials = (AwsSessionCredentials) refinedSettings.credentials;
+            assertThat(credentials.accessKeyId(), is("access_key"));
+            assertThat(credentials.secretAccessKey(), is("secret_key"));
+            assertThat(credentials.sessionToken(), is("session_token"));
         }
 
         {
             final S3ClientSettings refinedSettings = baseSettings.refine(Settings.builder().put("path_style_access", true).build());
             assertThat(refinedSettings.pathStyleAccess, is(true));
-            S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;
-            assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
-            assertThat(credentials.getAWSSecretKey(), is("secret_key"));
-            assertThat(credentials.getSessionToken(), is("session_token"));
+            AwsSessionCredentials credentials = (AwsSessionCredentials) refinedSettings.credentials;
+            assertThat(credentials.accessKeyId(), is("access_key"));
+            assertThat(credentials.secretAccessKey(), is("secret_key"));
+            assertThat(credentials.sessionToken(), is("session_token"));
         }
     }
 
@@ -275,31 +285,43 @@ public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigP
     }
 
     public void testRegionCanBeSet() {
-        final String region = randomAlphaOfLength(5);
+        final String region = randomFrom(Region.regions().stream().map(Region::toString).toArray(String[]::new));
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
             Settings.builder().put("s3.client.other.region", region).build(),
             configPath()
         );
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
-        try (S3Service s3Service = new S3Service(configPath())) {
-            AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other")).client();
-            assertThat(other.getSignerRegionOverride(), is(region));
+        try (
+            S3Service s3Service = new S3Service(configPath());
+            S3Client other = SocketAccess.doPrivileged(() -> s3Service.buildClient(settings.get("other")).client());
+        ) {
+            assertThat(other.serviceClientConfiguration().region(), is(Region.of(region)));
         }
     }
 
     public void testSignerOverrideCanBeSet() {
-        final String signerOverride = randomAlphaOfLength(5);
+        S3Service.setDefaultAwsProfilePath();
+        final String signerOverride = randomFrom(AwsRequestSigner.values()).getName();
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
             Settings.builder().put("s3.client.other.signer_override", signerOverride).build(),
             configPath()
         );
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").signerOverride, is(signerOverride));
-        ClientConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"));
-        assertThat(defaultConfiguration.getSignerOverride(), nullValue());
-        ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"));
-        assertThat(configuration.getSignerOverride(), is(signerOverride));
+
+        ClientOverrideConfiguration defaultConfiguration = SocketAccess.doPrivileged(
+            () -> S3Service.buildOverrideConfiguration(settings.get("default"))
+        );
+        Optional<Signer> defaultSigner = defaultConfiguration.advancedOption(SdkAdvancedClientOption.SIGNER);
+        assertFalse(defaultSigner.isPresent());
+
+        ClientOverrideConfiguration configuration = SocketAccess.doPrivileged(
+            () -> S3Service.buildOverrideConfiguration(settings.get("other"))
+        );
+        Optional<Signer> otherSigner = configuration.advancedOption(SdkAdvancedClientOption.SIGNER);
+        assertTrue(otherSigner.isPresent());
+        assertThat(otherSigner.get(), sameInstance(AwsRequestSigner.fromSignerName(signerOverride).getSigner()));
     }
 
     public void testSetProxySettings() throws Exception {

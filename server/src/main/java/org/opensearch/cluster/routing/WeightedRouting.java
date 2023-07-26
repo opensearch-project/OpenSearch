@@ -8,9 +8,9 @@
 
 package org.opensearch.cluster.routing;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -47,7 +47,7 @@ public class WeightedRouting implements Writeable {
     }
 
     public boolean isSet() {
-        return (!this.attributeName.isEmpty() && !this.weights.isEmpty());
+        return this.attributeName != null && !this.attributeName.isEmpty() && this.weights != null && !this.weights.isEmpty();
     }
 
     @Override

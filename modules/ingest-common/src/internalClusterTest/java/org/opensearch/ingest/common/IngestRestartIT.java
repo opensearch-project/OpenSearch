@@ -33,8 +33,8 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.ingest.IngestStats;
@@ -132,7 +132,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         for (int k = 0; k < nodeCount; k++) {
             List<IngestStats.ProcessorStat> stats = r.getNodes().get(k).getIngestStats().getProcessorStats().get(pipelineId);
             for (IngestStats.ProcessorStat st : stats) {
-                assertThat(st.getStats().getIngestCurrent(), greaterThanOrEqualTo(0L));
+                assertThat(st.getStats().getCurrent(), greaterThanOrEqualTo(0L));
             }
         }
     }

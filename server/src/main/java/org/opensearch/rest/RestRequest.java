@@ -38,12 +38,13 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
@@ -84,7 +85,7 @@ public class RestRequest implements ToXContent.Params {
     private final Map<String, List<String>> headers;
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
-    private final SetOnce<XContentType> xContentType = new SetOnce<>();
+    private final SetOnce<MediaType> mediaType = new SetOnce<>();
     private final HttpChannel httpChannel;
 
     private HttpRequest httpRequest;
@@ -117,14 +118,14 @@ public class RestRequest implements ToXContent.Params {
         HttpChannel httpChannel,
         long requestId
     ) {
-        final XContentType xContentType;
+        final MediaType xContentType;
         try {
             xContentType = parseContentType(headers.get("Content-Type"));
         } catch (final IllegalArgumentException e) {
             throw new ContentTypeHeaderException(e);
         }
         if (xContentType != null) {
-            this.xContentType.set(xContentType);
+            this.mediaType.set(xContentType);
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;
@@ -295,7 +296,7 @@ public class RestRequest implements ToXContent.Params {
     public final BytesReference requiredContent() {
         if (hasContent() == false) {
             throw new OpenSearchParseException("request body is required");
-        } else if (xContentType.get() == null) {
+        } else if (mediaType.get() == null) {
             throw new IllegalStateException("unknown content type");
         }
         return content();
@@ -340,8 +341,8 @@ public class RestRequest implements ToXContent.Params {
      * a request without a valid {@code Content-Type} header, a request without content ({@link #hasContent()}, or a plain text request
      */
     @Nullable
-    public final XContentType getXContentType() {
-        return xContentType.get();
+    public final MediaType getMediaType() {
+        return mediaType.get();
     }
 
     public HttpChannel getHttpChannel() {
@@ -486,7 +487,7 @@ public class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        return xContentType.get().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
+        return mediaType.get().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
     }
 
     /**
@@ -514,7 +515,7 @@ public class RestRequest implements ToXContent.Params {
      * if you need to handle the absence request content gracefully.
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
-        Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+        Tuple<MediaType, BytesReference> tuple = contentOrSourceParam();
         return tuple.v1().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, tuple.v2().streamInput());
     }
 
@@ -525,12 +526,12 @@ public class RestRequest implements ToXContent.Params {
      */
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
-            Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+            Tuple<MediaType, BytesReference> tuple = contentOrSourceParam();
             BytesReference content = tuple.v2();
-            XContentType xContentType = tuple.v1();
+            MediaType mediaType = tuple.v1();
             try (
                 InputStream stream = content.streamInput();
-                XContentParser parser = xContentType.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+                XContentParser parser = mediaType.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
             ) {
                 withParser.accept(parser);
             }
@@ -543,11 +544,11 @@ public class RestRequest implements ToXContent.Params {
      * Get the content of the request or the contents of the {@code source} param or throw an exception if both are missing.
      * Prefer {@link #contentOrSourceParamParser()} or {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
      */
-    public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
+    public final Tuple<MediaType, BytesReference> contentOrSourceParam() {
         if (hasContentOrSourceParam() == false) {
             throw new OpenSearchParseException("request body or source parameter is required");
         } else if (hasContent()) {
-            return new Tuple<>(xContentType.get(), requiredContent());
+            return new Tuple<>(mediaType.get(), requiredContent());
         }
         String source = param("source");
         String typeParam = param("source_content_type");
@@ -555,18 +556,18 @@ public class RestRequest implements ToXContent.Params {
             throw new IllegalStateException("source and source_content_type parameters are required");
         }
         BytesArray bytes = new BytesArray(source);
-        final XContentType xContentType = parseContentType(Collections.singletonList(typeParam));
-        if (xContentType == null) {
+        final MediaType mediaType = parseContentType(Collections.singletonList(typeParam));
+        if (mediaType == null) {
             throw new IllegalStateException("Unknown value for source_content_type [" + typeParam + "]");
         }
-        return new Tuple<>(xContentType, bytes);
+        return new Tuple<>(mediaType, bytes);
     }
 
     /**
      * Parses the given content type string for the media type. This method currently ignores parameters.
      */
     // TODO stop ignoring parameters such as charset...
-    public static XContentType parseContentType(List<String> header) {
+    public static MediaType parseContentType(List<String> header) {
         if (header == null || header.isEmpty()) {
             return null;
         } else if (header.size() > 1) {
@@ -580,7 +581,7 @@ public class RestRequest implements ToXContent.Params {
             if (splitMediaType.length == 2
                 && TCHAR_PATTERN.matcher(splitMediaType[0]).matches()
                 && TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) {
-                return XContentType.fromMediaType(elements[0]);
+                return MediaType.fromMediaType(elements[0]);
             } else {
                 throw new IllegalArgumentException("invalid Content-Type header [" + rawContentType + "]");
             }

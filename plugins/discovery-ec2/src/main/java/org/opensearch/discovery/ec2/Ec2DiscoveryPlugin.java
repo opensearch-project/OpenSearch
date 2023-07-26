@@ -32,8 +32,6 @@
 
 package org.opensearch.discovery.ec2;
 
-import com.amazonaws.util.EC2MetadataUtils;
-import com.amazonaws.util.json.Jackson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.SpecialPermission;
@@ -47,6 +45,7 @@ import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.transport.TransportService;
+import software.amazon.awssdk.core.SdkSystemSetting;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -56,12 +55,11 @@ import java.io.UncheckedIOException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
@@ -71,20 +69,6 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
 
     static {
         SpecialPermission.check();
-        // Initializing Jackson requires RuntimePermission accessDeclaredMembers
-        // The ClientConfiguration class requires RuntimePermission getClassLoader
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                // kick jackson to do some static caching of declared members info
-                Jackson.jsonNodeOf("{}");
-                // ClientConfiguration clinit has some classloader problems
-                // TODO: fix that
-                Class.forName("com.amazonaws.ClientConfiguration");
-            } catch (final ClassNotFoundException e) {
-                throw new RuntimeException(e);
-            }
-            return null;
-        });
     }
 
     private final Settings settings;
@@ -121,6 +105,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             Ec2ClientSettings.SECRET_KEY_SETTING,
             Ec2ClientSettings.SESSION_TOKEN_SETTING,
             Ec2ClientSettings.ENDPOINT_SETTING,
+            Ec2ClientSettings.REGION_SETTING,
             Ec2ClientSettings.PROTOCOL_SETTING,
             Ec2ClientSettings.PROXY_HOST_SETTING,
             Ec2ClientSettings.PROXY_PORT_SETTING,
@@ -143,9 +128,15 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         final Settings.Builder builder = Settings.builder();
 
         // Adds a node attribute for the ec2 availability zone
-        final String azMetadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService()
-            + "/latest/meta-data/placement/availability-zone";
-        builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
+        Optional<String> ec2MetadataServiceEndpoint = SdkSystemSetting.AWS_EC2_METADATA_SERVICE_ENDPOINT.getStringValue();
+        if (ec2MetadataServiceEndpoint.isPresent()) {
+            builder.put(
+                getAvailabilityZoneNodeAttributes(
+                    settings,
+                    ec2MetadataServiceEndpoint.get() + "/latest/meta-data/placement/availability-zone"
+                )
+            );
+        }
         return builder.build();
     }
 
@@ -161,6 +152,9 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         final URLConnection urlConnection;
         try {
             url = new URL(azMetadataUrl);
+            // Obtain the current EC2 instance availability zone from IMDS.
+            // Same as curl http://169.254.169.254/latest/meta-data/placement/availability-zone/.
+            // TODO: use EC2MetadataUtils::getAvailabilityZone that was added in AWS SDK v2 instead of rolling our own
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
             urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
             urlConnection.setConnectTimeout(2000);

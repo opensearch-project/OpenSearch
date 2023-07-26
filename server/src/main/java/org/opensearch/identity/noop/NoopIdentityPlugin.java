@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.identity.Subject;
 
@@ -29,4 +30,12 @@ public class NoopIdentityPlugin implements IdentityPlugin {
         return new NoopSubject();
     }
 
+    /**
+     * Get a new NoopTokenManager
+     * @return Must never return null
+     */
+    @Override
+    public TokenManager getTokenManager() {
+        return new NoopTokenManager();
+    }
 }

@@ -31,15 +31,15 @@
 
 package org.opensearch.tasks;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.InstantiatingObjectParser;
 import org.opensearch.common.xcontent.ObjectParserHelper;
 import org.opensearch.core.xcontent.ToXContent;
@@ -240,7 +240,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
     private static BytesReference toXContent(Exception error) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             builder.startObject();
-            BaseExceptionsHelper.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
+            OpenSearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
             builder.endObject();
             return BytesReference.bytes(builder);
         }

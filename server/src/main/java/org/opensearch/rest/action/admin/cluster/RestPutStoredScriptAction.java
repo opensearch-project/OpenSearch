@@ -33,9 +33,9 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -80,10 +80,10 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
         String id = request.param("id");
         String context = request.param("context");
         BytesReference content = request.requiredContent();
-        XContentType xContentType = request.getXContentType();
-        StoredScriptSource source = StoredScriptSource.parse(content, xContentType);
+        MediaType mediaType = request.getMediaType();
+        StoredScriptSource source = StoredScriptSource.parse(content, mediaType);
 
-        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, context, content, request.getXContentType(), source);
+        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, context, content, request.getMediaType(), source);
         putRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", putRequest.clusterManagerNodeTimeout()));
         parseDeprecatedMasterTimeoutParameter(putRequest, request, deprecationLogger, getName());
         putRequest.timeout(request.paramAsTime("timeout", putRequest.timeout()));

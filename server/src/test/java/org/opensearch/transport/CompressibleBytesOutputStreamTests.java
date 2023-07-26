@@ -32,12 +32,12 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
-import org.opensearch.common.io.stream.BytesStream;
+import org.opensearch.core.common.io.stream.BytesStream;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.EOFException;
@@ -56,7 +56,7 @@ public class CompressibleBytesOutputStreamTests extends OpenSearchTestCase {
         // Closing compression stream does not close underlying stream
         stream.close();
 
-        assertFalse(CompressorFactory.COMPRESSOR.isCompressed(bytesRef));
+        assertFalse(CompressorFactory.defaultCompressor().isCompressed(bytesRef));
 
         StreamInput streamInput = bytesRef.streamInput();
         byte[] actualBytes = new byte[expectedBytes.length];
@@ -83,9 +83,11 @@ public class CompressibleBytesOutputStreamTests extends OpenSearchTestCase {
         BytesReference bytesRef = stream.materializeBytes();
         stream.close();
 
-        assertTrue(CompressorFactory.COMPRESSOR.isCompressed(bytesRef));
+        assertTrue(CompressorFactory.defaultCompressor().isCompressed(bytesRef));
 
-        StreamInput streamInput = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(bytesRef.streamInput()));
+        StreamInput streamInput = new InputStreamStreamInput(
+            CompressorFactory.defaultCompressor().threadLocalInputStream(bytesRef.streamInput())
+        );
         byte[] actualBytes = new byte[expectedBytes.length];
         streamInput.readBytes(actualBytes, 0, expectedBytes.length);
 
@@ -108,7 +110,7 @@ public class CompressibleBytesOutputStreamTests extends OpenSearchTestCase {
         stream.write(expectedBytes);
 
         StreamInput streamInput = new InputStreamStreamInput(
-            CompressorFactory.COMPRESSOR.threadLocalInputStream(bStream.bytes().streamInput())
+            CompressorFactory.defaultCompressor().threadLocalInputStream(bStream.bytes().streamInput())
         );
         byte[] actualBytes = new byte[expectedBytes.length];
         EOFException e = expectThrows(EOFException.class, () -> streamInput.readBytes(actualBytes, 0, expectedBytes.length));

@@ -33,8 +33,9 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
@@ -57,7 +58,7 @@ public class ParsedDocument {
     private final List<Document> documents;
 
     private BytesReference source;
-    private XContentType xContentType;
+    private MediaType mediaType;
 
     private Mapping dynamicMappingsUpdate;
 
@@ -68,7 +69,7 @@ public class ParsedDocument {
         String routing,
         List<Document> documents,
         BytesReference source,
-        XContentType xContentType,
+        MediaType mediaType,
         Mapping dynamicMappingsUpdate
     ) {
         this.version = version;
@@ -78,7 +79,7 @@ public class ParsedDocument {
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
-        this.xContentType = xContentType;
+        this.mediaType = mediaType;
     }
 
     public String id() {
@@ -122,13 +123,13 @@ public class ParsedDocument {
         return this.source;
     }
 
-    public XContentType getXContentType() {
-        return this.xContentType;
+    public MediaType getMediaType() {
+        return this.mediaType;
     }
 
     public void setSource(BytesReference source, XContentType xContentType) {
         this.source = source;
-        this.xContentType = xContentType;
+        this.mediaType = xContentType;
     }
 
     /**

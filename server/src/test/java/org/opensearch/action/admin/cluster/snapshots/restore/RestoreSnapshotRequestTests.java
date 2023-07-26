@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.cluster.snapshots.restore;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -110,6 +110,10 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
         if (randomBoolean()) {
             instance.snapshotUuid(randomBoolean() ? null : randomAlphaOfLength(10));
+        }
+
+        if (randomBoolean()) {
+            instance.setSourceRemoteStoreRepository(randomAlphaOfLengthBetween(5, 10));
         }
 
         return instance;

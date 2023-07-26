@@ -8,11 +8,12 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -29,7 +30,7 @@ import java.util.Objects;
 public class PutSearchPipelineRequest extends AcknowledgedRequest<PutSearchPipelineRequest> implements ToXContentObject {
     private String id;
     private BytesReference source;
-    private XContentType xContentType;
+    private MediaType mediaType;
 
     public PutSearchPipelineRequest(String id, BytesReference source, MediaType mediaType) {
         this.id = Objects.requireNonNull(id);
@@ -39,14 +40,18 @@ public class PutSearchPipelineRequest extends AcknowledgedRequest<PutSearchPipel
                 PutSearchPipelineRequest.class.getSimpleName() + " found unsupported media type [" + mediaType.getClass().getName() + "]"
             );
         }
-        this.xContentType = XContentType.fromMediaType(Objects.requireNonNull(mediaType));
+        this.mediaType = Objects.requireNonNull(mediaType);
     }
 
     public PutSearchPipelineRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readString();
         source = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            mediaType = in.readMediaType();
+        } else {
+            mediaType = in.readEnum(XContentType.class);
+        }
     }
 
     @Override
@@ -62,8 +67,8 @@ public class PutSearchPipelineRequest extends AcknowledgedRequest<PutSearchPipel
         return source;
     }
 
-    public XContentType getXContentType() {
-        return xContentType;
+    public MediaType getMediaType() {
+        return mediaType;
     }
 
     @Override
@@ -71,13 +76,17 @@ public class PutSearchPipelineRequest extends AcknowledgedRequest<PutSearchPipel
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
-        out.writeEnum(xContentType);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            mediaType.writeTo(out);
+        } else {
+            out.writeEnum((XContentType) mediaType);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (source != null) {
-            builder.rawValue(source.streamInput(), xContentType);
+            builder.rawValue(source.streamInput(), mediaType);
         } else {
             builder.startObject().endObject();
         }

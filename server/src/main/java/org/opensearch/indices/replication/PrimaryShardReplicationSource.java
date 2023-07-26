@@ -12,8 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.index.store.Store;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
@@ -79,7 +79,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         long replicationId,
         ReplicationCheckpoint checkpoint,
         List<StoreFileMetadata> filesToFetch,
-        Store store,
+        IndexShard indexShard,
         ActionListener<GetSegmentFilesResponse> listener
     ) {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;

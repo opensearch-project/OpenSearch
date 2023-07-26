@@ -100,8 +100,6 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             MAX_CHUNK_SIZE,
             Property.NodeScope
         );
-        public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
-        public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting("readonly", false, Property.NodeScope);
     }
 
     private final BlobPath basePath;
@@ -118,7 +116,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     ) {
         super(
             metadata,
-            Repository.COMPRESS_SETTING.get(metadata.settings()),
+            COMPRESS_SETTING.get(metadata.settings()),
             namedXContentRegistry,
             clusterService,
             recoverySettings,
@@ -142,8 +140,8 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
         // For secondary_only setting, the repository should be read only
         final LocationMode locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
-        if (Repository.READONLY_SETTING.exists(metadata.settings())) {
-            this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
+        if (READONLY_SETTING.exists(metadata.settings())) {
+            this.readonly = READONLY_SETTING.get(metadata.settings());
         } else {
             this.readonly = locationMode == LocationMode.SECONDARY_ONLY;
         }

@@ -12,11 +12,11 @@ import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -33,23 +33,6 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
     }
 
     @Override
-    public void testRemoteStoreTranslogDisabledByUser() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
-            .build();
-        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
-            .get();
-        Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(indexSettings, "true", "my-segment-repo-1", "false", null, ReplicationType.SEGMENT.toString(), null);
-    }
-
-    @Override
     public void testDefaultRemoteStoreNoUserOverride() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -61,7 +44,7 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
         );
         assertThat(
             exc.getMessage(),
-            containsString("Cannot enable [index.remote_store.enabled] when [cluster.indices.replication.strategy] is DOCUMENT")
+            containsString("Cannot enable [index.remote_store.enabled] when [index.replication.type] is DOCUMENT")
         );
     }
 
@@ -81,10 +64,9 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
             indexSettings,
             "true",
             "my-segment-repo-1",
-            "true",
             "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
-            null
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
     }
 }

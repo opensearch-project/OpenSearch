@@ -12,7 +12,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.transport.TransportService;
 
@@ -38,13 +38,17 @@ public class SegmentReplicationSourceFactory {
     }
 
     public SegmentReplicationSource get(IndexShard shard) {
-        return new PrimaryShardReplicationSource(
-            shard.recoveryState().getTargetNode(),
-            shard.routingEntry().allocationId().getId(),
-            transportService,
-            recoverySettings,
-            getPrimaryNode(shard.shardId())
-        );
+        if (shard.indexSettings().isSegRepWithRemoteEnabled()) {
+            return new RemoteStoreReplicationSource(shard);
+        } else {
+            return new PrimaryShardReplicationSource(
+                shard.recoveryState().getTargetNode(),
+                shard.routingEntry().allocationId().getId(),
+                transportService,
+                recoverySettings,
+                getPrimaryNode(shard.shardId())
+            );
+        }
     }
 
     private DiscoveryNode getPrimaryNode(ShardId shardId) {

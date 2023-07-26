@@ -32,10 +32,11 @@
 package org.opensearch.script;
 
 import org.opensearch.cluster.DiffableUtils;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -130,13 +131,13 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .endObject()
             .endObject()
             .endObject();
-        XContentType xContentType = XContentType.fromMediaType(sourceBuilder.contentType());
-        builder.storeScript("source_template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), xContentType));
+        MediaType mediaType = sourceBuilder.contentType();
+        builder.storeScript("source_template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), mediaType));
 
         sourceBuilder = XContentFactory.jsonBuilder();
-        xContentType = XContentType.fromMediaType(sourceBuilder.contentType());
+        mediaType = sourceBuilder.contentType();
         sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
-        builder.storeScript("script", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), xContentType));
+        builder.storeScript("script", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), mediaType));
 
         ScriptMetadata scriptMetadata = builder.build();
         assertEquals("_source", scriptMetadata.getStoredScript("script").getSource());
@@ -303,7 +304,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 .endObject();
             builder.storeScript(
                 randomAlphaOfLength(i + 1),
-                StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), XContentType.fromMediaType(sourceBuilder.contentType()))
+                StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType())
             );
         }
         return builder.build();

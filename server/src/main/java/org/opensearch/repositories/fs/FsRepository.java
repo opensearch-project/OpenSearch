@@ -92,7 +92,6 @@ public class FsRepository extends BlobStoreRepository {
         new ByteSizeValue(Long.MAX_VALUE),
         Property.NodeScope
     );
-    public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
     public static final Setting<Boolean> REPOSITORIES_COMPRESS_SETTING = Setting.boolSetting(
         "repositories.fs.compress",
         false,

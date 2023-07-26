@@ -21,7 +21,7 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -74,7 +74,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
         ShardId testShardId = primary.shardId();
 
-        CodecService codecService = new CodecService(null, null);
+        CodecService codecService = new CodecService(null, getEngine(primary).config().getIndexSettings(), null);
         String defaultCodecName = codecService.codec(CodecService.DEFAULT_CODEC).getName();
 
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState

@@ -58,28 +58,28 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedBiFunction;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -178,11 +178,11 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             private final BytesReference document;
             private final QueryBuilder query;
 
-            private XContentType xContentType;
+            private MediaType mediaType;
 
             static ContextSetup parse(XContentParser parser, Void context) throws IOException {
                 ContextSetup contextSetup = PARSER.parse(parser, null);
-                contextSetup.setXContentType(XContentType.fromMediaType(parser.contentType()));
+                contextSetup.setXContentType(parser.contentType());
                 return contextSetup;
             }
 
@@ -195,9 +195,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             ContextSetup(StreamInput in) throws IOException {
                 index = in.readOptionalString();
                 document = in.readOptionalBytesReference();
-                String xContentType = in.readOptionalString();
-                if (xContentType != null) {
-                    this.xContentType = XContentType.fromMediaType(xContentType);
+                String mediaType = in.readOptionalString();
+                if (mediaType != null) {
+                    this.mediaType = MediaType.fromMediaType(mediaType);
                 }
                 query = in.readOptionalNamedWriteable(QueryBuilder.class);
             }
@@ -214,12 +214,12 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return query;
             }
 
-            public XContentType getXContentType() {
-                return xContentType;
+            public MediaType getXContentType() {
+                return mediaType;
             }
 
-            public void setXContentType(XContentType xContentType) {
-                this.xContentType = xContentType;
+            public void setXContentType(MediaType mediaType) {
+                this.mediaType = mediaType;
             }
 
             @Override
@@ -230,19 +230,19 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return Objects.equals(index, that.index)
                     && Objects.equals(document, that.document)
                     && Objects.equals(query, that.query)
-                    && Objects.equals(xContentType, that.xContentType);
+                    && Objects.equals(mediaType, that.mediaType);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(index, document, query, xContentType);
+                return Objects.hash(index, document, query, mediaType);
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeOptionalString(index);
                 out.writeOptionalBytesReference(document);
-                out.writeOptionalString(xContentType != null ? xContentType.mediaTypeWithoutParameters() : null);
+                out.writeOptionalString(mediaType != null ? mediaType.mediaTypeWithoutParameters() : null);
                 out.writeOptionalNamedWriteable(query);
             }
 
@@ -257,7 +257,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     + ", query="
                     + query
                     + ", xContentType="
-                    + xContentType
+                    + mediaType
                     + '}';
             }
 
@@ -275,7 +275,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                                 NamedXContentRegistry.EMPTY,
                                 LoggingDeprecationHandler.INSTANCE,
                                 document,
-                                xContentType
+                                mediaType
                             )
                         ) {
                             builder.generator().copyCurrentStructure(parser);
@@ -594,8 +594,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(defaultAnalyzer))) {
                     String index = indexService.index().getName();
                     BytesReference document = request.contextSetup.document;
-                    XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
+                    MediaType mediaType = request.contextSetup.mediaType;
+                    SourceToParse sourceToParse = new SourceToParse(index, "_id", document, mediaType);
                     ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {

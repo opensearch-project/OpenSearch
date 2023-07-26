@@ -55,18 +55,18 @@ import org.opensearch.cluster.routing.PlainShardIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.NotSerializableExceptionWrapper;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -238,7 +238,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         response.getResult()
                     );
                     if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
-                        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
+                        Tuple<? extends MediaType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
                             upsertSourceBytes,
                             true,
                             upsertRequest.getContentType()

@@ -232,7 +232,8 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                     5,
                     Collections.emptyList(),
                     true,
-                    Collections.emptyMap()
+                    Collections.emptyMap(),
+                    false
                 ),
                 Version.CURRENT,
                 Function.identity(),
@@ -257,7 +258,8 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                             6,
                             Collections.emptyList(),
                             true,
-                            Collections.emptyMap()
+                            Collections.emptyMap(),
+                            false
                         ),
                         Version.CURRENT,
                         Function.identity(),
@@ -284,7 +286,8 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                         5,
                         Collections.emptyList(),
                         true,
-                        Collections.emptyMap()
+                        Collections.emptyMap(),
+                        false
                     ),
                     Version.CURRENT,
                     Function.identity(),

@@ -9,7 +9,7 @@
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Map;
 
@@ -20,11 +20,16 @@ import static org.opensearch.test.OpenSearchTestCase.assertEquals;
  */
 public class RemoteStoreStatsTestHelper {
     static RemoteRefreshSegmentTracker.Stats createPressureTrackerStats(ShardId shardId) {
-        return new RemoteRefreshSegmentTracker.Stats(shardId, 100, 3, 2, 10, 5, 5, 10, 5, 5, 3, 2, 5, 2, 3, 4, 9);
+        return new RemoteRefreshSegmentTracker.Stats(shardId, 101, 102, 100, 3, 2, 10, 5, 5, 10, 5, 5, 3, 2, 5, 2, 3, 4, 9);
     }
 
     static void compareStatsResponse(Map<String, Object> statsObject, RemoteRefreshSegmentTracker.Stats pressureTrackerStats) {
         assertEquals(statsObject.get(RemoteStoreStats.Fields.SHARD_ID), pressureTrackerStats.shardId.toString());
+        assertEquals(statsObject.get(RemoteStoreStats.Fields.LOCAL_REFRESH_TIMESTAMP), (int) pressureTrackerStats.localRefreshClockTimeMs);
+        assertEquals(
+            statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_TIMESTAMP),
+            (int) pressureTrackerStats.remoteRefreshClockTimeMs
+        );
         assertEquals(statsObject.get(RemoteStoreStats.Fields.REFRESH_TIME_LAG_IN_MILLIS), (int) pressureTrackerStats.refreshTimeLagMs);
         assertEquals(
             statsObject.get(RemoteStoreStats.Fields.REFRESH_LAG),

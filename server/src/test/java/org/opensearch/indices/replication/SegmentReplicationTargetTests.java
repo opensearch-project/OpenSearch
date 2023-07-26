@@ -27,6 +27,7 @@ import org.apache.lucene.util.Version;
 import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -35,7 +36,7 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreTests;
@@ -128,7 +129,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 assertEquals(1, filesToFetch.size());
@@ -179,7 +180,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
@@ -222,7 +223,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onFailure(exception);
@@ -265,7 +266,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
@@ -310,7 +311,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
@@ -354,7 +355,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
@@ -373,8 +374,9 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                assert (e instanceof ReplicationFailedException);
-                assert (e.getMessage().contains("different segment files"));
+                assertTrue(e instanceof OpenSearchCorruptionException);
+                assertTrue(e.getMessage().contains("has local copies of segments that differ from the primary"));
+                segrepTarget.fail(new ReplicationFailedException(e), false);
             }
         });
     }
@@ -405,7 +407,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));

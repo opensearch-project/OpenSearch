@@ -41,7 +41,7 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.geo.builders.EnvelopeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
