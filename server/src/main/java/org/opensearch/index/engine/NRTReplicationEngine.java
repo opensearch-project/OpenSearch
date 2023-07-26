@@ -78,9 +78,10 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager = readerManager;
             this.readerManager.addListener(completionStatsCache);
-            for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
-                this.readerManager.addListener(listener);
-            }
+            // NRT Replicas do not have a concept of Internal vs External reader managers.
+            // We also do not want to wire up refresh listeners for waitFor & pending refresh location.
+            // which are the current external listeners set from IndexShard.
+            // Only wire up the internal listeners.
             for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
                 this.readerManager.addListener(listener);
             }
@@ -355,22 +356,12 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
 
     @Override
     public void refresh(String source) throws EngineException {
-        maybeRefresh(source);
+        // Refresh on this engine should only ever happen in the reader after new segments arrive.
     }
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
-        ensureOpen();
-        try {
-            return readerManager.maybeRefresh();
-        } catch (IOException e) {
-            try {
-                failEngine("refresh failed source[" + source + "]", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new RefreshFailedEngineException(shardId, e);
-        }
+        return false;
     }
 
     @Override
