@@ -120,6 +120,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         closeShards(indexShard);
     }
 
+    public void testNRTReplicasDoNotAcceptRefreshListeners() throws IOException {
+        final IndexShard indexShard = newStartedShard(false, settings, new NRTReplicationEngineFactory());
+        indexShard.addRefreshListener(mock(Translog.Location.class), Assert::assertFalse);
+        closeShards(indexShard);
+    }
+
     public void testSegmentInfosAndReplicationCheckpointTuple() throws Exception {
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();

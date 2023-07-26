@@ -60,7 +60,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         createIndex(1);
         final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(100, 1000);
+        final int initialDocCount = scaledRandomIntBetween(10, 100);
         final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 0; i < initialDocCount; i++) {
@@ -137,7 +137,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         createIndex(1);
         final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(100, 1000);
+        final int initialDocCount = scaledRandomIntBetween(10, 100);
         final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 0; i < initialDocCount; i++) {
