@@ -375,7 +375,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         for (OpenSearchNode node : nodes) {
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
-                commonNodeConfig(node, nodeNames, firstNode);
+                commonNodeConfig(node, nodeNames, firstNode, httpProtocol);
             }
             if (firstNode == null) {
                 firstNode = node;
@@ -493,7 +493,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         OpenSearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
         node.stop(false);
         node.goToNextVersion();
-        commonNodeConfig(node, null, null);
+        commonNodeConfig(node, null, null, node.getHttpProtocol());
         nodeIndex += 1;
         return node;
     }
