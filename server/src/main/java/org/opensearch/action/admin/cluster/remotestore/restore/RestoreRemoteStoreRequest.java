@@ -122,9 +122,10 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
     }
 
     /**
-     * If this parameter is set to true the operation will restore all the shards of the given indices
+     * Set the value for restoreAllShards, denoting whether to restore all shards or only unassigned shards
      *
-     * @param restoreAllShards if true the operation will restore all the shards
+     * @param restoreAllShards If true, the operation will restore all the shards of the given indices.
+     *                         If false, the operation will restore only the unassigned shards of the given indices.
      * @return this request
      */
     public RestoreRemoteStoreRequest restoreAllShards(boolean restoreAllShards) {
