@@ -40,6 +40,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 
@@ -57,7 +59,7 @@ public class NRTReplicationEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final WriteOnlyTranslogManager translogManager;
-    private final boolean shouldCommit;
+    private final ReplicaFileTracker replicaFileTracker;
 
     private volatile long lastReceivedGen = SequenceNumbers.NO_OPS_PERFORMED;
 
@@ -69,7 +71,13 @@ public class NRTReplicationEngine extends Engine {
         NRTReplicationReaderManager readerManager = null;
         WriteOnlyTranslogManager translogManagerRef = null;
         try {
-            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            this.replicaFileTracker = new ReplicaFileTracker(store::deleteQuiet);
+            this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            // always protect latest commit on disk.
+            replicaFileTracker.incRef(this.lastCommittedSegmentInfos.files(true));
+            // cleanup anything not referenced by the latest infos.
+            cleanUnreferencedFiles();
+            this.lastReceivedGen = lastCommittedSegmentInfos.getGeneration();
             readerManager = buildReaderManager();
             final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
                 this.lastCommittedSegmentInfos.getUserData().entrySet()
@@ -85,7 +93,7 @@ public class NRTReplicationEngine extends Engine {
             for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
                 this.readerManager.addListener(listener);
             }
-            final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
+            final Map<String, String> userData = this.lastCommittedSegmentInfos.getUserData();
             final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             translogManagerRef = new WriteOnlyTranslogManager(
                 engineConfig.getTranslogConfig(),
@@ -116,18 +124,23 @@ public class NRTReplicationEngine extends Engine {
                 engineConfig.getPrimaryModeSupplier()
             );
             this.translogManager = translogManagerRef;
-            this.shouldCommit = engineConfig.getIndexSettings().isRemoteStoreEnabled() == false;
         } catch (IOException e) {
             IOUtils.closeWhileHandlingException(store::decRef, readerManager, translogManagerRef);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
         }
     }
 
+    public void cleanUnreferencedFiles() throws IOException {
+        replicaFileTracker.deleteUnreferencedFiles(
+            Stream.of(store.directory().listAll()).filter(f -> f.startsWith("write.lock") == false).collect(Collectors.toSet())
+        );
+    }
+
     private NRTReplicationReaderManager buildReaderManager() throws IOException {
         return new NRTReplicationReaderManager(
             OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
-            store::incRefFileDeleter,
-            store::decRefFileDeleter
+            replicaFileTracker::incRef,
+            replicaFileTracker::decRef
         );
     }
 
@@ -159,18 +172,19 @@ public class NRTReplicationEngine extends Engine {
     /**
      * Persist the latest live SegmentInfos.
      *
-     * This method creates a commit point from the latest SegmentInfos. It is intended to be used when this shard is about to be promoted as the new primary.
-     *
-     * TODO: If this method is invoked while the engine is currently updating segments on its reader, wait for that update to complete so the updated segments are used.
-     *
+     * This method creates a commit point from the latest SegmentInfos.
      *
      * @throws IOException - When there is an IO error committing the SegmentInfos.
      */
     private void commitSegmentInfos(SegmentInfos infos) throws IOException {
-        if (shouldCommit) {
-            store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
-        }
+        // get a reference to the previous commit files so they can be decref'd once a new commit is made.
+        final Collection<String> previousCommitFiles = getLastCommittedSegmentInfos().files(true);
+        store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
         this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+        // incref the latest on-disk commit.
+        replicaFileTracker.incRef(this.lastCommittedSegmentInfos.files(true));
+        // decref the prev commit.
+        replicaFileTracker.decRef(previousCommitFiles);
         translogManager.syncTranslog();
     }
 
@@ -379,21 +393,17 @@ public class NRTReplicationEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
-                // if remote store is enabled, all segments durably persisted
-                if (shouldCommit) {
-                    final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
-                    /*
-                     This is a workaround solution which decreases the chances of conflict on replica nodes when same file is copied
-                     from two different primaries during failover. Increasing counter helps in avoiding this conflict as counter is
-                     used to generate new segment file names. The ideal solution is to identify the counter from previous primary.
-                     */
+                final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
+                /*
+                 This is a workaround solution which decreases the chances of conflict on replica nodes when same file is copied
+                 from two different primaries during failover. Increasing counter helps in avoiding this conflict as counter is
+                 used to generate new segment file names. The ideal solution is to identify the counter from previous primary.
+                 */
+                if (engineConfig.getIndexSettings().isRemoteStoreEnabled() == false) {
                     latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
                     latestSegmentInfos.changed();
-                    commitSegmentInfos(latestSegmentInfos);
-                } else {
-                    store.directory().sync(List.of(store.directory().listAll()));
-                    store.directory().syncMetaData();
                 }
+                commitSegmentInfos(latestSegmentInfos);
                 IOUtils.close(readerManager, translogManager, store::decRef);
             } catch (Exception e) {
                 logger.warn("failed to close engine", e);
@@ -453,8 +463,8 @@ public class NRTReplicationEngine extends Engine {
         // incref all files
         try {
             final Collection<String> files = latestSegmentInfos.files(false);
-            store.incRefFileDeleter(files);
-            return new GatedCloseable<>(latestSegmentInfos, () -> store.decRefFileDeleter(files));
+            replicaFileTracker.incRef(files);
+            return new GatedCloseable<>(latestSegmentInfos, () -> { replicaFileTracker.decRef(files); });
         } catch (IOException e) {
             throw new EngineException(shardId, e.getMessage(), e);
         }

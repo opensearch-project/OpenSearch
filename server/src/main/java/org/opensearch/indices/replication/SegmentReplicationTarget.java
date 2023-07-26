@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchException;
@@ -34,8 +35,6 @@ import org.opensearch.indices.replication.common.ReplicationTarget;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Represents the target of a replication event.
@@ -213,23 +212,12 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         try {
             store = store();
             store.incRef();
-            Map<String, String> tempFileNames;
-            if (this.indexShard.indexSettings().isRemoteStoreEnabled() == true) {
-                tempFileNames = getSegmentFilesResponse.getFiles()
-                    .stream()
-                    .collect(Collectors.toMap(StoreFileMetadata::name, StoreFileMetadata::name));
-            } else {
-                tempFileNames = multiFileWriter.getTempFileNames();
-            }
-            store.buildInfosFromBytes(
-                tempFileNames,
+            multiFileWriter.renameAllTempFiles();
+            final SegmentInfos infos = store.buildSegmentInfos(
                 checkpointInfoResponse.getInfosBytes(),
-                checkpointInfoResponse.getCheckpoint().getSegmentsGen(),
-                indexShard::finalizeReplication,
-                this.indexShard.indexSettings().isRemoteStoreEnabled() == true
-                    ? (files) -> {}
-                    : (files) -> indexShard.store().renameTempFilesSafe(files)
+                checkpointInfoResponse.getCheckpoint().getSegmentsGen()
             );
+            indexShard.finalizeReplication(infos);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are

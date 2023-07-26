@@ -51,14 +51,6 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
     );
 
-    private static final IndexSettings REMOTE_STORE_INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
-        "index",
-        Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
-            .build()
-    );
-
     public void testCreateEngine() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (
@@ -144,29 +136,6 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
-    public void testUpdateSegments_replicaReceivesSISWithHigherGen_remoteStoreEnabled() throws IOException {
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-
-        try (
-            final Store nrtEngineStore = createStore(REMOTE_STORE_INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, REMOTE_STORE_INDEX_SETTINGS)
-        ) {
-            // assume we start at the same gen.
-            assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
-            assertEquals(nrtEngine.getLatestSegmentInfos().getGeneration(), nrtEngine.getLastCommittedSegmentInfos().getGeneration());
-            assertEquals(engine.getLatestSegmentInfos().getGeneration(), nrtEngine.getLatestSegmentInfos().getGeneration());
-
-            // flush the primary engine - we don't need any segments, just force a new commit point.
-            engine.flush(true, true);
-            assertEquals(3, engine.getLatestSegmentInfos().getGeneration());
-
-            // When remote store is enabled, we don't commit on replicas since all segments are durably persisted in the store
-            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
-            assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
-            assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
-        }
-    }
-
     public void testUpdateSegments_replicaReceivesSISWithLowerGen() throws IOException {
         // if the replica is already at segments_N that is received, it will commit segments_N+1.
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -186,13 +155,13 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             final SegmentInfos primaryInfos = engine.getLatestSegmentInfos();
             assertEquals(2, primaryInfos.getGeneration());
             nrtEngine.updateSegments(primaryInfos);
-            assertEquals(4, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
-            assertEquals(4, nrtEngine.getLatestSegmentInfos().getGeneration());
+            assertEquals(3, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+            assertEquals(3, nrtEngine.getLatestSegmentInfos().getGeneration());
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLastCommittedSegmentInfos().getVersion());
 
             nrtEngine.close();
-            assertEquals(5, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+            assertEquals(4, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
         }
     }
 
@@ -228,7 +197,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
-    public void testUpdateSegments_replicaCommitsFirstReceivedInfos() throws IOException {
+    public void testUpdateSegments_replicaStartsAtCorrectGen() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
         try (
@@ -237,6 +206,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         ) {
             assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
+            assertEquals(nrtEngine.getLastCommittedSegmentInfos().version, nrtEngine.getLatestSegmentInfos().getVersion());
             // bump the latest infos version a couple of times so that we can assert the correct version after commit.
             engine.getLatestSegmentInfos().changed();
             engine.getLatestSegmentInfos().changed();
@@ -248,7 +218,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             nrtEngine.updateSegments(primaryInfos);
             final SegmentInfos lastCommittedSegmentInfos = nrtEngine.getLastCommittedSegmentInfos();
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
-            assertEquals(primaryInfos.getVersion(), lastCommittedSegmentInfos.getVersion());
+            assertEquals("Commit gen is not increased", 2, lastCommittedSegmentInfos.getGeneration());
         }
     }
 
@@ -375,16 +345,9 @@ public class NRTReplicationEngineTests extends EngineTestCase {
     public void testGetSegmentInfosSnapshotPreservesFilesUntilRelease() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
-        // TODO: Remove this divergent commit logic and copy Segments_N from primary with node-node.
-        // randomly toggle commit / no commit.
-        IndexSettings settings = REMOTE_STORE_INDEX_SETTINGS;
-        final boolean shouldCommit = randomBoolean();
-        if (shouldCommit) {
-            settings = INDEX_SETTINGS;
-        }
         try (
-            final Store nrtEngineStore = createStore(REMOTE_STORE_INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, settings)
+            final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, INDEX_SETTINGS)
         ) {
             // only index 2 docs here, this will create segments _0 and _1 and after forcemerge into _2.
             final int docCount = 2;
@@ -436,7 +399,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
 
             // Ensure we still have all the active files. Note - we exclude the infos file here if we aren't committing
             // the nrt reader will still reference segments_n-1 after being loaded until a local commit occurs.
-            assertTrue(replicaFiles.containsAll(nrtEngine.getLatestSegmentInfos().files(shouldCommit)));
+            assertTrue(replicaFiles.containsAll(nrtEngine.getLatestSegmentInfos().files(false)));
         }
     }
 }
