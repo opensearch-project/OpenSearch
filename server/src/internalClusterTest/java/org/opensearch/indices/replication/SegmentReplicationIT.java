@@ -1178,7 +1178,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     public void testPitCreatedOnReplica() throws Exception {
         assumeFalse(
-            "Skipping the test as its not compatible with segment replication with remote store yet.",
+            "Skipping the test as it is flaky with remote store. Tracking issue https://github.com/opensearch-project/OpenSearch/issues/8850",
             segmentReplicationWithRemoteEnabled()
         );
         final String primary = internalCluster().startDataOnlyNode();
