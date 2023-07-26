@@ -37,9 +37,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.comparesEqualTo;
-import static org.hamcrest.Matchers.oneOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -103,6 +101,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     }
 
     private void verifyRestoredData(Map<String, Long> indexStats, boolean checkTotal, String indexName) {
+        // This is required to get updated number from already active shards which were not restored
+        refresh(indexName);
         String statsGranularity = checkTotal ? TOTAL_OPERATIONS : REFRESHED_OR_FLUSHED_OPERATIONS;
         String maxSeqNoGranularity = checkTotal ? MAX_SEQ_NO_TOTAL : MAX_SEQ_NO_REFRESHED_OR_FLUSHED;
         ensureYellowAndNoInitializingShards(indexName);
@@ -124,6 +124,28 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
+    private void restore(String... indices) {
+        boolean restoreAllShards = randomBoolean();
+        if (restoreAllShards) {
+            assertAcked(client().admin().indices().prepareClose(indices));
+        }
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices(indices).restoreAllShards(restoreAllShards),
+                PlainActionFuture.newFuture()
+            );
+    }
+
+    private void restoreAndVerify(int shardCount, int replicaCount, Map<String, Long> indexStats) {
+        restore(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        // This is required to get updated number from already active shards which were not restored
+        assertEquals(shardCount * (1 + replicaCount), getNumShards(INDEX_NAME).totalNumShards);
+        assertEquals(replicaCount, getNumShards(INDEX_NAME).numReplicas);
+        verifyRestoredData(indexStats, true, INDEX_NAME);
+    }
+
     /**
      * Helper function to test restoring an index with no replication from remote store. Only primary node is dropped.
      * @param numberOfIterations Number of times a refresh/flush should be invoked, followed by indexing some data.
@@ -138,32 +160,16 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
         ensureRed(INDEX_NAME);
 
-        boolean restoreAllShards = randomBoolean();
-        if (restoreAllShards) {
-            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
-        }
-        client().admin()
-            .cluster()
-            .restoreRemoteStore(
-                new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(restoreAllShards),
-                PlainActionFuture.newFuture()
-            );
-
-        ensureGreen(INDEX_NAME);
-        // This is required to get updated number from already active shards which were not restored
-        refresh(INDEX_NAME);
-        assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
-        verifyRestoredData(indexStats, true, INDEX_NAME);
+        restoreAndVerify(shardCount, 0, indexStats);
     }
 
     /**
      * Helper function to test restoring an index having replicas from remote store when all the nodes housing the primary/replica drop.
-     * @param remoteTranslog If true, Remote Translog Store is also enabled in addition to Remote Segment Store.
      * @param numberOfIterations Number of times a refresh/flush should be invoked, followed by indexing some data.
      * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
      * @throws IOException IO Exception.
      */
-    private void testRestoreFlowBothPrimaryReplicasDown(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush, int shardCount)
+    private void testRestoreFlowBothPrimaryReplicasDown(int numberOfIterations, boolean invokeFlush, int shardCount)
         throws IOException {
         prepareCluster(1, 2, INDEX_NAME, 1, shardCount);
         Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, INDEX_NAME);
@@ -174,22 +180,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureRed(INDEX_NAME);
         internalCluster().startDataOnlyNodes(2);
 
-        boolean restoreAllShards = randomBoolean();
-        if (restoreAllShards) {
-            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
-        }
-        client().admin()
-            .cluster()
-            .restoreRemoteStore(
-                new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(restoreAllShards),
-                PlainActionFuture.newFuture()
-            );
-
-        ensureGreen(INDEX_NAME);
-
-        assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
-        assertEquals(0, getNumShards(INDEX_NAME).numReplicas);
-        verifyRestoredData(indexStats, true, INDEX_NAME);
+        restoreAndVerify(shardCount, 1, indexStats);
     }
 
     /**
@@ -244,6 +235,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     public void testRestoreFlowAllShardsNoRedIndex() throws InterruptedException {
         int shardCount = randomIntBetween(1, 5);
         prepareCluster(0, 3, INDEX_NAME, 0, shardCount);
+        indexData(randomIntBetween(2, 5), true, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
 
         PlainActionFuture<RestoreRemoteStoreResponse> future = PlainActionFuture.newFuture();
@@ -267,8 +259,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(false), PlainActionFuture.newFuture());
 
         ensureGreen(INDEX_NAME);
-        // This is required to get updated number from already active shards which were not restored
-        refresh(INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         verifyRestoredData(indexStats, true, INDEX_NAME);
     }
@@ -315,7 +305,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRTSRestoreWithNoDataPostCommitPrimaryReplicaDown() throws IOException {
-        testRestoreFlowBothPrimaryReplicasDown(true, 1, true, randomIntBetween(1, 5));
+        testRestoreFlowBothPrimaryReplicasDown(1, true, randomIntBetween(1, 5));
     }
 
     /**
@@ -324,7 +314,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRTSRestoreWithNoDataPostRefreshPrimaryReplicaDown() throws IOException {
-        testRestoreFlowBothPrimaryReplicasDown(true, 1, false, randomIntBetween(1, 5));
+        testRestoreFlowBothPrimaryReplicasDown(1, false, randomIntBetween(1, 5));
     }
 
     /**
@@ -334,7 +324,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRTSRestoreWithRefreshedDataPrimaryReplicaDown() throws IOException {
-        testRestoreFlowBothPrimaryReplicasDown(true, randomIntBetween(2, 5), false, randomIntBetween(1, 5));
+        testRestoreFlowBothPrimaryReplicasDown(randomIntBetween(2, 5), false, randomIntBetween(1, 5));
     }
 
     /**
@@ -344,7 +334,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRTSRestoreWithCommittedDataPrimaryReplicaDown() throws IOException {
-        testRestoreFlowBothPrimaryReplicasDown(true, randomIntBetween(2, 5), true, randomIntBetween(1, 5));
+        testRestoreFlowBothPrimaryReplicasDown(randomIntBetween(2, 5), true, randomIntBetween(1, 5));
     }
 
     /**
@@ -391,16 +381,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureRed(indices);
         internalCluster().startDataOnlyNodes(3);
 
-        boolean restoreAllShards = randomBoolean();
-        if (restoreAllShards) {
-            assertAcked(client().admin().indices().prepareClose(indices));
-        }
-        client().admin()
-            .cluster()
-            .restoreRemoteStore(
-                new RestoreRemoteStoreRequest().indices(new String[] {}).restoreAllShards(restoreAllShards),
-                PlainActionFuture.newFuture()
-            );
+        restore(indices);
         ensureGreen(indices);
 
         for (String index : indices) {
