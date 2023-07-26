@@ -367,6 +367,10 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         } else {
             nodeNames = nodes.stream().map(OpenSearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
         }
+        String httpProtocol = "http";
+        if (nodes.stream().map(OpenSearchNode::getHttpProtocol).anyMatch(protocol -> protocol == "https")) {
+            httpProtocol = "https";
+        }
         OpenSearchNode firstNode = null;
         for (OpenSearchNode node : nodes) {
             // Can only configure master nodes if we have node names defined
@@ -383,13 +387,14 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         }
     }
 
-    private void commonNodeConfig(OpenSearchNode node, String nodeNames, OpenSearchNode firstNode) {
+    private void commonNodeConfig(OpenSearchNode node, String nodeNames, OpenSearchNode firstNode, String httpProtocol) {
         if (node.getVersion().onOrAfter("7.0.0")) {
             node.defaultConfig.keySet()
                 .stream()
                 .filter(name -> name.startsWith("discovery.zen."))
                 .collect(Collectors.toList())
                 .forEach(node.defaultConfig::remove);
+            node.defaultConfig.put("http.protocol", httpProtocol);
             if (nodeNames != null && node.settings.getOrDefault("discovery.type", "anything").equals("single-node") == false) {
                 // To promote inclusive language, the old setting name is deprecated n 2.0.0
                 if (node.getVersion().onOrAfter("2.0.0")) {
