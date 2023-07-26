@@ -82,6 +82,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
@@ -332,7 +333,10 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
             searchContext
         );
         // Case 1: Verify the slice count when lucene default slice computation is used
-        IndexSearcher.LeafSlice[] slices = searcher.slicesInternal(leaves, -1);
+        IndexSearcher.LeafSlice[] slices = searcher.slicesInternal(
+            leaves,
+            SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE
+        );
         int expectedSliceCount = 2;
         // 2 slices will be created since max segment per slice of 5 will be reached
         assertEquals(expectedSliceCount, slices.length);

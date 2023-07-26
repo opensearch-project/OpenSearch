@@ -24,9 +24,9 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class MaxTargetSliceSupplier {
+final class MaxTargetSliceSupplier {
 
-    public static IndexSearcher.LeafSlice[] getSlices(List<LeafReaderContext> leaves, int targetMaxSlice) {
+    static IndexSearcher.LeafSlice[] getSlices(List<LeafReaderContext> leaves, int targetMaxSlice) {
         if (targetMaxSlice <= 0) {
             throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
         }

@@ -20,12 +20,13 @@ public class SearchBootstrapSettings {
     // settings to configure maximum slice created per search request using OS custom slice computation mechanism. Default lucene
     // mechanism will not be used if this setting is set with value > 0
     public static final String CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY = "search.concurrent.max_slice";
-    public static final int CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE = -1;
+    public static final int CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE = 0;
 
-    // value <= 0 means lucene slice computation will be used
+    // value == 0 means lucene slice computation will be used
     // this setting will be updated to dynamic setting as part of https://github.com/opensearch-project/OpenSearch/issues/8870
     public static final Setting<Integer> CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING = Setting.intSetting(
         CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY,
+        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
         CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
         Setting.Property.NodeScope
     );

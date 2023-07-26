@@ -495,7 +495,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,
                 SearchService.MAX_OPEN_PIT_CONTEXT,
                 SearchService.MAX_PIT_KEEPALIVE_SETTING,
-                SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,
@@ -679,7 +678,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
         ),
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
-        List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING),
+        List.of(
+            SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
+            SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
+        ),
         List.of(FeatureFlags.TELEMETRY),
         List.of(TelemetrySettings.TRACER_ENABLED_SETTING)
     );

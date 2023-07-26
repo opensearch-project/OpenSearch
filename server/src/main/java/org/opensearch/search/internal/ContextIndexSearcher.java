@@ -539,7 +539,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     // package-private for testing
     LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, int targetMaxSlice) {
         LeafSlice[] leafSlices;
-        if (targetMaxSlice <= 0) {
+        if (targetMaxSlice == 0) {
             // use the default lucene slice calculation
             leafSlices = super.slices(leaves);
             logger.debug("Slice count using lucene default [{}]", leafSlices.length);
