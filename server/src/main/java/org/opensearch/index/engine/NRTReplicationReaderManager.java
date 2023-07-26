@@ -103,7 +103,7 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
         // is always increased.
         infos.updateGeneration(currentInfos);
         currentInfos = infos;
-        maybeRefreshBlocking();
+        maybeRefresh();
     }
 
     public SegmentInfos getSegmentInfos() {
