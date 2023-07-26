@@ -92,8 +92,7 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         SearchBackpressureStats that = (SearchBackpressureStats) o;
         boolean isNodeUnderDuressEqual = false;
-        if (Arrays.stream(o.getClass().getDeclaredFields())
-            .anyMatch(field -> field.getName().equals("isNodeUnderDuress"))) {
+        if (that.isNodeUnderDuress != null) {
             isNodeUnderDuressEqual = isNodeUnderDuress == that.isNodeUnderDuress;
         }
         return mode == that.mode

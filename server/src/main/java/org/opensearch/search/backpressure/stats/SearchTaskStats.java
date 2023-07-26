@@ -105,8 +105,7 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         SearchTaskStats that = (SearchTaskStats) o;
         boolean isCompletionCountEqual = false;
-        if (Arrays.stream(o.getClass().getDeclaredFields())
-            .anyMatch(field -> field.getName().equals("completionCount"))) {
+        if (that.completionCount != -1) {
             isCompletionCountEqual = completionCount == that.completionCount;
         }
         return cancellationCount == that.cancellationCount
