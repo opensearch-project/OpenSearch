@@ -18,6 +18,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -26,7 +27,7 @@ import java.util.Objects;
 public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     private final SearchShardTaskStats searchShardTaskStats;
     private final SearchBackpressureMode mode;
-    private boolean isNodeUnderDuress;
+    private Boolean isNodeUnderDuress;
     @Nullable
     private final SearchTaskStats searchTaskStats;
 
@@ -53,6 +54,8 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
 
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             isNodeUnderDuress = in.readBoolean();
+        } else {
+            isNodeUnderDuress = null;
         }
     }
 
@@ -64,7 +67,9 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         }
         builder.field("search_shard_task", searchShardTaskStats);
         builder.field("mode", mode.getName());
-        builder.field("is_node_under_duress", isNodeUnderDuress);
+        if (isNodeUnderDuress != null) {
+            builder.field("is_node_under_duress", isNodeUnderDuress);
+        }
         return builder.endObject();
     }
 
@@ -86,8 +91,13 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchBackpressureStats that = (SearchBackpressureStats) o;
+        boolean isNodeUnderDuressEqual = false;
+        if (Arrays.stream(o.getClass().getDeclaredFields())
+            .anyMatch(field -> field.getName().equals("isNodeUnderDuress"))) {
+            isNodeUnderDuressEqual = isNodeUnderDuress == that.isNodeUnderDuress;
+        }
         return mode == that.mode
-            && isNodeUnderDuress == that.isNodeUnderDuress
+            && isNodeUnderDuressEqual
             && Objects.equals(searchTaskStats, that.searchTaskStats)
             && Objects.equals(searchShardTaskStats, that.searchShardTaskStats);
     }

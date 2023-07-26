@@ -22,6 +22,7 @@ import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
@@ -103,9 +104,14 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchTaskStats that = (SearchTaskStats) o;
+        boolean isCompletionCountEqual = false;
+        if (Arrays.stream(o.getClass().getDeclaredFields())
+            .anyMatch(field -> field.getName().equals("completionCount"))) {
+            isCompletionCountEqual = completionCount == that.completionCount;
+        }
         return cancellationCount == that.cancellationCount
             && limitReachedCount == that.limitReachedCount
-            && completionCount == that.completionCount
+            && isCompletionCountEqual
             && resourceUsageTrackerStats.equals(that.resourceUsageTrackerStats);
     }
 
