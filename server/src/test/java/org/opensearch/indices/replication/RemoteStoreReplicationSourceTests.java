@@ -8,10 +8,7 @@
 
 package org.opensearch.indices.replication;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.util.Version;
-import org.mockito.Mockito;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -58,11 +55,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         indexDoc(primaryShard, "_doc", "1");
         indexDoc(primaryShard, "_doc", "2");
         primaryShard.refresh("test");
-        replicaShard = newStartedShard(
-            false,
-            settings,
-            new NRTReplicationEngineFactory()
-        );
+        replicaShard = newStartedShard(false, settings, new NRTReplicationEngineFactory());
     }
 
     @Override
@@ -78,7 +71,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res);
         CheckpointInfoResponse response = res.get();
         assert (response.getCheckpoint().equals(checkpoint));
-        assert (!response.getMetadataMap().isEmpty());
+        assert (response.getMetadataMap().isEmpty() == false);
     }
 
     public void testGetCheckpointMetadataFailure() {
@@ -116,7 +109,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             res.get();
         } catch (Exception ex) {
             latch.countDown();
-            assertTrue (ex.getCause() instanceof FileAlreadyExistsException);
+            assertTrue(ex.getCause() instanceof FileAlreadyExistsException);
         }
         latch.await();
     }

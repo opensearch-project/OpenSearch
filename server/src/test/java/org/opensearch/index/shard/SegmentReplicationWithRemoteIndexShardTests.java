@@ -10,26 +10,17 @@ package org.opensearch.index.shard;
 
 import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
-import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
-import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class SegmentReplicationWithRemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 

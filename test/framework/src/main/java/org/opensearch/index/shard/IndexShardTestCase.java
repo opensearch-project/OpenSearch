@@ -1326,11 +1326,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         };
     }
 
-    private SegmentReplicationTargetService getSegmentReplicationTargetService(TransportService transportService,
-                                                                               IndicesService indicesService,
-                                                                               ClusterService clusterService,
-                                                                               SegmentReplicationSourceFactory sourceFactory
-                                                                               ) {
+    private SegmentReplicationTargetService getSegmentReplicationTargetService(
+        TransportService transportService,
+        IndicesService indicesService,
+        ClusterService clusterService,
+        SegmentReplicationSourceFactory sourceFactory
+    ) {
         return new SegmentReplicationTargetService(
             threadPool,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
