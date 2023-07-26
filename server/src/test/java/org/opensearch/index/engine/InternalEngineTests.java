@@ -2541,6 +2541,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Term uidTerm = newUid(doc);
         engine.index(indexForDoc(doc));
         final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = engine::acquireSearcher;
+
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
@@ -2549,10 +2550,12 @@ public class InternalEngineTests extends EngineTestCase {
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
+
                 for (int op = 0; op < opsPerThread; op++) {
                     try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), uidTerm), searcherFactory)) {
+
                         FieldsVisitor visitor = new FieldsVisitor(true);
-                        get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+                        get.docIdAndVersion().reader.storedFields().document(get.docIdAndVersion().docId, visitor);
                         List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
                         String removed = op % 3 == 0 && values.size() > 0 ? values.remove(0) : null;
                         String added = "v_" + idGenerator.incrementAndGet();
@@ -2608,7 +2611,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), uidTerm), searcherFactory)) {
             FieldsVisitor visitor = new FieldsVisitor(true);
-            get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+            get.docIdAndVersion().reader.storedFields().document(get.docIdAndVersion().docId, visitor);
             List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
             assertThat(currentValues, equalTo(new HashSet<>(values)));
         }
