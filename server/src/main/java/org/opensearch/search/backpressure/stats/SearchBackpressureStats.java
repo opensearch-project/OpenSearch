@@ -18,7 +18,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -53,7 +52,7 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         }
 
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            isNodeUnderDuress = in.readBoolean();
+            isNodeUnderDuress = in.readOptionalBoolean();
         } else {
             isNodeUnderDuress = null;
         }
@@ -82,7 +81,7 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         }
 
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeBoolean(isNodeUnderDuress);
+            out.writeOptionalBoolean(isNodeUnderDuress);
         }
     }
 
@@ -91,12 +90,8 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchBackpressureStats that = (SearchBackpressureStats) o;
-        boolean isNodeUnderDuressEqual = false;
-        if (that.isNodeUnderDuress != null) {
-            isNodeUnderDuressEqual = isNodeUnderDuress == that.isNodeUnderDuress;
-        }
         return mode == that.mode
-            && isNodeUnderDuressEqual
+            && Objects.equals(isNodeUnderDuress, that.isNodeUnderDuress)
             && Objects.equals(searchTaskStats, that.searchTaskStats)
             && Objects.equals(searchShardTaskStats, that.searchShardTaskStats);
     }

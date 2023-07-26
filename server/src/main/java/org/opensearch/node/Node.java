@@ -1144,7 +1144,7 @@ public class Node implements Closeable {
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);
-                b.bind(TracerFactory.class).toInstance(this.tracerFactory);
+                b.bind(TracerFactory.class).toInstance(this.tracerFactory) ;
             });
             injector = modules.createInjector();
 
