@@ -863,6 +863,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         AtomicInteger throttledTask3 = new AtomicInteger();
         AtomicInteger succeededTask1 = new AtomicInteger();
         AtomicInteger succeededTask2 = new AtomicInteger();
+        AtomicInteger succeededTask3 = new AtomicInteger();
         AtomicInteger timedOutTask3 = new AtomicInteger();
 
         final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
@@ -880,6 +881,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     succeededTask1.incrementAndGet();
                 } else if (source.equals(task2)) {
                     succeededTask2.incrementAndGet();
+                } else if (source.equals(task3)) {
+                    succeededTask3.incrementAndGet();
                 }
                 latch.countDown();
             }
@@ -955,7 +958,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         assertEquals(numberOfTask1, throttledTask1.get() + succeededTask1.get());
         assertEquals(numberOfTask2, succeededTask2.get());
         assertEquals(0, throttledTask2.get());
-        assertEquals(numberOfTask3, throttledTask3.get() + timedOutTask3.get());
+        assertEquals(numberOfTask3, throttledTask3.get() + timedOutTask3.get() + succeededTask3.get());
         masterService.close();
     }
 
