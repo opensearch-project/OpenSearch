@@ -96,7 +96,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Exclude 'benchmarks' from codecov report ([#8805](https://github.com/opensearch-project/OpenSearch/pull/8805))
 - [Refactor] MediaTypeParser to MediaTypeParserRegistry ([#8636](https://github.com/opensearch-project/OpenSearch/pull/8636))
 - Create separate SourceLookup instance per segment slice in SignificantTextAggregatorFactory ([#8807](https://github.com/opensearch-project/OpenSearch/pull/8807))
-- Updated Version.java path from server to buildSrc in version.yml ([#8883](https://github.com/opensearch-project/OpenSearch/pull/8883))
+- Updated Version.java path from server to libs in version.yml ([#8883](https://github.com/opensearch-project/OpenSearch/pull/8883))
 
 ### Deprecated
 
