@@ -108,7 +108,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 try {
                     indexShard.store().incRef();
                     indexShard.remoteStore().incRef();
-                    Store store = indexShard.store();
                     final Directory storeDirectory = indexShard.store().directory();
                     String segmentNFile = null;
                     for (StoreFileMetadata fileMetadata : filesToFetch) {
