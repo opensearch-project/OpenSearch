@@ -178,13 +178,12 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         assertEquals(expectedContent, request.content());
         assertTrue(request.isContentConsumed());
 
-        XContentParser parser = request.contentParser(NamedXContentRegistry.EMPTY);
-        Map<String, String> contentMap = parser.mapStrings();
-        assertEquals("value", contentMap.get("key"));
+        OpenSearchParseException ex = assertThrows(OpenSearchParseException.class,() -> request.contentParser(NamedXContentRegistry.EMPTY));
+        assertTrue(ex.getMessage().contains("There is no request body or the requester identity is invalid."));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            OpenSearchException ex = assertThrows(OpenSearchException.class, () -> request.writeTo(out));
-            assertEquals("Principal identifier token is null", ex.getMessage());
+            OpenSearchException ex2 = assertThrows(OpenSearchException.class, () -> request.writeTo(out));
+            assertEquals("Principal identifier token is null", ex2.getMessage());
         }
     }
 
