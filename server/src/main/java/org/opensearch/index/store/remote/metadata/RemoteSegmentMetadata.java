@@ -118,7 +118,12 @@ public class RemoteSegmentMetadata {
     }
 
     public static void writeCheckpointToIndexOutput(ReplicationCheckpoint replicationCheckpoint, IndexOutput out) throws IOException {
-        writeShardIdToIndexOutput(replicationCheckpoint.getShardId(), out);
+        ShardId shardId = replicationCheckpoint.getShardId();
+        // Write ShardId
+        out.writeString(shardId.getIndex().getName());
+        out.writeString(shardId.getIndex().getUUID());
+        out.writeVInt(shardId.getId());
+        // Write remaining checkpoint fields
         out.writeLong(replicationCheckpoint.getPrimaryTerm());
         out.writeLong(replicationCheckpoint.getSegmentsGen());
         out.writeLong(replicationCheckpoint.getSegmentInfosVersion());
@@ -128,32 +133,12 @@ public class RemoteSegmentMetadata {
 
     private static ReplicationCheckpoint readCheckpointFromIndexInput(IndexInput in) throws IOException {
         return new ReplicationCheckpoint(
-            readShardIdFromIndexInput(in),
+            new ShardId(new Index(in.readString(), in.readString()), in.readVInt()),
             in.readLong(),
             in.readLong(),
             in.readLong(),
             in.readLong(),
             in.readString()
         );
-    }
-
-    public static void writeShardIdToIndexOutput(ShardId shardId, IndexOutput out) throws IOException {
-        writeIndexToIndexOutput(shardId.getIndex(), out);
-        out.writeVInt(shardId.getId());
-    }
-
-    public static ShardId readShardIdFromIndexInput(IndexInput in) throws IOException {
-        Index index = readIndexFromIndexInput(in);
-        int shardId = in.readVInt();
-        return new ShardId(index, shardId);
-    }
-
-    public static void writeIndexToIndexOutput(Index index, IndexOutput out) throws IOException {
-        out.writeString(index.getName());
-        out.writeString(index.getUUID());
-    }
-
-    public static Index readIndexFromIndexInput(IndexInput in) throws IOException {
-        return new Index(in.readString(), in.readString());
     }
 }
