@@ -36,7 +36,7 @@ import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeParserRegistry;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 
@@ -132,7 +132,7 @@ public abstract class AbstractRestChannel implements RestChannel {
                 responseContentType = requestContentType;
             } else {
                 // default to JSON output when all else fails
-                responseContentType = MediaTypeParserRegistry.getDefaultMediaType();
+                responseContentType = MediaTypeRegistry.getDefaultMediaType();
             }
         }
 
