@@ -67,7 +67,6 @@ import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -393,7 +392,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return segmentReplicationDiff(source, target, false, null);
     }
 
-    public static RecoveryDiff segmentReplicationDiff(Map<String, StoreFileMetadata> source, Map<String, StoreFileMetadata> target, boolean includeSegmentNFile, Collection<String> ignoreAdditionalFiles) {
+    public static RecoveryDiff segmentReplicationDiff(
+        Map<String, StoreFileMetadata> source,
+        Map<String, StoreFileMetadata> target,
+        boolean includeSegmentNFile,
+        Collection<String> ignoreAdditionalFiles
+    ) {
         final List<StoreFileMetadata> identical = new ArrayList<>();
         final List<StoreFileMetadata> different = new ArrayList<>();
         List<StoreFileMetadata> missing = new ArrayList<>();
@@ -414,7 +418,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         }
         if (ignoreAdditionalFiles != null) {
-            missing = missing.stream().filter(metadata -> ignoreAdditionalFiles.contains(metadata.name()) == false).collect(Collectors.toList());
+            missing = missing.stream()
+                .filter(metadata -> ignoreAdditionalFiles.contains(metadata.name()) == false)
+                .collect(Collectors.toList());
         }
         return new RecoveryDiff(
             Collections.unmodifiableList(identical),

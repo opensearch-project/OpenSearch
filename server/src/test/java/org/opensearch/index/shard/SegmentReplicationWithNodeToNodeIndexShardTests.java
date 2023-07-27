@@ -10,7 +10,6 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.junit.Assert;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.delete.DeleteRequest;
@@ -31,7 +30,6 @@ import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
 import org.opensearch.indices.replication.SegmentReplicationSource;
@@ -39,9 +37,6 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.common.ReplicationFailedException;
-import org.opensearch.indices.replication.common.ReplicationListener;
-import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
