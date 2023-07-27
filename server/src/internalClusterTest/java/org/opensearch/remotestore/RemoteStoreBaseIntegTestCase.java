@@ -29,6 +29,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
@@ -99,6 +100,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     public static Settings remoteStoreClusterSettings(String segmentRepoName, String translogRepoName) {
         return Settings.builder()
+            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
             .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), segmentRepoName)
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), translogRepoName)
