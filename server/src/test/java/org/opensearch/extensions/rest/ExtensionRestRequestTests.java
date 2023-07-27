@@ -178,7 +178,10 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         assertEquals(expectedContent, request.content());
         assertTrue(request.isContentConsumed());
 
-        OpenSearchParseException ex = assertThrows(OpenSearchParseException.class,() -> request.contentParser(NamedXContentRegistry.EMPTY));
+        OpenSearchParseException ex = assertThrows(
+            OpenSearchParseException.class,
+            () -> request.contentParser(NamedXContentRegistry.EMPTY)
+        );
         assertTrue(ex.getMessage().contains("There is no request body or the requester identity is invalid."));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
