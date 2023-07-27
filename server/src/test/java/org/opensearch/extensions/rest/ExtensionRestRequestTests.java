@@ -50,7 +50,6 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
     String extensionUniqueId1;
     Principal userPrincipal;
     HttpRequest.HttpVersion expectedHttpVersion;
-    // Will be replaced with PrincipalIdentifierToken classes from feature/identity
     String extensionTokenProcessor;
     String expectedRequestIssuerIdentity;
     NamedWriteableRegistry registry;
