@@ -150,14 +150,14 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
         return builder.value(toString());
     }
 
-    public void writeTo(IndexOutput out) throws IOException {
-        index.writeTo(out);
+    public void writeToIndexOutput(IndexOutput out) throws IOException {
+        index.writeToIndexOutput(out);
         out.writeVInt(shardId);
     }
 
-    public ShardId(IndexInput in) throws IOException {
-        index = new Index(in);
-        shardId = in.readVInt();
-        hashCode = computeHashCode();
+    public static ShardId readFromIndexOutput(IndexInput in) throws IOException {
+        Index index = Index.readFromIndexOutput(in);
+        int shardId = in.readVInt();
+        return new ShardId(index, shardId);
     }
 }

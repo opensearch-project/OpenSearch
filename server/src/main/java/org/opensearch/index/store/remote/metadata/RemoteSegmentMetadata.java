@@ -101,14 +101,14 @@ public class RemoteSegmentMetadata {
 
     public void write(IndexOutput out) throws IOException {
         out.writeMapOfStrings(toMapOfStrings());
-        replicationCheckpoint.writeTo(out);
+        replicationCheckpoint.writeToIndexOutput(out);
         out.writeLong(segmentInfosBytes.length);
         out.writeBytes(segmentInfosBytes, segmentInfosBytes.length);
     }
 
     public static RemoteSegmentMetadata read(IndexInput indexInput) throws IOException {
         Map<String, String> metadata = indexInput.readMapOfStrings();
-        ReplicationCheckpoint replicationCheckpoint = new ReplicationCheckpoint(indexInput);
+        ReplicationCheckpoint replicationCheckpoint = ReplicationCheckpoint.readFromIndexOutput(indexInput);
         int byteArraySize = (int) indexInput.readLong();
         byte[] segmentInfosBytes = new byte[byteArraySize];
         indexInput.readBytes(segmentInfosBytes, 0, byteArraySize);

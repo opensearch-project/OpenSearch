@@ -194,6 +194,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         throws OpenSearchCorruptionException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
+        // Handle empty SegmentInfos bytes for recovering replicas
+        if (checkpointInfoResponse.getInfosBytes() == null) {
+            return;
+        }
         Store store = null;
         try {
             store = store();

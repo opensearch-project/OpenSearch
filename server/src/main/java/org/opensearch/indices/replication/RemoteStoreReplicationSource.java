@@ -108,15 +108,12 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                     indexShard.store().incRef();
                     indexShard.remoteStore().incRef();
                     final Directory storeDirectory = indexShard.store().directory();
-                    String segmentNFile = null;
                     for (StoreFileMetadata fileMetadata : filesToFetch) {
                         String file = fileMetadata.name();
+                        assert file.startsWith(IndexFileNames.SEGMENTS) == false
+                            : "Segments_N file is not required for round of segment replication";
                         storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                         downloadedSegments.add(fileMetadata);
-                        if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                            assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
-                            segmentNFile = file;
-                        }
                     }
                     storeDirectory.sync(downloadedSegments.stream().map(metadata -> metadata.name()).collect(Collectors.toList()));
                     logger.trace("Downloaded segments from remote store {}", downloadedSegments);

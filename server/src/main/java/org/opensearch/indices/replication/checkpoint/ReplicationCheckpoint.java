@@ -189,8 +189,8 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             + '}';
     }
 
-    public void writeTo(IndexOutput out) throws IOException {
-        shardId.writeTo(out);
+    public void writeToIndexOutput(IndexOutput out) throws IOException {
+        shardId.writeToIndexOutput(out);
         out.writeLong(primaryTerm);
         out.writeLong(segmentsGen);
         out.writeLong(segmentInfosVersion);
@@ -198,12 +198,14 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         out.writeString(codec);
     }
 
-    public ReplicationCheckpoint(IndexInput in) throws IOException {
-        shardId = new ShardId(in);
-        primaryTerm = in.readLong();
-        segmentsGen = in.readLong();
-        segmentInfosVersion = in.readLong();
-        length = in.readLong();
-        codec = in.readString();
+    public static ReplicationCheckpoint readFromIndexOutput(IndexInput in) throws IOException {
+        return new ReplicationCheckpoint(
+            ShardId.readFromIndexOutput(in),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readString()
+        );
     }
 }

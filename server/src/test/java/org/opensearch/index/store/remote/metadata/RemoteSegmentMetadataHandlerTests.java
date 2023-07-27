@@ -70,7 +70,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096);
         Map<String, String> expectedOutput = getDummyData();
         indexOutput.writeMapOfStrings(expectedOutput);
-        replicationCheckpoint.writeTo(indexOutput);
+        replicationCheckpoint.writeToIndexOutput(indexOutput);
         indexOutput.writeLong(0);
         indexOutput.writeBytes(new byte[0], 0);
         indexOutput.close();
@@ -86,7 +86,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096);
         Map<String, String> expectedOutput = getDummyData();
         indexOutput.writeMapOfStrings(expectedOutput);
-        replicationCheckpoint.writeTo(indexOutput);
+        replicationCheckpoint.writeToIndexOutput(indexOutput);
         ByteBuffersIndexOutput segmentInfosOutput = new ByteBuffersIndexOutput(new ByteBuffersDataOutput(), "test", "resource");
         segmentInfos.write(segmentInfosOutput);
         byte[] segmentInfosBytes = segmentInfosOutput.toArrayCopy();

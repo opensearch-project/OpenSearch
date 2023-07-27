@@ -136,14 +136,13 @@ public class Index implements Writeable, ToXContentObject {
         return INDEX_PARSER.parse(parser, null).build();
     }
 
-    public void writeTo(IndexOutput out) throws IOException {
+    public void writeToIndexOutput(IndexOutput out) throws IOException {
         out.writeString(name);
         out.writeString(uuid);
     }
 
-    public Index(IndexInput in) throws IOException {
-        this.name = in.readString();
-        this.uuid = in.readString();
+    public static Index readFromIndexOutput(IndexInput in) throws IOException {
+        return new Index(in.readString(), in.readString());
     }
 
     /**
