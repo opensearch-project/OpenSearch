@@ -1420,7 +1420,6 @@ public class Node implements Closeable {
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
         injector.getInstance(IndicesService.class).stop();
-        injector.getInstance(TracerFactory.class).close();
         logger.info("stopped");
 
         return this;
