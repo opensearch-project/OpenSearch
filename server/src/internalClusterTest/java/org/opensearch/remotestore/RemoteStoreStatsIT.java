@@ -72,7 +72,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             assertEquals(1, matches.size());
             RemoteSegmentTransferTracker.Stats stats = matches.get(0).getStats();
             validateUploadStats(stats);
-            assertEquals(0, stats.totalDownloadsStarted);
+            assertEquals(0, stats.downloadBytesStarted);
         }
 
         // Step 3 - Enable replicas on the existing indices and ensure that download
@@ -93,7 +93,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 RemoteSegmentTransferTracker.Stats stats = stat.getStats();
                 if (routing.primary()) {
                     validateUploadStats(stats);
-                    assertEquals(0, stats.totalDownloadsStarted);
+                    assertEquals(0, stats.downloadBytesStarted);
                 } else {
                     validateDownloadStats(stats);
                     assertEquals(0, stats.totalUploadsStarted);
@@ -124,7 +124,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         assertTrue(response.getRemoteStoreStats() != null && response.getRemoteStoreStats().length == 3);
         RemoteSegmentTransferTracker.Stats stats = response.getRemoteStoreStats()[0].getStats();
         validateUploadStats(stats);
-        assertEquals(0, stats.totalDownloadsStarted);
+        assertEquals(0, stats.downloadBytesStarted);
 
         // Step 3 - Enable replicas on the existing indices and ensure that download
         // stats are being populated as well
@@ -138,7 +138,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             stats = stat.getStats();
             if (routing.primary()) {
                 validateUploadStats(stats);
-                assertEquals(0, stats.totalDownloadsStarted);
+                assertEquals(0, stats.downloadBytesStarted);
             } else {
                 validateDownloadStats(stats);
                 assertEquals(0, stats.totalUploadsStarted);
@@ -171,7 +171,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             assertTrue(response.getRemoteStoreStats() != null && response.getRemoteStoreStats().length == 1);
             RemoteSegmentTransferTracker.Stats stats = response.getRemoteStoreStats()[0].getStats();
             validateUploadStats(stats);
-            assertEquals(0, stats.totalDownloadsStarted);
+            assertEquals(0, stats.downloadBytesStarted);
         }
         changeReplicaCountAndEnsureGreen(1);
         for (String node : nodes) {
@@ -188,7 +188,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 RemoteSegmentTransferTracker.Stats stats = stat.getStats();
                 if (routing.primary()) {
                     validateUploadStats(stats);
-                    assertEquals(0, stats.totalDownloadsStarted);
+                    assertEquals(0, stats.downloadBytesStarted);
                 } else {
                     validateDownloadStats(stats);
                     assertEquals(0, stats.totalUploadsStarted);
@@ -240,11 +240,6 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             .collect(Collectors.toList())
             .get(0)
             .getStats();
-        assertTrue(
-            zeroStateReplicaStats.totalDownloadsStarted == 0
-                && zeroStateReplicaStats.totalDownloadsSucceeded == 0
-                && zeroStateReplicaStats.totalDownloadsFailed == 0
-        );
         assertTrue(zeroStateReplicaStats.downloadBytesStarted == 0 && zeroStateReplicaStats.downloadBytesSucceeded == 0);
 
         // Index documents
@@ -269,12 +264,8 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 RemoteSegmentTransferTracker.Stats primaryStats = primaryStatsList.get(0).getStats();
                 RemoteSegmentTransferTracker.Stats replicaStats = replicaStatsList.get(0).getStats();
                 // Assert Upload syncs - zero state uploads == download syncs
-                assertTrue(
-                    primaryStats.totalUploadsStarted > 0 && primaryStats.totalUploadsStarted - 1 == replicaStats.totalDownloadsStarted
-                );
-                assertTrue(
-                    primaryStats.totalUploadsSucceeded > 0 && primaryStats.totalUploadsSucceeded - 1 == replicaStats.totalDownloadsSucceeded
-                );
+                assertTrue(primaryStats.totalUploadsStarted > 0);
+                assertTrue(primaryStats.totalUploadsSucceeded > 0);
                 assertTrue(
                     replicaStats.downloadBytesStarted > 0
                         && primaryStats.uploadBytesStarted - zeroStatePrimaryStats.uploadBytesStarted == replicaStats.downloadBytesStarted
@@ -285,13 +276,8 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                             - zeroStatePrimaryStats.uploadBytesSucceeded == replicaStats.downloadBytesSucceeded
                 );
                 // Assert zero failures
-                assertEquals(0, primaryStats.totalDownloadsFailed);
                 assertEquals(0, primaryStats.uploadBytesFailed);
-                assertEquals(0, replicaStats.totalDownloadsFailed);
                 assertEquals(0, replicaStats.downloadBytesFailed);
-
-                // Assert last segment size uploaded = last segment size downloaded
-                assertEquals(replicaStats.lastSuccessfulSegmentDownloadBytes, primaryStats.lastSuccessfulRemoteRefreshBytes);
             }, 60, TimeUnit.SECONDS);
         }
     }
@@ -342,11 +328,6 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             .filter(remoteStoreStats -> !remoteStoreStats.getShardRouting().primary())
             .collect(Collectors.toList());
         zeroStateReplicaStats.forEach(stats -> {
-            assertTrue(
-                stats.getStats().totalDownloadsStarted == 0
-                    && stats.getStats().totalDownloadsSucceeded == 0
-                    && stats.getStats().totalDownloadsFailed == 0
-            );
             assertTrue(stats.getStats().downloadBytesStarted == 0 && stats.getStats().downloadBytesSucceeded == 0);
         });
 
@@ -361,45 +342,29 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 assertEquals(currentNodesInCluster, response.getSuccessfulShards());
                 long uploadsStarted = 0, uploadsSucceeded = 0, uploadsFailed = 0;
                 long uploadBytesStarted = 0, uploadBytesSucceeded = 0, uploadBytesFailed = 0;
-                List<Long> downloadsStarted = new ArrayList<>(), downloadsSucceeded = new ArrayList<>(), downloadsFailed =
-                    new ArrayList<>();
                 List<Long> downloadBytesStarted = new ArrayList<>(), downloadBytesSucceeded = new ArrayList<>(), downloadBytesFailed =
                     new ArrayList<>();
-                long lastUploadedSegmentSize = 0;
-                List<Long> lastDownloadedSegmentSize = new ArrayList<>();
 
                 // Assert that stats for primary shard and replica shard set are equal
                 for (RemoteStoreStats eachStatsObject : response.getRemoteStoreStats()) {
                     RemoteSegmentTransferTracker.Stats stats = eachStatsObject.getStats();
                     if (eachStatsObject.getShardRouting().primary()) {
-                        uploadsStarted = stats.totalUploadsStarted;
-                        uploadsSucceeded = stats.totalUploadsSucceeded;
-                        uploadsFailed = stats.totalUploadsFailed;
                         uploadBytesStarted = stats.uploadBytesStarted;
                         uploadBytesSucceeded = stats.uploadBytesSucceeded;
                         uploadBytesFailed = stats.uploadBytesFailed;
-                        lastUploadedSegmentSize = stats.lastSuccessfulRemoteRefreshBytes;
                     } else {
-                        downloadsStarted.add(stats.totalDownloadsStarted);
-                        downloadsSucceeded.add(stats.totalDownloadsSucceeded);
-                        downloadsFailed.add(stats.totalDownloadsFailed);
                         downloadBytesStarted.add(stats.downloadBytesStarted);
                         downloadBytesSucceeded.add(stats.downloadBytesSucceeded);
                         downloadBytesFailed.add(stats.downloadBytesFailed);
-                        lastDownloadedSegmentSize.add(stats.lastSuccessfulSegmentDownloadBytes);
                     }
                 }
 
                 assertEquals(0, uploadsFailed);
                 assertEquals(0, uploadBytesFailed);
                 for (int j = 0; j < response.getSuccessfulShards() - 1; j++) {
-                    assertEquals(uploadsStarted - 1, (long) downloadsStarted.get(j));
-                    assertEquals(uploadsSucceeded - 1, (long) downloadsSucceeded.get(j));
-                    assertEquals(0, (long) downloadsFailed.get(j));
                     assertEquals(uploadBytesStarted - zeroStatePrimaryStats.uploadBytesStarted, (long) downloadBytesStarted.get(j));
                     assertEquals(uploadBytesSucceeded - zeroStatePrimaryStats.uploadBytesSucceeded, (long) downloadBytesSucceeded.get(j));
                     assertEquals(0, (long) downloadBytesFailed.get(j));
-                    assertEquals(lastUploadedSegmentSize, (long) lastDownloadedSegmentSize.get(j));
                 }
             }, 60, TimeUnit.SECONDS);
         }
@@ -516,11 +481,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             assertTrue(
                 segmentTracker.totalUploadsStarted > 0 && segmentTracker.totalUploadsSucceeded > 0 && segmentTracker.totalUploadsFailed == 0
             );
-            assertTrue(
-                segmentTracker.totalDownloadsStarted > 0
-                    && segmentTracker.totalDownloadsSucceeded > 0
-                    && segmentTracker.totalDownloadsFailed == 0
-            );
+            assertTrue(segmentTracker.downloadBytesStarted > 0 && segmentTracker.downloadBytesSucceeded > 0);
         });
     }
 
@@ -549,11 +510,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                             && segmentTracker.totalUploadsFailed == 0
                     );
                 } else {
-                    assertTrue(
-                        segmentTracker.totalDownloadsStarted == 0
-                            && segmentTracker.totalDownloadsSucceeded == 0
-                            && segmentTracker.totalDownloadsFailed == 0
-                    );
+                    assertTrue(segmentTracker.downloadBytesStarted == 0 && segmentTracker.downloadBytesSucceeded == 0);
                 }
             });
         }, 5, TimeUnit.SECONDS);
@@ -608,16 +565,12 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
     private void validateDownloadStats(RemoteSegmentTransferTracker.Stats stats) {
         assertTrue(stats.lastDownloadTimestampMs > 0);
-        assertTrue(stats.totalDownloadsStarted > 0);
-        assertTrue(stats.totalDownloadsSucceeded > 0);
-        assertEquals(stats.totalDownloadsFailed, 0);
         assertTrue(stats.downloadBytesStarted > 0);
         assertTrue(stats.downloadBytesSucceeded > 0);
         assertEquals(stats.downloadBytesFailed, 0);
         assertTrue(stats.lastSuccessfulSegmentDownloadBytes > 0);
         assertTrue(stats.downloadBytesMovingAverage > 0);
         assertTrue(stats.downloadBytesPerSecMovingAverage > 0);
-        assertTrue(stats.downloadTimeMovingAverage > 0);
     }
 
     // Validate if the shardRouting obtained from cluster state contains the exact same routing object

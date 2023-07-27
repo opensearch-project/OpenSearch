@@ -103,9 +103,6 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 assertEquals(stats.getStats().uploadBytesPerSecMovingAverage, deserializedStats.uploadBytesPerSecMovingAverage, 0);
                 assertEquals(stats.getStats().uploadTimeMovingAverage, deserializedStats.uploadTimeMovingAverage, 0);
                 assertEquals(stats.getStats().bytesLag, deserializedStats.bytesLag);
-                assertEquals(0, deserializedStats.totalDownloadsStarted);
-                assertEquals(0, deserializedStats.totalDownloadsSucceeded);
-                assertEquals(0, deserializedStats.totalDownloadsFailed);
                 assertEquals(0, deserializedStats.downloadBytesStarted);
                 assertEquals(0, deserializedStats.downloadBytesFailed);
                 assertEquals(0, deserializedStats.downloadBytesSucceeded);
@@ -134,16 +131,12 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 assertEquals(0, deserializedStats.rejectionCount);
                 assertEquals(0, deserializedStats.consecutiveFailuresCount);
                 assertEquals(0, deserializedStats.bytesLag);
-                assertEquals(stats.getStats().totalDownloadsStarted, deserializedStats.totalDownloadsStarted);
-                assertEquals(stats.getStats().totalDownloadsSucceeded, deserializedStats.totalDownloadsSucceeded);
-                assertEquals(stats.getStats().totalDownloadsFailed, deserializedStats.totalDownloadsFailed);
                 assertEquals(stats.getStats().downloadBytesStarted, deserializedStats.downloadBytesStarted);
                 assertEquals(stats.getStats().downloadBytesFailed, deserializedStats.downloadBytesFailed);
                 assertEquals(stats.getStats().downloadBytesSucceeded, deserializedStats.downloadBytesSucceeded);
                 assertEquals(stats.getStats().lastSuccessfulSegmentDownloadBytes, deserializedStats.lastSuccessfulSegmentDownloadBytes);
                 assertEquals(stats.getStats().lastDownloadTimestampMs, deserializedStats.lastDownloadTimestampMs);
                 assertEquals(stats.getStats().downloadBytesPerSecMovingAverage, deserializedStats.downloadBytesPerSecMovingAverage, 0);
-                assertEquals(stats.getStats().downloadTimeMovingAverage, deserializedStats.downloadTimeMovingAverage, 0);
                 assertEquals(stats.getStats().downloadBytesMovingAverage, deserializedStats.downloadBytesMovingAverage, 0);
             }
         }
@@ -171,16 +164,12 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 assertEquals(stats.getStats().uploadBytesPerSecMovingAverage, deserializedStats.uploadBytesPerSecMovingAverage, 0);
                 assertEquals(stats.getStats().uploadTimeMovingAverage, deserializedStats.uploadTimeMovingAverage, 0);
                 assertEquals(stats.getStats().bytesLag, deserializedStats.bytesLag);
-                assertEquals(stats.getStats().totalDownloadsStarted, deserializedStats.totalDownloadsStarted);
-                assertEquals(stats.getStats().totalDownloadsSucceeded, deserializedStats.totalDownloadsSucceeded);
-                assertEquals(stats.getStats().totalDownloadsFailed, deserializedStats.totalDownloadsFailed);
                 assertEquals(stats.getStats().downloadBytesStarted, deserializedStats.downloadBytesStarted);
                 assertEquals(stats.getStats().downloadBytesFailed, deserializedStats.downloadBytesFailed);
                 assertEquals(stats.getStats().downloadBytesSucceeded, deserializedStats.downloadBytesSucceeded);
                 assertEquals(stats.getStats().lastSuccessfulSegmentDownloadBytes, deserializedStats.lastSuccessfulSegmentDownloadBytes);
                 assertEquals(stats.getStats().lastDownloadTimestampMs, deserializedStats.lastDownloadTimestampMs);
                 assertEquals(stats.getStats().downloadBytesPerSecMovingAverage, deserializedStats.downloadBytesPerSecMovingAverage, 0);
-                assertEquals(stats.getStats().downloadTimeMovingAverage, deserializedStats.downloadTimeMovingAverage, 0);
                 assertEquals(stats.getStats().downloadBytesMovingAverage, deserializedStats.downloadBytesMovingAverage, 0);
             }
         }

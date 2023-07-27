@@ -135,21 +135,6 @@ public class RemoteSegmentTransferTracker {
     private volatile long totalUploadsSucceeded;
 
     /**
-     * Cumulative sum of count of segment file downloads that have started.
-     */
-    private volatile long totalDownloadsStarted;
-
-    /**
-     * Cumulative sum of count of segment file downloads that have succeeded.
-     */
-    private volatile long totalDownloadsSucceeded;
-
-    /**
-     * Cumulative sum of count of segment file downloads that have failed.
-     */
-    private volatile long totalDownloadsFailed;
-
-    /**
      * Cumulative sum of rejection counts for this shard.
      */
     private final AtomicLong rejectionCount = new AtomicLong();
@@ -218,11 +203,6 @@ public class RemoteSegmentTransferTracker {
 
     private final Object uploadTimeMsMutex = new Object();
 
-    /**
-     * Provides moving average over the last N overall download time (in millis) of segments downloaded from the remote store.
-     */
-    private volatile MovingAverage downloadTimeMovingAverageReference;
-
     private final int SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE = 20;
 
     public RemoteSegmentTransferTracker(
@@ -244,7 +224,6 @@ public class RemoteSegmentTransferTracker {
         uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
         downloadBytesMovingAverageReference = new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE);
         downloadBytesPerSecMovingAverageReference = new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE);
-        downloadTimeMovingAverageReference = new MovingAverage(SEGMENT_DOWNLOADS_DEFAULT_WINDOW_SIZE);
         latestLocalFileNameLengthMap = new HashMap<>();
     }
 
@@ -438,34 +417,6 @@ public class RemoteSegmentTransferTracker {
         return totalUploadsStarted - totalUploadsFailed - totalUploadsSucceeded;
     }
 
-    public long getTotalDownloadsStarted() {
-        return totalDownloadsStarted;
-    }
-
-    public void incrementTotalDownloadsStarted() {
-        totalDownloadsStarted += 1;
-    }
-
-    public long getTotalDownloadsFailed() {
-        return totalDownloadsFailed;
-    }
-
-    public void incrementTotalDownloadsFailed() {
-        totalDownloadsFailed += 1;
-    }
-
-    public long getTotalDownloadsSucceeded() {
-        return totalDownloadsSucceeded;
-    }
-
-    public void incrementTotalDownloadsSucceeded() {
-        totalDownloadsSucceeded += 1;
-    }
-
-    public long getInflightDownloads() {
-        return totalDownloadsStarted - totalDownloadsFailed - totalDownloadsSucceeded;
-    }
-
     public long getRejectionCount() {
         return rejectionCount.get();
     }
@@ -552,7 +503,7 @@ public class RemoteSegmentTransferTracker {
         return downloadBytesMovingAverageReference.getAverage();
     }
 
-    public void addDownloadBytes(long size) {
+    public void updateLastDownloadedSegmentSize(long size) {
         lastSuccessfulSegmentDownloadBytes = size;
         this.downloadBytesMovingAverageReference.record(size);
     }
@@ -619,18 +570,6 @@ public class RemoteSegmentTransferTracker {
         }
     }
 
-    boolean isDownloadTimeAverageReady() {
-        return downloadTimeMovingAverageReference.isReady();
-    }
-
-    double getDownloadTimeAverage() {
-        return downloadTimeMovingAverageReference.getAverage();
-    }
-
-    public void addDownloadTime(long timeMs) {
-        this.downloadTimeMovingAverageReference.record(timeMs);
-    }
-
     public RemoteSegmentTransferTracker.Stats stats() {
         return new RemoteSegmentTransferTracker.Stats(
             shardId,
@@ -649,9 +588,6 @@ public class RemoteSegmentTransferTracker {
             totalUploadsStarted,
             totalUploadsSucceeded,
             totalUploadsFailed,
-            totalDownloadsStarted,
-            totalDownloadsSucceeded,
-            totalDownloadsFailed,
             rejectionCount.get(),
             failures.length(),
             lastSuccessfulRemoteRefreshBytes,
@@ -661,7 +597,6 @@ public class RemoteSegmentTransferTracker {
             lastSuccessfulSegmentDownloadBytes,
             downloadBytesMovingAverageReference.getAverage(),
             downloadBytesPerSecMovingAverageReference.getAverage(),
-            downloadTimeMovingAverageReference.getAverage(),
             getBytesLag()
         );
     }
@@ -689,9 +624,6 @@ public class RemoteSegmentTransferTracker {
         public final long totalUploadsStarted;
         public final long totalUploadsFailed;
         public final long totalUploadsSucceeded;
-        public final long totalDownloadsStarted;
-        public final long totalDownloadsFailed;
-        public final long totalDownloadsSucceeded;
         public final long rejectionCount;
         public final long consecutiveFailuresCount;
         public final long lastSuccessfulRemoteRefreshBytes;
@@ -701,7 +633,6 @@ public class RemoteSegmentTransferTracker {
         public final long lastSuccessfulSegmentDownloadBytes;
         public final double downloadBytesMovingAverage;
         public final double downloadBytesPerSecMovingAverage;
-        public final double downloadTimeMovingAverage;
         public final long bytesLag;
 
         public Stats(
@@ -721,9 +652,6 @@ public class RemoteSegmentTransferTracker {
             long totalUploadsStarted,
             long totalUploadsSucceeded,
             long totalUploadsFailed,
-            long totalDownloadsStarted,
-            long totalDownloadsSucceeded,
-            long totalDownloadsFailed,
             long rejectionCount,
             long consecutiveFailuresCount,
             long lastSuccessfulRemoteRefreshBytes,
@@ -733,7 +661,6 @@ public class RemoteSegmentTransferTracker {
             long lastSuccessfulSegmentDownloadBytes,
             double downloadBytesMovingAverage,
             double downloadBytesPerSecMovingAverage,
-            double downloadTimeMovingAverage,
             long bytesLag
         ) {
             this.shardId = shardId;
@@ -752,9 +679,6 @@ public class RemoteSegmentTransferTracker {
             this.totalUploadsStarted = totalUploadsStarted;
             this.totalUploadsFailed = totalUploadsFailed;
             this.totalUploadsSucceeded = totalUploadsSucceeded;
-            this.totalDownloadsStarted = totalDownloadsStarted;
-            this.totalDownloadsFailed = totalDownloadsFailed;
-            this.totalDownloadsSucceeded = totalDownloadsSucceeded;
             this.rejectionCount = rejectionCount;
             this.consecutiveFailuresCount = consecutiveFailuresCount;
             this.lastSuccessfulRemoteRefreshBytes = lastSuccessfulRemoteRefreshBytes;
@@ -764,7 +688,6 @@ public class RemoteSegmentTransferTracker {
             this.lastSuccessfulSegmentDownloadBytes = lastSuccessfulSegmentDownloadBytes;
             this.downloadBytesMovingAverage = downloadBytesMovingAverage;
             this.downloadBytesPerSecMovingAverage = downloadBytesPerSecMovingAverage;
-            this.downloadTimeMovingAverage = downloadTimeMovingAverage;
             this.bytesLag = bytesLag;
         }
 
@@ -793,13 +716,9 @@ public class RemoteSegmentTransferTracker {
                 this.downloadBytesStarted = in.readLong();
                 this.downloadBytesFailed = in.readLong();
                 this.downloadBytesSucceeded = in.readLong();
-                this.totalDownloadsStarted = in.readLong();
-                this.totalDownloadsFailed = in.readLong();
-                this.totalDownloadsSucceeded = in.readLong();
                 this.lastSuccessfulSegmentDownloadBytes = in.readLong();
                 this.downloadBytesMovingAverage = in.readDouble();
                 this.downloadBytesPerSecMovingAverage = in.readDouble();
-                this.downloadTimeMovingAverage = in.readDouble();
             } catch (IOException e) {
                 throw e;
             }
@@ -830,13 +749,9 @@ public class RemoteSegmentTransferTracker {
             out.writeLong(downloadBytesStarted);
             out.writeLong(downloadBytesFailed);
             out.writeLong(downloadBytesSucceeded);
-            out.writeLong(totalDownloadsStarted);
-            out.writeLong(totalDownloadsFailed);
-            out.writeLong(totalDownloadsSucceeded);
             out.writeLong(lastSuccessfulSegmentDownloadBytes);
             out.writeDouble(downloadBytesMovingAverage);
             out.writeDouble(downloadBytesPerSecMovingAverage);
-            out.writeDouble(downloadTimeMovingAverage);
         }
     }
 }

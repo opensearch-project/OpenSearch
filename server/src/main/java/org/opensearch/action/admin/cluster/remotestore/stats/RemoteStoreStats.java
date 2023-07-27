@@ -54,7 +54,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.SEGMENT);
         builder.startObject(SubFields.DOWNLOAD);
         // Ensuring that we are not showing 0 metrics to the user
-        if (remoteSegmentShardStats.totalDownloadsStarted != 0) {
+        if (remoteSegmentShardStats.downloadBytesStarted != 0) {
             buildDownloadStats(builder);
         }
         builder.endObject();
@@ -106,11 +106,6 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
 
     private void buildDownloadStats(XContentBuilder builder) throws IOException {
         builder.field(DownloadStatsFields.LAST_SYNC_TIMESTAMP, remoteSegmentShardStats.lastDownloadTimestampMs);
-        builder.startObject(DownloadStatsFields.TOTAL_SYNCS_FROM_REMOTE)
-            .field(SubFields.STARTED, remoteSegmentShardStats.totalDownloadsStarted)
-            .field(SubFields.SUCCEEDED, remoteSegmentShardStats.totalDownloadsSucceeded)
-            .field(SubFields.FAILED, remoteSegmentShardStats.totalDownloadsFailed);
-        builder.endObject();
         builder.startObject(DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)
             .field(SubFields.STARTED, remoteSegmentShardStats.downloadBytesStarted)
             .field(SubFields.SUCCEEDED, remoteSegmentShardStats.downloadBytesSucceeded)
@@ -122,9 +117,6 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.endObject();
         builder.startObject(DownloadStatsFields.DOWNLOAD_SPEED_IN_BYTES_PER_SEC)
             .field(SubFields.MOVING_AVG, remoteSegmentShardStats.downloadBytesPerSecMovingAverage);
-        builder.endObject();
-        builder.startObject(DownloadStatsFields.DOWNLOAD_LATENCY_IN_MILLIS)
-            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.downloadTimeMovingAverage);
         builder.endObject();
     }
 

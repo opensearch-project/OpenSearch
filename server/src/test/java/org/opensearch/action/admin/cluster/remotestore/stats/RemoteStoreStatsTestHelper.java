@@ -43,8 +43,6 @@ public class RemoteStoreStatsTestHelper {
             5,
             5,
             0,
-            0,
-            0,
             3,
             2,
             5,
@@ -53,9 +51,7 @@ public class RemoteStoreStatsTestHelper {
             4,
             0,
             0,
-            0,
-            0,
-            5
+            0
         );
     }
 
@@ -77,9 +73,6 @@ public class RemoteStoreStatsTestHelper {
             0,
             0,
             0,
-            10,
-            10,
-            0,
             0,
             0,
             0,
@@ -89,8 +82,7 @@ public class RemoteStoreStatsTestHelper {
             10,
             10,
             10,
-            10,
-            0
+            10
         );
     }
 
@@ -112,9 +104,6 @@ public class RemoteStoreStatsTestHelper {
             10,
             10,
             0,
-            10,
-            10,
-            0,
             0,
             0,
             100,
@@ -124,8 +113,7 @@ public class RemoteStoreStatsTestHelper {
             10,
             10,
             10,
-            10,
-            0
+            10
         );
     }
 
@@ -155,28 +143,10 @@ public class RemoteStoreStatsTestHelper {
         Map<String, Object> segmentDownloads = ((Map) segment.get(RemoteStoreStats.SubFields.DOWNLOAD));
         Map<String, Object> segmentUploads = ((Map) segment.get(RemoteStoreStats.SubFields.UPLOAD));
 
-        if (statsTracker.totalDownloadsStarted != 0) {
+        if (statsTracker.downloadBytesStarted != 0) {
             assertEquals(
                 segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.LAST_SYNC_TIMESTAMP),
                 (int) statsTracker.lastDownloadTimestampMs
-            );
-            assertEquals(
-                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_SYNCS_FROM_REMOTE)).get(
-                    RemoteStoreStats.SubFields.STARTED
-                ),
-                (int) statsTracker.totalDownloadsStarted
-            );
-            assertEquals(
-                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_SYNCS_FROM_REMOTE)).get(
-                    RemoteStoreStats.SubFields.SUCCEEDED
-                ),
-                (int) statsTracker.totalDownloadsSucceeded
-            );
-            assertEquals(
-                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_SYNCS_FROM_REMOTE)).get(
-                    RemoteStoreStats.SubFields.FAILED
-                ),
-                (int) statsTracker.totalDownloadsFailed
             );
             assertEquals(
                 ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)).get(
@@ -213,12 +183,6 @@ public class RemoteStoreStatsTestHelper {
                     RemoteStoreStats.SubFields.MOVING_AVG
                 ),
                 statsTracker.downloadBytesPerSecMovingAverage
-            );
-            assertEquals(
-                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.DOWNLOAD_LATENCY_IN_MILLIS)).get(
-                    RemoteStoreStats.SubFields.MOVING_AVG
-                ),
-                statsTracker.downloadTimeMovingAverage
             );
         } else {
             assertTrue(segmentDownloads.isEmpty());
