@@ -48,7 +48,7 @@ public class RemoteStoreStatsTestHelper {
             5,
             2,
             3,
-            4,
+            0,
             0,
             0,
             0
@@ -82,7 +82,7 @@ public class RemoteStoreStatsTestHelper {
             10,
             10,
             10,
-            10
+            0
         );
     }
 

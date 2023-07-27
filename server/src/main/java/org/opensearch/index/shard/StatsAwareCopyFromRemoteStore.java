@@ -23,8 +23,8 @@ import java.io.IOException;
 public class StatsAwareCopyFromRemoteStore {
     private final RemoteStoreDownloadStatsListener downloadStatsListener;
 
-    public StatsAwareCopyFromRemoteStore(RemoteSegmentTransferTracker downloadStatsTracker, boolean isRemoteStoreEnabled) {
-        this.downloadStatsListener = new RemoteStoreDownloadStatsListener(downloadStatsTracker, isRemoteStoreEnabled);
+    public StatsAwareCopyFromRemoteStore(RemoteSegmentTransferTracker downloadStatsTracker) {
+        this.downloadStatsListener = new RemoteStoreDownloadStatsListener(downloadStatsTracker);
     }
 
     /**
@@ -66,13 +66,11 @@ public class StatsAwareCopyFromRemoteStore {
      */
     public static class RemoteStoreDownloadStatsListener implements SegmentDownloadListener {
         private final RemoteSegmentTransferTracker downloadStatsTracker;
-        private final boolean isRemoteStoreEnabled;
         private long startTimeInMs;
         private long fileSize;
 
-        public RemoteStoreDownloadStatsListener(RemoteSegmentTransferTracker downloadStatsTracker, boolean isRemoteStoreEnabled) {
+        public RemoteStoreDownloadStatsListener(RemoteSegmentTransferTracker downloadStatsTracker) {
             this.downloadStatsTracker = downloadStatsTracker;
-            this.isRemoteStoreEnabled = isRemoteStoreEnabled;
         }
 
         /**
@@ -89,9 +87,6 @@ public class StatsAwareCopyFromRemoteStore {
          */
         @Override
         public void beforeDownload() {
-            if (!isRemoteStoreEnabled) {
-                return;
-            }
             startTimeInMs = System.currentTimeMillis();
             downloadStatsTracker.addDownloadBytesStarted(fileSize);
         }
@@ -105,9 +100,6 @@ public class StatsAwareCopyFromRemoteStore {
          */
         @Override
         public void afterDownload() {
-            if (!isRemoteStoreEnabled) {
-                return;
-            }
             downloadStatsTracker.addDownloadBytesSucceeded(fileSize);
             downloadStatsTracker.updateLastDownloadedSegmentSize(fileSize);
             long currentTimeInMs = System.currentTimeMillis();
@@ -121,9 +113,6 @@ public class StatsAwareCopyFromRemoteStore {
          */
         @Override
         public void downloadFailed() {
-            if (!isRemoteStoreEnabled) {
-                return;
-            }
             downloadStatsTracker.addDownloadBytesFailed(fileSize);
         }
     }
