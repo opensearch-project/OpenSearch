@@ -65,6 +65,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.NestedHelper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -176,7 +177,7 @@ final class DefaultSearchContext extends SearchContext {
     private SuggestionSearchContext suggest;
     private List<RescoreContext> rescore;
     private Profilers profilers;
-
+    private BucketCollectorProcessor bucketCollectorProcessor = NO_OP_BUCKET_COLLECTOR_PROCESSOR;
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
     private final QueryShardContext queryShardContext;
@@ -916,7 +917,19 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public InternalAggregation.ReduceContext partial() {
-        return requestToAggReduceContextBuilder.apply(request.source()).forPartialReduction();
+    public InternalAggregation.ReduceContext partialOnShard() {
+        InternalAggregation.ReduceContext rc = requestToAggReduceContextBuilder.apply(request.source()).forPartialReduction();
+        rc.setSliceLevel(isConcurrentSegmentSearchEnabled());
+        return rc;
+    }
+
+    @Override
+    public void setBucketCollectorProcessor(BucketCollectorProcessor bucketCollectorProcessor) {
+        this.bucketCollectorProcessor = bucketCollectorProcessor;
+    }
+
+    @Override
+    public BucketCollectorProcessor bucketCollectorProcessor() {
+        return bucketCollectorProcessor;
     }
 }

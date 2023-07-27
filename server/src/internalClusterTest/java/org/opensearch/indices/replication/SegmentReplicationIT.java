@@ -875,67 +875,82 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForDocs(initialDocCount, indexer);
             refresh(INDEX_NAME);
 
+            // get shard references.
+            final IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+            final IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+            logger.info("Replica aid {}", replicaShard.routingEntry().allocationId());
+            logger.info("former primary aid {}", primaryShard.routingEntry().allocationId());
+
+            // fetch pressure stats from the Primary's Node.
             SegmentReplicationPressureService pressureService = internalCluster().getInstance(
                 SegmentReplicationPressureService.class,
                 primaryNode
             );
 
-            final Map<ShardId, SegmentReplicationPerGroupStats> shardStats = pressureService.nodeStats().getShardStats();
-            assertEquals(1, shardStats.size());
-            final IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
-            IndexShard replica = getIndexShard(replicaNode, INDEX_NAME);
-            SegmentReplicationPerGroupStats groupStats = shardStats.get(primaryShard.shardId());
-            Set<SegmentReplicationShardStats> replicaStats = groupStats.getReplicaStats();
-            assertEquals(1, replicaStats.size());
-
-            // assert replica node returns nothing.
+            // Fetch pressure stats from the Replica's Node we will assert replica node returns nothing until it is promoted.
             SegmentReplicationPressureService replicaNode_service = internalCluster().getInstance(
                 SegmentReplicationPressureService.class,
                 replicaNode
             );
+
+            final Map<ShardId, SegmentReplicationPerGroupStats> shardStats = pressureService.nodeStats().getShardStats();
+            assertEquals("We should have stats returned for the replication group", 1, shardStats.size());
+
+            SegmentReplicationPerGroupStats groupStats = shardStats.get(primaryShard.shardId());
+            Set<SegmentReplicationShardStats> replicaStats = groupStats.getReplicaStats();
+            assertAllocationIdsInReplicaShardStats(Set.of(replicaShard.routingEntry().allocationId().getId()), replicaStats);
+
             assertTrue(replicaNode_service.nodeStats().getShardStats().isEmpty());
 
-            // drop the primary, this won't hand off SR state.
+            // drop the primary, this won't hand off pressure stats between old/new primary.
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
             ensureYellowAndNoInitializingShards(INDEX_NAME);
-            replicaNode_service = internalCluster().getInstance(SegmentReplicationPressureService.class, replicaNode);
-            replica = getIndexShard(replicaNode, INDEX_NAME);
-            assertTrue("replica should be promoted as a primary", replica.routingEntry().primary());
-            assertEquals(1, replicaNode_service.nodeStats().getShardStats().size());
-            // we don't have a replica assigned yet, so this should be 0.
-            assertEquals(0, replicaNode_service.nodeStats().getShardStats().get(primaryShard.shardId()).getReplicaStats().size());
+
+            assertTrue("replica should be promoted as a primary", replicaShard.routingEntry().primary());
+            assertEquals(
+                "We should have stats returned for the replication group",
+                1,
+                replicaNode_service.nodeStats().getShardStats().size()
+            );
+            // after the primary is dropped and replica is promoted we won't have a replica assigned yet, so stats per replica should return
+            // empty.
+            replicaStats = replicaNode_service.nodeStats().getShardStats().get(primaryShard.shardId()).getReplicaStats();
+            assertTrue(replicaStats.isEmpty());
 
             // start another replica.
             String replicaNode_2 = internalCluster().startDataOnlyNode();
             ensureGreen(INDEX_NAME);
-            String docId = String.valueOf(initialDocCount + 1);
-            client().prepareIndex(INDEX_NAME).setId(docId).setSource("foo", "bar").get();
-            refresh(INDEX_NAME);
-            waitForSearchableDocs(initialDocCount + 1, replicaNode_2);
+            final IndexShard secondReplicaShard = getIndexShard(replicaNode_2, INDEX_NAME);
+            final String second_replica_aid = secondReplicaShard.routingEntry().allocationId().getId();
+            waitForSearchableDocs(initialDocCount, replicaNode_2);
 
-            replicaNode_service = internalCluster().getInstance(SegmentReplicationPressureService.class, replicaNode);
-            replica = getIndexShard(replicaNode_2, INDEX_NAME);
-            assertEquals(1, replicaNode_service.nodeStats().getShardStats().size());
-            replicaStats = replicaNode_service.nodeStats().getShardStats().get(primaryShard.shardId()).getReplicaStats();
-            assertEquals(1, replicaStats.size());
+            assertEquals(
+                "We should have stats returned for the replication group",
+                1,
+                replicaNode_service.nodeStats().getShardStats().size()
+            );
+            replicaStats = replicaNode_service.nodeStats().getShardStats().get(replicaShard.shardId()).getReplicaStats();
+            assertAllocationIdsInReplicaShardStats(Set.of(second_replica_aid), replicaStats);
+            final SegmentReplicationShardStats replica_entry = replicaStats.stream().findFirst().get();
+            assertEquals(replica_entry.getCheckpointsBehindCount(), 0);
 
             // test a checkpoint without any new segments
             flush(INDEX_NAME);
             assertBusy(() -> {
-                final SegmentReplicationPressureService service = internalCluster().getInstance(
-                    SegmentReplicationPressureService.class,
-                    replicaNode
-                );
-                assertEquals(1, service.nodeStats().getShardStats().size());
-                final Set<SegmentReplicationShardStats> shardStatsSet = service.nodeStats()
+                assertEquals(1, replicaNode_service.nodeStats().getShardStats().size());
+                final Set<SegmentReplicationShardStats> shardStatsSet = replicaNode_service.nodeStats()
                     .getShardStats()
-                    .get(primaryShard.shardId())
+                    .get(replicaShard.shardId())
                     .getReplicaStats();
-                assertEquals(1, shardStatsSet.size());
+                assertAllocationIdsInReplicaShardStats(Set.of(second_replica_aid), shardStatsSet);
                 final SegmentReplicationShardStats stats = shardStatsSet.stream().findFirst().get();
                 assertEquals(0, stats.getCheckpointsBehindCount());
             });
         }
+    }
+
+    private void assertAllocationIdsInReplicaShardStats(Set<String> expected, Set<SegmentReplicationShardStats> replicaStats) {
+        assertEquals(expected, replicaStats.stream().map(SegmentReplicationShardStats::getAllocationId).collect(Collectors.toSet()));
     }
 
     /**
@@ -1162,6 +1177,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPitCreatedOnReplica() throws Exception {
+        assumeFalse(
+            "Skipping the test as it is flaky with remote store. Tracking issue https://github.com/opensearch-project/OpenSearch/issues/8850",
+            segmentReplicationWithRemoteEnabled()
+        );
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);

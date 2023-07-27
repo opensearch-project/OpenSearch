@@ -61,7 +61,7 @@ dependencies {
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
-  api 'org.apache.zookeeper:zookeeper:3.8.1'
+  api 'org.apache.zookeeper:zookeeper:3.8.2'
   api "org.apache.commons:commons-text:1.10.0"
   api "commons-net:commons-net:3.9.0"
   runtimeOnly "com.google.guava:guava:${versions.guava}"

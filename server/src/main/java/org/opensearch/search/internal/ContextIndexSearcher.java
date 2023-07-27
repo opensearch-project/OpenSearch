@@ -276,6 +276,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 searchLeaf(leaves.get(i), weight, collector);
             }
         }
+        searchContext.bucketCollectorProcessor().processPostCollection(collector);
     }
 
     /**

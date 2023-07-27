@@ -32,11 +32,6 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
-
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Strings;
@@ -54,7 +49,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.geo.RandomGeoGenerator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -79,8 +76,8 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
     protected static GeoPoint[] singleValues, multiValues;
     protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight, singleCentroid, multiCentroid,
         unmappedCentroid;
-    protected static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
-    protected static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
+    protected static Map<String, Integer> expectedDocCountsForGeoHash = null;
+    protected static Map<String, GeoPoint> expectedCentroidsForGeoHash = null;
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
 
     @Override
@@ -109,8 +106,8 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
 
         numDocs = randomIntBetween(6, 20);
         numUniqueGeoPoints = randomIntBetween(1, numDocs);
-        expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
-        expectedCentroidsForGeoHash = new ObjectObjectHashMap<>(numDocs * 2);
+        expectedDocCountsForGeoHash = new HashMap<>(numDocs * 2);
+        expectedCentroidsForGeoHash = new HashMap<>(numDocs * 2);
 
         singleValues = new GeoPoint[numUniqueGeoPoints];
         for (int i = 0; i < singleValues.length; i++) {

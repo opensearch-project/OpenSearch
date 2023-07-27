@@ -56,6 +56,7 @@ public class NRTReplicationEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final WriteOnlyTranslogManager translogManager;
+    private final boolean shouldCommit;
 
     private volatile long lastReceivedGen = SequenceNumbers.NO_OPS_PERFORMED;
 
@@ -76,9 +77,10 @@ public class NRTReplicationEngine extends Engine {
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager = readerManager;
             this.readerManager.addListener(completionStatsCache);
-            for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
-                this.readerManager.addListener(listener);
-            }
+            // NRT Replicas do not have a concept of Internal vs External reader managers.
+            // We also do not want to wire up refresh listeners for waitFor & pending refresh location.
+            // which are the current external listeners set from IndexShard.
+            // Only wire up the internal listeners.
             for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
                 this.readerManager.addListener(listener);
             }
@@ -113,6 +115,7 @@ public class NRTReplicationEngine extends Engine {
                 engineConfig.getPrimaryModeSupplier()
             );
             this.translogManager = translogManagerRef;
+            this.shouldCommit = engineConfig.getIndexSettings().isRemoteStoreEnabled() == false;
         } catch (IOException e) {
             IOUtils.closeWhileHandlingException(store::decRef, readerManager, translogManagerRef);
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -163,7 +166,9 @@ public class NRTReplicationEngine extends Engine {
      * @throws IOException - When there is an IO error committing the SegmentInfos.
      */
     private void commitSegmentInfos(SegmentInfos infos) throws IOException {
-        store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
+        if (shouldCommit) {
+            store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
+        }
         this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         translogManager.syncTranslog();
     }
@@ -318,22 +323,12 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void refresh(String source) throws EngineException {
-        maybeRefresh(source);
+        // Refresh on this engine should only ever happen in the reader after new segments arrive.
     }
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
-        ensureOpen();
-        try {
-            return readerManager.maybeRefresh();
-        } catch (IOException e) {
-            try {
-                failEngine("refresh failed source[" + source + "]", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new RefreshFailedEngineException(shardId, e);
-        }
+        return false;
     }
 
     @Override
@@ -383,15 +378,21 @@ public class NRTReplicationEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
-                final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
-                /*
-                 This is a workaround solution which decreases the chances of conflict on replica nodes when same file is copied
-                 from two different primaries during failover. Increasing counter helps in avoiding this conflict as counter is
-                 used to generate new segment file names. The ideal solution is to identify the counter from previous primary.
-                 */
-                latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
-                latestSegmentInfos.changed();
-                commitSegmentInfos(latestSegmentInfos);
+                // if remote store is enabled, all segments durably persisted
+                if (shouldCommit) {
+                    final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
+                    /*
+                     This is a workaround solution which decreases the chances of conflict on replica nodes when same file is copied
+                     from two different primaries during failover. Increasing counter helps in avoiding this conflict as counter is
+                     used to generate new segment file names. The ideal solution is to identify the counter from previous primary.
+                     */
+                    latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
+                    latestSegmentInfos.changed();
+                    commitSegmentInfos(latestSegmentInfos);
+                } else {
+                    store.directory().sync(List.of(store.directory().listAll()));
+                    store.directory().syncMetaData();
+                }
                 IOUtils.close(readerManager, translogManager, store::decRef);
             } catch (Exception e) {
                 logger.warn("failed to close engine", e);

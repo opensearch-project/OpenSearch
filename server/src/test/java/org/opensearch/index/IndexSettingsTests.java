@@ -54,6 +54,7 @@ import org.opensearch.test.VersionUtils;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -794,30 +795,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertFalse(settings.isRemoteTranslogStoreEnabled());
     }
 
-    public void testRemoteTranslogStoreExplicitSetting() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
-                .build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertTrue(settings.isRemoteTranslogStoreEnabled());
-    }
-
-    public void testRemoteTranslogStoreNullSetting() {
-        Settings indexSettings = Settings.builder()
-            .put("index.remote_store.translog.enabled", "null")
-            .put("index.remote_store.enabled", randomBoolean())
-            .build();
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(indexSettings)
-        );
-        assertEquals("Failed to parse value [null] as only [true] or [false] are allowed.", iae.getMessage());
-    }
-
     public void testUpdateRemoteStoreFails() {
         Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
         remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING);
@@ -832,37 +809,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             )
         );
         assertEquals(error.getMessage(), "final index setting [index.remote_store.enabled], not updateable");
-    }
-
-    public void testUpdateRemoteTranslogStoreFails() {
-        Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
-        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
-        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
-        SettingsException error = expectThrows(
-            SettingsException.class,
-            () -> settings.updateSettings(
-                Settings.builder().put("index.remote_store.translog.enabled", randomBoolean()).build(),
-                Settings.builder(),
-                Settings.builder(),
-                "index"
-            )
-        );
-        assertEquals(error.getMessage(), "final index setting [index.remote_store.translog.enabled], not updateable");
-    }
-
-    public void testEnablingRemoteTranslogStoreFailsWhenRemoteSegmentDisabled() {
-        Settings indexSettings = Settings.builder()
-            .put("index.remote_store.translog.enabled", true)
-            .put("index.remote_store.enabled", false)
-            .build();
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(indexSettings)
-        );
-        assertEquals(
-            "Settings index.remote_store.translog.enabled can only be set/enabled when index.remote_store.enabled is set to true",
-            iae.getMessage()
-        );
     }
 
     public void testEnablingRemoteStoreFailsWhenReplicationTypeIsDocument() {
@@ -901,7 +847,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "repo1")
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "repo1")
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
@@ -915,42 +861,57 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         SettingsException error = expectThrows(
             SettingsException.class,
             () -> settings.updateSettings(
-                Settings.builder().put("index.remote_store.repository", randomUnicodeOfLength(10)).build(),
+                Settings.builder().put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, randomUnicodeOfLength(10)).build(),
                 Settings.builder(),
                 Settings.builder(),
                 "index"
             )
         );
-        assertEquals(error.getMessage(), "final index setting [index.remote_store.repository], not updateable");
+        assertEquals(
+            error.getMessage(),
+            String.format(Locale.ROOT, "final index setting [%s], not updateable", IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY)
+        );
     }
 
     public void testSetRemoteRepositoryFailsWhenRemoteStoreIsNotEnabled() {
         Settings indexSettings = Settings.builder()
-            .put("index.replication.type", ReplicationType.SEGMENT)
-            .put("index.remote_store.enabled", false)
-            .put("index.remote_store.repository", "repo1")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "repo1")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.repository can only be set/enabled when index.remote_store.enabled is set to true",
+            String.format(
+                Locale.ROOT,
+                "Settings %s can only be set/enabled when %s is set to true",
+                IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+                IndexMetadata.SETTING_REMOTE_STORE_ENABLED
+            ),
             iae.getMessage()
         );
     }
 
     public void testSetRemoteRepositoryFailsWhenEmptyString() {
         Settings indexSettings = Settings.builder()
-            .put("index.replication.type", ReplicationType.SEGMENT)
-            .put("index.remote_store.enabled", false)
-            .put("index.remote_store.repository", "")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
-        assertEquals("Setting index.remote_store.repository should be provided with non-empty repository ID", iae.getMessage());
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                "Setting %s should be provided with non-empty repository ID",
+                IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY
+            ),
+            iae.getMessage()
+        );
     }
 
     public void testRemoteTranslogRepoDefaultSetting() {
@@ -967,7 +928,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             "index",
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-store")
                 .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
                 .build()
@@ -978,10 +938,10 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals(TimeValue.timeValueMillis(200), settings.getRemoteTranslogUploadBufferInterval());
     }
 
-    public void testSetRemoteTranslogRepositoryFailsWhenRemoteTranslogIsNotEnabled() {
+    public void testSetRemoteTranslogRepositoryFailsWhenRemoteStoreIsNotEnabled() {
         Settings indexSettings = Settings.builder()
-            .put("index.replication.type", ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "repo1")
             .build();
         IllegalArgumentException iae = expectThrows(
@@ -989,15 +949,15 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.translog.repository can only be set/enabled when index.remote_store.translog.enabled is set to true",
+            "Settings index.remote_store.translog.repository can only be set/enabled when index.remote_store.enabled is set to true",
             iae.getMessage()
         );
     }
 
     public void testSetRemoteTranslogRepositoryFailsWhenEmptyString() {
         Settings indexSettings = Settings.builder()
-            .put("index.replication.type", ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "")
             .build();
         IllegalArgumentException iae = expectThrows(
@@ -1011,7 +971,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         Version createdVersion = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .build();
         assertEquals(TimeValue.timeValueMillis(650), IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings));
     }
@@ -1019,7 +979,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     public void testSetRemoteTranslogBufferIntervalFailsWhenEmpty() {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
             .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "")
             .build();
         IllegalArgumentException iae = expectThrows(
@@ -1110,7 +1070,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     @SuppressForbidden(reason = "sets the SEARCH_PIPELINE feature flag")
     public void testDefaultSearchPipeline() throws Exception {
-        FeatureFlagSetter.set(FeatureFlags.SEARCH_PIPELINE);
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
@@ -1126,22 +1085,5 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         settings.updateIndexMetadata(metadata);
         assertEquals("foo", settings.getDefaultSearchPipeline());
-    }
-
-    public void testDefaultSearchPipelineWithoutFeatureFlag() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(SearchPipelineService.NOOP_PIPELINE_ID, settings.getDefaultSearchPipeline());
-        IndexMetadata updatedMetadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexSettings.DEFAULT_SEARCH_PIPELINE.getKey(), "foo")
-                .build()
-        );
-        assertThrows(SettingsException.class, () -> settings.updateIndexMetadata(updatedMetadata));
     }
 }

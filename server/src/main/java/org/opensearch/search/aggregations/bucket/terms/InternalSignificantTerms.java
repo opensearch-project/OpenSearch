@@ -232,7 +232,13 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             @SuppressWarnings("unchecked")
             InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
             globalSubsetSize += terms.getSubsetSize();
-            globalSupersetSize += terms.getSupersetSize();
+            // supersetSize is a shard level count, if we sum it across slices we would produce num_slices_with_bucket * supersetSize where
+            // num_slices_with_bucket is the number of segment slices that have collected a bucket for the key
+            if (reduceContext.isSliceLevel()) {
+                globalSupersetSize = terms.getSupersetSize();
+            } else {
+                globalSupersetSize += terms.getSupersetSize();
+            }
         }
         Map<String, List<B>> buckets = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
@@ -291,7 +297,13 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         for (B bucket : buckets) {
             subsetDf += bucket.subsetDf;
-            supersetDf += bucket.supersetDf;
+            // supersetDf is a shard level count, if we sum it across slices we would produce num_slices_with_bucket * supersetSize where
+            // num_slices_with_bucket is the number of segment slices that have collected a bucket for the key
+            if (context.isSliceLevel()) {
+                supersetDf = bucket.supersetDf;
+            } else {
+                supersetDf += bucket.supersetDf;
+            }
             aggregationsList.add(bucket.aggregations);
         }
         InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);

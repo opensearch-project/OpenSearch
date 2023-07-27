@@ -12,10 +12,8 @@ import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
-import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.UUIDs;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -38,11 +36,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
         // Step 1 - We create cluster, create an index, and then index documents into. We also do multiple refreshes/flushes
         // during this time frame. This ensures that the segment upload has started.
-        if (randomBoolean()) {
-            createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
-        } else {
-            createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
-        }
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -71,7 +65,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
         // Step 1 - We create cluster, create an index, and then index documents into. We also do multiple refreshes/flushes
         // during this time frame. This ensures that the segment upload has started.
-        createIndex(INDEX_NAME, remoteTranslogIndexSettings(0, 3));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 3));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -95,7 +89,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
         // Step 1 - We create cluster, create an index, and then index documents into. We also do multiple refreshes/flushes
         // during this time frame. This ensures that the segment upload has started.
-        createIndex(INDEX_NAME, remoteTranslogIndexSettings(0, 3));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 3));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -128,7 +122,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             }
             int numberOfOperations = randomIntBetween(20, 50);
             for (int j = 0; j < numberOfOperations; j++) {
-                indexSingleDoc();
+                indexSingleDoc(INDEX_NAME);
             }
         }
     }
@@ -149,12 +143,4 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         assertTrue(stats.uploadBytesPerSecMovingAverage > 0);
         assertTrue(stats.uploadTimeMovingAverage > 0);
     }
-
-    private IndexResponse indexSingleDoc() {
-        return client().prepareIndex(INDEX_NAME)
-            .setId(UUIDs.randomBase64UUID())
-            .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
-            .get();
-    }
-
 }

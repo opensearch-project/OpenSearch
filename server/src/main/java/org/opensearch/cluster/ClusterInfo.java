@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.unit.ByteSizeValue;
@@ -47,8 +45,10 @@ import org.opensearch.index.store.remote.filecache.FileCacheStats;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
@@ -291,31 +291,32 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      */
     public static class ReservedSpace implements Writeable {
 
-        public static final ReservedSpace EMPTY = new ReservedSpace(0, new ObjectHashSet<>());
+        public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());
 
         private final long total;
-        private final ObjectHashSet<ShardId> shardIds;
+        private final Set<ShardId> shardIds;
 
-        private ReservedSpace(long total, ObjectHashSet<ShardId> shardIds) {
+        private ReservedSpace(long total, Set<ShardId> shardIds) {
             this.total = total;
-            this.shardIds = shardIds;
+            this.shardIds = Collections.unmodifiableSet(shardIds);
         }
 
         ReservedSpace(StreamInput in) throws IOException {
             total = in.readVLong();
             final int shardIdCount = in.readVInt();
-            shardIds = new ObjectHashSet<>(shardIdCount);
+            Set<ShardId> shardIds = new HashSet<>(shardIdCount);
             for (int i = 0; i < shardIdCount; i++) {
                 shardIds.add(new ShardId(in));
             }
+            this.shardIds = Collections.unmodifiableSet(shardIds);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(total);
             out.writeVInt(shardIds.size());
-            for (ObjectCursor<ShardId> shardIdCursor : shardIds) {
-                shardIdCursor.value.writeTo(out);
+            for (final ShardId shardIdCursor : shardIds) {
+                shardIdCursor.writeTo(out);
             }
         }
 
@@ -344,8 +345,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             builder.field("total", total);
             builder.startArray("shards");
             {
-                for (ObjectCursor<ShardId> shardIdCursor : shardIds) {
-                    shardIdCursor.value.toXContent(builder, params);
+                for (final ShardId shardIdCursor : shardIds) {
+                    shardIdCursor.toXContent(builder, params);
                 }
             }
             builder.endArray(); // end "shards"
@@ -358,7 +359,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
          */
         public static class Builder {
             private long total;
-            private ObjectHashSet<ShardId> shardIds = new ObjectHashSet<>();
+            private Set<ShardId> shardIds = new HashSet<>();
 
             public ReservedSpace build() {
                 assert shardIds != null : "already built";

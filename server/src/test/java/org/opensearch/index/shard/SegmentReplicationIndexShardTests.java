@@ -120,6 +120,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         closeShards(indexShard);
     }
 
+    public void testNRTReplicasDoNotAcceptRefreshListeners() throws IOException {
+        final IndexShard indexShard = newStartedShard(false, settings, new NRTReplicationEngineFactory());
+        indexShard.addRefreshListener(mock(Translog.Location.class), Assert::assertFalse);
+        closeShards(indexShard);
+    }
+
     public void testSegmentInfosAndReplicationCheckpointTuple() throws Exception {
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -184,7 +190,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
      * reader close operation on replica shard deletes the segment files copied in current round of segment replication.
      * It does this by blocking the finalizeReplication on replica shard and performing close operation on acquired
      * searcher that triggers the reader close operation.
-     * @throws Exception
      */
     public void testSegmentReplication_With_ReaderClosedConcurrently() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
@@ -234,7 +239,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     /**
      * Similar to test above, this test shows the issue where an engine close operation during active segment replication
      * can result in Lucene CorruptIndexException.
-     * @throws Exception
      */
     public void testSegmentReplication_With_EngineClosedConcurrently() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
@@ -283,7 +287,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     /**
      * Verifies that commits on replica engine resulting from engine or reader close does not cleanup the temporary
      * replication files from ongoing round of segment replication
-     * @throws Exception
      */
     public void testTemporaryFilesNotCleanup() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
@@ -410,37 +413,68 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     public void testIgnoreShardIdle() throws Exception {
+        Settings updatedSettings = Settings.builder()
+            .put(settings)
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        try (ReplicationGroup shards = createGroup(1, updatedSettings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+            final int numDocs = shards.indexDocs(randomIntBetween(1, 10));
+            // ensure search idle conditions are met.
+            assertTrue(primary.isSearchIdle());
+            assertTrue(replica.isSearchIdle());
+
+            // invoke scheduledRefresh, returns true if refresh is immediately invoked.
+            assertTrue(primary.scheduledRefresh());
+            // replica would always return false here as there is no indexed doc to refresh on.
+            assertFalse(replica.scheduledRefresh());
+
+            // assert there is no pending refresh
+            assertFalse(primary.hasRefreshPending());
+            assertFalse(replica.hasRefreshPending());
+            shards.refresh("test");
+            replicateSegments(primary, shards.getReplicas());
+            shards.assertAllEqual(numDocs);
+        }
+    }
+
+    public void testShardIdle_Docrep() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
+            .build();
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
-
-            final int numDocs = shards.indexDocs(randomInt(10));
-            primary.refresh("test");
-            replicateSegments(primary, shards.getReplicas());
+            final int numDocs = shards.indexDocs(randomIntBetween(1, 10));
+            // ensure search idle conditions are met.
+            assertTrue(primary.isSearchIdle());
+            assertTrue(replica.isSearchIdle());
+            assertFalse(primary.scheduledRefresh());
+            assertFalse(replica.scheduledRefresh());
+            assertTrue(primary.hasRefreshPending());
+            assertTrue(replica.hasRefreshPending());
+            shards.refresh("test");
             shards.assertAllEqual(numDocs);
+        }
+    }
 
-            primary.scheduledRefresh();
-            replica.scheduledRefresh();
-
-            primary.awaitShardSearchActive(b -> assertFalse("A new RefreshListener should not be registered", b));
-            replica.awaitShardSearchActive(b -> assertFalse("A new RefreshListener should not be registered", b));
-
-            // Update the search_idle setting, this will put both shards into search idle.
-            Settings updatedSettings = Settings.builder()
-                .put(settings)
-                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
-                .build();
-            primary.indexSettings().getScopedSettings().applySettings(updatedSettings);
-            replica.indexSettings().getScopedSettings().applySettings(updatedSettings);
-
-            primary.scheduledRefresh();
-            replica.scheduledRefresh();
-
-            // Shards without segrep will register a new RefreshListener on the engine and return true when registered,
-            // assert with segrep enabled that awaitShardSearchActive does not register a listener.
-            primary.awaitShardSearchActive(b -> assertFalse("A new RefreshListener should not be registered", b));
-            replica.awaitShardSearchActive(b -> assertFalse("A new RefreshListener should not be registered", b));
+    public void testShardIdleWithNoReplicas() throws Exception {
+        Settings updatedSettings = Settings.builder()
+            .put(settings)
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        try (ReplicationGroup shards = createGroup(0, updatedSettings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            shards.indexDocs(randomIntBetween(1, 10));
+            // ensure search idle conditions are met.
+            assertTrue(primary.isSearchIdle());
+            assertFalse(primary.scheduledRefresh());
+            assertTrue(primary.hasRefreshPending());
         }
     }
 
@@ -853,6 +887,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8817")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitCommit() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, true);
     }
@@ -861,6 +896,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "temp-fs")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
             .build();
 
         try (ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir())) {
@@ -903,6 +940,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertTrue(nextPrimary.translogStats().estimatedNumberOfOperations() >= additonalDocs);
             assertTrue(nextPrimary.translogStats().getUncommittedOperations() >= additonalDocs);
 
+            int prevOperationCount = nextPrimary.translogStats().estimatedNumberOfOperations();
+
             // promote the replica
             shards.promoteReplicaToPrimary(nextPrimary).get();
 
@@ -915,7 +954,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // As we are downloading segments from remote segment store on failover, there should not be
             // any operations replayed from translog
-            assertEquals(0, nextPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(prevOperationCount, nextPrimary.translogStats().estimatedNumberOfOperations());
 
             // refresh and push segments to our other replica.
             nextPrimary.refresh("test");

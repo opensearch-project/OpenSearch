@@ -28,9 +28,6 @@ restResources {
   }
 }
 
-testClusters.all {
-  setting 'opensearch.experimental.feature.search_pipeline.enabled', 'true'
-}
 
 thirdPartyAudit.ignoreMissingClasses(
   // from log4j

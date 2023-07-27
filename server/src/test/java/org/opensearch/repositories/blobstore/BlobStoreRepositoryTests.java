@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.blobstore;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -90,6 +91,7 @@ import static org.opensearch.repositories.RepositoryDataTests.generateRandomRepo
 /**
  * Tests for the {@link BlobStoreRepository} and its subclasses.
  */
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
 
     static final String REPO_TYPE = "fsLike";
@@ -216,7 +218,8 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStoreRepo)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStoreRepo)
             .build();
     }
 
