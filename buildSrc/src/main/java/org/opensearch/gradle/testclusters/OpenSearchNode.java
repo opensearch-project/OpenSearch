@@ -120,7 +120,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         "path.repo",
         "discovery.seed_providers",
         "discovery.seed_hosts",
-        "httpProtocol"
+        "http.protocol"
     );
 
     private static final int TAIL_LOG_MESSAGES_COUNT = 40;

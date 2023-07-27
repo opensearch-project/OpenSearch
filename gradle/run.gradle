@@ -33,12 +33,14 @@ apply plugin: 'opensearch.testclusters'
 
 def numNodes = findProperty('numNodes') as Integer ?: 1
 def numZones = findProperty('numZones') as Integer ?: 1
+def httpProto = findProperty('httpProtocol') as String ?: "http"
 
 testClusters {
   runTask {
     testDistribution = 'archive'
     if (numZones > 1) numberOfZones = numZones
     if (numNodes > 1) numberOfNodes = numNodes
+    if (httpProto != "http") httpProtocol = httpProto
   }
 }
 
