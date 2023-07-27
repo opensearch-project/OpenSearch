@@ -47,7 +47,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeParserRegistry;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -187,7 +187,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      */
     public CreateIndexRequest mapping(Map<String, ?> source) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(MediaTypeParserRegistry.getDefaultMediaType());
+            XContentBuilder builder = XContentFactory.contentBuilder(MediaTypeRegistry.getDefaultMediaType());
             builder.map(source);
             return mapping(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
