@@ -273,7 +273,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
         CodecUtil.writeHeader(indexOutput, RemoteSegmentMetadata.METADATA_CODEC, RemoteSegmentMetadata.CURRENT_VERSION);
         indexOutput.writeMapOfStrings(segmentFilesMap);
-        replicationCheckpoint.writeToIndexOutput(indexOutput);
+        RemoteSegmentMetadata.writeCheckpointToIndexOutput(replicationCheckpoint, indexOutput);
         indexOutput.writeLong(byteArray.length);
         indexOutput.writeBytes(byteArray, byteArray.length);
         CodecUtil.writeFooter(indexOutput);

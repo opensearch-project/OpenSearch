@@ -14,6 +14,8 @@ import java.util.stream.Collectors;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
@@ -101,17 +103,57 @@ public class RemoteSegmentMetadata {
 
     public void write(IndexOutput out) throws IOException {
         out.writeMapOfStrings(toMapOfStrings());
-        replicationCheckpoint.writeToIndexOutput(out);
+        writeCheckpointToIndexOutput(replicationCheckpoint, out);
         out.writeLong(segmentInfosBytes.length);
         out.writeBytes(segmentInfosBytes, segmentInfosBytes.length);
     }
 
     public static RemoteSegmentMetadata read(IndexInput indexInput) throws IOException {
         Map<String, String> metadata = indexInput.readMapOfStrings();
-        ReplicationCheckpoint replicationCheckpoint = ReplicationCheckpoint.readFromIndexOutput(indexInput);
+        ReplicationCheckpoint replicationCheckpoint = readCheckpointFromIndexInput(indexInput);
         int byteArraySize = (int) indexInput.readLong();
         byte[] segmentInfosBytes = new byte[byteArraySize];
         indexInput.readBytes(segmentInfosBytes, 0, byteArraySize);
         return new RemoteSegmentMetadata(RemoteSegmentMetadata.fromMapOfStrings(metadata), segmentInfosBytes, replicationCheckpoint);
+    }
+
+    public static void writeCheckpointToIndexOutput(ReplicationCheckpoint replicationCheckpoint, IndexOutput out) throws IOException {
+        writeShardIdToIndexOutput(replicationCheckpoint.getShardId(), out);
+        out.writeLong(replicationCheckpoint.getPrimaryTerm());
+        out.writeLong(replicationCheckpoint.getSegmentsGen());
+        out.writeLong(replicationCheckpoint.getSegmentInfosVersion());
+        out.writeLong(replicationCheckpoint.getLength());
+        out.writeString(replicationCheckpoint.getCodec());
+    }
+
+    private static ReplicationCheckpoint readCheckpointFromIndexInput(IndexInput in) throws IOException {
+        return new ReplicationCheckpoint(
+            readShardIdFromIndexInput(in),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readString()
+        );
+    }
+
+    public static void writeShardIdToIndexOutput(ShardId shardId, IndexOutput out) throws IOException {
+        writeIndexToIndexOutput(shardId.getIndex(), out);
+        out.writeVInt(shardId.getId());
+    }
+
+    public static ShardId readShardIdFromIndexInput(IndexInput in) throws IOException {
+        Index index = readIndexFromIndexInput(in);
+        int shardId = in.readVInt();
+        return new ShardId(index, shardId);
+    }
+
+    public static void writeIndexToIndexOutput(Index index, IndexOutput out) throws IOException {
+        out.writeString(index.getName());
+        out.writeString(index.getUUID());
+    }
+
+    public static Index readIndexFromIndexInput(IndexInput in) throws IOException {
+        return new Index(in.readString(), in.readString());
     }
 }

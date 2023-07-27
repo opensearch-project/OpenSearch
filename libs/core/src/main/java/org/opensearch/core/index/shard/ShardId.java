@@ -32,8 +32,6 @@
 
 package org.opensearch.core.index.shard;
 
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -148,16 +146,5 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
-    }
-
-    public void writeToIndexOutput(IndexOutput out) throws IOException {
-        index.writeToIndexOutput(out);
-        out.writeVInt(shardId);
-    }
-
-    public static ShardId readFromIndexOutput(IndexInput in) throws IOException {
-        Index index = Index.readFromIndexOutput(in);
-        int shardId = in.readVInt();
-        return new ShardId(index, shardId);
     }
 }

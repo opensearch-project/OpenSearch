@@ -32,8 +32,6 @@
 
 package org.opensearch.core.index;
 
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -134,15 +132,6 @@ public class Index implements Writeable, ToXContentObject {
 
     public static Index fromXContent(final XContentParser parser) throws IOException {
         return INDEX_PARSER.parse(parser, null).build();
-    }
-
-    public void writeToIndexOutput(IndexOutput out) throws IOException {
-        out.writeString(name);
-        out.writeString(uuid);
-    }
-
-    public static Index readFromIndexOutput(IndexInput in) throws IOException {
-        return new Index(in.readString(), in.readString());
     }
 
     /**
