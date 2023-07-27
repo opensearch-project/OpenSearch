@@ -81,7 +81,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private int nodeIndex = 0;
-    private String httpProtocol = "http";
     private int zoneCount = 1;
 
     public OpenSearchCluster(
@@ -114,10 +113,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             throw new IllegalArgumentException("Number of zones should be >= 1 but was " + zoneCount + " for " + this);
         }
         this.zoneCount = zoneCount;
-    }
-
-    public void setHttpProtocol(String httpProtocol) {
-        this.httpProtocol = httpProtocol;
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
@@ -166,8 +161,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             fileSystemOperations,
             archiveOperations,
             workingDirBase,
-            zoneName,
-            httpProtocol
+            zoneName
         );
         // configure the cluster name eagerly
         newNode.defaultConfig.put("cluster.name", safeName(clusterName));
@@ -267,6 +261,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void keystorePassword(String password) {
         nodes.all(each -> each.keystorePassword(password));
+    }
+
+    @Override
+    public void setHttpProtocol(String httpProtocol) {
+        nodes.all(each -> each.setHttpProtocol(httpProtocol));
     }
 
     @Override

@@ -165,7 +165,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Path httpPortsFile;
     private final Path tmpDir;
 
-    private String httpProtocol = "http";
+    private String httpProtocol;
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private final List<OpenSearchDistribution> distributions = new ArrayList<>();
@@ -192,8 +192,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         File workingDirBase,
-        String zone,
-        String httpProtocol
+        String zone
     ) {
         this.path = path;
         this.name = name;
@@ -216,7 +215,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
         setTestDistribution(TestDistribution.INTEG_TEST);
         setVersion(VersionProperties.getOpenSearch());
         this.zone = zone;
-        this.httpProtocol = httpProtocol;
     }
 
     @Input
@@ -464,6 +462,11 @@ public class OpenSearchNode implements TestClusterConfiguration {
     public void setPreserveDataDir(boolean preserveDataDir) {
         this.preserveDataDir = preserveDataDir;
     }
+
+    @Override
+    public void setHttpProtocol(String protocol) {
+		this.httpProtocol = protocol;
+	}
 
     @Override
     public void freeze() {

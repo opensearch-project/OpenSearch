@@ -107,6 +107,8 @@ public interface TestClusterConfiguration {
 
     void setPreserveDataDir(boolean preserveDataDir);
 
+    void setHttpProtocol(String protocol);
+
     void freeze();
 
     void start();
