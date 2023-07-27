@@ -465,8 +465,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     @Override
     public void setHttpProtocol(String protocol) {
-		this.httpProtocol = protocol;
-	}
+        this.httpProtocol = protocol;
+    }
 
     @Override
     public void freeze() {
