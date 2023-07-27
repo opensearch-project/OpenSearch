@@ -114,9 +114,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // index and replicate segments to replica.
             int numDocs = randomIntBetween(10, 20);
-            logger.info("--> Index {} docs", numDocs);
             shards.indexDocs(numDocs);
-            logger.info("--> Refresh");
             primaryShard.refresh("test");
             flushShard(primaryShard);
             replicateSegments(primaryShard, List.of(replicaShard));

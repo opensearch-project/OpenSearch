@@ -98,7 +98,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         closeShards(replicaShard);
     }
 
-    public void testGetSegmentFilesFileAlreadyExists() throws IOException, InterruptedException {
+    public void testGetSegmentFilesAlreadyExists() throws IOException, InterruptedException {
         final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
         List<StoreFileMetadata> filesToFetch = primaryShard.getSegmentMetadataMap().values().stream().collect(Collectors.toList());
         CountDownLatch latch = new CountDownLatch(1);
@@ -107,9 +107,10 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             replicationSource = new RemoteStoreReplicationSource(primaryShard);
             replicationSource.getSegmentFiles(REPLICATION_ID, checkpoint, filesToFetch, primaryShard, res);
             res.get();
-        } catch (Exception ex) {
+        } catch (AssertionError | ExecutionException ex) {
             latch.countDown();
-            assertTrue(ex.getCause() instanceof FileAlreadyExistsException);
+            assertTrue(ex instanceof AssertionError);
+            assertEquals("Local store already contains the file", ex.getMessage());
         }
         latch.await();
     }

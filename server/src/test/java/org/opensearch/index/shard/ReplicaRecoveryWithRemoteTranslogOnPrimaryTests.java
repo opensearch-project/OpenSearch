@@ -139,7 +139,6 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             // Step1 - Start primary, index docs, flush, index more docs, check translog in primary as expected
             shards.startPrimary();
             final IndexShard primary = shards.getPrimary();
-            logger.info("--> Index docs on primary and flush");
             int numDocs = shards.indexDocs(randomIntBetween(10, 100));
             shards.flush();
             List<DocIdSeqNoAndSource> docIdAndSeqNosAfterFlush = getDocIdAndSeqNos(primary);
@@ -147,7 +146,6 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             assertEquals(numDocs + moreDocs, getTranslog(primary).totalOperations());
 
             // Step 2 - Start replica, recovery happens, check docs recovered till last flush
-            logger.info("--> Add replica shard and start");
             final IndexShard replica = shards.addReplica(remoteDir);
             shards.startAll();
             assertEquals(docIdAndSeqNosAfterFlush, getDocIdAndSeqNos(replica));
