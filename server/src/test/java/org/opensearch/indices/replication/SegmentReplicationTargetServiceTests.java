@@ -32,6 +32,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.ForceSyncRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.atLeastOnce;
@@ -242,7 +244,46 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testShardAlreadyReplicating() {
-        sut.startReplication(replicaShard, mock(SegmentReplicationTargetService.SegmentReplicationListener.class));
+        CountDownLatch blockGetCheckpointMetadata = new CountDownLatch(1);
+        SegmentReplicationSource source = new TestReplicationSource() {
+            @Override
+            public void getCheckpointMetadata(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                ActionListener<CheckpointInfoResponse> listener
+            ) {
+                try {
+                    blockGetCheckpointMetadata.await();
+                    final CopyState copyState = new CopyState(
+                        ReplicationCheckpoint.empty(primaryShard.shardId(), primaryShard.getLatestReplicationCheckpoint().getCodec()),
+                        primaryShard
+                    );
+                    listener.onResponse(
+                        new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
+                    );
+                } catch (InterruptedException | IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public void getSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                IndexShard indexShard,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+            }
+        };
+        final SegmentReplicationTarget target = spy(
+            new SegmentReplicationTarget(replicaShard, source, mock(SegmentReplicationTargetService.SegmentReplicationListener.class))
+        );
+        // Start first round of segment replication.
+        sut.startReplication(target);
+
+        // Start second round of segment replication, this should fail to start as first round is still in-progress
         sut.startReplication(replicaShard, new SegmentReplicationTargetService.SegmentReplicationListener() {
             @Override
             public void onReplicationDone(SegmentReplicationState state) {
@@ -255,6 +296,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
                 assertFalse(sendShardFailure);
             }
         });
+        blockGetCheckpointMetadata.countDown();
     }
 
     public void testOnNewCheckpointFromNewPrimaryCancelOngoingReplication() throws InterruptedException {
