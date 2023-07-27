@@ -61,6 +61,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
+import org.opensearch.common.breaker.RequestLevelCircuitBreakingException;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
@@ -890,6 +891,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(168, PreferenceBasedSearchNotAllowedException.class);
         ids.put(169, NodeWeighedAwayException.class);
         ids.put(170, SearchPipelineProcessingException.class);
+        ids.put(171, RequestLevelCircuitBreakingException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();

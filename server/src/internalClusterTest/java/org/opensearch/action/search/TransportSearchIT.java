@@ -93,6 +93,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -528,6 +529,71 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             assertThat(ExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("boom"));
         }
         assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+    }
+
+    public void testCoordinatorReduceRequestLevelLimitFailed() throws Exception {
+        final int size = 100;
+        int numShards = randomIntBetween(10, 10);
+        indexSomeDocs("test", numShards, numShards * 5);
+
+        try {
+            AtomicReferenceArray<Exception> exceptions = new AtomicReferenceArray<>(size);
+            AtomicArray<Boolean> responses = new AtomicArray<>(size);
+            sendRequests(size, numShards, exceptions, responses);
+            // All request pass by default setting
+            for (int i = 0; i < size; i++) {
+                assertTrue(responses.get(i));
+            }
+
+            // Set MAX_REQUEST_MEMORY_SETTING to a small value, which make all request failed.
+            Settings settings = Settings.builder().put(SearchPhaseController.MAX_REQUEST_MEMORY_SETTING.getKey(), "2b").build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+
+            exceptions = new AtomicReferenceArray<>(size);
+            responses = new AtomicArray<>(size);
+            sendRequests(size, numShards, exceptions, responses);
+            for (int i = 0; i < size; i++) {
+                Exception exc = exceptions.get(i);
+                assertThat(ExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("request level coordinator reduce"));
+                assertFalse(responses.get(i));
+            }
+        } finally {
+            Settings settings = Settings.builder().putNull(SearchPhaseController.MAX_REQUEST_MEMORY_SETTING.getKey()).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        }
+    }
+
+    private void sendRequests(int size, int numShards, AtomicReferenceArray<Exception> exceptions, AtomicArray<Boolean> responses)
+        throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(size);
+        for (int i = 0; i < size; i++) {
+            int batchReduceSize = randomIntBetween(2, Math.max(numShards + 1, 3));
+            SearchRequest request = client().prepareSearch("test")
+                .addAggregation(new TestAggregationBuilder("test"))
+                .setBatchedReduceSize(batchReduceSize)
+                // TODO: we ignore all shard failure after request cancelled in AbstractSearchAsyncAction
+                // but forget to do it in DfsQueryPhase. Might return SearchContextMissingException if the
+                // search type is randomly set as DFS_QUERY_THEN_FETCH.
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .request();
+            final int index = i;
+            client().search(request, new ActionListener<SearchResponse>() {
+                @Override
+                public void onResponse(SearchResponse response) {
+                    responses.set(index, true);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception exc) {
+                    responses.set(index, false);
+                    if (exceptions.compareAndSet(index, null, exc)) {
+                        latch.countDown();
+                    }
+                }
+            });
+        }
+        latch.await();
     }
 
     private void indexSomeDocs(String indexName, int numberOfShards, int numberOfDocs) {

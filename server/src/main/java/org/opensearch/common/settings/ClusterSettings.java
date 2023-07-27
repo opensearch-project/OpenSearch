@@ -33,6 +33,7 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.common.util.FeatureFlags;
@@ -640,6 +641,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
                 SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
                 SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
+                SearchPhaseController.MAX_REQUEST_MEMORY_SETTING,
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
