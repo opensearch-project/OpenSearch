@@ -44,7 +44,6 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
         final String indexMapping = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": {} }";
         try (ReplicationGroup shards = createGroup(0, settings, indexMapping, new NRTReplicationEngineFactory(), remoteDir)) {
 
-            logger.info("--> Start primary shard, index docs and flush");
             // Step1 - Start primary, index docs and flush
             shards.startPrimary();
             final IndexShard primary = shards.getPrimary();
@@ -52,13 +51,11 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
             shards.flush();
 
             // Step 2 - Start replica for recovery to happen, check both has same number of docs
-            logger.info("--> Add replica shard");
             final IndexShard replica1 = shards.addReplica(remoteDir);
             shards.startAll();
             assertEquals(getDocIdAndSeqNos(primary), getDocIdAndSeqNos(replica1));
 
             // Step 3 - Index more docs, run segment replication, check both have same number of docs
-            logger.info("--> Add more docs and verify");
             int moreDocs = shards.indexDocs(randomIntBetween(10, 20));
             primary.refresh("test");
             replicateSegments(primary, shards.getReplicas());
@@ -73,7 +70,6 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
             assertFalse(primary.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replica1.routingEntry())));
 
             // Step 6 - Start new replica, recovery happens, and check that new replica has all docs
-            logger.info("--> Add another replica shard");
             final IndexShard replica2 = shards.addReplica(remoteDir);
             shards.startAll();
             shards.assertAllEqual(numDocs + moreDocs);

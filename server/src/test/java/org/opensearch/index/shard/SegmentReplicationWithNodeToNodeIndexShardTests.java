@@ -434,6 +434,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         }
     }
 
+    // Todo: Move this test to SegmentReplicationIndexShardTests so that it runs for both node-node & remote store
     public void testReplicaReceivesLowerGeneration() throws Exception {
         // when a replica gets incoming segments that are lower than what it currently has on disk.
 
@@ -645,52 +646,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterReplication));
             }
         }
-    }
-
-    // Todo: Move this test to SegmentReplicationIndexShardTests so that it runs for both node-node & remote store
-    public void testPrimaryRelocationWithSegRepFailure() throws Exception {
-        final IndexShard primarySource = newStartedShard(true, getIndexSettings());
-        int totalOps = randomInt(10);
-        for (int i = 0; i < totalOps; i++) {
-            indexDoc(primarySource, "_doc", Integer.toString(i));
-        }
-        IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
-        final IndexShard primaryTarget = newShard(
-            primarySource.routingEntry().getTargetRelocatingShard(),
-            getIndexSettings(),
-            new NRTReplicationEngineFactory()
-        );
-        updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
-
-        Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction = (shardList) -> {
-            try {
-                throw new IOException("Expected failure");
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        };
-        Exception e = expectThrows(
-            Exception.class,
-            () -> recoverReplica(
-                primaryTarget,
-                primarySource,
-                (primary, sourceNode) -> new RecoveryTarget(primary, sourceNode, new ReplicationListener() {
-                    @Override
-                    public void onDone(ReplicationState state) {
-                        throw new AssertionError("recovery must fail");
-                    }
-
-                    @Override
-                    public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-                        assertEquals(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), "Expected failure");
-                    }
-                }),
-                true,
-                true,
-                replicatePrimaryFunction
-            )
-        );
-        closeShards(primarySource, primaryTarget);
     }
 
     // Todo: Move this test to SegmentReplicationIndexShardTests so that it runs for both node-node & remote store

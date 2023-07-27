@@ -67,6 +67,7 @@ import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -117,6 +118,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -388,11 +390,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * </ul>
      */
     public static RecoveryDiff segmentReplicationDiff(Map<String, StoreFileMetadata> source, Map<String, StoreFileMetadata> target) {
+        return segmentReplicationDiff(source, target, false, null);
+    }
+
+    public static RecoveryDiff segmentReplicationDiff(Map<String, StoreFileMetadata> source, Map<String, StoreFileMetadata> target, boolean includeSegmentNFile, Collection<String> ignoreAdditionalFiles) {
         final List<StoreFileMetadata> identical = new ArrayList<>();
         final List<StoreFileMetadata> different = new ArrayList<>();
-        final List<StoreFileMetadata> missing = new ArrayList<>();
+        List<StoreFileMetadata> missing = new ArrayList<>();
         for (StoreFileMetadata value : source.values()) {
-            if (value.name().startsWith(IndexFileNames.SEGMENTS)) {
+            if (includeSegmentNFile == false && value.name().startsWith(IndexFileNames.SEGMENTS)) {
                 continue;
             }
             if (target.containsKey(value.name()) == false) {
@@ -406,6 +412,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     different.add(value);
                 }
             }
+        }
+        if (ignoreAdditionalFiles != null) {
+            missing = missing.stream().filter(metadata -> ignoreAdditionalFiles.contains(metadata.name()) == false).collect(Collectors.toList());
         }
         return new RecoveryDiff(
             Collections.unmodifiableList(identical),

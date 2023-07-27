@@ -52,10 +52,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     public final static String REPLICATION_PREFIX = "replication.";
 
-    public ReplicationCheckpoint getCheckpoint() {
-        return this.checkpoint;
-    }
-
     public SegmentReplicationTarget(IndexShard indexShard, SegmentReplicationSource source, ReplicationListener listener) {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
         this.checkpoint = indexShard.getLatestReplicationCheckpoint();
@@ -114,6 +110,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return false;
     }
 
+    public ReplicationCheckpoint getCheckpoint() {
+        return this.checkpoint;
+    }
+
     @Override
     public void writeFileChunk(
         StoreFileMetadata metadata,
@@ -167,7 +167,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo) throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap(), indexShard.indexSettings().isRemoteStoreEnabled(), List.of(indexShard.store().directory().listAll()));
         logger.trace(() -> new ParameterizedMessage("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff));
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming

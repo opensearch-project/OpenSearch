@@ -25,6 +25,7 @@ import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -101,8 +102,11 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 return;
             }
             logger.trace("Downloading segments files from remote store {}", filesToFetch);
+
             RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
             List<StoreFileMetadata> downloadedSegments = new ArrayList<>();
+            String segmentNFile = null;
+            Collection<String> directoryFiles = List.of(indexShard.store().directory().listAll());
             if (remoteSegmentMetadata != null) {
                 try {
                     indexShard.store().incRef();
@@ -110,10 +114,13 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                     final Directory storeDirectory = indexShard.store().directory();
                     for (StoreFileMetadata fileMetadata : filesToFetch) {
                         String file = fileMetadata.name();
-                        assert file.startsWith(IndexFileNames.SEGMENTS) == false
-                            : "Segments_N file is not required for round of segment replication";
+                        assert directoryFiles.contains(file) == false : "Local store already contains the file";
                         storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                         downloadedSegments.add(fileMetadata);
+                        if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                            assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
+                            segmentNFile = file;
+                        }
                     }
                     storeDirectory.sync(downloadedSegments.stream().map(metadata -> metadata.name()).collect(Collectors.toList()));
                     logger.trace("Downloaded segments from remote store {}", downloadedSegments);
