@@ -49,10 +49,13 @@ import org.opensearch.core.index.shard.ShardId;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.function.Predicate;
 
+import static org.mockito.Mockito.mock;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -502,11 +505,38 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
             Version.CURRENT,
             new IndexId(TEST_INDEX_1, "1")
         );
-        final RoutingTable routingTable = new RoutingTable.Builder().addAsRemoteStoreRestore(indexMetadata, remoteStoreRecoverySource)
-            .build();
+        final RoutingTable routingTable = new RoutingTable.Builder().addAsRemoteStoreRestore(
+            indexMetadata,
+            remoteStoreRecoverySource,
+            new HashMap<>()
+        ).build();
         assertTrue(routingTable.hasIndex(TEST_INDEX_1));
         assertEquals(this.numberOfShards, routingTable.allShards(TEST_INDEX_1).size());
         assertEquals(this.numberOfShards, routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size());
+    }
+
+    public void testAddAsRemoteStoreRestoreWithActiveShards() {
+        final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.OPEN).build();
+        final RemoteStoreRecoverySource remoteStoreRecoverySource = new RemoteStoreRecoverySource(
+            "restore_uuid",
+            Version.CURRENT,
+            new IndexId(TEST_INDEX_1, "1")
+        );
+        Map<ShardId, ShardRouting> activeInitializingShards = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(1, this.numberOfShards); i++) {
+            activeInitializingShards.put(new ShardId(indexMetadata.getIndex(), i), mock(ShardRouting.class));
+        }
+        final RoutingTable routingTable = new RoutingTable.Builder().addAsRemoteStoreRestore(
+            indexMetadata,
+            remoteStoreRecoverySource,
+            activeInitializingShards
+        ).build();
+        assertTrue(routingTable.hasIndex(TEST_INDEX_1));
+        assertEquals(this.numberOfShards, routingTable.allShards(TEST_INDEX_1).size());
+        assertEquals(
+            this.numberOfShards - activeInitializingShards.size(),
+            routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size()
+        );
     }
 
     /** reverse engineer the in sync aid based on the given indexRoutingTable **/

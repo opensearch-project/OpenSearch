@@ -62,6 +62,7 @@ import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
@@ -234,21 +235,34 @@ public class RestoreService implements ClusterStateApplier {
                         continue;
                     }
                     if (currentIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
-                        if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
-                            throw new IllegalStateException(
-                                "cannot restore index ["
-                                    + index
-                                    + "] because an open index "
-                                    + "with same name already exists in the cluster. Close the existing index"
-                            );
+                        IndexMetadata updatedIndexMetadata = currentIndexMetadata;
+                        Map<ShardId, ShardRouting> activeInitializingShards = new HashMap<>();
+                        if (request.restoreAllShards()) {
+                            if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
+                                throw new IllegalStateException(
+                                    "cannot restore index ["
+                                        + index
+                                        + "] because an open index "
+                                        + "with same name already exists in the cluster. Close the existing index"
+                                );
+                            }
+                            updatedIndexMetadata = IndexMetadata.builder(currentIndexMetadata)
+                                .state(IndexMetadata.State.OPEN)
+                                .version(1 + currentIndexMetadata.getVersion())
+                                .mappingVersion(1 + currentIndexMetadata.getMappingVersion())
+                                .settingsVersion(1 + currentIndexMetadata.getSettingsVersion())
+                                .aliasesVersion(1 + currentIndexMetadata.getAliasesVersion())
+                                .build();
+                        } else {
+                            activeInitializingShards = currentState.routingTable()
+                                .index(index)
+                                .shards()
+                                .values()
+                                .stream()
+                                .map(IndexShardRoutingTable::primaryShard)
+                                .filter(shardRouting -> shardRouting.unassigned() == false)
+                                .collect(Collectors.toMap(ShardRouting::shardId, Function.identity()));
                         }
-                        IndexMetadata updatedIndexMetadata = IndexMetadata.builder(currentIndexMetadata)
-                            .state(IndexMetadata.State.OPEN)
-                            .version(1 + currentIndexMetadata.getVersion())
-                            .mappingVersion(1 + currentIndexMetadata.getMappingVersion())
-                            .settingsVersion(1 + currentIndexMetadata.getSettingsVersion())
-                            .aliasesVersion(1 + currentIndexMetadata.getAliasesVersion())
-                            .build();
 
                         IndexId indexId = new IndexId(index, updatedIndexMetadata.getIndexUUID());
 
@@ -257,7 +271,7 @@ public class RestoreService implements ClusterStateApplier {
                             updatedIndexMetadata.getCreationVersion(),
                             indexId
                         );
-                        rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource);
+                        rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource, activeInitializingShards);
                         blocks.updateBlocks(updatedIndexMetadata);
                         mdBuilder.put(updatedIndexMetadata, true);
                         indicesToBeRestored.add(index);
