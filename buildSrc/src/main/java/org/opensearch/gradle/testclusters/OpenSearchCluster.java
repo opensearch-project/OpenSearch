@@ -81,7 +81,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private int nodeIndex = 0;
-
+    private String httpProtocol = "http";
     private int zoneCount = 1;
 
     public OpenSearchCluster(
@@ -100,7 +100,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         this.archiveOperations = archiveOperations;
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(OpenSearchNode.class);
-
         // Always add the first node
         String zone = hasZoneProperty() ? "zone-1" : "";
         addNode(clusterName + "-0", zone);
@@ -115,6 +114,10 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             throw new IllegalArgumentException("Number of zones should be >= 1 but was " + zoneCount + " for " + this);
         }
         this.zoneCount = zoneCount;
+    }
+
+    public void setHttpProtocol(String httpProtocol) {
+        this.httpProtocol = httpProtocol;
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
@@ -163,7 +166,8 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             fileSystemOperations,
             archiveOperations,
             workingDirBase,
-            zoneName
+            zoneName,
+            httpProtocol
         );
         // configure the cluster name eagerly
         newNode.defaultConfig.put("cluster.name", safeName(clusterName));
@@ -559,7 +563,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
             try {
-                WaitForHttpResource wait = new WaitForHttpResource("http", getFirstNode().getHttpSocketURI(), nodes.size());
+                WaitForHttpResource wait = new WaitForHttpResource(
+                    getFirstNode().getHttpProtocol(),
+                    getFirstNode().getHttpSocketURI(),
+                    nodes.size()
+                );
 
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();
                 if (getFirstNode().getCredentials().isEmpty() == false) {

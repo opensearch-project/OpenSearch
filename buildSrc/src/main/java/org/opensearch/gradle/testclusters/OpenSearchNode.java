@@ -116,7 +116,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.MINUTES;
     private static final int ADDITIONAL_CONFIG_TIMEOUT = 15;
     private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList("path.repo", "discovery.seed_providers", "discovery.seed_hosts", "httpProtocol");
+    private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
+        "path.repo",
+        "discovery.seed_providers",
+        "discovery.seed_hosts",
+        "httpProtocol"
+    );
 
     private static final int TAIL_LOG_MESSAGES_COUNT = 40;
     private static final List<String> MESSAGES_WE_DONT_CARE_ABOUT = Arrays.asList(
@@ -160,7 +165,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Path httpPortsFile;
     private final Path tmpDir;
 
-    private final String httpProtocol = "http";
+    private String httpProtocol = "http";
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private final List<OpenSearchDistribution> distributions = new ArrayList<>();
@@ -187,7 +192,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         File workingDirBase,
-        String zone
+        String zone,
+        String httpProtocol
     ) {
         this.path = path;
         this.name = name;
@@ -210,6 +216,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         setTestDistribution(TestDistribution.INTEG_TEST);
         setVersion(VersionProperties.getOpenSearch());
         this.zone = zone;
+        this.httpProtocol = httpProtocol;
     }
 
     @Input
