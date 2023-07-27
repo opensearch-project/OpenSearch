@@ -62,7 +62,7 @@ public final class MediaTypeRegistry {
     static {
         List<MediaType> mediaTypes = new ArrayList<>();
         Map<String, MediaType> amt = new HashMap<>();
-        for (MediaTypeProvider provider : ServiceLoader.load(MediaTypeProvider.class)) {
+        for (MediaTypeProvider provider : ServiceLoader.load(MediaTypeProvider.class, MediaTypeProvider.class.getClassLoader())) {
             mediaTypes.addAll(provider.getMediaTypes());
             amt = Stream.of(amt, provider.getAdditionalMediaTypes())
                 .flatMap(map -> map.entrySet().stream())
