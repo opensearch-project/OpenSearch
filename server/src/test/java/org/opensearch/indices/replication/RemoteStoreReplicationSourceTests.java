@@ -25,7 +25,6 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
