@@ -48,6 +48,7 @@ import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.core.index.shard.ShardId;
@@ -67,8 +68,6 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-
-import static org.opensearch.index.codec.CodecService.isZStandardCodec;
 
 /**
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -178,14 +177,24 @@ public final class EngineConfig {
     };
 
     private static void doValidateCodecSettings(final String codec) {
-        if (!isZStandardCodec(codec)) {
-            throw new IllegalArgumentException(
-                "Compression level cannot be set for the "
-                    + codec
-                    + " codec. Compression level settings is only applicable for zstd and zstd_no_dict codecs."
-            );
+        switch (codec) {
+            case "zstd":
+            case "zstd_no_dict":
+                return;
+            case "best_compression":
+            case "lucene_default":
+            case "default":
+                break;
+            default:
+                if (Codec.availableCodecs().contains(codec)) {
+                    Codec luceneCodec = Codec.forName(codec);
+                    if (luceneCodec instanceof CodecSettings
+                        && ((CodecSettings) luceneCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                        return;
+                    }
+                }
         }
-
+        throw new IllegalArgumentException("Compression level cannot be set for the " + codec + " codec.");
     }
 
     /**
