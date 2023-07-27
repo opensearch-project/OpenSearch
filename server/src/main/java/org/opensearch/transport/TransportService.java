@@ -62,7 +62,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.xcontent.MediaTypeParserRegistry;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.ReportingService;
 import org.opensearch.tasks.Task;
@@ -174,7 +174,7 @@ public class TransportService extends AbstractLifecycleComponent
         /** Registers OpenSearch server specific exceptions (exceptions outside of core library) */
         OpenSearchServerException.registerExceptions();
         // set the default media type to JSON (fallback if a media type is not specified)
-        MediaTypeParserRegistry.setDefaultMediaType(XContentType.JSON);
+        MediaTypeRegistry.setDefaultMediaType(XContentType.JSON);
     }
 
     /** does nothing. easy way to ensure class is loaded so the above static block is called to register the streamables */
