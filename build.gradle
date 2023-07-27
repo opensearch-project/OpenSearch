@@ -470,7 +470,7 @@ subprojects {
         maxFailures = 10
       }
       failOnPassedAfterRetry = false
-      classRetry {
+      filter {
         includeClasses.add("org.opensearch.action.admin.cluster.node.tasks.ResourceAwareTasksTests")
         includeClasses.add("org.opensearch.action.admin.cluster.tasks.PendingTasksBlocksIT")
         includeClasses.add("org.opensearch.action.admin.indices.create.CreateIndexIT")
