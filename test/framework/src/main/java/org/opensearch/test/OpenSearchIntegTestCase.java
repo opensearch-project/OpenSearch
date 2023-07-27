@@ -1930,13 +1930,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             InetAddress inetAddress = InetAddress.getByName(url.getHost());
             transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
-        Collection<Class<? extends Plugin>> nodePlugins = nodePlugins();
         return new ExternalTestCluster(
             createTempDir(),
             externalClusterClientSettings(),
             getClientWrapper(),
             clusterName,
-            nodePlugins,
+            nodePlugins(),
             transportAddresses
         );
     }
