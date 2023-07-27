@@ -32,7 +32,7 @@ public class NoopTokenManager implements TokenManager {
         return new AuthToken() {
             @Override
             public String getTokenValue() {
-                return null;
+                return "noopToken";
             }
         };
     }

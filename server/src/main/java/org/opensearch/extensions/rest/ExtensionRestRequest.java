@@ -8,6 +8,7 @@
 
 package org.opensearch.extensions.rest;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -118,6 +119,7 @@ public class ExtensionRestRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        validateRequestIssuerIdentity();
         out.writeEnum(method);
         out.writeString(uri);
         out.writeString(path);
@@ -280,7 +282,7 @@ public class ExtensionRestRequest extends TransportRequest {
     }
 
     /**
-     * Gets a parser for the contents of this request if there is content and an xContentType.
+     * Gets a parser for the contents of this request if there is content, an xContentType, and a principal identifier.
      *
      * @param xContentRegistry The extension's xContentRegistry
      * @return A parser for the given content and content type.
@@ -291,6 +293,9 @@ public class ExtensionRestRequest extends TransportRequest {
         if (!hasContent() || getXContentType() == null) {
             throw new OpenSearchParseException("There is no request body or the ContentType is invalid.");
         }
+        if (!hasContent() || getRequestIssuerIdentity() == null) {
+            throw new OpenSearchParseException("There is no request body or the requester identity is invalid.");
+        }
         return getXContentType().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
     }
 
@@ -299,6 +304,15 @@ public class ExtensionRestRequest extends TransportRequest {
      */
     public String getRequestIssuerIdentity() {
         return principalIdentifierToken;
+    }
+
+    /**
+     * Assert that the principal identifier token is not null.
+     */
+    public void validateRequestIssuerIdentity() {
+        if (principalIdentifierToken == null) {
+            throw new OpenSearchException("Principal identifier token is null");
+        }
     }
 
     /**

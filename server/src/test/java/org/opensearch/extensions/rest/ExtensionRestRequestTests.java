@@ -8,6 +8,8 @@
 
 package org.opensearch.extensions.rest;
 
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -19,6 +21,10 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.OnBehalfOfClaims;
+import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.http.HttpRequest;
@@ -44,10 +50,11 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
     String extensionUniqueId1;
     Principal userPrincipal;
     HttpRequest.HttpVersion expectedHttpVersion;
-    // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
+    // Will be replaced with PrincipalIdentifierToken classes from feature/identity
     String extensionTokenProcessor;
     String expectedRequestIssuerIdentity;
     NamedWriteableRegistry registry;
+    private IdentityService identityService;
 
     public void setUp() throws Exception {
         super.setUp();
@@ -65,7 +72,13 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         userPrincipal = () -> "user1";
         expectedHttpVersion = HttpRequest.HttpVersion.HTTP_1_1;
         extensionTokenProcessor = "placeholder_extension_token_processor";
-        expectedRequestIssuerIdentity = "placeholder_request_issuer_identity";
+        identityService = new IdentityService(Settings.EMPTY, List.of());
+        TokenManager tokenManager = identityService.getTokenManager();
+        Subject subject = this.identityService.getSubject();
+        OnBehalfOfClaims claims = new OnBehalfOfClaims("testID", subject.getPrincipal().getName());
+        expectedRequestIssuerIdentity = identityService.getTokenManager()
+            .issueOnBehalfOfToken(identityService.getSubject(), claims)
+            .getTokenValue();
     }
 
     public void testExtensionRestRequest() throws Exception {
@@ -126,6 +139,52 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
                     assertEquals(expectedHttpVersion, request.protocolVersion());
                 }
             }
+        }
+    }
+
+    public void testExtensionRestRequestWithNoIdentityToken() throws Exception {
+        ExtensionRestRequest request = new ExtensionRestRequest(
+            expectedMethod,
+            expectedUri,
+            expectedPath,
+            expectedParams,
+            expectedHeaders,
+            expectedContentType,
+            expectedContent,
+            null,
+            expectedHttpVersion
+        );
+
+        assertEquals(expectedMethod, request.method());
+        assertEquals(expectedUri, request.uri());
+        assertEquals(expectedPath, request.path());
+
+        assertEquals(expectedParams, request.params());
+        assertEquals(expectedHttpVersion, request.protocolVersion());
+
+        assertEquals(Collections.emptyList(), request.consumedParams());
+        assertTrue(request.hasParam("foo"));
+        assertFalse(request.hasParam("bar"));
+        assertEquals("bar", request.param("foo"));
+        assertEquals("baz", request.param("bar", "baz"));
+        assertEquals(42L, request.paramAsLong("baz", 0L));
+        assertEquals(0L, request.paramAsLong("bar", 0L));
+        assertTrue(request.consumedParams().contains("foo"));
+        assertTrue(request.consumedParams().contains("baz"));
+
+        assertEquals(expectedContentType, request.getXContentType());
+        assertTrue(request.hasContent());
+        assertFalse(request.isContentConsumed());
+        assertEquals(expectedContent, request.content());
+        assertTrue(request.isContentConsumed());
+
+        XContentParser parser = request.contentParser(NamedXContentRegistry.EMPTY);
+        Map<String, String> contentMap = parser.mapStrings();
+        assertEquals("value", contentMap.get("key"));
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            OpenSearchException ex = assertThrows(OpenSearchException.class, () -> request.writeTo(out));
+            assertEquals("Principal identifier token is null", ex.getMessage());
         }
     }
 
