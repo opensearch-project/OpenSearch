@@ -53,7 +53,7 @@ public final class BasicAuthToken implements AuthToken {
     }
 
     @Override
-    public String getTokenValue() {
+    public String asAuthHeaderValue() {
         if (user == null || password == null) {
             return null;
         }

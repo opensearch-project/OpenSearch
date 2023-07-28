@@ -60,7 +60,7 @@ public class BearerAuthToken implements AuthToken {
     }
 
     @Override
-    public String getTokenValue() {
+    public String asAuthHeaderValue() {
         return completeToken;
     }
 }

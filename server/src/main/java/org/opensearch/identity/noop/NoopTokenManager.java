@@ -31,7 +31,7 @@ public class NoopTokenManager implements TokenManager {
     public AuthToken issueOnBehalfOfToken(final Subject subject, final OnBehalfOfClaims claims) {
         return new AuthToken() {
             @Override
-            public String getTokenValue() {
+            public String asAuthHeaderValue() {
                 return "noopToken";
             }
         };

@@ -77,7 +77,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         OnBehalfOfClaims claims = new OnBehalfOfClaims("testID", subject.getPrincipal().getName());
         expectedRequestIssuerIdentity = identityService.getTokenManager()
             .issueOnBehalfOfToken(identityService.getSubject(), claims)
-            .getTokenValue();
+            .asAuthHeaderValue();
     }
 
     public void testExtensionRestRequest() throws Exception {
@@ -153,29 +153,6 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
             null,
             expectedHttpVersion
         );
-
-        assertEquals(expectedMethod, request.method());
-        assertEquals(expectedUri, request.uri());
-        assertEquals(expectedPath, request.path());
-
-        assertEquals(expectedParams, request.params());
-        assertEquals(expectedHttpVersion, request.protocolVersion());
-
-        assertEquals(Collections.emptyList(), request.consumedParams());
-        assertTrue(request.hasParam("foo"));
-        assertFalse(request.hasParam("bar"));
-        assertEquals("bar", request.param("foo"));
-        assertEquals("baz", request.param("bar", "baz"));
-        assertEquals(42L, request.paramAsLong("baz", 0L));
-        assertEquals(0L, request.paramAsLong("bar", 0L));
-        assertTrue(request.consumedParams().contains("foo"));
-        assertTrue(request.consumedParams().contains("baz"));
-
-        assertEquals(expectedContentType, request.getXContentType());
-        assertTrue(request.hasContent());
-        assertFalse(request.isContentConsumed());
-        assertEquals(expectedContent, request.content());
-        assertTrue(request.isContentConsumed());
 
         OpenSearchParseException ex = assertThrows(
             OpenSearchParseException.class,

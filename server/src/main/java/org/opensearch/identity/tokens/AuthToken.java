@@ -14,5 +14,6 @@ package org.opensearch.identity.tokens;
  * @opensearch.experimental
  */
 public interface AuthToken {
-    String getTokenValue();
+
+    String asAuthHeaderValue();
 }

@@ -261,7 +261,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     filteredHeaders,
                     contentType,
                     content,
-                    tokenManager.issueOnBehalfOfToken(subject, claims).getTokenValue(),
+                    tokenManager.issueOnBehalfOfToken(subject, claims).asAuthHeaderValue(),
                     httpVersion
                 ),
                 restExecuteOnExtensionResponseHandler
