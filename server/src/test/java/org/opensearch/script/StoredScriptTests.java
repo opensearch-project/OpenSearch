@@ -37,8 +37,8 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.AbstractSerializingTestCase;
@@ -73,7 +73,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
     public void testSourceParsing() throws Exception {
         // simple script value string
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject().startObject("script").field("lang", "lang").field("source", "code").endObject().endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
@@ -83,7 +83,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         }
 
         // complex template using script as the field name
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject()
                 .startObject("script")
                 .field("lang", "mustache")
@@ -94,7 +94,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 .endObject();
             String code;
 
-            try (XContentBuilder cb = XContentFactory.contentBuilder(builder.contentType())) {
+            try (XContentBuilder cb = MediaTypeRegistry.contentBuilder(builder.contentType())) {
                 code = Strings.toString(cb.startObject().field("query", "code").endObject());
             }
 
@@ -109,7 +109,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         }
 
         // complex script with script object
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code").endObject().endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
@@ -119,7 +119,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         }
 
         // complex script using "code" backcompat
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code").endObject().endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
@@ -130,7 +130,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         assertWarnings("Deprecated field [code] used, expected [source] instead");
 
         // complex script with script object and empty options
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject()
                 .field("script")
                 .startObject()
@@ -149,7 +149,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         }
 
         // complex script with embedded template
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             Strings.toString(
                 builder.startObject()
                     .field("script")
@@ -165,7 +165,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             );
             String code;
 
-            try (XContentBuilder cb = XContentFactory.contentBuilder(builder.contentType())) {
+            try (XContentBuilder cb = MediaTypeRegistry.contentBuilder(builder.contentType())) {
                 code = Strings.toString(cb.startObject().field("query", "code").endObject());
             }
 
@@ -182,7 +182,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
     public void testSourceParsingErrors() throws Exception {
         // check for missing lang parameter when parsing a script
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("source", "code").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(
@@ -193,7 +193,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         }
 
         // check for missing source parameter when parsing a script
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(
@@ -204,7 +204,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         }
 
         // check for illegal options parameter when parsing a script
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject()
                 .field("script")
                 .startObject()
@@ -224,7 +224,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         }
 
         // check for unsupported template context
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("template", "code").endObject();
             ParsingException pEx = expectThrows(
                 ParsingException.class,
@@ -238,7 +238,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
     }
 
     public void testEmptyTemplateDeprecations() throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject().endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
@@ -248,7 +248,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             assertWarnings("empty templates should no longer be used");
         }
 
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "mustache").field("source", "").endObject().endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);

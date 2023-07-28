@@ -38,7 +38,6 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -145,12 +144,7 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
-        XContentBuilder builder = new XContentBuilder(
-            XContentFactory.xContent(responseContentType),
-            unclosableOutputStream,
-            includes,
-            excludes
-        );
+        XContentBuilder builder = new XContentBuilder(responseContentType.xContent(), unclosableOutputStream, includes, excludes);
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

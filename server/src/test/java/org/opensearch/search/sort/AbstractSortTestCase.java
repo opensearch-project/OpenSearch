@@ -40,10 +40,10 @@ import org.opensearch.common.TriFunction;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
@@ -131,7 +131,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends Ope
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T testItem = createTestItem();
 
-            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();
             }

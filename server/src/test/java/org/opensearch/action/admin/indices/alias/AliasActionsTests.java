@@ -37,9 +37,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -195,7 +195,7 @@ public class AliasActionsTests extends OpenSearchTestCase {
             if (filter == null || filter.isEmpty()) {
                 assertNull(action.filter());
             } else {
-                assertEquals(Strings.toString(XContentFactory.contentBuilder(XContentType.JSON).map(filter)), action.filter());
+                assertEquals(Strings.toString(MediaTypeRegistry.contentBuilder(XContentType.JSON).map(filter)), action.filter());
             }
             assertEquals(Objects.toString(searchRouting, null), action.searchRouting());
             assertEquals(Objects.toString(indexRouting, null), action.indexRouting());

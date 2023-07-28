@@ -38,9 +38,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -101,7 +101,7 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         CreateIndexRequest request1 = new CreateIndexRequest("foo");
         CreateIndexRequest request2 = new CreateIndexRequest("bar");
         {
-            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject()
                 .startObject("properties")
                 .startObject("field1")
@@ -117,7 +117,7 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
                 .endObject()
                 .endObject();
             request1.mapping(builder);
-            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject("properties")
@@ -140,7 +140,7 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
     }
 
     public void testSettingsType() throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         builder.startObject().startArray("settings").endArray().endObject();
 
         CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
