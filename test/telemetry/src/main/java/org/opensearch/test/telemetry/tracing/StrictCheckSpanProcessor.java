@@ -67,7 +67,6 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
             span.getSpanName(),
             Thread.currentThread().getStackTrace()
         );
-        ;
         return spanData;
     }
 }

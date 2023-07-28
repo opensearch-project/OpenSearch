@@ -780,7 +780,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
         // Enabling Telemetry setting by default
-        featureSettings.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
+        featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         return featureSettings.build();
     }
 
@@ -1906,6 +1906,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+            .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true) // enable tracer setting by default
             .put(featureFlagSettings());
         return builder.build();
     }
