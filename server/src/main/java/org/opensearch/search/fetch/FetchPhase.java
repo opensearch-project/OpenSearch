@@ -160,7 +160,7 @@ public class FetchPhase {
                         SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) currentReaderContext.reader();
                         fieldReader = lf.getSequentialStoredFieldsReader()::document;
                     } else {
-                        fieldReader = currentReaderContext.reader()::document;
+                        fieldReader = currentReaderContext.reader().storedFields()::document;
                     }
                     for (FetchSubPhaseProcessor processor : processors) {
                         processor.setNextReader(currentReaderContext);

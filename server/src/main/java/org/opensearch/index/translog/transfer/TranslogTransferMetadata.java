@@ -36,6 +36,8 @@ public class TranslogTransferMetadata {
 
     public static final String METADATA_SEPARATOR = "__";
 
+    public static final String METADATA_PREFIX = "metadata";
+
     static final int BUFFER_SIZE = 4096;
 
     static final int CURRENT_VERSION = 1;
@@ -83,6 +85,7 @@ public class TranslogTransferMetadata {
         return String.join(
             METADATA_SEPARATOR,
             Arrays.asList(
+                METADATA_PREFIX,
                 RemoteStoreUtils.invertLong(primaryTerm),
                 RemoteStoreUtils.invertLong(generation),
                 RemoteStoreUtils.invertLong(createdAt),

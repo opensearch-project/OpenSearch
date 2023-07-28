@@ -82,7 +82,7 @@ public interface MediaType extends Writeable {
      * This method will return {@code null} if no match is found
      */
     static MediaType fromFormat(String mediaType) {
-        return MediaTypeParserRegistry.fromFormat(mediaType);
+        return MediaTypeRegistry.fromFormat(mediaType);
     }
 
     /**
@@ -93,7 +93,7 @@ public interface MediaType extends Writeable {
      */
     static MediaType fromMediaType(String mediaTypeHeaderValue) {
         mediaTypeHeaderValue = removeVersionInMediaType(mediaTypeHeaderValue);
-        return MediaTypeParserRegistry.fromMediaType(mediaTypeHeaderValue);
+        return MediaTypeRegistry.fromMediaType(mediaTypeHeaderValue);
     }
 
     /**
