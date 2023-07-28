@@ -210,7 +210,12 @@ public class TranslogTransferManager {
         );
 
         try {
-            transferService.listAllInSortedOrder(remoteMetadataTransferPath, 1, latchedActionListener);
+            transferService.listAllInSortedOrder(
+                remoteMetadataTransferPath,
+                TranslogTransferMetadata.METADATA_PREFIX,
+                1,
+                latchedActionListener
+            );
             latch.await();
         } catch (InterruptedException e) {
             throw new IOException("Exception while reading/downloading metadafile", e);
@@ -367,6 +372,7 @@ public class TranslogTransferManager {
             transferService.listAllInSortedOrderAsync(
                 ThreadPool.Names.REMOTE_PURGE,
                 remoteMetadataTransferPath,
+                TranslogTransferMetadata.METADATA_PREFIX,
                 Integer.MAX_VALUE,
                 new ActionListener<>() {
                     @Override
