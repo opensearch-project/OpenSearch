@@ -45,6 +45,7 @@ import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -677,7 +678,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
         ),
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
-        List.of(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING),
+        List.of(
+            SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
+            SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
+        ),
         List.of(FeatureFlags.TELEMETRY),
         List.of(TelemetrySettings.TRACER_ENABLED_SETTING)
     );
