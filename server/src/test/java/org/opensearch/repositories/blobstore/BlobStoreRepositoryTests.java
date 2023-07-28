@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.blobstore;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.PlainActionFuture;
@@ -68,8 +67,40 @@ import static org.opensearch.repositories.RepositoryDataTests.generateRandomRepo
 /**
  * Tests for the {@link BlobStoreRepository} and its subclasses.
  */
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
+
+    static final String REPO_TYPE = "fsLike";
+
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Arrays.asList(FsLikeRepoPlugin.class);
+    }
+
+    // the reason for this plug-in is to drop any assertSnapshotOrGenericThread as mostly all access in this test goes from test threads
+    public static class FsLikeRepoPlugin extends Plugin implements RepositoryPlugin {
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            RecoverySettings recoverySettings
+        ) {
+            return Collections.singletonMap(
+                REPO_TYPE,
+                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings) {
+                    @Override
+                    protected void assertSnapshotOrGenericThread() {
+                        // eliminate thread name check as we access blobStore on test/main threads
+                    }
+                }
+            );
+        }
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
+    }
 
     public void testRetrieveSnapshots() throws Exception {
         final Client client = client();
