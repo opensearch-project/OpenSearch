@@ -62,6 +62,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends OpenSearchTestCase {
@@ -114,7 +115,7 @@ public class CodecTests extends OpenSearchTestCase {
 
     public void testBestCompressionWithCompressionLevel() {
         final Settings zstdSettings = Settings.builder()
-            .put(EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
+            .put(INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomFrom(CodecService.ZSTD_CODEC, CodecService.ZSTD_NO_DICT_CODEC))
             .build();
 
@@ -126,13 +127,51 @@ public class CodecTests extends OpenSearchTestCase {
         zstdIndexScopedSettings.validate(zstdSettings, true);
 
         final Settings settings = Settings.builder()
-            .put(EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
+            .put(INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC))
             .build();
         final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexScopedSettings.validate(settings, true));
         assertTrue(e.getMessage().startsWith("Compression level cannot be set"));
+    }
+
+    public void testLuceneCodecsWithCompressionLevel() {
+        String codecName = randomFrom(Codec.availableCodecs());
+        Codec codec = Codec.forName(codecName);
+
+        final Settings customCodecSettings = Settings.builder()
+            .put(INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), "Lucene95CustomCodec")
+            .build();
+
+        final IndexScopedSettings customCodecIndexScopedSettings = new IndexScopedSettings(
+            customCodecSettings,
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
+        );
+        customCodecIndexScopedSettings.validate(customCodecSettings, true);
+
+        final Settings settings = Settings.builder()
+            .put(INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
+            .build();
+        final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+
+        if (!(codec instanceof CodecSettings && ((CodecSettings) codec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING))) {
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexScopedSettings.validate(settings, true)
+            );
+            assertTrue(e.getMessage().startsWith("Compression level cannot be set"));
+        }
+    }
+
+    public void testZstandardCompressionLevelSupport() throws Exception {
+        CodecService codecService = createCodecService(false);
+        CodecSettings zstdCodec = (CodecSettings) codecService.codec("zstd");
+        CodecSettings zstdNoDictCodec = (CodecSettings) codecService.codec("zstd_no_dict");
+        assertTrue(zstdCodec.supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING));
+        assertTrue(zstdNoDictCodec.supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING));
     }
 
     public void testDefaultMapperServiceNull() throws Exception {
