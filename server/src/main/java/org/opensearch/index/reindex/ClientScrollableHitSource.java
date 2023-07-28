@@ -49,8 +49,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.search.SearchHit;
 import org.opensearch.threadpool.ThreadPool;
@@ -210,7 +210,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
         @Override
         public MediaType getMediaType() {
-            return XContentHelper.xContentType(source);
+            return MediaTypeRegistry.xContentType(source);
         }
 
         @Override

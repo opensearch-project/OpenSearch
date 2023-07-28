@@ -49,10 +49,10 @@ import org.opensearch.common.lucene.search.function.ScoreFunction;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexGeoPointFieldData;
@@ -230,7 +230,8 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         // EMPTY is safe because parseVariable doesn't use namedObject
         try (
             InputStream stream = functionBytes.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(functionBytes))
+            XContentParser parser = MediaTypeRegistry.xContentType(functionBytes)
+                .xContent()
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
         ) {
             scoreFunction = parseVariable(fieldName, parser, context, multiValueMode);

@@ -53,9 +53,9 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -1296,7 +1296,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             putMapping(
                 new MappingMetadata(
                     MapperService.SINGLE_MAPPING_NAME,
-                    XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)
+                    XContentHelper.convertToMap(MediaTypeRegistry.xContent(source).xContent(), source, true)
                 )
             );
             return this;

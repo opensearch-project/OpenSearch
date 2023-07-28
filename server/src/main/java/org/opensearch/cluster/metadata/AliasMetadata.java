@@ -45,6 +45,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -307,7 +308,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 this.filter = null;
                 return this;
             }
-            return filter(XContentHelper.convertToMap(XContentFactory.xContent(filter), filter, true));
+            return filter(XContentHelper.convertToMap(MediaTypeRegistry.xContent(filter).xContent(), filter, true));
         }
 
         public Builder filter(Map<String, Object> filter) {

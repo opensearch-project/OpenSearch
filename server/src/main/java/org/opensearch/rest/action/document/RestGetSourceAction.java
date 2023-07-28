@@ -38,8 +38,8 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
@@ -111,7 +111,7 @@ public class RestGetSourceAction extends BaseRestHandler {
             final XContentBuilder builder = channel.newBuilder(request.getMediaType(), false);
             final BytesReference source = response.getSourceInternal();
             try (InputStream stream = source.streamInput()) {
-                builder.rawValue(stream, XContentHelper.xContentType(source));
+                builder.rawValue(stream, MediaTypeRegistry.xContentType(source));
             }
             return new BytesRestResponse(OK, builder);
         }

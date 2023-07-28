@@ -43,9 +43,9 @@ import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentGenerator;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -339,7 +339,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             // needed for the XContentFactory.xContentType call
             content = new BufferedInputStream(content);
         }
-        XContentType contentType = XContentFactory.xContentType(content);
+        MediaType contentType = MediaTypeRegistry.xContentType(content);
         if (contentType == null) {
             throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
         }
@@ -354,7 +354,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (mayWriteRawData(mediaType) == false) {
             // EMPTY is safe here because we never call namedObject when writing raw data
             try (
-                XContentParser parser = XContentFactory.xContent(mediaType)
+                XContentParser parser = mediaType.xContent()
                     // It's okay to pass the throwing deprecation handler
                     // because we should not be writing raw fields when
                     // generating JSON
