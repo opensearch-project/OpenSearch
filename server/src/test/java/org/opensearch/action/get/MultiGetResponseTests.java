@@ -33,7 +33,6 @@ package org.opensearch.action.get;
 
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.get.GetResult;
@@ -53,7 +52,7 @@ public class MultiGetResponseTests extends OpenSearchTestCase {
             XContentType xContentType = randomFrom(XContentType.values());
             BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
             MultiGetResponse parsed;
-            try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
+            try (XContentParser parser = createParser(xContentType.xContent(), shuffled)) {
                 parsed = MultiGetResponse.fromXContent(parser);
                 assertNull(parser.nextToken());
             }

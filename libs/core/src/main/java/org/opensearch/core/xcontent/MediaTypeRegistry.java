@@ -32,7 +32,14 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.spi.MediaTypeProvider;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,6 +61,7 @@ public final class MediaTypeRegistry {
 
     // Default mediaType singleton
     private static MediaType DEFAULT_MEDIA_TYPE;
+    public static final int GUESS_HEADER_LENGTH = 20;
 
     // JSON is a core type, so we create a static instance for implementations that require JSON format (e.g., tests)
     // todo we should explore moving the concrete JSON implementation from the xcontent library to core
@@ -116,6 +124,213 @@ public final class MediaTypeRegistry {
             return null;
         }
         return formatToMediaType.get(format.toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * Returns a binary content builder for the provided content type.
+     */
+    public static XContentBuilder contentBuilder(MediaType type) throws IOException {
+        for (var mediaType : formatToMediaType.values()) {
+            if (type == mediaType) {
+                return type.contentBuilder();
+            }
+        }
+        throw new IllegalArgumentException("No matching content type for " + type);
+    }
+
+    public static XContentBuilder contentBuilder(MediaType type, OutputStream outputStream) throws IOException {
+        for (var mediaType : formatToMediaType.values()) {
+            if (type == mediaType) {
+                return type.contentBuilder(outputStream);
+            }
+        }
+        throw new IllegalArgumentException("No matching content type for " + type);
+    }
+
+    /**
+     * Guesses the content (type) based on the provided char sequence and returns the corresponding {@link XContent}
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
+    public static MediaType xContent(final byte[] data, int offset, int length) {
+        MediaType type = mediaTypeFromBytes(data, offset, length);
+        if (type == null) {
+            throw new XContentParseException("Failed to derive xcontent");
+        }
+        return type;
+    }
+
+    /**
+     * Guesses the content type based on the provided bytes and returns the corresponding {@link XContent}
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
+    public static MediaType xContent(byte[] data) {
+        return xContent(data, 0, data.length);
+    }
+
+    /**
+     * Guesses the content (type) based on the provided char sequence and returns the corresponding {@link XContent}
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
+    public static MediaType xContent(CharSequence content) {
+        MediaType type = xContentType(content);
+        if (type == null) {
+            throw new XContentParseException("Failed to derive xcontent");
+        }
+        return type;
+    }
+
+    /**
+     * Guesses the content type based on the provided char sequence.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
+    public static MediaType xContentType(CharSequence content) {
+        int length = content.length() < GUESS_HEADER_LENGTH ? content.length() : GUESS_HEADER_LENGTH;
+        if (length == 0) {
+            return null;
+        }
+        for (var mediaType : formatToMediaType.values()) {
+            if (mediaType.detectedXContent(content, length)) {
+                return mediaType;
+            }
+        }
+
+        // fallback for json
+        for (int i = 0; i < length; i++) {
+            char c = content.charAt(i);
+            if (c == '{') {
+                return MediaType.fromMediaType("application/json");
+            }
+            if (Character.isWhitespace(c) == false) {
+                break;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Guesses the content type based on the provided input stream without consuming it.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
+    public static MediaType xContentType(InputStream si) throws IOException {
+        /*
+         * We need to guess the content type. To do this, we look for the first non-whitespace character and then try to guess the content
+         * type on the GUESS_HEADER_LENGTH bytes that follow. We do this in a way that does not modify the initial read position in the
+         * underlying input stream. This is why the input stream must support mark/reset and why we repeatedly mark the read position and
+         * reset.
+         */
+        if (si.markSupported() == false) {
+            throw new IllegalArgumentException("Cannot guess the xcontent type without mark/reset support on " + si.getClass());
+        }
+        si.mark(Integer.MAX_VALUE);
+        try {
+            // scan until we find the first non-whitespace character or the end of the stream
+            int current;
+            do {
+                current = si.read();
+                if (current == -1) {
+                    return null;
+                }
+            } while (Character.isWhitespace((char) current));
+            // now guess the content type off the next GUESS_HEADER_LENGTH bytes including the current byte
+            final byte[] firstBytes = new byte[GUESS_HEADER_LENGTH];
+            firstBytes[0] = (byte) current;
+            int read = 1;
+            while (read < GUESS_HEADER_LENGTH) {
+                final int r = si.read(firstBytes, read, GUESS_HEADER_LENGTH - read);
+                if (r == -1) {
+                    break;
+                }
+                read += r;
+            }
+            return mediaTypeFromBytes(firstBytes, 0, read);
+        } finally {
+            si.reset();
+        }
+
+    }
+
+    /**
+     * Guesses the content type based on the provided bytes.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
+    public static MediaType xContentType(BytesReference bytes) {
+        if (bytes instanceof BytesArray) {
+            final BytesArray array = (BytesArray) bytes;
+            return mediaTypeFromBytes(array.array(), array.offset(), array.length());
+        }
+        try {
+            final InputStream inputStream = bytes.streamInput();
+            assert inputStream.markSupported();
+            return xContentType(inputStream);
+        } catch (IOException e) {
+            assert false : "Should not happen, we're just reading bytes from memory";
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Guesses the content type based on the provided bytes.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
+    public static MediaType mediaTypeFromBytes(final byte[] data, int offset, int length) {
+        int totalLength = data.length;
+        if (totalLength == 0 || length == 0) {
+            return null;
+        } else if ((offset + length) > totalLength) {
+            return null;
+        }
+        for (var mediaType : formatToMediaType.values()) {
+            if (mediaType.detectedXContent(data, offset, length)) {
+                return mediaType;
+            }
+        }
+
+        // a last chance for JSON
+        int jsonStart = 0;
+        // JSON may be preceded by UTF-8 BOM
+        if (length > 3 && data[offset] == (byte) 0xEF && data[offset + 1] == (byte) 0xBB && data[offset + 2] == (byte) 0xBF) {
+            jsonStart = 3;
+        }
+
+        for (int i = jsonStart; i < length; i++) {
+            byte b = data[offset + i];
+            if (b == '{') {
+                return fromMediaType("application/json");
+            }
+            if (Character.isWhitespace(b) == false) {
+                break;
+            }
+        }
+
+        return null;
     }
 
     /**

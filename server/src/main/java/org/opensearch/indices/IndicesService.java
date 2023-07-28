@@ -82,12 +82,12 @@ import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.NodeEnvironment;
@@ -1727,7 +1727,7 @@ public class IndicesService extends AbstractLifecycleComponent
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
             try (
                 InputStream inputStream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContentType(inputStream)
+                XContentParser parser = MediaTypeRegistry.xContentType(inputStream)
                     .xContent()
                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)
             ) {
