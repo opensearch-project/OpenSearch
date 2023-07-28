@@ -221,28 +221,33 @@ public final class TranslogLeafReader extends LeafReader {
 
     @Override
     public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-        if (docID != 0) {
-            throw new IllegalArgumentException("no such doc ID " + docID);
-        }
-        if (visitor.needsField(FAKE_SOURCE_FIELD) == StoredFieldVisitor.Status.YES) {
-            assert operation.source().toBytesRef().offset == 0;
-            assert operation.source().toBytesRef().length == operation.source().toBytesRef().bytes.length;
-            visitor.binaryField(FAKE_SOURCE_FIELD, operation.source().toBytesRef().bytes);
-        }
-        if (operation.routing() != null && visitor.needsField(FAKE_ROUTING_FIELD) == StoredFieldVisitor.Status.YES) {
-            visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());
-        }
-        if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
-            BytesRef bytesRef = Uid.encodeId(operation.id());
-            final byte[] id = new byte[bytesRef.length];
-            System.arraycopy(bytesRef.bytes, bytesRef.offset, id, 0, bytesRef.length);
-            visitor.binaryField(FAKE_ID_FIELD, id);
-        }
+        storedFields().document(docID, visitor);
     }
 
     @Override
     public StoredFields storedFields() throws IOException {
-        throw new UnsupportedOperationException();
+        return new StoredFields() {
+            @Override
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                if (docID != 0) {
+                    throw new IllegalArgumentException("no such doc ID " + docID);
+                }
+                if (visitor.needsField(FAKE_SOURCE_FIELD) == StoredFieldVisitor.Status.YES) {
+                    assert operation.source().toBytesRef().offset == 0;
+                    assert operation.source().toBytesRef().length == operation.source().toBytesRef().bytes.length;
+                    visitor.binaryField(FAKE_SOURCE_FIELD, operation.source().toBytesRef().bytes);
+                }
+                if (operation.routing() != null && visitor.needsField(FAKE_ROUTING_FIELD) == StoredFieldVisitor.Status.YES) {
+                    visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());
+                }
+                if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
+                    BytesRef bytesRef = Uid.encodeId(operation.id());
+                    final byte[] id = new byte[bytesRef.length];
+                    System.arraycopy(bytesRef.bytes, bytesRef.offset, id, 0, bytesRef.length);
+                    visitor.binaryField(FAKE_ID_FIELD, id);
+                }
+            }
+        };
     }
 
     @Override

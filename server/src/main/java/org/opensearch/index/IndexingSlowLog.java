@@ -244,7 +244,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 return map;
             }
             try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
+                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getMediaType());
                 String trim = Strings.cleanTruncate(source, maxSourceCharsToLog).trim();
                 StringBuilder sb = new StringBuilder(trim);
                 StringBuilders.escapeJson(sb, 0);
@@ -279,7 +279,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 return sb.toString();
             }
             try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
+                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getMediaType());
                 sb.append(", source[").append(Strings.cleanTruncate(source, maxSourceCharsToLog).trim()).append("]");
             } catch (IOException e) {
                 sb.append(", source[_failed_to_convert_[").append(e.getMessage()).append("]]");

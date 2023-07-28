@@ -169,6 +169,7 @@ public class TransportService extends AbstractLifecycleComponent
          * over the {@link StreamOutput} and {@link StreamInput} wire
          */
         Streamables.registerStreamables();
+        /** Registers OpenSearch server specific exceptions (exceptions outside of core library) */
         OpenSearchServerException.registerExceptions();
     }
 

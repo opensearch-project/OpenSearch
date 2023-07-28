@@ -276,7 +276,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
         if (fieldVisitor != null) {
             try {
-                docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
+                docIdAndVersion.reader.storedFields().document(docIdAndVersion.docId, fieldVisitor);
             } catch (IOException e) {
                 throw new OpenSearchException("Failed to get id [" + id + "]", e);
             }

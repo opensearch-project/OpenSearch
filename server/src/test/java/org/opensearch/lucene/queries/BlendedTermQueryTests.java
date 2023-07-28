@@ -112,7 +112,7 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
             query.add(BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "generator"), 0.1f), BooleanClause.Occur.SHOULD);
             TopDocs search = searcher.search(query.build(), 10);
             ScoreDoc[] scoreDocs = search.scoreDocs;
-            assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
+            assertEquals(Integer.toString(0), reader.storedFields().document(scoreDocs[0].doc).getField("id").stringValue());
         }
         {
             BooleanQuery.Builder query = new BooleanQuery.Builder();
@@ -134,7 +134,7 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
             query.add(gen, BooleanClause.Occur.SHOULD);
             TopDocs search = searcher.search(query.build(), 4);
             ScoreDoc[] scoreDocs = search.scoreDocs;
-            assertEquals(Integer.toString(1), reader.document(scoreDocs[0].doc).getField("id").stringValue());
+            assertEquals(Integer.toString(1), reader.storedFields().document(scoreDocs[0].doc).getField("id").stringValue());
 
         }
         {
@@ -269,7 +269,7 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
             Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f);
             TopDocs search = searcher.search(query, 10);
             ScoreDoc[] scoreDocs = search.scoreDocs;
-            assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
+            assertEquals(Integer.toString(0), reader.storedFields().document(scoreDocs[0].doc).getField("id").stringValue());
         }
         reader.close();
         w.close();

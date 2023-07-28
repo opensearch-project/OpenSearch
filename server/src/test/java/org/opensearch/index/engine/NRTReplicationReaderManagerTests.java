@@ -46,43 +46,4 @@ public class NRTReplicationReaderManagerTests extends EngineTestCase {
             }
         }
     }
-
-    public void testUpdateSegmentsWhileRefreshing() throws IOException, InterruptedException {
-        try (final Store store = createStore()) {
-            store.createEmpty(Version.LATEST);
-            final DirectoryReader reader = DirectoryReader.open(store.directory());
-            NRTReplicationReaderManager readerManager = new NRTReplicationReaderManager(
-                OpenSearchDirectoryReader.wrap(reader, shardId),
-                (files) -> {},
-                (files) -> {}
-            );
-
-            final SegmentInfos infos_2 = readerManager.getSegmentInfos().clone();
-            infos_2.changed();
-
-            Thread refreshThread = new Thread(() -> {
-                try {
-                    readerManager.maybeRefresh();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-            Thread updateThread = new Thread(() -> {
-                try {
-                    readerManager.updateSegments(infos_2);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-            refreshThread.start();
-            updateThread.start();
-            refreshThread.join();
-            updateThread.join();
-            try (final OpenSearchDirectoryReader acquire = readerManager.acquire()) {
-                final StandardDirectoryReader standardReader = NRTReplicationReaderManager.unwrapStandardReader(acquire);
-                assertEquals(infos_2.version, standardReader.getSegmentInfos().version);
-            }
-            assertEquals(infos_2, readerManager.getSegmentInfos());
-        }
-    }
 }

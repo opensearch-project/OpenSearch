@@ -58,13 +58,13 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         );
-        assertEquals(XContentType.JSON, configuration.getXContentType());
+        assertEquals(XContentType.JSON, configuration.getMediaType());
 
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
-        assertEquals(XContentType.JSON, serialized.getXContentType());
+        assertEquals(XContentType.JSON, serialized.getMediaType());
         assertEquals("{}", serialized.getConfig().utf8ToString());
     }
 
@@ -83,8 +83,8 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         XContentParser xContentParser = xContentType.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput());
         PipelineConfiguration parsed = parser.parse(xContentParser, null);
-        assertEquals(xContentType, parsed.getXContentType());
-        assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getXContentType()));
+        assertEquals(xContentType, parsed.getMediaType());
+        assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getMediaType()));
         assertEquals("1", parsed.getId());
     }
 

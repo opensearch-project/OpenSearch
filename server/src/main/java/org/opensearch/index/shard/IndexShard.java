@@ -43,7 +43,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -948,7 +947,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.isSegRepEnabled()) {
             Engine.Index index = new Engine.Index(
                 new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
-                new ParsedDocument(null, null, id, null, null, sourceToParse.source(), sourceToParse.getXContentType(), null),
+                new ParsedDocument(null, null, id, null, null, sourceToParse.source(), sourceToParse.getMediaType(), null),
                 seqNo,
                 opPrimaryTerm,
                 version,
@@ -4424,7 +4423,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 readAllowed = isReadAllowed();
             }
         }
-        if (readAllowed) {
+        // NRT Replicas will not accept refresh listeners.
+        if (readAllowed && isSegmentReplicationAllowed() == false) {
             refreshListeners.addOrNotify(location, listener);
         } else {
             // we're not yet ready fo ready for reads, just ignore refresh cycles
@@ -4809,6 +4809,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 return true;
             } else {
                 logger.warn("Checksum mismatch between local and remote segment file: {}, will override local file", file);
+                // If there is a checksum mismatch and we are not serving reads it is safe to go ahead and delete the file now.
+                // Outside of engine resets this method will be invoked during recovery so this is safe.
+                if (isReadAllowed() == false) {
+                    localDirectory.deleteFile(file);
+                } else {
+                    // segment conflict with remote store while the shard is serving reads.
+                    failShard("Local copy of segment " + file + " has a different checksum than the version in remote store", null);
+                }
             }
         } catch (NoSuchFileException | FileNotFoundException e) {
             logger.debug("File {} does not exist in local FS, downloading from remote store", file);
