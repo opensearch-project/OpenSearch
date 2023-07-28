@@ -457,11 +457,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     private void updateFinalStatusInSegmentTracker(boolean uploadStatus, long bytesBeforeUpload, long startTimeInNS) {
         if (uploadStatus) {
             long bytesUploaded = segmentTracker.getUploadBytesSucceeded() - bytesBeforeUpload;
-            long timeTakenInMS = (System.nanoTime() - startTimeInNS) / 1_000_000L;
-
+            long timeTakenInMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeInNS);
             segmentTracker.incrementTotalUploadsSucceeded();
             segmentTracker.addUploadBytes(bytesUploaded);
-            segmentTracker.addUploadBytesPerSec((bytesUploaded * 1_000L) / timeTakenInMS);
+            segmentTracker.addUploadBytesPerSec((bytesUploaded * 1_000L) / Math.max(1, timeTakenInMS));
             segmentTracker.addUploadTimeMs(timeTakenInMS);
         } else {
             segmentTracker.incrementTotalUploadsFailed();
