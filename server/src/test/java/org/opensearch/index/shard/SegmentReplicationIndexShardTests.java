@@ -190,7 +190,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
      * reader close operation on replica shard deletes the segment files copied in current round of segment replication.
      * It does this by blocking the finalizeReplication on replica shard and performing close operation on acquired
      * searcher that triggers the reader close operation.
-     * @throws Exception
      */
     public void testSegmentReplication_With_ReaderClosedConcurrently() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
@@ -240,7 +239,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     /**
      * Similar to test above, this test shows the issue where an engine close operation during active segment replication
      * can result in Lucene CorruptIndexException.
-     * @throws Exception
      */
     public void testSegmentReplication_With_EngineClosedConcurrently() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
@@ -289,7 +287,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     /**
      * Verifies that commits on replica engine resulting from engine or reader close does not cleanup the temporary
      * replication files from ongoing round of segment replication
-     * @throws Exception
      */
     public void testTemporaryFilesNotCleanup() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
