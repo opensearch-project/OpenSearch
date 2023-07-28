@@ -1198,14 +1198,6 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.common.breaker.RequestLevelCircuitBreakingException.class,
-                org.opensearch.common.breaker.RequestLevelCircuitBreakingException::new,
-                171,
-                V_2_7_0
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
                 org.opensearch.cluster.block.IndexCreateBlockException.class,
                 org.opensearch.cluster.block.IndexCreateBlockException::new,
                 CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 1,
