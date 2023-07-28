@@ -364,14 +364,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private static OpenSearchIntegTestCase INSTANCE = null; // see @SuiteScope
     private static Long SUITE_SEED = null;
 
-    public static List<String> CODECS = List.of(
-        CodecService.DEFAULT_CODEC,
-        CodecService.BEST_COMPRESSION_CODEC,
-        CodecService.LUCENE_DEFAULT_CODEC,
-        CodecService.ZSTD_CODEC,
-        CodecService.ZSTD_NO_DICT_CODEC
-    );
-
     @BeforeClass
     public static void beforeClass() throws Exception {
         SUITE_SEED = randomLong();
@@ -435,7 +427,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // otherwise, use it, it has assertions and so on that can find bugs.
             SuppressCodecs annotation = getClass().getAnnotation(SuppressCodecs.class);
             if (annotation != null && annotation.value().length == 1 && "*".equals(annotation.value()[0])) {
-                randomSettingsBuilder.put("index.codec", randomFrom(CODECS));
+                randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
             } else {
                 randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
             }
