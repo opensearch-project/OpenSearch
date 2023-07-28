@@ -31,6 +31,7 @@
 
 package org.opensearch.gradle.testclusters;
 
+import java.util.Optional;
 import org.opensearch.gradle.FileSupplier;
 import org.opensearch.gradle.PropertyNormalization;
 import org.opensearch.gradle.ReaperService;
@@ -371,8 +372,9 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             nodeNames = nodes.stream().map(OpenSearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
         }
         String httpProtocol = "http";
-        if (nodes.stream().map(OpenSearchNode::getHttpProtocol).anyMatch(protocol -> protocol == "https")) {
-            httpProtocol = "https";
+        Optional<String> protocol = nodes.stream().map(OpenSearchNode::getHttpProtocol).filter(p -> !p.equals("http")).findFirst();
+        if (protocol.isPresent()) {
+            httpProtocol = protocol.get();
         }
         OpenSearchNode firstNode = null;
         for (OpenSearchNode node : nodes) {
