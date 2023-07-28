@@ -326,7 +326,7 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                         }
                         assertEquals(shard_id.docID(), doc);
                         long shardID = shard_id.nextValue();
-                        BytesRef id = reader.document(doc).getBinaryValue("_id");
+                        BytesRef id = reader.storedFields().document(doc).getBinaryValue("_id");
                         String actualId = Uid.decodeId(id.bytes, id.offset, id.length);
                         assertNotEquals(ctx.reader() + " docID: " + doc + " actualID: " + actualId, shardID, targetShardId);
                     }

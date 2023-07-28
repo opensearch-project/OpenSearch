@@ -54,8 +54,8 @@ jobs:
           echo "  - \"$CURRENT_VERSION\"" >> .ci/bwcVersions
           sed -i "s/opensearch        = $CURRENT_VERSION/opensearch        = $NEXT_VERSION/g" buildSrc/version.properties
           echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
-          sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
-          sed -i "s/CURRENT = $CURRENT_VERSION_UNDERSCORE;/CURRENT = $NEXT_VERSION_UNDERSCORE;/g" server/src/main/java/org/opensearch/Version.java
+          sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" libs/core/src/main/java/org/opensearch/Version.java
+          sed -i "s/CURRENT = $CURRENT_VERSION_UNDERSCORE;/CURRENT = $NEXT_VERSION_UNDERSCORE;/g" libs/core/src/main/java/org/opensearch/Version.java
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v3
@@ -82,7 +82,7 @@ jobs:
           echo Adding bwc version $NEXT_VERSION after $CURRENT_VERSION
           sed -i "s/- \"$CURRENT_VERSION\"/\0\n  - \"$NEXT_VERSION\"/g" .ci/bwcVersions
           echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
-          sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
+          sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" libs/core/src/main/java/org/opensearch/Version.java
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v3

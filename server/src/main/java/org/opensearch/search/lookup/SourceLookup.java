@@ -75,8 +75,8 @@ public class SourceLookup implements Map {
         return source;
     }
 
-    public XContentType sourceContentType() {
-        return XContentType.fromMediaType(sourceContentType);
+    public MediaType sourceContentType() {
+        return sourceContentType;
     }
 
     public int docId() {
@@ -140,7 +140,7 @@ public class SourceLookup implements Map {
                     SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
                     fieldReader = lf.getSequentialStoredFieldsReader()::document;
                 } else {
-                    fieldReader = context.reader()::document;
+                    fieldReader = context.reader().storedFields()::document;
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -155,7 +155,7 @@ public class SourceLookup implements Map {
         this.sourceAsBytes = source;
     }
 
-    public void setSourceContentType(XContentType sourceContentType) {
+    public void setSourceContentType(MediaType sourceContentType) {
         this.sourceContentType = sourceContentType;
     }
 

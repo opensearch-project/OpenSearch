@@ -56,13 +56,13 @@ public class PutStoredScriptRequestTests extends OpenSearchTestCase {
             new StoredScriptSource("foo", "bar", Collections.emptyMap())
         );
 
-        assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
+        assertEquals(XContentType.JSON, storedScriptRequest.mediaType());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             storedScriptRequest.writeTo(output);
 
             try (StreamInput in = output.bytes().streamInput()) {
                 PutStoredScriptRequest serialized = new PutStoredScriptRequest(in);
-                assertEquals(XContentType.JSON, serialized.xContentType());
+                assertEquals(XContentType.JSON, serialized.mediaType());
                 assertEquals(storedScriptRequest.id(), serialized.id());
                 assertEquals(storedScriptRequest.context(), serialized.context());
             }
