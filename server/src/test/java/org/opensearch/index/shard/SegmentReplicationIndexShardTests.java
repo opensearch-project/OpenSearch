@@ -887,7 +887,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8817")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitCommit() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, true);
     }
