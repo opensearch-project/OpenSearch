@@ -110,8 +110,11 @@ public class TransportNodesInfoAction extends TransportNodesAction<
 
     @Override
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
+        System.out.println("TransportNodesInfoAction.nodeOperation");
         NodesInfoRequest request = nodeRequest.request;
+        System.out.println("request: " + request);
         Set<String> metrics = request.requestedMetrics();
+        System.out.println("metrics: " + metrics);
         NodeInfo nodeInfo = nodeService.info(
             metrics.contains(NodesInfoRequest.Metric.SETTINGS.metricName()),
             metrics.contains(NodesInfoRequest.Metric.OS.metricName()),
@@ -126,6 +129,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
             metrics.contains(NodesInfoRequest.Metric.INDICES.metricName()),
             metrics.contains(NodesInfoRequest.Metric.SEARCH_PIPELINES.metricName())
         );
+        System.out.println("nodeInfo: " + nodeInfo);
         return nodeInfo;
     }
 

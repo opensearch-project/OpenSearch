@@ -34,6 +34,10 @@ public abstract class ProtobufBaseNodeResponse extends TransportResponse {
         node = new DiscoveryNode(in);
     }
 
+    protected ProtobufBaseNodeResponse(byte[] data) {
+        
+    }
+
     protected ProtobufBaseNodeResponse(DiscoveryNode node) {
         assert node != null;
         this.node = node;

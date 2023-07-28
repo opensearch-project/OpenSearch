@@ -462,6 +462,11 @@ public class ProtobufSniffConnectionStrategy extends ProtobufRemoteConnectionStr
             // TODO Auto-generated method stub
             throw new UnsupportedOperationException("Unimplemented method 'handleException'");
         }
+
+        @Override
+        public ProtobufClusterStateResponse read(byte[] in) throws IOException {
+            return new ProtobufClusterStateResponse(in);
+        }
     }
 
     private Predicate<ClusterName> getRemoteClusterNamePredicate() {

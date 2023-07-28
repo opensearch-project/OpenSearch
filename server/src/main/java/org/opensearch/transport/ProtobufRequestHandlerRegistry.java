@@ -62,7 +62,10 @@ public final class ProtobufRequestHandlerRegistry<Request extends TransportReque
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
         System.out.println("ProtobufRequestHandlerRegistry.processMessageReceived");
+        System.out.println("request: " + request);
+        System.out.println("channel: " + channel);
         final ProtobufTask task = taskManager.registerProtobuf(channel.getChannelType(), action, request);
+        System.out.println("task: " + task);
         ThreadContext.StoredContext contextToRestore = taskManager.protobufTaskExecutionStarted(task);
 
         Releasable unregisterTask = () -> taskManager.unregisterProtobufTask(task);
@@ -74,6 +77,7 @@ public final class ProtobufRequestHandlerRegistry<Request extends TransportReque
                 // Math.max(0, System.currentTimeMillis() - ((ShardSearchRequest) request).getInboundNetworkTime())
                 // );
                 // }
+                System.out.println("Inside if for processMessageReceived");
                 final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
                 final Releasable stopTracking = taskManager.startProtobufTrackingCancellableChannelTask(
                     tcpChannel,
@@ -81,6 +85,7 @@ public final class ProtobufRequestHandlerRegistry<Request extends TransportReque
                 );
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
+            System.out.println("Before calling handler.messageReceived");
             final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);
             handler.messageReceived(request, taskTransportChannel, task);
             unregisterTask = null;

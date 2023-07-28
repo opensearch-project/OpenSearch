@@ -13,6 +13,7 @@ import com.google.protobuf.CodedOutputStream;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -40,12 +41,12 @@ public final class ProtobufTransportActionProxy {
 
         private final TransportService service;
         private final String action;
-        private final Function<TransportRequest, ProtobufWriteable.Reader<? extends TransportResponse>> responseFunction;
+        private final Function<TransportRequest, TryWriteable.Reader<? extends TransportResponse>> responseFunction;
 
         ProxyRequestHandler(
             TransportService service,
             String action,
-            Function<TransportRequest, ProtobufWriteable.Reader<? extends TransportResponse>> responseFunction
+            Function<TransportRequest, TryWriteable.Reader<? extends TransportResponse>> responseFunction
         ) {
             this.service = service;
             this.action = action;
@@ -72,17 +73,18 @@ public final class ProtobufTransportActionProxy {
     */
     private static class ProxyResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
-        private final ProtobufWriteable.Reader<T> reader;
+        private final TryWriteable.Reader<T> reader;
         private final TransportChannel channel;
 
-        ProxyResponseHandler(TransportChannel channel, ProtobufWriteable.Reader<T> reader) {
+        ProxyResponseHandler(TransportChannel channel, TryWriteable.Reader<T> reader) {
             this.reader = reader;
             this.channel = channel;
         }
 
         @Override
         public T read(CodedInputStream in) throws IOException {
-            return reader.read(in);
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
         }
 
         @Override
@@ -118,6 +120,11 @@ public final class ProtobufTransportActionProxy {
         public void handleException(TransportException exp) {
             // TODO Auto-generated method stub
             throw new UnsupportedOperationException("Unimplemented method 'handleException'");
+        }
+
+        @Override
+        public T read(byte[] in) throws IOException {
+            return reader.read(in);
         }
     }
 
@@ -156,7 +163,7 @@ public final class ProtobufTransportActionProxy {
     public static void registerProxyActionWithDynamicResponseType(
         TransportService service,
         String action,
-        Function<TransportRequest, ProtobufWriteable.Reader<? extends TransportResponse>> responseFunction
+        Function<TransportRequest, TryWriteable.Reader<? extends TransportResponse>> responseFunction
     ) {
         ProtobufRequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandlerProtobuf(action);
         service.registerRequestHandlerProtobuf(
@@ -176,7 +183,7 @@ public final class ProtobufTransportActionProxy {
     public static void registerProxyAction(
         TransportService service,
         String action,
-        ProtobufWriteable.Reader<? extends TransportResponse> reader
+        TryWriteable.Reader<? extends TransportResponse> reader
     ) {
         ProtobufRequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandlerProtobuf(action);
         service.registerRequestHandlerProtobuf(

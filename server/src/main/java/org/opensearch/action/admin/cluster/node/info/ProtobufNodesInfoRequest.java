@@ -19,8 +19,12 @@ import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.TryWriteable;
+import org.opensearch.server.proto.NodesInfoRequestProto.NodesInfoReq;
+import org.opensearch.server.proto.NodesInfoRequestProto;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -33,9 +37,10 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufNodesInfoRequest> {
+public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufNodesInfoRequest> implements TryWriteable {
 
     private Set<String> requestedMetrics = Metric.allMetrics();
+    private NodesInfoRequestProto.NodesInfoReq nodesInfoRequest;
 
     /**
      * Create a new NodeInfoRequest from a {@link StreamInput} object.
@@ -79,7 +84,7 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
      * Get the names of requested metrics
      */
     public Set<String> requestedMetrics() {
-        return new HashSet<>(requestedMetrics);
+        return new HashSet<>(this.nodesInfoRequest.getRequestedMetricsList());
     }
 
     /**
@@ -103,6 +108,7 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
             String plural = metricsSet.size() == 1 ? "" : "s";
             throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
         }
+        this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoReq.newBuilder().addAllRequestedMetrics(metricsSet).build();
         requestedMetrics.addAll(metricsSet);
         return this;
     }
@@ -123,6 +129,11 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
         super.writeTo(out);
         ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         protobufStreamOutput.writeStringArray(requestedMetrics.toArray(new String[0]));
+    }
+
+    public ProtobufNodesInfoRequest(byte[] data) throws IOException {
+        super(data);
+        this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoReq.parseFrom(data);
     }
 
     /**
@@ -161,5 +172,14 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
         public static Set<String> allMetrics() {
             return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
         }
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        this.nodesInfoRequest.writeTo(out);
+    }
+
+    public NodesInfoReq request() {
+        return this.nodesInfoRequest;
     }
 }

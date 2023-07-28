@@ -60,4 +60,9 @@ public class ProtobufEmptyTransportResponseHandler implements TransportResponseH
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'handleException'");
     }
+
+    @Override
+    public TransportResponse.Empty read(byte[] in) throws IOException {
+        return TransportResponse.Empty.INSTANCE;
+    }
 }

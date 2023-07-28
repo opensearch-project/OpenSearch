@@ -272,6 +272,12 @@ public class DecommissionController {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                 }
+
+                @Override
+                public NodesStatsResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
     }

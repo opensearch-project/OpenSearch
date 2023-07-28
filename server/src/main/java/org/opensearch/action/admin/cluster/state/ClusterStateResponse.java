@@ -64,9 +64,12 @@ public class ClusterStateResponse extends ActionResponse {
     }
 
     public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, boolean waitForTimedOut) {
+        System.out.println("Inside ClusterStateResponse constructor");
         this.clusterName = clusterName;
         this.clusterState = clusterState;
         this.waitForTimedOut = waitForTimedOut;
+        System.out.println("Cluster name: " + clusterName);
+        System.out.println("Cluster state: " + clusterState);
     }
 
     /**

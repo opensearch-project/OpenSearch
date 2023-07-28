@@ -11,17 +11,20 @@ package org.opensearch.action.admin.cluster.node.stats;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ProtobufFailedNodeException;
+import org.opensearch.action.admin.cluster.node.info.ProtobufNodeInfo;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.nodes.ProtobufTransportNodesAction;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.node.ProtobufNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
 import java.util.Set;
 
@@ -66,6 +69,10 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
         List<ProtobufNodeStats> responses,
         List<ProtobufFailedNodeException> failures
     ) {
+        System.out.println("Inside newResponse");
+        System.out.println("nodesStatsRequest: " + request);
+        System.out.println("responses: " + responses);
+        System.out.println("failures: " + failures);
         return new ProtobufNodesStatsResponse(new ClusterName(clusterService.getClusterName().value()), responses, failures);
     }
 
@@ -83,7 +90,7 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
     protected ProtobufNodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) {
         ProtobufNodesStatsRequest request = nodeStatsRequest.request;
         Set<String> metrics = request.requestedMetrics();
-        return nodeService.stats(
+        ProtobufNodeStats protobufNodeStats = nodeService.stats(
             request.indices(),
             ProtobufNodesStatsRequest.Metric.OS.containedIn(metrics),
             ProtobufNodesStatsRequest.Metric.PROCESS.containedIn(metrics),
@@ -105,6 +112,8 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
             ProtobufNodesStatsRequest.Metric.WEIGHTED_ROUTING_STATS.containedIn(metrics),
             ProtobufNodesStatsRequest.Metric.FILE_CACHE_STATS.containedIn(metrics)
         );
+        System.out.println("protobufNodeStats: " + protobufNodeStats);
+        return protobufNodeStats;
     }
 
     /**
@@ -112,7 +121,7 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
     *
     * @opensearch.internal
     */
-    public static class NodeStatsRequest extends TransportRequest {
+    public static class NodeStatsRequest extends TransportRequest implements TryWriteable {
 
         ProtobufNodesStatsRequest request;
 
@@ -121,7 +130,11 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
             request = new ProtobufNodesStatsRequest(in);
         }
 
-        NodeStatsRequest(ProtobufNodesStatsRequest request) {
+        public NodeStatsRequest(byte[] data) throws IOException {
+            request = new ProtobufNodesStatsRequest(data);
+        }
+
+        public NodeStatsRequest(ProtobufNodesStatsRequest request) {
             this.request = request;
         }
 
@@ -130,5 +143,20 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
             super.writeTo(out);
             request.writeTo(out);
         }
+
+        public ProtobufNodesStatsRequest request() {
+            return request;
+        }
+
+        @Override
+        public void writeTo(OutputStream out) throws IOException {
+            request.writeTo(out);
+        }
+    }
+
+    @Override
+    protected ProtobufNodeStats newNodeResponse(byte[] in) throws IOException {
+        System.out.println("Inside newNodeResponse with byte array");
+        return new ProtobufNodeStats(in);
     }
 }

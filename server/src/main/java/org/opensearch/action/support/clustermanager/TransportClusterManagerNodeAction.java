@@ -231,11 +231,11 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
         protected void doStart(ClusterState clusterState) {
             try {
-                // System.out.println("TransportClusterManagerNodeAction.doStart");
+                System.out.println("TransportClusterManagerNodeAction.doStart");
                 final DiscoveryNodes nodes = clusterState.nodes();
                 // System.out.println("nodes: " + nodes);
                 if (nodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
-                    // System.out.println("TransportClusterManagerNodeAction.doStart.isLocalNodeElectedClusterManager");
+                    System.out.println("TransportClusterManagerNodeAction.doStart.isLocalNodeElectedClusterManager");
                     // check for block, if blocked, retry, else, execute locally
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
@@ -255,6 +255,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                             });
                         }
                     } else {
+                        System.out.println("No blocks");
                         ActionListener<Response> delegate = ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
                             if (t instanceof FailedToCommitClusterStateException || t instanceof NotClusterManagerException) {
                                 logger.debug(

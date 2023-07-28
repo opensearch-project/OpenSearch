@@ -42,7 +42,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -366,8 +365,6 @@ public class DiscoveryNode implements Writeable, ProtobufWriteable, ToXContentFr
         this.ephemeralId = in.readString();
         this.hostName = in.readString();
         this.hostAddress = in.readString();
-        // ProtobufTransportAddress protobufTransportAddress = new ProtobufTransportAddress(in);
-        // this.address = new TransportAddress(protobufTransportAddress.address());
         this.address = new TransportAddress(in);
         int size = in.readInt32();
         this.attributes = new HashMap<>(size);
@@ -432,8 +429,6 @@ public class DiscoveryNode implements Writeable, ProtobufWriteable, ToXContentFr
         out.writeStringNoTag(ephemeralId);
         out.writeStringNoTag(hostName);
         out.writeStringNoTag(hostAddress);
-        // ProtobufTransportAddress protobufTransportAddress = new ProtobufTransportAddress(address.address());
-        // protobufTransportAddress.writeTo(out);
         address.writeTo(out);
         out.writeInt32NoTag(attributes.size());
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
@@ -456,13 +451,6 @@ public class DiscoveryNode implements Writeable, ProtobufWriteable, ToXContentFr
     public TransportAddress getAddress() {
         return address;
     }
-
-    // /**
-    //  * The address that the node can be communicated with.
-    //  */
-    // public ProtobufTransportAddress getProtobufAddress() {
-    //     return new ProtobufTransportAddress(address.address());
-    // }
 
     /**
      * The unique id of the node.
@@ -632,7 +620,7 @@ public class DiscoveryNode implements Writeable, ProtobufWriteable, ToXContentFr
         return Collections.unmodifiableMap(roles.collect(Collectors.toMap(DiscoveryNodeRole::roleName, Function.identity())));
     }
 
-    private static Map<String, DiscoveryNodeRole> roleMap = rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream());
+    public static Map<String, DiscoveryNodeRole> roleMap = rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream());
 
     public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
         // As we are supporting dynamic role, should make role name case-insensitive to avoid confusion of role name like "Data"/"DATA"

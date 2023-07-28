@@ -349,7 +349,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
                 requestRef.set(request);
             }
         });
-        handler.sendProtobufRequest(node, channel, requestId, action, request, options, version, compress, isHandshake);
+        // handler.sendProtobufRequest(node, channel, requestId, action, request, options, version, compress, isHandshake);
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();

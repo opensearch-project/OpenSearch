@@ -10,9 +10,16 @@
  */
 
 syntax = "proto3";
-package org.opensearch.example.proto;
+package org.opensearch.server.proto;
 
 import "examples/ExampleRequestProto.proto";
+import "server/TransportRequestProto.proto";
+import "server/ClusterStateRequestProto.proto";
+import "server/ClusterStateResponseProto.proto";
+import "server/NodesInfoRequestProto.proto";
+import "server/NodesInfoProto.proto";
+import "server/NodesStatsRequestProto.proto";
+import "server/NodesStatsProto.proto";
 
 option java_outer_classname = "OutboundMessageProto";
 
@@ -25,8 +32,15 @@ message OutboundMsg {
   bytes status = 6;
   string action = 7;
   int64 requestId = 8;
-  ExampleRequest message = 9;
-  bool isProtobuf = 10;
+  oneof message {
+    ClusterStateReq clusterStateReq = 9;
+    ClusterStateRes clusterStateRes = 10;
+    NodesInfoReq nodesInfoReq = 11;
+    NodesInfo nodesInfoRes = 12;
+    NodesStatsReq nodesStatsReq = 13;
+    NodesStats nodesStatsRes = 14;
+  }
+  bool isProtobuf = 15;
   
   message Header {
     repeated bytes prefix = 1;

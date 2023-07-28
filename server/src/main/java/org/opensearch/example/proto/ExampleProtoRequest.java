@@ -17,7 +17,6 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.opensearch.common.io.stream.TryWriteable;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.example.proto.ExampleRequestProto.ExampleRequest;
 import org.opensearch.transport.TransportRequest;
 
@@ -63,7 +62,7 @@ public class ExampleProtoRequest extends TransportRequest implements TryWriteabl
         return request.getMessage();
     }
 
-    public ExampleRequest request() {
+    public ExampleRequest exampleRequest() {
         return request;
     }
 

@@ -763,5 +763,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             // TODO Auto-generated method stub
             throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
         }
+
+        @Override
+        public RecoveryResponse read(byte[] in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
+        }
     }
 }

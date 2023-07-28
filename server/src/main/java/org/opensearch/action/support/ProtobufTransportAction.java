@@ -149,6 +149,9 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
      * Use this method when the transport action should continue to run in the context of the current task
     */
     public final void execute(ProtobufTask task, Request request, ActionListener<Response> listener) {
+        System.out.println("Inside execute");
+        System.out.println("task: " + task);
+        System.out.println("request: " + request);
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -186,6 +189,10 @@ public abstract class ProtobufTransportAction<Request extends ProtobufActionRequ
         @Override
         public void proceed(ProtobufTask task, String actionName, Request request, ActionListener<Response> listener) {
             int i = index.getAndIncrement();
+            System.out.println("Inside proceed");
+            System.out.println("task: " + task);
+            System.out.println("actionName: " + actionName);
+            System.out.println("request: " + request);
             try {
                 if (i < this.action.filters.length) {
                     this.action.filters[i].apply(task, actionName, request, listener, this);

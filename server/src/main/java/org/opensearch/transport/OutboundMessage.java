@@ -84,10 +84,10 @@ abstract class OutboundMessage extends NetworkMessage {
         TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
         System.out.println("Bytes serialized length: " + reference.length());
         System.out.println("Bytes serialized: " + reference);
-        System.out.println("Now the bytes: ");
-        for (int i = 0; i < reference.length(); i++) {
-            System.out.print(reference.get(i) + " ");
-        }
+        // System.out.println("Now the bytes: ");
+        // for (int i = 0; i < reference.length(); i++) {
+        //     System.out.print(reference.get(i) + " ");
+        // }
         System.out.println();
         return reference;
     }

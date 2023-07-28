@@ -42,7 +42,6 @@ import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.NodeConnectionsService;
-import org.opensearch.cluster.ProtobufClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
@@ -170,14 +169,6 @@ public class ClusterService extends AbstractLifecycleComponent {
     public ClusterState state() {
         return clusterApplierService.state();
     }
-
-    // /**
-    //  * The currently applied cluster state.
-    //  * TODO: Should be renamed to appliedState / appliedClusterState
-    //  */
-    // public ProtobufClusterState protobufState() {
-    //     return clusterApplierService.protobufState();
-    // }
 
     /**
      * Adds a high priority applier of updated cluster states.

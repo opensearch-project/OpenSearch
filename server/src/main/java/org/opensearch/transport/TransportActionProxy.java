@@ -143,6 +143,12 @@ public final class TransportActionProxy {
             // TODO Auto-generated method stub
             throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
         }
+
+        @Override
+        public T read(byte[] in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
+        }
     }
 
     /**

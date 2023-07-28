@@ -168,6 +168,11 @@ final class ProtobufRemoteClusterConnection implements Closeable {
                             // TODO Auto-generated method stub
                             throw new UnsupportedOperationException("Unimplemented method 'handleException'");
                         }
+
+                        @Override
+                        public ProtobufClusterStateResponse read(byte[] in) throws IOException {
+                            return new ProtobufClusterStateResponse(in);
+                        }
                     }
                 );
             }

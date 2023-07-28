@@ -11,6 +11,7 @@ package org.opensearch.action;
 import com.google.protobuf.CodedInputStream;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.ProtobufTransportException;
@@ -31,12 +32,12 @@ public class ProtobufActionListenerResponseHandler<Response extends TransportRes
         TransportResponseHandler<Response> {
 
     private final ActionListener<? super Response> listener;
-    private final ProtobufWriteable.Reader<Response> reader;
+    private final TryWriteable.Reader<Response> reader;
     private final String executor;
 
     public ProtobufActionListenerResponseHandler(
         ActionListener<? super Response> listener,
-        ProtobufWriteable.Reader<Response> reader,
+        TryWriteable.Reader<Response> reader,
         String executor
     ) {
         this.listener = Objects.requireNonNull(listener);
@@ -44,7 +45,7 @@ public class ProtobufActionListenerResponseHandler<Response extends TransportRes
         this.executor = Objects.requireNonNull(executor);
     }
 
-    public ProtobufActionListenerResponseHandler(ActionListener<? super Response> listener, ProtobufWriteable.Reader<Response> reader) {
+    public ProtobufActionListenerResponseHandler(ActionListener<? super Response> listener, TryWriteable.Reader<Response> reader) {
         this(listener, reader, ThreadPool.Names.SAME);
     }
 
@@ -65,7 +66,8 @@ public class ProtobufActionListenerResponseHandler<Response extends TransportRes
 
     @Override
     public Response read(CodedInputStream in) throws IOException {
-        return reader.read(in);
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
     }
 
     @Override
@@ -82,5 +84,10 @@ public class ProtobufActionListenerResponseHandler<Response extends TransportRes
     @Override
     public void handleException(TransportException exp) {
         listener.onFailure(exp);
+    }
+
+    @Override
+    public Response read(byte[] in) throws IOException {
+        return reader.read(in);
     }
 }

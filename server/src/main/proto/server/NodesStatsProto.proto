@@ -1,0 +1,147 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+syntax = "proto3";
+package org.opensearch.server.proto;
+
+option java_outer_classname = "NodesStatsProto";
+
+message NodesStats {
+  string nodeId = 1;
+  int64 jvmHeapUsed = 2;
+  string jvmHeapUsedPercent = 3;
+  int64 jvmUpTime = 4;
+  int64 diskTotal = 5;
+  int64 diskAvailable = 6;
+  int64 osMemUsed = 7;
+  string osMemUsedPercent = 8;
+  int64 osMemTotal = 9;
+  string osCpuPercent = 10;
+  repeated double osCpuLoadAverage = 11;
+  int64 processOpenFileDescriptors = 12;
+  int64 processMaxFileDescriptors = 13;
+  CompletionStats completionStats = 14;
+  FieldDataStats fieldDataStats = 15;
+  QueryCacheStats queryCacheStats = 16;
+  RequestCacheStats requestCacheStats = 17;
+  FlushStats flushStats = 18;
+  GetStats getStats = 19;
+  IndexingStats indexingStats = 20;
+  MergeStats mergeStats = 21;
+  RefreshStats refreshStats = 22;
+  ScriptStats scriptStats = 23;
+  SearchStats searchStats = 24;
+  SegmentStats segmentStats = 25;
+
+  message CompletionStats {
+    int64 size = 1;
+  }
+
+  message FieldDataStats {
+    int64 memSize = 1;
+    int64 evictions = 2;
+  }
+
+  message QueryCacheStats {
+    int64 ramBytesUsed = 1;
+    int64 hitCount = 2;
+    int64 missCount = 3;
+    int64 cacheCount = 4;
+    int64 cacheSize = 5;
+  }
+
+  message RequestCacheStats {
+    int64 memorySize = 1;
+    int64 evictions = 2;
+    int64 hitCount = 3;
+    int64 missCount = 4;
+  }
+
+  message FlushStats {
+    int64 total = 1;
+    int64 periodic = 2;
+    int64 totalTimeInMillis = 3;
+  }
+
+  message GetStats {
+    int64 existsCount = 1;
+    int64 existsTimeInMillis = 2;
+    int64 missingCount = 3;
+    int64 missingTimeInMillis = 4;
+    int64 current = 5;
+    int64 count = 6;
+    int64 time = 7;
+  }
+
+  message IndexingStats {
+    int64 indexCount = 1;
+    int64 indexTimeInMillis = 2;
+    int64 indexCurrent = 3;
+    int64 indexFailedCount = 4;
+    int64 deleteCount = 5;
+    int64 deleteTimeInMillis = 6;
+    int64 deleteCurrent = 7;
+    int64 noopUpdateCount = 8;
+    int64 throttleTimeInMillis = 9;
+    bool isThrottled = 10;
+  }
+
+  message MergeStats {
+    int64 total = 1;
+    int64 totalTimeInMillis = 2;
+    int64 totalNumDocs = 3;
+    int64 totalSizeInBytes = 4;
+    int64 current = 5;
+    int64 currentNumDocs = 6;
+    int64 currentSizeInBytes = 7;
+  }
+
+  message RefreshStats {
+    int64 total = 1;
+    int64 totalTimeInMillis = 2;
+    int64 externalTotal = 3;
+    int64 externalTotalTimeInMillis = 4;
+    int32 listeners = 5;
+  }
+
+  message ScriptStats { 
+    int64 compilations = 1;
+    int64 cacheEvictions = 2;
+    int64 compilationLimitTriggered = 3;
+  }
+
+  message SearchStats {
+    int64 queryCount = 1;
+    int64 queryTimeInMillis = 2;
+    int64 queryCurrent = 3;
+    int64 fetchCount = 4;
+    int64 fetchTimeInMillis = 5;
+    int64 fetchCurrent = 6;
+    int64 scrollCount = 7;
+    int64 scrollTimeInMillis = 8;
+    int64 scrollCurrent = 9;
+    int64 suggestCount = 10;
+    int64 suggestTimeInMillis = 11;
+    int64 suggestCurrent = 12;
+    int64 pitCount = 13;
+    int64 pitTimeInMillis = 14;
+    int64 pitCurrent = 15;
+    int64 openContexts = 16;
+  }
+
+  message SegmentStats {
+    int64 count = 1;
+    int64 indexWriterMemoryInBytes = 2;
+    int64 versionMapMemoryInBytes = 3;
+    int64 maxUnsafeAutoIdTimestamp = 4;
+    int64 bitsetMemoryInBytes = 5;
+  }
+}

@@ -14,7 +14,12 @@ import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.TryWriteable;
+import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsReq;
+import org.opensearch.server.proto.NodesStatsRequestProto;
+
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -27,10 +32,11 @@ import java.util.stream.Collectors;
 *
 * @opensearch.internal
 */
-public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<ProtobufNodesStatsRequest> {
+public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<ProtobufNodesStatsRequest> implements TryWriteable {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
+    private NodesStatsRequestProto.NodesStatsReq nodesStatsRequest;
 
     public ProtobufNodesStatsRequest() {
         super((String[]) null);
@@ -108,7 +114,7 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
     * handled separately.
     */
     public Set<String> requestedMetrics() {
-        return new HashSet<>(requestedMetrics);
+        return new HashSet<>(this.nodesStatsRequest.getRequestedMetricsList());
     }
 
     /**
@@ -133,6 +139,7 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
             String plural = metricsSet.size() == 1 ? "" : "s";
             throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
         }
+        this.nodesStatsRequest = NodesStatsRequestProto.NodesStatsReq.newBuilder().addAllRequestedMetrics(metricsSet).build();
         requestedMetrics.addAll(metricsSet);
         return this;
     }
@@ -154,6 +161,11 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
         indices.writeTo(out);
         ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         protobufStreamOutput.writeStringArray(requestedMetrics.toArray(new String[0]));
+    }
+
+    public ProtobufNodesStatsRequest(byte[] data) throws IOException {
+        super(data);
+        this.nodesStatsRequest = NodesStatsRequestProto.NodesStatsReq.parseFrom(data);
     }
 
     /**
@@ -198,5 +210,14 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
         static Set<String> allMetrics() {
             return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
         }
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        this.nodesStatsRequest.writeTo(out);
+    }
+
+    public NodesStatsReq request() {
+        return this.nodesStatsRequest;
     }
 }

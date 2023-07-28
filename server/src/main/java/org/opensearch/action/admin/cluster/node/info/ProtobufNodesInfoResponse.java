@@ -53,10 +53,14 @@ import org.opensearch.monitor.os.ProtobufOsInfo;
 import org.opensearch.monitor.process.ProtobufProcessInfo;
 import org.opensearch.search.aggregations.support.ProtobufAggregationInfo;
 import org.opensearch.search.pipeline.ProtobufSearchPipelineInfo;
+import org.opensearch.server.proto.NodesInfoResponseProto;
+import org.opensearch.server.proto.NodesInfoProto.NodesInfo;
 import org.opensearch.threadpool.ProtobufThreadPoolInfo;
 import org.opensearch.transport.ProtobufTransportInfo;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -67,12 +71,29 @@ import java.util.Map;
 */
 public class ProtobufNodesInfoResponse extends ProtobufBaseNodesResponse<ProtobufNodeInfo> implements ToXContentFragment {
 
+    private NodesInfoResponseProto.NodesInfoRes nodesInfoRes;
+    private Map<String, NodesInfo> nodesMap = new HashMap<>();
+
     public ProtobufNodesInfoResponse(CodedInputStream in) throws IOException {
         super(in);
     }
 
     public ProtobufNodesInfoResponse(ClusterName clusterName, List<ProtobufNodeInfo> nodes, List<ProtobufFailedNodeException> failures) {
         super(clusterName, nodes, failures);
+        System.out.println("ProtobufNodesInfoResponse constructor");
+        System.out.println("clusterName: " + clusterName);
+        System.out.println("nodes: " + nodes);
+        List<NodesInfo> nodesInfo = new ArrayList<>();
+        for (ProtobufNodeInfo nodeInfo : nodes) {
+            nodesInfo.add(nodeInfo.response());
+            this.nodesMap.put(nodeInfo.response().getNodeId(), nodeInfo.response());
+        }
+        this.nodesInfoRes = NodesInfoResponseProto.NodesInfoRes.newBuilder()
+            .setClusterName(clusterName.value())
+            .addAllNodesInfo(nodesInfo)
+            .build();
+        System.out.println("Proto nodes info: " + this.nodesInfoRes);
+        System.out.println("Nodes info map: " + this.nodesMap);
     }
 
     @Override
@@ -174,5 +195,13 @@ public class ProtobufNodesInfoResponse extends ProtobufBaseNodesResponse<Protobu
         } catch (IOException e) {
             return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }
+    }
+
+    public NodesInfoResponseProto.NodesInfoRes response() {
+        return nodesInfoRes;
+    }
+
+    public Map<String, NodesInfo> nodesMap() {
+        return nodesMap;
     }
 }

@@ -428,6 +428,12 @@ public class JoinHelper {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                     }
+
+                    @Override
+                    public Empty read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
         } else {
@@ -469,6 +475,12 @@ public class JoinHelper {
             public void handleExceptionProtobuf(ProtobufTransportException exp) {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
+            }
+
+            @Override
+            public Empty read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         });
     }

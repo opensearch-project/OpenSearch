@@ -56,7 +56,7 @@ final class ProtobufRemoteClusterAwareClient extends ProtobufAbstractClient {
                 action.name(),
                 request,
                 TransportRequestOptions.EMPTY,
-                new ProtobufActionListenerResponseHandler<>(listener, action.getResponseReader())
+                new ProtobufActionListenerResponseHandler<>(listener, action.getResponseReaderTry())
             );
         }, listener::onFailure));
     }

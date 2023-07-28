@@ -385,6 +385,12 @@ public class ExtensionsManager {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
             }
+
+            @Override
+            public InitializeExtensionResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
         };
 
         logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);

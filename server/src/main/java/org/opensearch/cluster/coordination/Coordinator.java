@@ -42,7 +42,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalClusterUpdateTask;
-import org.opensearch.cluster.ProtobufClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -855,19 +854,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .build();
-            // ProtobufClusterState protobufInitialState = ProtobufClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-            //     .blocks(
-            //         ClusterBlocks.builder()
-            //             .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-            //             .addGlobalBlock(noClusterManagerBlockService.getNoClusterManagerBlock())
-            //     )
-            //     .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
-            //     .build();
-            // System.out.println("cluster state initial: " + initialState);
-            // System.out.println("protobuf cluster state initial: " + protobufInitialState);
             applierState = initialState;
             clusterApplier.setInitialState(initialState);
-            // clusterApplier.setInitialProtobufState(protobufInitialState);
         }
     }
 

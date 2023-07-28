@@ -93,10 +93,10 @@ public class ProtobufClusterStateRequestBuilder extends ProtobufClusterManagerNo
         return this;
     }
 
-    public ProtobufClusterStateRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
-        request.indicesOptions(indicesOptions);
-        return this;
-    }
+    // public ProtobufClusterStateRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+    //     request.indicesOptions(indicesOptions);
+    //     return this;
+    // }
 
     /**
      * Causes the request to wait for the metadata version to advance to at least the given version.

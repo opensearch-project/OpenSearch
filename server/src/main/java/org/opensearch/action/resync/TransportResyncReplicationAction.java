@@ -265,6 +265,12 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                 }
+
+                @Override
+                public ResyncReplicationResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
     }

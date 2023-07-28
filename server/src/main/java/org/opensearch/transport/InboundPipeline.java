@@ -117,10 +117,10 @@ public class InboundPipeline implements Releasable {
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         System.out.println("Handle bytes in InboundPipeline");
         System.out.println("Incoming bytes length: " + reference.length());
-        System.out.println("Now the incoming bytes: ");
-        for (int i = 0; i < reference.length(); i++) {
-            System.out.print(reference.get(i) + " ");
-        }
+        // System.out.println("Now the incoming bytes: ");
+        // for (int i = 0; i < reference.length(); i++) {
+        //     System.out.print(reference.get(i) + " ");
+        // }
         System.out.println();
         if (uncaughtException != null) {
             throw new IllegalStateException("Pipeline state corrupted by uncaught exception", uncaughtException);
@@ -139,9 +139,9 @@ public class InboundPipeline implements Releasable {
             System.out.println("Size of incoming bytes: " + incomingBytes.length);
             ProtobufOutboundMessage protobufOutboundMessage = new ProtobufOutboundMessage(incomingBytes);
             if (protobufOutboundMessage.isProtobuf()) {
-                for (int i = 0; i < incomingBytes.length; i++) {
-                    System.out.println("Byte " + i + " is: " + incomingBytes[i]);
-                }
+                // for (int i = 0; i < incomingBytes.length; i++) {
+                //     System.out.println("Byte " + i + " is: " + incomingBytes[i]);
+                // }
                 System.out.println("Last byte is 1");
                 forwardFragmentsProtobuf(channel, reference);
                 // byte[] newBytes = Arrays.copyOfRange(incomingBytes, 0, incomingBytes.length-1);

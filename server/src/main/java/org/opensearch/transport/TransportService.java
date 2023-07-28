@@ -119,11 +119,9 @@ public class TransportService extends AbstractLifecycleComponent
     protected final ClusterName clusterName;
     protected final TaskManager taskManager;
     private final TransportInterceptor.AsyncSender asyncSender;
-    // private final TransportInterceptor.AsyncSenderProtobuf asyncSenderProtobuf;
     private final Function<BoundTransportAddress, DiscoveryNode> localNodeFactory;
     private final boolean remoteClusterClient;
     private final Transport.ResponseHandlers responseHandlers;
-    // private final Transport.ProtobufResponseHandlers responseHandlersProtobuf;
     private final TransportInterceptor interceptor;
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
@@ -173,14 +171,6 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void close() {}
-
-        // @Override
-        // public void sendRequestProtobuf(long requestId, String action, ProtobufTransportRequest request,
-        //         TransportRequestOptions options) throws IOException, TransportException {
-        //     // // TODO Auto-generated method stub
-        //     // throw new UnsupportedOperationException("Unimplemented method 'sendRequestProtobuf'");
-        //     sendLocalRequest(requestId, action, request, options);
-        // }
     };
 
     static {
@@ -391,47 +381,6 @@ public class TransportService extends AbstractLifecycleComponent
                     }
                 });
             }
-
-            // // in case the transport is not connected to our local node (thus cleaned on node disconnect)
-            // // make sure to clean any leftover on going handles
-            // for (final Transport.ProtobufResponseContext holderToNotify : responseHandlersProtobuf.prune(h -> true)) {
-            //     // callback that an exception happened, but on a different thread since we don't
-            //     // want handlers to worry about stack overflows
-            //     getExecutorService().execute(new AbstractRunnable() {
-            //         @Override
-            //         public void onRejection(Exception e) {
-            //             // if we get rejected during node shutdown we don't wanna bubble it up
-            //             logger.debug(
-            //                 () -> new ParameterizedMessage(
-            //                     "failed to notify response handler on rejection, action: {}",
-            //                     holderToNotify.action()
-            //                 ),
-            //                 e
-            //             );
-            //         }
-
-            //         @Override
-            //         public void onFailure(Exception e) {
-            //             logger.warn(
-            //                 () -> new ParameterizedMessage(
-            //                     "failed to notify response handler on exception, action: {}",
-            //                     holderToNotify.action()
-            //                 ),
-            //                 e
-            //             );
-            //         }
-
-            //         @Override
-            //         public void doRun() {
-            //             ProtobufTransportException ex = new ProtobufSendRequestTransportException(
-            //                 holderToNotify.connection().getNode(),
-            //                 holderToNotify.action(),
-            //                 new ProtobufNodeClosedException(localNode)
-            //             );
-            //             holderToNotify.handler().handleException(ex);
-            //         }
-            //     });
-            // }
         }
     }
 
@@ -778,48 +727,6 @@ public class TransportService extends AbstractLifecycleComponent
                 }
             }, HandshakeResponse::new, ThreadPool.Names.GENERIC)
         );
-        // sendRequestProtobuf(
-        //     connection,
-        //     HANDSHAKE_ACTION_NAME,
-        //     HandshakeRequest.INSTANCE,
-        //     TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(),
-        //     new ProtobufActionListenerResponseHandler<>(new ActionListener<HandshakeResponse>() {
-        //         @Override
-        //         public void onResponse(HandshakeResponse response) {
-        //             if (clusterNamePredicate.test(response.clusterName) == false) {
-        //                 listener.onFailure(
-        //                     new IllegalStateException(
-        //                         "handshake with ["
-        //                             + node
-        //                             + "] failed: remote cluster name ["
-        //                             + response.clusterName.value()
-        //                             + "] does not match "
-        //                             + clusterNamePredicate
-        //                     )
-        //                 );
-        //             } else if (response.version.isCompatible(localNode.getVersion()) == false) {
-        //                 listener.onFailure(
-        //                     new IllegalStateException(
-        //                         "handshake with ["
-        //                             + node
-        //                             + "] failed: remote node version ["
-        //                             + response.version
-        //                             + "] is incompatible with local node version ["
-        //                             + localNode.getVersion()
-        //                             + "]"
-        //                     )
-        //                 );
-        //             } else {
-        //                 listener.onResponse(response);
-        //             }
-        //         }
-
-        //         @Override
-        //         public void onFailure(Exception e) {
-        //             listener.onFailure(e);
-        //         }
-        //     }, HandshakeResponse::new, ThreadPool.Names.GENERIC)
-        // );
     }
 
     public ConnectionManager getConnectionManager() {
@@ -846,23 +753,6 @@ public class TransportService extends AbstractLifecycleComponent
         private HandshakeRequest() {}
 
     }
-
-    // /**
-    //  * Internal Handshake request
-    // *
-    // * @opensearch.internal
-    // */
-    // static class ProtobufHandshakeRequest extends ProtobufTransportRequest {
-
-    //     public static final ProtobufHandshakeRequest INSTANCE = new ProtobufHandshakeRequest();
-
-    //     ProtobufHandshakeRequest(CodedInputStream in) throws IOException {
-    //         super(in);
-    //     }
-
-    //     private ProtobufHandshakeRequest() {}
-
-    // }
 
     /**
      * Internal handshake response
@@ -919,48 +809,6 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
-    // /**
-    //  * Internal handshake response
-    // *
-    // * @opensearch.internal
-    // */
-    // public static class ProtobufHandshakeResponse extends ProtobufTransportResponse {
-    //     private final DiscoveryNode discoveryNode;
-    //     private final ClusterName clusterName;
-    //     private final Version version;
-
-    //     public ProtobufHandshakeResponse(DiscoveryNode discoveryNode, ClusterName clusterName, Version version) {
-    //         this.discoveryNode = discoveryNode;
-    //         this.version = version;
-    //         this.clusterName = clusterName;
-    //     }
-
-    //     public ProtobufHandshakeResponse(CodedInputStream in) throws IOException {
-    //         super(in);
-    //         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-    //         discoveryNode = protobufStreamInput.readOptionalWriteable(DiscoveryNode::new);
-    //         clusterName = new ClusterName(in);
-    //         version = Version.readVersionProtobuf(in);
-    //     }
-
-    //     @Override
-    //     public void writeTo(CodedOutputStream out) throws IOException {
-    //         ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-    //         protobufStreamOutput.writeOptionalWriteable(discoveryNode);
-    //         clusterName.writeTo(out);
-    //         out.writeInt32NoTag(version.id);
-    //     }
-
-    //     public DiscoveryNode getDiscoveryNode() {
-    //         return discoveryNode;
-    //     }
-
-    //     public ClusterName getClusterName() {
-    //         return clusterName;
-    //     }
-    // }
-
-
     public void disconnectFromNode(DiscoveryNode node) {
         if (isLocalNode(node)) {
             return;
@@ -972,17 +820,9 @@ public class TransportService extends AbstractLifecycleComponent
         messageListener.listeners.add(listener);
     }
 
-    // public void addMessageListenerProtobuf(ProtobufTransportMessageListener listener) {
-    //     messageListener.listeners.add(listener);
-    // }
-
     public boolean removeMessageListener(TransportMessageListener listener) {
         return messageListener.listeners.remove(listener);
     }
-
-    // public boolean removeMessageListenerProtobuf(ProtobufTransportMessageListener listener) {
-    //     return messageListener.listeners.remove(listener);
-    // }
 
     public void addConnectionListener(TransportConnectionListener listener) {
         connectionManager.addListener(listener);
@@ -1119,6 +959,11 @@ public class TransportService extends AbstractLifecycleComponent
                     public void handleExceptionProtobuf(ProtobufTransportException exp) {
                         handler.handleExceptionProtobuf(exp);
                     }
+
+                    @Override
+                    public T read(byte[] in) throws IOException {
+                        return handler.read(in);
+                    }
                 };
             } else {
                 delegate = handler;
@@ -1135,138 +980,6 @@ public class TransportService extends AbstractLifecycleComponent
             handler.handleException(te);
         }
     }
-
-    // public <T extends ProtobufTransportResponse> TransportFuture<T> submitRequestProtobuf(
-    //     DiscoveryNode node,
-    //     String action,
-    //     ProtobufTransportRequest request,
-    //     ProtobufTransportResponseHandler<T> handler
-    // ) throws ProtobufTransportException {
-    //     return submitRequestProtobuf(node, action, request, TransportRequestOptions.EMPTY, handler);
-    // }
-
-    // public <T extends ProtobufTransportResponse> TransportFuture<T> submitRequestProtobuf(
-    //     DiscoveryNode node,
-    //     String action,
-    //     ProtobufTransportRequest request,
-    //     TransportRequestOptions options,
-    //     ProtobufTransportResponseHandler<T> handler
-    // ) throws ProtobufTransportException {
-    //     ProtobufPlainTransportFuture<T> futureHandler = new ProtobufPlainTransportFuture<>(handler);
-    //     try {
-    //         Transport.Connection connection = getConnection(node);
-    //         sendRequestProtobuf(connection, action, request, options, futureHandler);
-    //     } catch (ProtobufNodeNotConnectedException ex) {
-    //         // the caller might not handle this so we invoke the handler
-    //         futureHandler.handleException(ex);
-    //     }
-    //     return futureHandler;
-    // }
-
-    // public <T extends ProtobufTransportResponse> void sendRequestProtobuf(
-    //     final DiscoveryNode node,
-    //     final String action,
-    //     final ProtobufTransportRequest request,
-    //     final ProtobufTransportResponseHandler<T> handler
-    // ) {
-    //     final Transport.Connection connection;
-    //     try {
-    //         connection = getConnection(node);
-    //     } catch (final ProtobufNodeNotConnectedException ex) {
-    //         // the caller might not handle this so we invoke the handler
-    //         handler.handleException(ex);
-    //         return;
-    //     }
-    //     sendRequestProtobuf(connection, action, request, TransportRequestOptions.EMPTY, handler);
-    // }
-
-    // public final <T extends ProtobufTransportResponse> void sendRequestProtobuf(
-    //     final DiscoveryNode node,
-    //     final String action,
-    //     final ProtobufTransportRequest request,
-    //     final TransportRequestOptions options,
-    //     ProtobufTransportResponseHandler<T> handler
-    // ) {
-    //     final Transport.Connection connection;
-    //     try {
-    //         connection = getConnection(node);
-    //     } catch (final ProtobufNodeNotConnectedException ex) {
-    //         // the caller might not handle this so we invoke the handler
-    //         handler.handleException(ex);
-    //         return;
-    //     }
-    //     sendRequestProtobuf(connection, action, request, options, handler);
-    // }
-
-    // /**
-    //  * Sends a request on the specified connection. If there is a failure sending the request, the specified handler is invoked.
-    // *
-    // * @param connection the connection to send the request on
-    // * @param action     the name of the action
-    // * @param request    the request
-    // * @param options    the options for this request
-    // * @param handler    the response handler
-    // * @param <T>        the type of the transport response
-    // */
-    // public final <T extends ProtobufTransportResponse> void sendRequestProtobuf(
-    //     final Transport.Connection connection,
-    //     final String action,
-    //     final ProtobufTransportRequest request,
-    //     final TransportRequestOptions options,
-    //     final ProtobufTransportResponseHandler<T> handler
-    // ) {
-    //     try {
-    //         logger.debug("Action: " + action);
-    //         final ProtobufTransportResponseHandler<T> delegate;
-    //         if (request.getParentTask().isSet()) {
-    //             // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
-    //             final Releasable unregisterChildNode = taskManager.registerProtobufChildNode(
-    //                 request.getParentTask().getId(),
-    //                 connection.getNode()
-    //             );
-    //             delegate = new ProtobufTransportResponseHandler<T>() {
-    //                 @Override
-    //                 public void handleResponse(T response) {
-    //                     unregisterChildNode.close();
-    //                     handler.handleResponse(response);
-    //                 }
-
-    //                 @Override
-    //                 public void handleException(ProtobufTransportException exp) {
-    //                     unregisterChildNode.close();
-    //                     handler.handleException(exp);
-    //                 }
-
-    //                 @Override
-    //                 public String executor() {
-    //                     return handler.executor();
-    //                 }
-
-    //                 @Override
-    //                 public T read(CodedInputStream in) throws IOException {
-    //                     return handler.read(in);
-    //                 }
-
-    //                 @Override
-    //                 public String toString() {
-    //                     return getClass().getName() + "/[" + action + "]:" + handler.toString();
-    //                 }
-    //             };
-    //         } else {
-    //             delegate = handler;
-    //         }
-    //         asyncSenderProtobuf.sendRequest(connection, action, request, options, delegate);
-    //     } catch (final Exception ex) {
-    //         // the caller might not handle this so we invoke the handler
-    //         final ProtobufTransportException te;
-    //         if (ex instanceof ProtobufTransportException) {
-    //             te = (ProtobufTransportException) ex;
-    //         } else {
-    //             te = new ProtobufTransportException("failure to send", ex);
-    //         }
-    //         handler.handleException(te);
-    //     }
-    // }
 
     /**
      * Returns either a real transport connection or a local node connection if we are using the local node optimization.
@@ -1982,6 +1695,11 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public T read(CodedInputStream in) throws IOException {
+            return delegate.read(in);
+        }
+
+        @Override
+        public T read(byte[] in) throws IOException {
             return delegate.read(in);
         }
 

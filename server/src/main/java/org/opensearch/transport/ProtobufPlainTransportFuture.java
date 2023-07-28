@@ -113,4 +113,9 @@ public class ProtobufPlainTransportFuture<V extends TransportResponse> extends B
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'handleException'");
     }
+
+    @Override
+    public V read(byte[] in) throws IOException {
+        return handler.read(in);
+    }
 }

@@ -62,4 +62,10 @@ public class UpdateSettingsResponseHandler implements TransportResponseHandler<A
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
     }
+
+    @Override
+    public AcknowledgedResponse read(byte[] in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
+    }
 }

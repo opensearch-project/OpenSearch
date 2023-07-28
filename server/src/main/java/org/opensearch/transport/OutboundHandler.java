@@ -38,6 +38,14 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.NotifyOnceListener;
+import org.opensearch.action.admin.cluster.node.info.ProtobufNodeInfo;
+import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequest;
+import org.opensearch.action.admin.cluster.node.info.ProtobufTransportNodesInfoAction.NodeInfoRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.ProtobufNodeStats;
+import org.opensearch.action.admin.cluster.node.stats.ProtobufTransportNodesStatsAction.NodeStatsRequest;
+import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -47,18 +55,11 @@ import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.ByteArray;
-import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.example.proto.ExampleProtoRequest;
-import org.opensearch.example.proto.ExampleRequestProto.ExampleRequest;
-import org.opensearch.example.proto.OutboundMessageProto.OutboundMsg;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.threadpool.ThreadPool;
-
-import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -80,7 +81,6 @@ final class OutboundHandler {
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
-    // private volatile ProtobufTransportMessageListener protobufMessageListener = ProtobufTransportMessageListener.NOOP_LISTENER;
 
     OutboundHandler(
         String nodeName,
@@ -134,16 +134,6 @@ final class OutboundHandler {
             isHandshake,
             compressRequest
         );
-        // ProtobufOutboundMessage.Request protobufMessage = new ProtobufOutboundMessage.Request(
-        //     threadPool.getThreadContext(),
-        //     features,
-        //     request,
-        //     version,
-        //     action,
-        //     requestId,
-        //     isHandshake,
-        //     compressRequest
-        // );
 
         System.out.println("OutboundHandler.sendRequest");
         System.out.println("node: " + node);
@@ -154,50 +144,58 @@ final class OutboundHandler {
         System.out.println("canonical: " + request.getClass().getCanonicalName());
         System.out.println("message: " + message);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
-        if (request.getClass().getCanonicalName().contains("ClusterState") && request.getClass().getCanonicalName().contains("Protobuf")) {
-            ExampleProtoRequest exampleProtoRequest = new ExampleProtoRequest(1, "message");
-            sendProtobufRequest(node, channel, requestId, action, exampleProtoRequest, options, channelVersion, compressRequest, isHandshake);
+        if (request.getClass().getCanonicalName().contains("ProtobufClusterState")) {
+            // ExampleProtoRequest exampleProtoRequest = new ExampleProtoRequest(1, "message");
+            ProtobufClusterStateRequest protobufClusterStateRequest = (ProtobufClusterStateRequest) request;
+            byte[] bytes = new byte[1];
+            bytes[0] = 0;
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufClusterStateRequest.request(), features, action);
+            sendProtobufMessage(channel, protobufMessage, listener);
+        } else if (request.getClass().getCanonicalName().contains("ProtobufTransportNodesInfo")) {
+            System.out.println("It is a nodes info request for protobuf");
+            NodeInfoRequest protobufNodesInfoRequest = (NodeInfoRequest) request;
+            byte[] bytes = new byte[1];
+            bytes[0] = 0;
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodesInfoRequest.request().request(), features, action);
+            sendProtobufMessage(channel, protobufMessage, listener);
+        } else if (request.getClass().getCanonicalName().contains("ProtobufTransportNodesStats")) {
+            System.out.println("It is a nodes stats request for protobuf");
+            NodeStatsRequest protobufNodesStatsRequest = (NodeStatsRequest) request;
+            byte[] bytes = new byte[1];
+            bytes[0] = 0;
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodesStatsRequest.request().request(), features, action);
+            sendProtobufMessage(channel, protobufMessage, listener);
         } else {
             sendMessage(channel, message, listener);
         }
-        // if (request.getClass().getCanonicalName().contains("Protobuf")) {
-        //     sendMessageProtobuf(channel, protobufMessage, listener);
-        // } else {
-            // sendMessage(channel, message, listener);
-        // }   
     }
 
-    void sendProtobufRequest(
-        final DiscoveryNode node,
-        final TcpChannel channel,
-        final long requestId,
-        final String action,
-        final ExampleProtoRequest request,
-        final TransportRequestOptions options,
-        final Version channelVersion,
-        final boolean compressRequest,
-        final boolean isHandshake
-    ) throws IOException, TransportException {
-        Version version = Version.min(this.version, channelVersion);
+    // void sendProtobufRequest(
+    //     final DiscoveryNode node,
+    //     final TcpChannel channel,
+    //     final long requestId,
+    //     final String action,
+    //     final TransportRequest request,
+    //     final TransportRequestOptions options,
+    //     final Version channelVersion,
+    //     final boolean compressRequest,
+    //     final boolean isHandshake
+    // ) throws IOException, TransportException {
+    //     Version version = Version.min(this.version, channelVersion);
 
-        System.out.println("OutboundHandler.sendProtobufRequest");
-        System.out.println("node: " + node);
-        System.out.println("channel: " + channel);
-        System.out.println("requestId: " + requestId);
-        System.out.println("action: " + action);
-        System.out.println("request: " + request.toString());
-        System.out.println("canonical: " + request.getClass().getCanonicalName());
-        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
-        byte[] bytes = new byte[1];
-        bytes[0] = 0;
-        ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), request.request(), features, action);
-        sendProtobufMessage(channel, protobufMessage, listener);
-        // if (request.getClass().getCanonicalName().contains("Protobuf")) {
-        //     sendMessageProtobuf(channel, protobufMessage, listener);
-        // } else {
-            // sendMessage(channel, message, listener);
-        // }   
-    }
+    //     System.out.println("OutboundHandler.sendProtobufRequest");
+    //     System.out.println("node: " + node);
+    //     System.out.println("channel: " + channel);
+    //     System.out.println("requestId: " + requestId);
+    //     System.out.println("action: " + action);
+    //     System.out.println("request: " + request.toString());
+    //     System.out.println("canonical: " + request.getClass().getCanonicalName());
+    //     ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
+    //     byte[] bytes = new byte[1];
+    //     bytes[0] = 0;
+    //     ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), request.transportReq(), features, action);
+    //     sendProtobufMessage(channel, protobufMessage, listener);
+    // }
 
     /**
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse}
@@ -230,7 +228,31 @@ final class OutboundHandler {
         System.out.println("response: " + response);
         System.out.println("canonical: " + response.getClass().getCanonicalName());
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
-        sendMessage(channel, message, listener);
+        if (response.getClass().getCanonicalName().contains("ProtobufClusterState")) {
+            // ExampleProtoRequest exampleProtoRequest = new ExampleProtoRequest(1, "message");
+            System.out.println("In sendReponse for protobuf");
+            ProtobufClusterStateResponse protobufClusterStateResponse = (ProtobufClusterStateResponse) response;
+            byte[] bytes = new byte[1];
+            bytes[0] = 1;
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufClusterStateResponse.response(), features, action);
+            sendProtobufMessage(channel, protobufMessage, listener);
+        } else if (response.getClass().getCanonicalName().contains("ProtobufNodeInfo")) {
+            System.out.println("Sending response of type protobuf node info");
+            ProtobufNodeInfo protobufNodeInfo = (ProtobufNodeInfo) response;
+            byte[] bytes = new byte[1];
+            bytes[0] = 1;
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodeInfo.response(), features, action);
+            sendProtobufMessage(channel, protobufMessage, listener);
+        } else if (response.getClass().getCanonicalName().contains("ProtobufNodeStats")) {
+            System.out.println("Sending response of type protobuf node stats");
+            ProtobufNodeStats protobufNodeStats = (ProtobufNodeStats) response;
+            byte[] bytes = new byte[1];
+            bytes[0] = 1;
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodeStats.response(), features, action);
+            sendProtobufMessage(channel, protobufMessage, listener);
+        } else {
+            sendMessage(channel, message, listener);
+        }
     }
 
     /**
@@ -284,15 +306,6 @@ final class OutboundHandler {
         internalSend(channel, sendContext);
     }
 
-    // private void sendMessageProtobuf(TcpChannel channel, ProtobufOutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
-    //     System.out.println("OutboundHandler.sendMessageProtobuf");
-    //     System.out.println("OutboundHandler.sendMessageProtobuf networkMessage = " + networkMessage);
-    //     MessageSerializerProtobuf serializer = new MessageSerializerProtobuf(networkMessage, bigArrays);
-    //     SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
-    //     System.out.println("attempting internal send for protobuf ");
-    //     internalSend(channel, sendContext);
-    // }
-
     private void internalSend(TcpChannel channel, SendContext sendContext) throws IOException {
         System.out.println("In internal send");
         System.out.println("channel: " + channel);
@@ -317,14 +330,6 @@ final class OutboundHandler {
             throw new IllegalStateException("Cannot set message listener twice");
         }
     }
-
-    // void setProtobufMessageListener(ProtobufTransportMessageListener listener) {
-    //     if (protobufMessageListener == ProtobufTransportMessageListener.NOOP_LISTENER) {
-    //         protobufMessageListener = listener;
-    //     } else {
-    //         throw new IllegalStateException("Cannot set message listener twice");
-    //     }
-    // }
 
     /**
      * Internal message serializer
@@ -421,35 +426,6 @@ final class OutboundHandler {
             IOUtils.closeWhileHandlingException(bytesStreamOutput);
         }
     }
-
-    // /**
-    //  * Internal message serializer
-    //  *
-    //  * @opensearch.internal
-    //  */
-    // private static class MessageSerializerProtobuf implements CheckedSupplier<BytesReference, IOException>, Releasable {
-
-    //     private final ProtobufOutboundMessage message;
-    //     private final BigArrays bigArrays;
-    //     private volatile ReleasableBytesStreamOutput bytesStreamOutput;
-
-    //     private MessageSerializerProtobuf(ProtobufOutboundMessage message, BigArrays bigArrays) {
-    //         this.message = message;
-    //         this.bigArrays = bigArrays;
-    //     }
-
-    //     @Override
-    //     public BytesReference get() throws IOException {
-    //         System.out.println("OutboundHandler.MessageSerializer.get");
-    //         bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
-    //         return message.serialize(bytesStreamOutput);
-    //     }
-
-    //     @Override
-    //     public void close() {
-    //         IOUtils.closeWhileHandlingException(bytesStreamOutput);
-    //     }
-    // }
 
     private class SendContext extends NotifyOnceListener<Void> implements CheckedSupplier<BytesReference, IOException> {
 

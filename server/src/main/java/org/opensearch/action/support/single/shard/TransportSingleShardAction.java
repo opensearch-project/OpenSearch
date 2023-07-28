@@ -241,6 +241,12 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                             throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                         }
 
+                        @Override
+                        public Response read(byte[] in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
+                        }
+
                         
                     }
                 );
@@ -330,6 +336,12 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         public void handleExceptionProtobuf(ProtobufTransportException exp) {
                             // TODO Auto-generated method stub
                             throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
+                        }
+
+                        @Override
+                        public Response read(byte[] in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
                     }
                 );

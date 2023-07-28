@@ -18,7 +18,7 @@ import org.opensearch.action.ProtobufActionType;
 public class ProtobufClusterStateAction extends ProtobufActionType<ProtobufClusterStateResponse> {
 
     public static final ProtobufClusterStateAction INSTANCE = new ProtobufClusterStateAction();
-    public static final String NAME = "cluster:monitor/stateprotobuf";
+    public static final String NAME = "cluster:monitor/state";
 
     private ProtobufClusterStateAction() {
         super(NAME, ProtobufClusterStateResponse::new);

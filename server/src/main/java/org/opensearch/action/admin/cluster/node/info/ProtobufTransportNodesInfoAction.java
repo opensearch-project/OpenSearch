@@ -16,12 +16,14 @@ import org.opensearch.action.support.nodes.ProtobufTransportNodesAction;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.node.ProtobufNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
 import java.util.Set;
 
@@ -66,10 +68,10 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
         List<ProtobufNodeInfo> responses,
         List<ProtobufFailedNodeException> failures
     ) {
-        // System.out.println("Inside newResponse");
-        // System.out.println("nodesInfoRequest: " + nodesInfoRequest);
-        // System.out.println("responses: " + responses);
-        // System.out.println("failures: " + failures);
+        System.out.println("Inside newResponse");
+        System.out.println("nodesInfoRequest: " + nodesInfoRequest);
+        System.out.println("responses: " + responses);
+        System.out.println("failures: " + failures);
         return new ProtobufNodesInfoResponse(new ClusterName(clusterService.getClusterName().value()), responses, failures);
     }
 
@@ -81,14 +83,18 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
 
     @Override
     protected ProtobufNodeInfo newNodeResponse(CodedInputStream in) throws IOException {
-        // System.out.println("Inside newNodeResponse with input stream");
+        System.out.println("Inside newNodeResponse with input stream");
         return new ProtobufNodeInfo(in);
     }
 
     @Override
     protected ProtobufNodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
+        System.out.println("Inside nodeOperation in ProtobufTransportNodesInfoAction");
+        System.out.println("nodeRequest: " + nodeRequest);
         ProtobufNodesInfoRequest request = nodeRequest.request;
+        System.out.println("request: " + request);
         Set<String> metrics = request.requestedMetrics();
+        System.out.println("Metrics: " + metrics);
         ProtobufNodeInfo protobufNodeInfo = nodeService.info(
             metrics.contains(ProtobufNodesInfoRequest.Metric.SETTINGS.metricName()),
             metrics.contains(ProtobufNodesInfoRequest.Metric.OS.metricName()),
@@ -103,6 +109,7 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
             metrics.contains(ProtobufNodesInfoRequest.Metric.INDICES.metricName()),
             metrics.contains(ProtobufNodesInfoRequest.Metric.SEARCH_PIPELINES.metricName())
         );
+        System.out.println("protobufNodeInfo: " + protobufNodeInfo);
         return protobufNodeInfo;
     }
 
@@ -111,13 +118,17 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
     *
     * @opensearch.internal
     */
-    public static class NodeInfoRequest extends TransportRequest {
+    public static class NodeInfoRequest extends TransportRequest implements TryWriteable {
 
         ProtobufNodesInfoRequest request;
 
         public NodeInfoRequest(CodedInputStream in) throws IOException {
             super(in);
             request = new ProtobufNodesInfoRequest(in);
+        }
+
+        public NodeInfoRequest(byte[] data) throws IOException {
+            request = new ProtobufNodesInfoRequest(data);
         }
 
         public NodeInfoRequest(ProtobufNodesInfoRequest request) {
@@ -129,5 +140,20 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
             super.writeTo(out);
             request.writeTo(out);
         }
+
+        public ProtobufNodesInfoRequest request() {
+            return request;
+        }
+
+        @Override
+        public void writeTo(OutputStream out) throws IOException {
+            request.writeTo(out);
+        }
+    }
+
+    @Override
+    protected ProtobufNodeInfo newNodeResponse(byte[] in) throws IOException {
+        System.out.println("Inside newNodeResponse with byte array");
+        return new ProtobufNodeInfo(in);
     }
 }

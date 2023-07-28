@@ -253,6 +253,12 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
             }
+
+            @Override
+            public RestExecuteOnExtensionResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
         };
 
         try {

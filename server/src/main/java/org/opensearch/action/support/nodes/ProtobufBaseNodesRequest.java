@@ -60,6 +60,10 @@ public abstract class ProtobufBaseNodesRequest<Request extends ProtobufBaseNodes
         timeout = protobufStreamInput.readOptionalTimeValue();
     }
 
+    protected ProtobufBaseNodesRequest(byte[] data) throws IOException {
+        // this(CodedInputStream.newInstance(data));
+    }
+
     protected ProtobufBaseNodesRequest(String... nodesIds) {
         this.nodesIds = nodesIds;
     }

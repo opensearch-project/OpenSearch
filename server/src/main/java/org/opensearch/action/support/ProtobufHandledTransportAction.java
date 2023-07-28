@@ -76,6 +76,7 @@ public abstract class ProtobufHandledTransportAction<Request extends ProtobufAct
     class TransportHandler implements ProtobufTransportRequestHandler<Request> {
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, ProtobufTask task) {
+            System.out.println("ProtobufHandledTransportAction: messageReceived");
             // We already got the task created on the network layer - no need to create it again on the transport layer
             execute(task, request, new ProtobufChannelActionListener<>(channel, actionName, request));
         }

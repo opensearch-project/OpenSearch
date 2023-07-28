@@ -104,4 +104,10 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
     }
+
+    @Override
+    public Response read(byte[] in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
+    }
 }

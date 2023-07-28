@@ -404,6 +404,12 @@ public class PublicationTransportHandler {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                     }
+
+                    @Override
+                    public Empty read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
         }
@@ -486,6 +492,12 @@ public class PublicationTransportHandler {
                     public void handleExceptionProtobuf(ProtobufTransportException exp) {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
+                    }
+
+                    @Override
+                    public PublishWithJoinResponse read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
                 };
                 transportService.sendRequest(destination, PUBLISH_STATE_ACTION_NAME, request, stateRequestOptions, responseHandler);

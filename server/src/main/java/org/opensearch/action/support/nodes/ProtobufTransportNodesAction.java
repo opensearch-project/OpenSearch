@@ -176,6 +176,8 @@ public abstract class ProtobufTransportNodesAction<
 
     protected abstract NodeResponse newNodeResponse(CodedInputStream in) throws IOException;
 
+    protected abstract NodeResponse newNodeResponse(byte[] in) throws IOException;
+
     protected abstract NodeResponse nodeOperation(NodeRequest request);
 
     protected NodeResponse nodeOperation(NodeRequest request, ProtobufTask task) {
@@ -283,6 +285,11 @@ public abstract class ProtobufTransportNodesAction<
                             public void handleException(TransportException exp) {
                                 onFailure(idx, node.getId(), exp);
                             }
+
+                            @Override
+                            public NodeResponse read(byte[] in) throws IOException {
+                                return newNodeResponse(in);
+                            }
                         }
                     );
                 } catch (Exception e) {
@@ -322,6 +329,7 @@ public abstract class ProtobufTransportNodesAction<
 
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, ProtobufTask task) throws Exception {
+            System.out.println("ProtoTransportNodesAction.NodeTransportHandler.messageReceived");
             channel.sendResponse(nodeOperation(request, task));
         }
     }

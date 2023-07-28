@@ -332,6 +332,13 @@ public abstract class TransportTasksAction<
                                         // TODO Auto-generated method stub
                                         throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                                     }
+
+                                    @Override
+                                    public TransportTasksAction<OperationTask, TasksRequest, TasksResponse, TaskResponse>.NodeTasksResponse read(
+                                            byte[] in) throws IOException {
+                                        // TODO Auto-generated method stub
+                                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                                    }
                                 }
                             );
                         }

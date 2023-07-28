@@ -9,6 +9,7 @@
 package org.opensearch.action;
 
 import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.TransportRequestOptions;
 
@@ -21,6 +22,7 @@ public class ProtobufActionType<Response extends ProtobufActionResponse> {
 
     private final String name;
     private final ProtobufWriteable.Reader<Response> responseReader;
+    private final TryWriteable.Reader<Response> responseReaderTry;
 
     /**
      * @param name The name of the action, must be unique across actions.
@@ -29,6 +31,7 @@ public class ProtobufActionType<Response extends ProtobufActionResponse> {
     public ProtobufActionType(String name, ProtobufWriteable.Reader<Response> responseReader) {
         this.name = name;
         this.responseReader = responseReader;
+        this.responseReaderTry = null;
     }
 
     /**
@@ -43,6 +46,10 @@ public class ProtobufActionType<Response extends ProtobufActionResponse> {
     */
     public ProtobufWriteable.Reader<Response> getResponseReader() {
         return responseReader;
+    }
+
+    public TryWriteable.Reader<Response> getResponseReaderTry() {
+        return responseReaderTry;
     }
 
     /**

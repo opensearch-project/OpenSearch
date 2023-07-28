@@ -100,6 +100,7 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
         final ActionListener<ProtobufClusterStateResponse> listener
     ) throws IOException {
 
+        System.out.println("Inside ProtobufTransportClusterStateAction.clusterManagerOperation");
         final Predicate<ClusterState> acceptableClusterStatePredicate = request.waitForMetadataVersion() == null
             ? clusterState -> true
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
@@ -147,6 +148,9 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
 
     private ProtobufClusterStateResponse buildResponse(final ProtobufClusterStateRequest request, final ClusterState currentState) {
         logger.trace("Serving cluster state request using version {}", currentState.version());
+        System.out.println("Protobuf Building cluster state response");
+        System.out.println("ProtobufClusterStateRequest: " + request.toString());
+        System.out.println("ClusterState: " + currentState.toString());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
         builder.stateUUID(currentState.stateUUID());
@@ -208,6 +212,11 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
         }
 
         return new ProtobufClusterStateResponse(currentState.getClusterName(), builder.build(), false);
+    }
+
+    @Override
+    protected ProtobufClusterStateResponse read(byte[] in) throws IOException {
+        return new ProtobufClusterStateResponse(in);
     }
 
 }

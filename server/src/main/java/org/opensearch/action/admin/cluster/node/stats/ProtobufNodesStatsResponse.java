@@ -18,10 +18,15 @@ import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.server.proto.NodesStatsResponseProto;
+import org.opensearch.server.proto.NodesStatsProto.NodesStats;
 import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Transport response for obtaining OpenSearch Node Stats
@@ -30,12 +35,29 @@ import java.util.List;
 */
 public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<ProtobufNodeStats> implements ToXContentFragment {
 
+    private NodesStatsResponseProto.NodesStatsRes nodesStatsRes;
+    private Map<String, NodesStats> nodesMap = new HashMap<>();
+
     public ProtobufNodesStatsResponse(CodedInputStream in) throws IOException {
         super(in);
     }
 
     public ProtobufNodesStatsResponse(ClusterName clusterName, List<ProtobufNodeStats> nodes, List<ProtobufFailedNodeException> failures) {
         super(clusterName, nodes, failures);
+        System.out.println("ProtobufNodesStatsResponse constructor");
+        System.out.println("clusterName: " + clusterName);
+        System.out.println("nodes: " + nodes);
+        List<NodesStats> nodesStats = new ArrayList<>();
+        for (ProtobufNodeStats nodeStats : nodes) {
+            nodesStats.add(nodeStats.response());
+            this.nodesMap.put(nodeStats.response().getNodeId(), nodeStats.response());
+        }
+        this.nodesStatsRes = NodesStatsResponseProto.NodesStatsRes.newBuilder()
+            .setClusterName(clusterName.value())
+            .addAllNodesStats(nodesStats)
+            .build();
+        System.out.println("Proto nodes stats: " + this.nodesStatsRes);
+        System.out.println("Nodes info map: " + this.nodesMap);
     }
 
     @Override
@@ -76,5 +98,13 @@ public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<Protob
         } catch (IOException e) {
             return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }
+    }
+
+    public NodesStatsResponseProto.NodesStatsRes response() {
+        return nodesStatsRes;
+    }
+
+    public Map<String, NodesStats> nodesMap() {
+        return nodesMap;
     }
 }

@@ -519,6 +519,12 @@ public abstract class PeerFinder {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                 }
+
+                @Override
+                public PeersResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             };
             transportService.sendRequest(
                 discoveryNode,

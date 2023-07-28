@@ -20,11 +20,15 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ProtobufClusterManagerNodeReadRequest;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.server.proto.ClusterStateRequestProto;
+import org.opensearch.server.proto.ClusterStateRequestProto.ClusterStateReq;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Transport request for obtaining cluster state
@@ -33,62 +37,34 @@ import java.io.IOException;
 */
 public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadRequest<ProtobufClusterStateRequest>
     implements
-        IndicesRequest.Replaceable {
+        IndicesRequest.Replaceable, TryWriteable {
 
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);
+    private ClusterStateRequestProto.ClusterStateReq clusterStateRequest;
 
-    // private PRotoClusterSatteRq clusterStateRequest;
-    private boolean routingTable = true;
-    private boolean nodes = true;
-    private boolean metadata = true;
-    private boolean blocks = true;
-    private boolean customs = true;
-    private Long waitForMetadataVersion;
-    private TimeValue waitForTimeout = DEFAULT_WAIT_FOR_NODE_TIMEOUT;
-    private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
+    public ProtobufClusterStateRequest () {}
 
-    public ProtobufClusterStateRequest() {}
-
+    public ProtobufClusterStateRequest(boolean routingTable, boolean nodes, boolean metadata, boolean blocks,
+                                        boolean customs, long waitForMetadataVersion, TimeValue waitForTimeout, List<String> indices) {
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setRoutingTable(routingTable)
+                                        .setNodes(nodes)
+                                        .setMetadata(metadata)
+                                        .setBlocks(blocks)
+                                        .setCustoms(customs)
+                                        .setWaitForMetadataVersion(waitForMetadataVersion)
+                                        .setWaitForTimeout(waitForTimeout.toString())
+                                        .addAllIndices(indices)
+                                        .build();               
+    }
+    
     public ProtobufClusterStateRequest(CodedInputStream in) throws IOException {
         super(in);
         System.out.println("ProtobufClusterStateRequest constructor");
-        System.out.println("in: " + in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        routingTable = in.readBool();
-        nodes = in.readBool();
-        metadata = in.readBool();
-        blocks = in.readBool();
-        customs = in.readBool();
-        indices = protobufStreamInput.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptionsProtobuf(in);
-        waitForTimeout = protobufStreamInput.readTimeValue();
-        waitForMetadataVersion = protobufStreamInput.readOptionalLong();
-        System.out.println("ClusterStateRequest");
-        System.out.println("routingTable: " + routingTable);
-        System.out.println("nodes: " + nodes);
-        System.out.println("metadata: " + metadata);
-        System.out.println("blocks: " + blocks);
-        System.out.println("customs: " + customs);
-        System.out.println("indices: " + indices);
-        System.out.println("indicesOptions: " + indicesOptions);
-        System.out.println("waitForTimeout: " + waitForTimeout);
-        System.out.println("waitForMetadataVersion: " + waitForMetadataVersion);
     }
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
         super.writeTo(out);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        out.writeBoolNoTag(routingTable);
-        out.writeBoolNoTag(nodes);
-        out.writeBoolNoTag(metadata);
-        out.writeBoolNoTag(blocks);
-        out.writeBoolNoTag(customs);
-        protobufStreamOutput.writeStringArray(indices);
-        indicesOptions.writeIndicesOptionsProtobuf(out);
-        protobufStreamOutput.writeTimeValue(waitForTimeout);
-        protobufStreamOutput.writeOptionalLong(waitForMetadataVersion);
     }
 
     @Override
@@ -97,81 +73,85 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest all() {
-        routingTable = true;
-        nodes = true;
-        metadata = true;
-        blocks = true;
-        customs = true;
-        indices = Strings.EMPTY_ARRAY;
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setRoutingTable(true)
+                                        .setNodes(true)
+                                        .setMetadata(true)
+                                        .setBlocks(true)
+                                        .setCustoms(true)
+                                        .addAllIndices(Arrays.asList(Strings.EMPTY_ARRAY))
+                                        .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+                                        .build();
         return this;
     }
 
     public ProtobufClusterStateRequest clear() {
-        routingTable = false;
-        nodes = false;
-        metadata = false;
-        blocks = false;
-        customs = false;
-        indices = Strings.EMPTY_ARRAY;
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setRoutingTable(false)
+                                        .setNodes(false)
+                                        .setMetadata(false)
+                                        .setBlocks(false)
+                                        .setCustoms(false)
+                                        .addAllIndices(Arrays.asList(Strings.EMPTY_ARRAY))
+                                        .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+                                        .build();
         return this;
     }
 
     public boolean routingTable() {
-        return routingTable;
+        return this.clusterStateRequest.getRoutingTable();
     }
 
     public ProtobufClusterStateRequest routingTable(boolean routingTable) {
-        this.routingTable = routingTable;
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setRoutingTable(routingTable).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
     public boolean nodes() {
-        return nodes;
+        return this.clusterStateRequest.getNodes();
     }
 
     public ProtobufClusterStateRequest nodes(boolean nodes) {
-        this.nodes = nodes;
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setNodes(nodes).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
     public boolean metadata() {
-        return metadata;
+        return this.clusterStateRequest.getMetadata();
     }
 
     public ProtobufClusterStateRequest metadata(boolean metadata) {
-        this.metadata = metadata;
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setMetadata(metadata).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
     public boolean blocks() {
-        return blocks;
+        return this.clusterStateRequest.getBlocks();
     }
 
     public ProtobufClusterStateRequest blocks(boolean blocks) {
-        this.blocks = blocks;
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).setBlocks(blocks).build();
         return this;
     }
 
     @Override
     public String[] indices() {
-        return indices;
+        return this.clusterStateRequest.getIndicesList().toArray(new String[0]);
     }
 
     @Override
     public ProtobufClusterStateRequest indices(String... indices) {
-        this.indices = indices;
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().addAllIndices(Arrays.asList(indices)).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
-    @Override
-    public IndicesOptions indicesOptions() {
-        return this.indicesOptions;
-    }
+    // @Override
+    // public IndicesOptions indicesOptions() {
+    //     return this.clusterStateRequest.;
+    // }
 
-    public final ProtobufClusterStateRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
-        return this;
-    }
+    // public final ProtobufClusterStateRequest indicesOptions(IndicesOptions indicesOptions) {
+    //     this.indicesOptions = indicesOptions;
+    //     return this;
+    // }
 
     @Override
     public boolean includeDataStreams() {
@@ -179,25 +159,28 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest customs(boolean customs) {
-        this.customs = customs;
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setCustoms(customs).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
     public boolean customs() {
-        return customs;
+        return this.clusterStateRequest.getCustoms();
     }
 
     public TimeValue waitForTimeout() {
-        return waitForTimeout;
+        return TimeValue.parseTimeValue(
+            this.clusterStateRequest.getWaitForTimeout(),
+            getClass().getSimpleName() + ".clusterManagerNodeTimeout"
+        );
     }
 
     public ProtobufClusterStateRequest waitForTimeout(TimeValue waitForTimeout) {
-        this.waitForTimeout = waitForTimeout;
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setWaitForTimeout(waitForTimeout.toString()).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
     public Long waitForMetadataVersion() {
-        return waitForMetadataVersion;
+        return this.clusterStateRequest.getWaitForMetadataVersion();
     }
 
     public ProtobufClusterStateRequest waitForMetadataVersion(long waitForMetadataVersion) {
@@ -206,7 +189,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
                 "provided waitForMetadataVersion should be >= 1, but instead is [" + waitForMetadataVersion + "]"
             );
         }
-        this.waitForMetadataVersion = waitForMetadataVersion;
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setWaitForMetadataVersion(waitForMetadataVersion).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
@@ -220,9 +203,27 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
         builder.append(",blocks=").append(blocks());
         builder.append(",customs=").append(customs());
         builder.append(",indices=").append(indices());
-        builder.append(",indicesOptions=").append(indicesOptions());
         builder.append(",waitForTimeout=").append(waitForTimeout());
         builder.append(",waitForMetadataVersion=").append(waitForMetadataVersion());
         return builder.append("]").toString();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'indicesOptions'");
+    }
+
+    public ProtobufClusterStateRequest(byte[] data) throws IOException {
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.parseFrom(data);
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(this.clusterStateRequest.toByteArray());
+    }
+
+    public ClusterStateReq request() {
+        return this.clusterStateRequest;
     }
 }

@@ -101,8 +101,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.NodeConnectionsService;
-import org.opensearch.cluster.ProtobufClusterState;
-// import org.opensearch.cluster.ProtobufClusterStateObserver;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -114,7 +112,6 @@ import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.opensearch.cluster.metadata.TemplateUpgradeService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.BatchedRerouteService;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.DiskThresholdMonitor;
@@ -131,7 +128,6 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.NodeAndClusterIdStateListener;
-// import org.opensearch.common.logging.ProtobufNodeAndClusterIdStateListener;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
@@ -142,7 +138,6 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
-import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
@@ -558,19 +553,6 @@ public class Node implements Closeable {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
             client = new NodeClient(settings, threadPool);
-
-            // final ProtobufThreadPool protobufThreadPool = new ProtobufThreadPool(settings, runnableTaskListener,
-            // executorBuilders.toArray(new ProtobufExecutorBuilder[0]));
-            // resourcesToClose.add(() -> ProtobufThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-            // final ResourceWatcherService resourceWatcherServiceProtobuf = new ResourceWatcherService(settings, protobufThreadPool);
-            // resourcesToClose.add(resourceWatcherServiceProtobuf);
-            // // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
-            // HeaderWarning.setThreadContext(protobufThreadPool.getThreadContext());
-            // resourcesToClose.add(() -> HeaderWarning.removeThreadContext(protobufThreadPool.getThreadContext()));
-
-            // for (final ProtobufExecutorBuilder<?> builder : protobufThreadPool.builders()) {
-            // additionalSettings.addAll(builder.getRegisteredSettings());
-            // }
             protobufClient = new ProtobufNodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
@@ -918,15 +900,6 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings(),
                 taskHeaders
             );
-            // final ProtobufTransportService protobufTransportService = newProtobufTransportService(
-            //     settings,
-            //     transport,
-            //     threadPool,
-            //     networkModule.getProtobufTransportInterceptor(),
-            //     protobufLocalNodeFactory,
-            //     settingsModule.getClusterSettings(),
-            //     taskHeaders
-            // );
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());
             transportService.getTaskManager().registerTaskResourceConsumer(taskConsumer);
             // if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
@@ -1311,18 +1284,6 @@ public class Node implements Closeable {
         return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
     }
 
-    // protected ProtobufTransportService newProtobufTransportService(
-    //     Settings settings,
-    //     Transport transport,
-    //     ThreadPool threadPool,
-    //     ProtobufTransportInterceptor interceptor,
-    //     Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-    //     ClusterSettings clusterSettings,
-    //     Set<String> taskHeaders
-    // ) {
-    //     return new ProtobufTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
-    // }
-
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
         // Noop in production, overridden by tests
     }
@@ -1393,24 +1354,15 @@ public class Node implements Closeable {
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
 
-        // ProtobufTransportService protobufTransportService = injector.getInstance(ProtobufTransportService.class);
-        // protobufTransportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
-        // protobufTransportService.getTaskManager().setTaskCancellationService(new ProtobufTaskCancellationService(protobufTransportService));
-
         TaskResourceTrackingService taskResourceTrackingService = injector.getInstance(TaskResourceTrackingService.class);
         transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
-        // protobufTransportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
         runnableTaskListener.set(taskResourceTrackingService);
 
         transportService.start();
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
-        // protobufTransportService.start();
-        // protobufTransportService.setLocalNode(localNodeFactory.getNode());
         assert localNodeFactory.getNode() != null;
-        // assert protobufTransportService.getLocalNode().equals(localNodeFactory.getNode())
-        //     : "protobufTransportService has a different local node than the factory provided";
         injector.getInstance(PeerRecoverySourceService.class).start();
         injector.getInstance(SegmentReplicationSourceService.class).start();
 
@@ -1457,29 +1409,14 @@ public class Node implements Closeable {
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
-        // protobufTransportService.acceptIncomingRequests();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
-        // configureProtobufNodeAndClusterIdStateListener(clusterService);
-
-        ClusterState clusterState1 = clusterService.state();
-        // System.out.println("Cluster state: " + clusterState1);
-        // ProtobufClusterState protobufClusterState1 = clusterService.protobufState();
-        // System.out.println("Protobuf Cluster state: " + protobufClusterState1);
 
         if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterState clusterState = clusterService.state();
-            // ProtobufClusterState protobufClusterState = clusterService.protobufState();
             ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
-            // ProtobufClusterStateObserver protobufObserver = new ProtobufClusterStateObserver(
-            //     protobufClusterState,
-            //     clusterService,
-            //     null,
-            //     logger,
-            //     thread.getThreadContext()
-            // );
 
             if (clusterState.nodes().getClusterManagerNodeId() == null) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
@@ -1508,33 +1445,6 @@ public class Node implements Closeable {
                     throw new OpenSearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
             }
-            // if (protobufClusterState.nodes().getClusterManagerNodeId() == null) {
-            //     logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
-            //     final CountDownLatch latch = new CountDownLatch(1);
-            //     protobufObserver.waitForNextChange(new ProtobufClusterStateObserver.Listener() {
-            //         @Override
-            //         public void onNewClusterState(ProtobufClusterState state) {
-            //             latch.countDown();
-            //         }
-
-            //         @Override
-            //         public void onClusterServiceClose() {
-            //             latch.countDown();
-            //         }
-
-            //         @Override
-            //         public void onTimeout(TimeValue timeout) {
-            //             logger.warn("timed out while waiting for initial discovery state - timeout: {}", initialStateTimeout);
-            //             latch.countDown();
-            //         }
-            //     }, state -> state.nodes().getClusterManagerNodeId() != null, initialStateTimeout);
-
-            //     try {
-            //         latch.await();
-            //     } catch (InterruptedException e) {
-            //         throw new OpenSearchTimeoutException("Interrupted while waiting for initial discovery state");
-            //     }
-            // }
         }
 
         injector.getInstance(HttpServerTransport.class).start();
@@ -1559,13 +1469,6 @@ public class Node implements Closeable {
             injector.getInstance(ThreadPool.class).getThreadContext()
         );
     }
-
-    // protected void configureProtobufNodeAndClusterIdStateListener(ClusterService clusterService) {
-    //     ProtobufNodeAndClusterIdStateListener.getAndSetNodeIdAndClusterId(
-    //         clusterService,
-    //         injector.getInstance(ThreadPool.class).getThreadContext()
-    //     );
-    // }
 
     private Node stop() {
         if (!lifecycle.moveToStopped()) {

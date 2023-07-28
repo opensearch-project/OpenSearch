@@ -409,6 +409,13 @@ public abstract class TransportBroadcastByNodeAction<
                             // TODO Auto-generated method stub
                             throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                         }
+
+                        @Override
+                        public TransportBroadcastByNodeAction<Request, Response, ShardOperationResult>.NodeResponse read(
+                                byte[] in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
+                        }
                     }
                 );
             } catch (Exception e) {

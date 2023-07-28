@@ -15,6 +15,8 @@ package org.opensearch.action.admin.cluster.node.info;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.ProtobufBaseNodeResponse;
@@ -22,11 +24,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.http.ProtobufHttpInfo;
 import org.opensearch.ingest.ProtobufIngestInfo;
-import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.monitor.os.ProtobufOsInfo;
@@ -34,10 +36,12 @@ import org.opensearch.monitor.process.ProtobufProcessInfo;
 import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.search.aggregations.support.ProtobufAggregationInfo;
 import org.opensearch.search.pipeline.ProtobufSearchPipelineInfo;
+import org.opensearch.server.proto.NodesInfoProto;
 import org.opensearch.threadpool.ProtobufThreadPoolInfo;
 import org.opensearch.transport.ProtobufTransportInfo;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,13 +50,15 @@ import java.util.Map;
 *
 * @opensearch.internal
 */
-public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
+public class ProtobufNodeInfo extends ProtobufBaseNodeResponse implements TryWriteable {
 
     private Version version;
     private Build build;
 
     @Nullable
     private Settings settings;
+
+    private NodesInfoProto.NodesInfo nodesInfoResponse;
 
     /**
      * Do not expose this map to other classes. For type safety, use {@link #getInfo(Class)}
@@ -91,6 +97,11 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
         }
     }
 
+    public ProtobufNodeInfo(byte[] data) throws InvalidProtocolBufferException {
+        super(data);
+        this.nodesInfoResponse = NodesInfoProto.NodesInfo.parseFrom(data);
+    }
+
     public ProtobufNodeInfo(
         Version version,
         Build build,
@@ -123,6 +134,15 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
         addInfoIfNonNull(ProtobufAggregationInfo.class, aggsInfo);
         addInfoIfNonNull(ProtobufSearchPipelineInfo.class, ProtobufSearchPipelineInfo);
         this.totalIndexingBuffer = totalIndexingBuffer;
+        this.nodesInfoResponse = NodesInfoProto.NodesInfo.newBuilder()
+            .setNodeId(node.getId())
+            .setProcessId(process.getId())
+            .setAddress(http.getAddress().publishAddress().toString())
+            .setDisplayName(this.build.type().displayName())
+            .setHash(this.build.hash())
+            .setJvmInfoVersion(jvm.version())
+            .setJvmHeapMax(jvm.getMem().getHeapMax().toString())
+            .build();
     }
 
     /**
@@ -327,6 +347,15 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
             );
         }
 
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(this.nodesInfoResponse.toByteArray());
+    }
+
+    public NodesInfoProto.NodesInfo response() {
+        return this.nodesInfoResponse;
     }
 
 }

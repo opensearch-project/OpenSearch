@@ -37,6 +37,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.node.info.ProtobufNodeInfo;
+import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequest;
+import org.opensearch.action.admin.cluster.node.info.ProtobufTransportNodesInfoAction.NodeInfoRequest;
+import org.opensearch.action.admin.cluster.node.stats.ProtobufNodeStats;
+import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.ProtobufTransportNodesStatsAction.NodeStatsRequest;
+import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
@@ -45,10 +53,18 @@ import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.server.proto.ClusterStateRequestProto.ClusterStateReq;
+import org.opensearch.server.proto.ClusterStateResponseProto.ClusterStateRes;
+import org.opensearch.server.proto.NodesInfoProto.NodesInfo;
+import org.opensearch.server.proto.NodesInfoRequestProto.NodesInfoReq;
+import org.opensearch.server.proto.NodesStatsProto.NodesStats;
+import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsReq;
+import org.opensearch.server.proto.OutboundMessageProto.OutboundMsg;
 import org.opensearch.threadpool.ThreadPool;
 
 import com.google.protobuf.CodedInputStream;
@@ -60,6 +76,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Handler for inbound data
@@ -138,7 +155,7 @@ public class InboundHandler {
         }
     }
 
-    void inboundMessageProtobuf(TcpChannel channel, BytesReference message) throws InvalidProtocolBufferException {
+    void inboundMessageProtobuf(TcpChannel channel, BytesReference message) throws IOException {
         System.out.println("InboundHandler.inboundMessageProtobuf");
         System.out.println("message: " + message);
         final long startTime = threadPool.relativeTimeInMillis();
@@ -152,10 +169,10 @@ public class InboundHandler {
 
     private static final CodedInputStream EMPTY_CODED_INPUT_STREAM = CodedInputStream.newInstance(BytesRef.EMPTY_BYTES);
 
-    private void messageReceivedProtobuf(TcpChannel channel, ProtobufOutboundMessage message, long startTime) {
+    private void messageReceivedProtobuf(TcpChannel channel, ProtobufOutboundMessage message, long startTime) throws IOException {
         System.out.println("InboundHandler.messageReceivedProtobuf");
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
-        final org.opensearch.example.proto.OutboundMessageProto.OutboundMsg.Header header = message.getHeader();
+        final org.opensearch.server.proto.OutboundMessageProto.OutboundMsg.Header header = message.getHeader();
         System.out.println("header: " + header);
         System.out.println("message: " + message);
         System.out.println("remoteAddress: " + remoteAddress);
@@ -170,8 +187,24 @@ public class InboundHandler {
                 System.out.println("InboundHandler.messageReceivedProtobuf isRequest");
                 System.out.println("Header: " + header);
                 System.out.println("message: " + message);
+                handleRequestProtobuf(channel, header, message);
             } else {
                 System.out.println("InboundHandler.messageReceivedProtobuf isResponse");
+                long requestId = header.getRequestId();
+                TransportResponseHandler<? extends TransportResponse> handler = responseHandlers.onResponseReceived(
+                    requestId,
+                    messageListener
+                );
+                System.out.println("Found the handler: " + handler);
+                if (handler != null) {
+                    System.out.println("Handler for the response is: " + handler);
+                    System.out.println("Handler for the response is: " + handler.toString());
+                    System.out.println("The final message is: " + message);
+                    if (handler.toString().contains("Protobuf")) {
+                        System.out.println("Trying protobuf");
+                        handleProtobufResponse(requestId, remoteAddress, message, handler);
+                    }
+                }
             }
         } finally {
             final long took = threadPool.relativeTimeInMillis() - startTime;
@@ -286,6 +319,104 @@ public class InboundHandler {
         }
     }
 
+    private <T extends TransportRequest> void handleRequestProtobuf(TcpChannel channel, org.opensearch.server.proto.OutboundMessageProto.OutboundMsg.Header header, ProtobufOutboundMessage message) throws IOException {
+        OutboundMsg outboundMsg = message.getMessage();
+        final String action = outboundMsg.getAction();
+        final long requestId = header.getRequestId();
+        final Version version = Version.fromString(outboundMsg.getVersion());
+        System.out.println("InboundHandler.handleRequestProtobuf");
+        System.out.println("Header: " + header);
+        System.out.println("Action: " + action);
+        System.out.println("RequestId: " + requestId);
+        System.out.println("Version: " + version);
+        System.out.println("Message: " + outboundMsg);
+        final TransportChannel transportChannel = new TcpTransportChannel(
+            outboundHandler,
+            channel,
+            action,
+            requestId,
+            version,
+            outboundMsg.getFeaturesList().stream().map(String::valueOf).collect(Collectors.toSet()),
+            false,
+            false,
+            () -> {}
+        );
+        try {
+            messageListener.onRequestReceived(requestId, action);
+            final ProtobufRequestHandlerRegistry<T> reg = protobufRequestHandlers.getHandler(action);
+            assert reg != null;
+            if (outboundMsg.hasClusterStateReq()) {
+                System.out.println("InboundHandler.handleRequestProtobuf hasClusterStateReq");
+                final ClusterStateReq clusterStateReq = outboundMsg.getClusterStateReq();
+                System.out.println("ClusterStateReq: " + clusterStateReq);
+                ProtobufClusterStateRequest protobufClusterStateRequest = new ProtobufClusterStateRequest(clusterStateReq.toByteArray());
+                final T request = (T) protobufClusterStateRequest;
+                request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                System.out.println("Transport request: " + request);
+                final String executor = reg.getExecutor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    try {
+                        reg.processMessageReceived(request, transportChannel);
+                    } catch (Exception e) {
+                        sendErrorResponse(reg.getAction(), transportChannel, e);
+                    }
+                } else {
+                    threadPool.executor(executor).execute(new ProtobufRequestHandler<>(reg, request, transportChannel));
+                }
+            } else if (outboundMsg.hasNodesInfoReq()) {
+                System.out.println("InboundHandler.handleRequestProtobuf hasNodesInfoReq");
+                final NodesInfoReq nodesInfoReq = outboundMsg.getNodesInfoReq();
+                System.out.println("NodesInfoReq: " + nodesInfoReq);
+                try {
+                    ProtobufNodesInfoRequest protobufNodesInfoRequest = new ProtobufNodesInfoRequest(nodesInfoReq.toByteArray());
+                    System.out.println("Converted node info request: " + protobufNodesInfoRequest);
+                    final T request = (T) new NodeInfoRequest(protobufNodesInfoRequest);
+                    request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                    System.out.println("Transport request: " + request);
+                    final String executor = reg.getExecutor();
+                    if (ThreadPool.Names.SAME.equals(executor)) {
+                        try {
+                            reg.processMessageReceived(request, transportChannel);
+                        } catch (Exception e) {
+                            sendErrorResponse(reg.getAction(), transportChannel, e);
+                        }
+                    } else {
+                        System.out.println("In else condition for thread pool");
+                        threadPool.executor(executor).execute(new ProtobufRequestHandler<>(reg, request, transportChannel));
+                    }
+                } catch (Exception e) {
+                    System.out.println("Exception: " + e);
+                }             
+            } else if (outboundMsg.hasNodesStatsReq()) {
+                System.out.println("InboundHandler.handleRequestProtobuf hasNodesStatsReq");
+                final NodesStatsReq nodesStatsReq = outboundMsg.getNodesStatsReq();
+                System.out.println("NodesStatsReq: " + nodesStatsReq);
+                try {
+                    ProtobufNodesStatsRequest protobufNodesStatsRequest = new ProtobufNodesStatsRequest(nodesStatsReq.toByteArray());
+                    System.out.println("Converted node stats request: " + protobufNodesStatsRequest);
+                    final T request = (T) new NodeStatsRequest(protobufNodesStatsRequest);
+                    request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                    System.out.println("Transport request: " + request);
+                    final String executor = reg.getExecutor();
+                    if (ThreadPool.Names.SAME.equals(executor)) {
+                        try {
+                            reg.processMessageReceived(request, transportChannel);
+                        } catch (Exception e) {
+                            sendErrorResponse(reg.getAction(), transportChannel, e);
+                        }
+                    } else {
+                        System.out.println("In else condition for thread pool");
+                        threadPool.executor(executor).execute(new ProtobufRequestHandler<>(reg, request, transportChannel));
+                    }
+                } catch (Exception e) {
+                    System.out.println("Exception: " + e);
+                }             
+            }
+        } catch (Exception e) {
+            sendErrorResponse(action, transportChannel, e);
+        }
+    }
+
     private <T extends TransportRequest> void handleRequest(TcpChannel channel, Header header, InboundMessage message) throws IOException {
         final String action = header.getActionName();
         final long requestId = header.getRequestId();
@@ -368,6 +499,7 @@ public class InboundHandler {
                                 sendErrorResponse(reg.getAction(), transportChannel, e);
                             }
                         } else {
+                            System.out.println("In else condition for thread pool normal");
                             threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
                         }
                     } catch (Exception e) {
@@ -554,6 +686,72 @@ public class InboundHandler {
         }
     }
 
+    private <T extends TransportResponse> void handleProtobufResponse(
+        final long requestId,
+        InetSocketAddress remoteAddress,
+        final ProtobufOutboundMessage message,
+        final TransportResponseHandler<T> handler
+    ) throws IOException {
+        System.out.println("handleProtobufResponse");
+        try {
+            OutboundMsg outboundMsg = message.getMessage();
+            if (outboundMsg.hasClusterStateRes()) {
+                System.out.println("InboundHandler.handleProtobufResponse hasClusterStateRes");
+                final ClusterStateRes clusterStateRes = outboundMsg.getClusterStateRes();
+                System.out.println("ClusterStateRes: " + clusterStateRes);
+                ProtobufClusterStateResponse protobufClusterStateResponse = new ProtobufClusterStateResponse(clusterStateRes.toByteArray());
+                final T response = (T) protobufClusterStateResponse;
+                response.remoteAddress(new TransportAddress(remoteAddress));
+                System.out.println("Transport response: " + response);
+
+                final String executor = handler.executor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    doHandleResponse(handler, response);
+                } else {
+                    threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
+                }
+            } else if (outboundMsg.hasNodesInfoRes()) {
+                System.out.println("InboundHandler.handleProtobufResponse hasNodesInfoRes");
+                final NodesInfo nodesInfoRes = outboundMsg.getNodesInfoRes();
+                System.out.println("NodesInfoRes: " + nodesInfoRes);
+                ProtobufNodeInfo protobufNodeInfo = new ProtobufNodeInfo(nodesInfoRes.toByteArray());
+                final T response = (T) protobufNodeInfo;
+                response.remoteAddress(new TransportAddress(remoteAddress));
+                System.out.println("Transport nodes response: " + response);
+
+                final String executor = handler.executor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    doHandleResponse(handler, response);
+                } else {
+                    threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
+                }
+            } else if (outboundMsg.hasNodesStatsRes()) {
+                System.out.println("InboundHandler.handleProtobufResponse hasNodesStatsRes");
+                final NodesStats nodesStatsRes = outboundMsg.getNodesStatsRes();
+                System.out.println("NodesStatsRes: " + nodesStatsRes);
+                ProtobufNodeStats protobufNodeStats = new ProtobufNodeStats(nodesStatsRes.toByteArray());
+                final T response = (T) protobufNodeStats;
+                response.remoteAddress(new TransportAddress(remoteAddress));
+                System.out.println("Transport nodes stats response: " + response);
+
+                final String executor = handler.executor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    doHandleResponse(handler, response);
+                } else {
+                    threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
+                }
+            }
+        } catch (Exception e) {
+            final Exception serializationException = new TransportSerializationException(
+                "Failed to deserialize response from handler [" + handler + "]",
+                e
+            );
+            logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
+            handleException(handler, serializationException);
+            return;
+        }
+    }
+
     private <T extends TransportResponse> void handleResponseProtobuf(
         final long requestId,
         InetSocketAddress remoteAddress,
@@ -655,6 +853,38 @@ public class InboundHandler {
         private final TransportChannel transportChannel;
 
         RequestHandler(RequestHandlerRegistry<T> reg, T request, TransportChannel transportChannel) {
+            this.reg = reg;
+            this.request = request;
+            this.transportChannel = transportChannel;
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            reg.processMessageReceived(request, transportChannel);
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return reg.isForceExecution();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            sendErrorResponse(reg.getAction(), transportChannel, e);
+        }
+    }
+
+    /**
+     * Internal request handler
+     *
+     * @opensearch.internal
+     */
+    private static class ProtobufRequestHandler<T extends TransportRequest> extends AbstractRunnable {
+        private final ProtobufRequestHandlerRegistry<T> reg;
+        private final T request;
+        private final TransportChannel transportChannel;
+
+        ProtobufRequestHandler(ProtobufRequestHandlerRegistry<T> reg, T request, TransportChannel transportChannel) {
             this.reg = reg;
             this.request = request;
             this.transportChannel = transportChannel;
