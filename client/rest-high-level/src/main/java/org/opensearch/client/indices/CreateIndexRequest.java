@@ -187,7 +187,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      */
     public CreateIndexRequest mapping(Map<String, ?> source) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(MediaTypeRegistry.getDefaultMediaType());
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.getDefaultMediaType());
             builder.map(source);
             return mapping(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {

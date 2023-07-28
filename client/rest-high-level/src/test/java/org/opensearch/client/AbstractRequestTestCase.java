@@ -36,7 +36,6 @@ import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -60,7 +59,7 @@ public abstract class AbstractRequestTestCase<C extends ToXContent, S> extends O
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference bytes = toShuffledXContent(clientTestInstance, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
-        final XContent xContent = XContentFactory.xContent(xContentType);
+        final XContent xContent = xContentType.xContent();
         final XContentParser parser = xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, bytes.streamInput());
         final S serverInstance = doParseToServerInstance(parser);
         assertInstances(serverInstance, clientTestInstance);

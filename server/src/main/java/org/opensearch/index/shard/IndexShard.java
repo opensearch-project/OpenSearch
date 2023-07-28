@@ -98,11 +98,11 @@ import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
@@ -2171,7 +2171,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         shardId.getIndexName(),
                         index.id(),
                         index.source(),
-                        XContentHelper.xContentType(index.source()),
+                        MediaTypeRegistry.xContentType(index.source()),
                         index.routing()
                     )
                 );

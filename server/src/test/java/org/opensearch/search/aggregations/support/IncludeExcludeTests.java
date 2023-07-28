@@ -37,9 +37,9 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
@@ -218,7 +218,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
 
     // Serializes/deserializes an IncludeExclude statement with a single clause
     private IncludeExclude serialize(IncludeExclude incExc, ParseField field) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
             builder.prettyPrint();
         }
@@ -264,7 +264,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
     // Serializes/deserializes the IncludeExclude statement with include AND
     // exclude clauses
     private IncludeExclude serializeMixedRegex(IncludeExclude incExc) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
             builder.prettyPrint();
         }
