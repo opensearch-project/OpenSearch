@@ -10,7 +10,6 @@ package org.opensearch.index.document;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -87,12 +86,12 @@ public abstract class SortedUnsignedLongDocValuesRangeQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
+    public Query rewrite(IndexSearcher searcher) throws IOException {
         if (Long.compareUnsigned(lowerValue, Numbers.MIN_UNSIGNED_LONG_VALUE_AS_LONG) == 0
             && Long.compareUnsigned(upperValue, Numbers.MAX_UNSIGNED_LONG_VALUE_AS_LONG) == 0) {
             return new FieldExistsQuery(field);
         }
-        return super.rewrite(reader);
+        return super.rewrite(searcher);
     }
 
     abstract SortedNumericDocValues getValues(LeafReader reader, String field) throws IOException;

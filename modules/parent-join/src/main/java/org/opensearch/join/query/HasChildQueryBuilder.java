@@ -416,11 +416,12 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
 
         @Override
-        public Query rewrite(IndexReader reader) throws IOException {
-            Query rewritten = super.rewrite(reader);
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            Query rewritten = super.rewrite(searcher);
             if (rewritten != this) {
                 return rewritten;
             }
+            IndexReader reader = searcher.getIndexReader();
             if (reader instanceof DirectoryReader) {
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);
