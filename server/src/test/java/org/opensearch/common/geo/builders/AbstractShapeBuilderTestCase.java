@@ -37,9 +37,9 @@ import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable.Reader;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -86,7 +86,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder<?, ?,
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB testShape = createTestShapeBuilder();
-            XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder contentBuilder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 contentBuilder.prettyPrint();
             }

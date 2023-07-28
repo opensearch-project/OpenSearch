@@ -47,9 +47,9 @@ import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -140,7 +140,7 @@ public class DirectCandidateGeneratorTests extends OpenSearchTestCase {
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             DirectCandidateGeneratorBuilder generator = randomCandidateGenerator();
-            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();
             }
