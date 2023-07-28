@@ -373,9 +373,9 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         }
         String httpProtocol = "http";
         Optional<String> protocol = nodes.stream()
-                .map(OpenSearchNode::getHttpProtocol)
-                .filter(Objects::nonNull) // Filter out null values
-                .findFirst();
+            .map(OpenSearchNode::getHttpProtocol)
+            .filter(Objects::nonNull) // Filter out null values
+            .findFirst();
 
         if (protocol.isPresent()) {
             httpProtocol = protocol.get();
