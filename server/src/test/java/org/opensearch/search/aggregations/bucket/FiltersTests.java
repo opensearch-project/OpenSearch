@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.BoolQueryBuilder;
@@ -106,7 +106,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
     }
 
     public void testOtherBucket() throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         builder.startObject();
         builder.startArray("filters").startObject().startObject("term").field("field", "foo").endObject().endObject().endArray();
         builder.endObject();
@@ -116,7 +116,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
             // The other bucket is disabled by default
             assertFalse(filters.otherBucket());
 
-            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject();
             builder.startArray("filters").startObject().startObject("term").field("field", "foo").endObject().endObject().endArray();
             builder.field("other_bucket_key", "some_key");
@@ -128,7 +128,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
             // but setting a key enables it automatically
             assertTrue(filters.otherBucket());
 
-            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject();
             builder.startArray("filters").startObject().startObject("term").field("field", "foo").endObject().endObject().endArray();
             builder.field("other_bucket", false);
@@ -207,7 +207,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
 
     public void testEmptyFilters() throws IOException {
         {
-            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject();
             builder.startArray("filters").endArray();  // unkeyed array
             builder.endObject();
@@ -221,7 +221,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         }
 
         {
-            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject();
             builder.startObject("filters").endObject(); // keyed object
             builder.endObject();

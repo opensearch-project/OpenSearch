@@ -54,11 +54,11 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
@@ -378,7 +378,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public IndexRequest source(Map<String, ?> source, MediaType contentType) throws OpenSearchGenerationException {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(contentType);
             builder.map(source);
             return source(builder);
         } catch (IOException e) {
@@ -434,7 +434,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             );
         }
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(mediaType);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(mediaType);
             builder.startObject();
             for (int i = 0; i < source.length; i++) {
                 builder.field(source[i++].toString(), source[i]);
