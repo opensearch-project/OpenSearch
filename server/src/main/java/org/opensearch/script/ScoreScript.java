@@ -33,10 +33,14 @@ package org.opensearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.Version;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.query.functionscore.TermFrequencyFunction.TermFrequencyFunctionNamesEnum;
+import org.opensearch.index.query.functionscore.TermFrequencyFunction.TermFrequencyFunctionFactory;
+
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
@@ -115,7 +119,9 @@ public abstract class ScoreScript {
     private String indexName = null;
     private Version indexVersion = null;
 
-    public ScoreScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
+    private final IndexSearcher indexSearcher;
+
+    public ScoreScript(Map<String, Object> params, SearchLookup lookup, IndexSearcher indexSearcher, LeafReaderContext leafContext) {
         // null check needed b/c of expression engine subclass
         if (lookup == null) {
             assert params == null;
@@ -123,12 +129,14 @@ public abstract class ScoreScript {
             this.params = null;
             this.leafLookup = null;
             this.docBase = 0;
+            this.indexSearcher = null;
         } else {
             this.leafLookup = lookup.getLeafSearchLookup(leafContext);
             params = new HashMap<>(params);
             params.putAll(leafLookup.asMap());
             this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
             this.docBase = leafContext.docBase;
+            this.indexSearcher = indexSearcher;
         }
     }
 
@@ -142,6 +150,17 @@ public abstract class ScoreScript {
     /** The doc lookup for the Lucene segment this script was created for. */
     public Map<String, ScriptDocValues<?>> getDoc() {
         return leafLookup.doc();
+    }
+
+    public Object getTermFrequency(TermFrequencyFunctionNamesEnum functionName, String field, String val) throws IOException {
+        Map<Object, Object> context = new HashMap<>() {
+            {
+                put("searcher", indexSearcher);
+            }
+        };
+        return leafLookup.executeTermFrequencyFunction(
+            TermFrequencyFunctionFactory.createFunction(functionName, field, val, docId, context)
+        );
     }
 
     /** Set the current document to run the script on next. */
@@ -268,7 +287,7 @@ public abstract class ScoreScript {
      */
     public interface Factory extends ScriptFactory {
 
-        ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
+        ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup, IndexSearcher indexSearcher);
 
     }
 
