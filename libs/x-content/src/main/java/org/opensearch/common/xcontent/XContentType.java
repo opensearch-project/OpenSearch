@@ -38,11 +38,9 @@ import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContent;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * The content type of {@link XContent}.
@@ -130,11 +128,6 @@ public enum XContentType implements MediaType {
             return CborXContent.cborXContent;
         }
     };
-
-    static {
-        /** a parser of media types */
-        MediaTypeRegistry.register(XContentType.values(), Map.of("application/*", JSON, "application/x-ndjson", JSON));
-    }
 
     private int index;
 
