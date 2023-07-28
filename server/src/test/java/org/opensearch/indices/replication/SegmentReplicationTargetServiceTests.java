@@ -72,10 +72,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     private IndexShard replicaShard;
     private IndexShard primaryShard;
     private ReplicationCheckpoint checkpoint;
-    private SegmentReplicationSource replicationSource;
     private SegmentReplicationTargetService sut;
-
-    private ReplicationCheckpoint initialCheckpoint;
     private ReplicationCheckpoint aheadCheckpoint;
 
     private ReplicationCheckpoint newPrimaryCheckpoint;
@@ -85,11 +82,10 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     private DiscoveryNode localNode;
 
     private IndicesService indicesService;
-    private ClusterService clusterService;
 
     private SegmentReplicationState state;
 
-    private static long TRANSPORT_TIMEOUT = 30000;// 30sec
+    private static final long TRANSPORT_TIMEOUT = 30000;// 30sec
 
     @Override
     public void setUp() throws Exception {
@@ -109,9 +105,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             0L,
             replicaShard.getLatestReplicationCheckpoint().getCodec()
         );
-        SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
-        replicationSource = mock(SegmentReplicationSource.class);
-        when(replicationSourceFactory.get(replicaShard)).thenReturn(replicationSource);
 
         testThreadPool = new TestThreadPool("test", Settings.EMPTY);
         localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -128,7 +121,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         transportService.acceptIncomingRequests();
 
         indicesService = mock(IndicesService.class);
-        clusterService = mock(ClusterService.class);
+        ClusterService clusterService = mock(ClusterService.class);
         ClusterState clusterState = mock(ClusterState.class);
         RoutingTable mockRoutingTable = mock(RoutingTable.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -137,7 +130,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
         when(clusterState.nodes()).thenReturn(DiscoveryNodes.builder().add(localNode).build());
         sut = prepareForReplication(primaryShard, replicaShard, transportService, indicesService, clusterService);
-        initialCheckpoint = replicaShard.getLatestReplicationCheckpoint();
+        ReplicationCheckpoint initialCheckpoint = replicaShard.getLatestReplicationCheckpoint();
         aheadCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),
             initialCheckpoint.getPrimaryTerm(),
