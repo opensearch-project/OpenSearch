@@ -53,7 +53,6 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationShardStats;
-import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
@@ -201,10 +200,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final String nodeB = internalCluster().startDataOnlyNode();
         final Settings settings = Settings.builder()
             .put(indexSettings())
-            .put(
-                EngineConfig.INDEX_CODEC_SETTING.getKey(),
-                randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC, CodecService.LUCENE_DEFAULT_CODEC)
-            )
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomFrom(CODECS))
             .build();
         createIndex(INDEX_NAME, settings);
         ensureGreen(INDEX_NAME);
