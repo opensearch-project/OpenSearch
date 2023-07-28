@@ -517,7 +517,6 @@ public class TransportService extends AbstractLifecycleComponent
      * @param listener the action listener to notify
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) {
-        // System.out.println("TransportService.connectToNode");
         if (isLocalNode(node)) {
             listener.onResponse(null);
             return;
@@ -883,10 +882,6 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         TransportResponseHandler<T> handler
     ) {
-        // System.out.println("sendRequest");
-        // System.out.println("node: " + node);
-        // System.out.println("action: " + action);
-        // System.out.println("request: " + request);
         final Transport.Connection connection;
         try {
             connection = getConnection(node);
@@ -916,7 +911,6 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportResponseHandler<T> handler
     ) {
         try {
-            // System.out.println("sendRequest2");
             logger.debug("Action: " + action);
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
@@ -986,13 +980,9 @@ public class TransportService extends AbstractLifecycleComponent
      * @throws NodeNotConnectedException if the given node is not connected
      */
     public Transport.Connection getConnection(DiscoveryNode node) {
-        // System.out.println("transport service");
-        // System.out.println("Getting connection for node " + node);
         if (isLocalNode(node)) {
-            // System.out.println("Is local node");
             return localNodeConnection;
         } else {
-            // System.out.println("Not local node");
             return connectionManager.getConnection(node);
         }
     }
@@ -1045,7 +1035,6 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         TransportResponseHandler<T> handler
     ) {
-        System.out.println("Sending internal request from transport service");
         if (connection == null) {
             throw new IllegalStateException("can't send request to a null connection");
         }
@@ -1074,7 +1063,6 @@ public class TransportService extends AbstractLifecycleComponent
                 assert options.timeout() != null;
                 timeoutHandler.scheduleTimeout(options.timeout());
             }
-            System.out.println("Before sending request to TcpTransport NodeChannels");
             connection.sendRequest(requestId, action, request, options); // local node optimization happens upstream
         } catch (final Exception e) {
             // usually happen either because we failed to connect to the node
@@ -1126,22 +1114,12 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
-        // System.out.println("Sending local request");
-        // System.out.println("Request id: " + requestId);
-        // System.out.println("Action: " + action);
-        // System.out.println("Request: " + request);
         final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool);
         try {
             onRequestSent(localNode, requestId, action, request, options);
             onRequestReceived(requestId, action);
-            // System.out.println("Req canonical: " + request.getClass().getCanonicalName());
             final RequestHandlerRegistry reg = getRequestHandler(action);
             final ProtobufRequestHandlerRegistry protobufRequestHandlerRegistry = getRequestHandlerProtobuf(action);
-            // if (request.getClass().getCanonicalName().contains("Protobuf")) {
-            //     protobufRequestHandlerRegistry = getRequestHandlerProtobuf(action);
-            // }   
-            // System.out.println("Request handler: " + reg);
-            // System.out.println("Protobuf request handler: " + protobufRequestHandlerRegistry);
             if (reg == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }

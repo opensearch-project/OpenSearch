@@ -76,8 +76,6 @@ public class ClusterName implements Writeable, ProtobufWriteable {
     }
 
     public ClusterName(String value) {
-        System.out.println("Hello from ClusterName.java");
-        System.out.println("value: " + value);
         this.value = value.intern();
     }
 

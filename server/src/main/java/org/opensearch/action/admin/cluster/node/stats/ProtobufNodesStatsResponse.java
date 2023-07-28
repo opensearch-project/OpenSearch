@@ -44,9 +44,6 @@ public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<Protob
 
     public ProtobufNodesStatsResponse(ClusterName clusterName, List<ProtobufNodeStats> nodes, List<ProtobufFailedNodeException> failures) {
         super(clusterName, nodes, failures);
-        System.out.println("ProtobufNodesStatsResponse constructor");
-        System.out.println("clusterName: " + clusterName);
-        System.out.println("nodes: " + nodes);
         List<NodesStats> nodesStats = new ArrayList<>();
         for (ProtobufNodeStats nodeStats : nodes) {
             nodesStats.add(nodeStats.response());
@@ -56,8 +53,6 @@ public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<Protob
             .setClusterName(clusterName.value())
             .addAllNodesStats(nodesStats)
             .build();
-        System.out.println("Proto nodes stats: " + this.nodesStatsRes);
-        System.out.println("Nodes info map: " + this.nodesMap);
     }
 
     @Override

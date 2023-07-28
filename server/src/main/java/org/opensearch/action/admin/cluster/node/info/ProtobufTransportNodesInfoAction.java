@@ -68,33 +68,23 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
         List<ProtobufNodeInfo> responses,
         List<ProtobufFailedNodeException> failures
     ) {
-        System.out.println("Inside newResponse");
-        System.out.println("nodesInfoRequest: " + nodesInfoRequest);
-        System.out.println("responses: " + responses);
-        System.out.println("failures: " + failures);
         return new ProtobufNodesInfoResponse(new ClusterName(clusterService.getClusterName().value()), responses, failures);
     }
 
     @Override
     protected NodeInfoRequest newNodeRequest(ProtobufNodesInfoRequest request) {
-        // System.out.println("Inside newNodeRequest");
         return new NodeInfoRequest(request);
     }
 
     @Override
     protected ProtobufNodeInfo newNodeResponse(CodedInputStream in) throws IOException {
-        System.out.println("Inside newNodeResponse with input stream");
         return new ProtobufNodeInfo(in);
     }
 
     @Override
     protected ProtobufNodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
-        System.out.println("Inside nodeOperation in ProtobufTransportNodesInfoAction");
-        System.out.println("nodeRequest: " + nodeRequest);
         ProtobufNodesInfoRequest request = nodeRequest.request;
-        System.out.println("request: " + request);
         Set<String> metrics = request.requestedMetrics();
-        System.out.println("Metrics: " + metrics);
         ProtobufNodeInfo protobufNodeInfo = nodeService.info(
             metrics.contains(ProtobufNodesInfoRequest.Metric.SETTINGS.metricName()),
             metrics.contains(ProtobufNodesInfoRequest.Metric.OS.metricName()),
@@ -109,7 +99,6 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
             metrics.contains(ProtobufNodesInfoRequest.Metric.INDICES.metricName()),
             metrics.contains(ProtobufNodesInfoRequest.Metric.SEARCH_PIPELINES.metricName())
         );
-        System.out.println("protobufNodeInfo: " + protobufNodeInfo);
         return protobufNodeInfo;
     }
 
@@ -153,7 +142,6 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
 
     @Override
     protected ProtobufNodeInfo newNodeResponse(byte[] in) throws IOException {
-        System.out.println("Inside newNodeResponse with byte array");
         return new ProtobufNodeInfo(in);
     }
 }

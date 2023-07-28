@@ -120,8 +120,6 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
         final ClusterState state,
         final ActionListener<ClusterStateResponse> listener
     ) throws IOException {
-
-        System.out.println("Cluster state action called");
         final Predicate<ClusterState> acceptableClusterStatePredicate = request.waitForMetadataVersion() == null
             ? clusterState -> true
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
@@ -169,9 +167,6 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
 
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
         logger.trace("Serving cluster state request using version {}", currentState.version());
-        System.out.println("Building cluster state response");
-        System.out.println("ClusterStateRequest: " + request.toString());
-        System.out.println("ClusterState: " + currentState.toString());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
         builder.stateUUID(currentState.stateUUID());

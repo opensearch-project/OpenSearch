@@ -164,7 +164,6 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
-        // System.out.println("RemoteConnectionManager.addConnectedNode");
         ArrayList<DiscoveryNode> newConnections = new ArrayList<>(this.connectedNodes);
         newConnections.add(addedNode);
         this.connectedNodes = Collections.unmodifiableList(newConnections);

@@ -59,7 +59,6 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     
     public ProtobufClusterStateRequest(CodedInputStream in) throws IOException {
         super(in);
-        System.out.println("ProtobufClusterStateRequest constructor");
     }
 
     @Override

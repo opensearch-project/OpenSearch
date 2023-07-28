@@ -125,7 +125,6 @@ public class Header {
     }
 
     void finishParsingHeader(StreamInput input) throws IOException {
-        System.out.println("finishParsingHeader");
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
@@ -142,7 +141,6 @@ public class Header {
     }
 
     void finishParsingHeaderProtobuf(CodedInputStream input) throws IOException {
-        System.out.println("finishParsingHeaderProtobuf");
         this.headers = ThreadContext.readHeadersFromStreamProtobuf(input);
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(input);
 

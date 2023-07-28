@@ -143,9 +143,6 @@ public abstract class ProtobufAbstractClient implements ProtobufClient {
             Request request,
             ActionListener<Response> listener
         ) {
-            // System.out.println("Nodes info execute");
-            // System.out.println("action: " + action);
-            // System.out.println("request: " + request);
             client.execute(action, request, listener);
         }
 

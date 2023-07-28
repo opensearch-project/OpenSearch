@@ -114,7 +114,6 @@ public class InboundAggregator implements Releasable {
     }
 
     public InboundMessage finishAggregation() throws IOException {
-        System.out.println("InboundAggregator.finishAggregation");
         ensureOpen();
         final ReleasableBytesReference releasableContent;
         if (isFirstContent()) {

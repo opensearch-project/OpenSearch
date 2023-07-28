@@ -801,7 +801,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState>,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // System.out.println("writeTo");
         clusterName.writeTo(out);
         out.writeLong(version);
         out.writeString(stateUUID);
@@ -827,7 +826,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState>,
 
      @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        // System.out.println("writeTo CodedOutputStream");
         ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         clusterName.writeTo(out);
         out.writeInt64NoTag(version);

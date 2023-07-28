@@ -88,10 +88,8 @@ public class InboundMessage implements Releasable {
 
     public int getContentLength() {
         if (content == null) {
-            System.out.println("InboundMessage.getContentLength content is null");
             return 0;
         } else {
-            System.out.println("InboundMessage.getContentLength content is not null: " + content.length());
             return content.length();
         }
     }
@@ -121,7 +119,6 @@ public class InboundMessage implements Releasable {
     public StreamInput openOrGetStreamInput() throws IOException {
         assert isPing == false && content != null;
         if (streamInput == null) {
-            System.out.println("InboundMessage.openOrGetStreamInput");
             streamInput = content.streamInput();
             streamInput.setVersion(header.getVersion());
         }
@@ -131,7 +128,6 @@ public class InboundMessage implements Releasable {
     public CodedInputStream openOrGetProtobufCodedInput() throws IOException {
         assert isPing == false && content != null;
         if (codedInputStream == null) {
-            System.out.println("InboundMessage.openOrGetProtobufCodedInput");
             streamInput = content.streamInput();
             codedInputStream = CodedInputStream.newInstance(streamInput);
             ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(codedInputStream);

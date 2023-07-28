@@ -225,9 +225,7 @@ public abstract class ProtobufTransportNodesAction<
         }
 
         void start() {
-            // System.out.println("ProtoTransportNodesAction.AsyncAction.start");
             final DiscoveryNode[] nodes = request.concreteNodes();
-            // System.out.println("Nodes: " + nodes[0]);
             if (nodes.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
@@ -260,13 +258,11 @@ public abstract class ProtobufTransportNodesAction<
 
                             @Override
                             public void handleResponse(NodeResponse response) {
-                                // System.out.println("ProtoTransportNodesAction.AsyncAction.start.handleResponse");
                                 onOperation(idx, response);
                             }
 
                             @Override
                             public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                                // System.out.println("ProtoTransportNodesAction.AsyncAction.start.handleExceptionProtobuf");
                                 onFailure(idx, node.getId(), exp);
                             }
 
@@ -329,7 +325,6 @@ public abstract class ProtobufTransportNodesAction<
 
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, ProtobufTask task) throws Exception {
-            System.out.println("ProtoTransportNodesAction.NodeTransportHandler.messageReceived");
             channel.sendResponse(nodeOperation(request, task));
         }
     }

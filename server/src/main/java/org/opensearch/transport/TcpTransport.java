@@ -318,21 +318,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
-            System.out.println("Sending request from NodeChannels");
             if (isClosing.get()) {
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
             outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
-            System.out.println("Done with send request");
         }
 
-        // @Override
-        // public void sendRequestProtobuf(long requestId, String action, TransportRequest request,
-        //         TransportRequestOptions options) throws IOException, TransportException {
-        //     // TODO Auto-generated method stub
-        //     throw new UnsupportedOperationException("Unimplemented method 'sendRequestProtobuf'");
-        // }
     }
 
     // This allows transport implementations to potentially override specific connection profiles. This
@@ -865,9 +857,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private static int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
         if (headerBuffer.get(0) != 'E' || headerBuffer.get(1) != 'S') {
-            System.out.println("headerBuffer: " + headerBuffer);
-            System.out.println("headerBuffer.get(0): " + headerBuffer.get(0));
-            System.out.println("headerBuffer.get(1): " + headerBuffer.get(1));
             if (appearsToBeHTTPRequest(headerBuffer)) {
                 throw new HttpRequestOnTransportException("This is not an HTTP port");
             }

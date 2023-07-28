@@ -135,14 +135,6 @@ final class OutboundHandler {
             compressRequest
         );
 
-        System.out.println("OutboundHandler.sendRequest");
-        System.out.println("node: " + node);
-        System.out.println("channel: " + channel);
-        System.out.println("requestId: " + requestId);
-        System.out.println("action: " + action);
-        System.out.println("request: " + request.toString());
-        System.out.println("canonical: " + request.getClass().getCanonicalName());
-        System.out.println("message: " + message);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
         if (request.getClass().getCanonicalName().contains("ProtobufClusterState")) {
             // ExampleProtoRequest exampleProtoRequest = new ExampleProtoRequest(1, "message");
@@ -152,14 +144,12 @@ final class OutboundHandler {
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufClusterStateRequest.request(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
         } else if (request.getClass().getCanonicalName().contains("ProtobufTransportNodesInfo")) {
-            System.out.println("It is a nodes info request for protobuf");
             NodeInfoRequest protobufNodesInfoRequest = (NodeInfoRequest) request;
             byte[] bytes = new byte[1];
             bytes[0] = 0;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodesInfoRequest.request().request(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
         } else if (request.getClass().getCanonicalName().contains("ProtobufTransportNodesStats")) {
-            System.out.println("It is a nodes stats request for protobuf");
             NodeStatsRequest protobufNodesStatsRequest = (NodeStatsRequest) request;
             byte[] bytes = new byte[1];
             bytes[0] = 0;
@@ -223,28 +213,21 @@ final class OutboundHandler {
             isHandshake,
             compress
         );
-        System.out.println("OutboundHandler.sendResponse");
-        System.out.println("action: " + action);
-        System.out.println("response: " + response);
-        System.out.println("canonical: " + response.getClass().getCanonicalName());
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
         if (response.getClass().getCanonicalName().contains("ProtobufClusterState")) {
             // ExampleProtoRequest exampleProtoRequest = new ExampleProtoRequest(1, "message");
-            System.out.println("In sendReponse for protobuf");
             ProtobufClusterStateResponse protobufClusterStateResponse = (ProtobufClusterStateResponse) response;
             byte[] bytes = new byte[1];
             bytes[0] = 1;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufClusterStateResponse.response(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
         } else if (response.getClass().getCanonicalName().contains("ProtobufNodeInfo")) {
-            System.out.println("Sending response of type protobuf node info");
             ProtobufNodeInfo protobufNodeInfo = (ProtobufNodeInfo) response;
             byte[] bytes = new byte[1];
             bytes[0] = 1;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodeInfo.response(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
         } else if (response.getClass().getCanonicalName().contains("ProtobufNodeStats")) {
-            System.out.println("Sending response of type protobuf node stats");
             ProtobufNodeStats protobufNodeStats = (ProtobufNodeStats) response;
             byte[] bytes = new byte[1];
             bytes[0] = 1;
@@ -283,36 +266,26 @@ final class OutboundHandler {
     }
 
     private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
-        System.out.println("OutboundHandler.sendMessage");
-        System.out.println("OutboundHandler.sendMessage networkMessage = " + networkMessage);
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
         internalSend(channel, sendContext);
     }
 
     private void sendProtobufMessage(TcpChannel channel, ProtobufOutboundMessage message, ActionListener<Void> listener) throws IOException {
-        System.out.println("OutboundHandler.sendProtobufMessage");
-        System.out.println("OutboundHandler.sendProtobufMessage networkMessage = " + message);
         TryMessageSerializer serializer = new TryMessageSerializer(message, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
         internalSend(channel, sendContext);
     }
 
     private void sendMessage1(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
-        System.out.println("OutboundHandler.sendMessage");
-        System.out.println("OutboundHandler.sendMessage networkMessage = " + networkMessage);
         MessageSerializer1 serializer = new MessageSerializer1(networkMessage, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
         internalSend(channel, sendContext);
     }
 
     private void internalSend(TcpChannel channel, SendContext sendContext) throws IOException {
-        System.out.println("In internal send");
-        System.out.println("channel: " + channel);
-        System.out.println("sendContext: " + sendContext);
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         BytesReference reference = sendContext.get();
-        System.out.println("reference: " + reference);
         // stash thread context so that channel event loop is not polluted by thread context
         try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
             channel.sendMessage(reference, sendContext);
@@ -349,7 +322,6 @@ final class OutboundHandler {
 
         @Override
         public BytesReference get() throws IOException {
-            System.out.println("OutboundHandler.MessageSerializer.get");
             bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
             return message.serialize(bytesStreamOutput);
         }
@@ -373,16 +345,8 @@ final class OutboundHandler {
 
         @Override
         public BytesReference get() throws IOException {
-            System.out.println("OutboundHandler.TryMessageSerializer.get");
             bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
             BytesReference reference = serialize(bytesStreamOutput); 
-            System.out.println("Bytes serialized length: " + reference.length());
-            System.out.println("Bytes serialized: " + reference);
-            System.out.println("Now the bytes: ");
-            for (int i = 0; i < reference.length(); i++) {
-                System.out.print(reference.get(i) + " ");
-            }
-            System.out.println();
             return reference;
         }
 
@@ -416,7 +380,6 @@ final class OutboundHandler {
 
         @Override
         public BytesReference get() throws IOException {
-            System.out.println("OutboundHandler.MessageSerializer.get");
             bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
             return message.serialize1(bytesStreamOutput);
         }

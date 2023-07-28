@@ -75,16 +75,6 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         waitForTimeout = in.readTimeValue();
         waitForMetadataVersion = in.readOptionalLong();
-        System.out.println("ClusterStateRequest");
-        System.out.println("routingTable: " + routingTable);
-        System.out.println("nodes: " + nodes);
-        System.out.println("metadata: " + metadata);
-        System.out.println("blocks: " + blocks);
-        System.out.println("customs: " + customs);
-        System.out.println("indices: " + indices);
-        System.out.println("indicesOptions: " + indicesOptions);
-        System.out.println("waitForTimeout: " + waitForTimeout);
-        System.out.println("waitForMetadataVersion: " + waitForMetadataVersion);
     }
 
     @Override

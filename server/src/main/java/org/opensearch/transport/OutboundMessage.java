@@ -58,7 +58,6 @@ abstract class OutboundMessage extends NetworkMessage {
     }
 
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
-        System.out.println("Inside OutboundMessage.serialize");
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.headerSize(version));
 
@@ -82,18 +81,10 @@ abstract class OutboundMessage extends NetworkMessage {
         bytesStream.seek(0);
         final int contentSize = reference.length() - TcpHeader.headerSize(version);
         TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
-        System.out.println("Bytes serialized length: " + reference.length());
-        System.out.println("Bytes serialized: " + reference);
-        // System.out.println("Now the bytes: ");
-        // for (int i = 0; i < reference.length(); i++) {
-        //     System.out.print(reference.get(i) + " ");
-        // }
-        System.out.println();
         return reference;
     }
 
     BytesReference serialize1(BytesStreamOutput bytesStream) throws IOException {
-        System.out.println("Inside OutboundMessage.serialize");
         bytesStream.setVersion(version);
         // bytesStream.skip(TcpHeader.headerSize(version));
 
@@ -118,13 +109,6 @@ abstract class OutboundMessage extends NetworkMessage {
         bytesStream.seek(0);
         final int contentSize = reference.length() - TcpHeader.headerSize(version);
         TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
-        System.out.println("Bytes serialized length: " + reference.length());
-        System.out.println("Bytes serialized: " + reference);
-        System.out.println("Now the bytes: ");
-        for (int i = 0; i < reference.length(); i++) {
-            System.out.print(reference.get(i) + " ");
-        }
-        System.out.println();
         return reference;
     }
 

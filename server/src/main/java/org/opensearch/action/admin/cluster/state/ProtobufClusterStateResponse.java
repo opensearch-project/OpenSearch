@@ -54,18 +54,14 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse impleme
 
     public ProtobufClusterStateResponse(CodedInputStream in) throws IOException {
         super(in);
-        System.out.println("Inside ProtobufClusterStateResponse constructor");
-        System.out.println("CodedInputStream in: " + in.readTag());
         ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
         String cluster_name = in.readString();
-        System.out.println("cluster_name: " + cluster_name);
         clusterName = new ClusterName(cluster_name);
         clusterState = protobufStreamInput.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
         waitForTimedOut = in.readBool();
     }
 
     public ProtobufClusterStateResponse(ClusterName clusterName, ClusterState clusterState, boolean waitForTimedOut) {
-        System.out.println("Inside ProtobufClusterStateResponse constructor");
         this.clusterName = clusterName;
         this.clusterState = clusterState;
         this.waitForTimedOut = waitForTimedOut;
@@ -76,7 +72,6 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse impleme
         ImmutableOpenMap<String, DiscoveryNode> allNodes = nodes.getNodes();
 
         Map<String, ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> allNodesMap = convertNodes(allNodes);
-        System.out.println("All nodes map:" + allNodes);
         discoveryNodesBuilder.putAllAllNodes(allNodesMap).setClusterManagerNodeId(nodes.getClusterManagerNodeId()).setLocalNodeId(nodes.getLocalNodeId()).setMinNonClientNodeVersion(nodes.getSmallestNonClientNodeVersion().toString()).setMaxNonClientNodeVersion(nodes.getLargestNonClientNodeVersion().toString()).setMinNodeVersion(nodes.getMinNodeVersion().toString()).setMaxNodeVersion(nodes.getMaxNodeVersion().toString());
 
         ClusterStateResponseProto.ClusterStateRes.ClusterState.Builder clusterStateBuilder = ClusterStateResponseProto.ClusterStateRes.ClusterState.newBuilder();
@@ -89,7 +84,6 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse impleme
                                             .setClusterState(clusterStateBuilder.build())
                                             .setWaitForTimedOut(waitForTimedOut)
                                             .build();
-        System.out.println("Proto cluster state response: " + this.clusterStateRes);
     }
 
     private Map<String, ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> convertNodes(ImmutableOpenMap<String, DiscoveryNode> nodes) {
@@ -97,13 +91,9 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse impleme
         if (nodes.isEmpty()) {
             return convertedNodes;
         }
-        System.out.println("In convertNodes");
-        System.out.println("Nodes: " + nodes);
         Iterator<String> keysIt = nodes.keysIt();
         while(keysIt.hasNext()) {
-            System.out.println("Inside while loop");
             String key = keysIt.next();
-            System.out.println("Key: " + key);
             DiscoveryNode node = nodes.get(key);
             Set<ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole> nodeRoles = new HashSet<>();
             node.getRoles().forEach(role -> {
@@ -144,7 +134,6 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse impleme
 
     @Override
     public void writeTo(CodedOutputStream out) throws IOException {
-        // System.out.println("Inside writeTo of ProtobufClusterStateResponse");
         ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
         clusterName.writeTo(out);
         protobufStreamOutput.writeOptionalWriteable(clusterState);
@@ -162,32 +151,6 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse impleme
 
     public ProtobufClusterStateResponse(byte[] data) throws IOException {
         this.clusterStateRes = ClusterStateResponseProto.ClusterStateRes.parseFrom(data);
-        // this.clusterName = new ClusterName(this.clusterStateRes.getClusterName());
-        // org.opensearch.server.proto.ClusterStateResponseProto.ClusterStateRes.ClusterState clusterState = this.clusterStateRes.getClusterState();
-        // org.opensearch.server.proto.ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes discoveryNodesProto = clusterState.getNodes();
-        // discoveryNodesProto.getAllNodesMap().forEach((key, value) -> {
-        //     System.out.println("Key: " + key);
-        //     System.out.println("Value: " + value);
-        // });
-        // Map<String, ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> nodeMap = discoveryNodesProto.getAllNodesMap();
-        // ImmutableOpenMap<String, DiscoveryNode> allNodes = new ImmutableOpenMap.Builder<String, DiscoveryNode>().build();
-        // for (Map.Entry<String, ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> entry : nodeMap.entrySet()) {
-        //     String key = entry.getKey();
-        //     ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node value = entry.getValue();
-        //     Set<DiscoveryNodeRole> roles = new HashSet<>();
-        //     value.getRolesList().forEach(role -> {
-        //         String roleName = role.getRoleName();
-        //         String roleNameAbbreviation = role.getRoleNameAbbreviation();
-        //         boolean canContainData = role.getCanContainData();
-        //         DiscoveryNodeRole discoveryNodeRole = DiscoveryNode.roleMap.get(roleName);
-        //         roles.add(discoveryNodeRole);
-        //     });
-        //     DiscoveryNode node = new DiscoveryNode();
-        //     allNodes = allNodes.copyAndPut(key, node);
-        // }
-        // allNodes.putAll(nodeMap);
-        // DiscoveryNodes discoveryNodes = new DiscoveryNodes(discoveryNodesProto.getClusterManagerNodeId(), discoveryNodesProto.getLocalNodeId(), discoveryNodesProto.getMinNonClientNodeVersion(), discoveryNodesProto.getMaxNonClientNodeVersion(), discoveryNodesProto.getMinNodeVersion(), discoveryNodesProto.getMaxNodeVersion());
-        // this.clusterState = new ClusterState(clusterName, clusterState.getVersion(), clusterState.getStateUUID(), null, null, null, null, null, 0, waitForTimedOut);
     }
 
     @Override

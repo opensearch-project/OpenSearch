@@ -69,10 +69,6 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
         List<ProtobufNodeStats> responses,
         List<ProtobufFailedNodeException> failures
     ) {
-        System.out.println("Inside newResponse");
-        System.out.println("nodesStatsRequest: " + request);
-        System.out.println("responses: " + responses);
-        System.out.println("failures: " + failures);
         return new ProtobufNodesStatsResponse(new ClusterName(clusterService.getClusterName().value()), responses, failures);
     }
 
@@ -112,7 +108,6 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
             ProtobufNodesStatsRequest.Metric.WEIGHTED_ROUTING_STATS.containedIn(metrics),
             ProtobufNodesStatsRequest.Metric.FILE_CACHE_STATS.containedIn(metrics)
         );
-        System.out.println("protobufNodeStats: " + protobufNodeStats);
         return protobufNodeStats;
     }
 
@@ -156,7 +151,6 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
 
     @Override
     protected ProtobufNodeStats newNodeResponse(byte[] in) throws IOException {
-        System.out.println("Inside newNodeResponse with byte array");
         return new ProtobufNodeStats(in);
     }
 }
