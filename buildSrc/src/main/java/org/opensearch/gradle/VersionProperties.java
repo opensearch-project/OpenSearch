@@ -76,6 +76,10 @@ public class VersionProperties {
         return getBundledJdk(platform, null);
     }
 
+    public static String getBundledJre(final String platform, final String arch) {
+        return getBundledJdk(platform, arch);
+    }
+
     public static String getBundledJdkVendor() {
         return bundledJdkVendor;
     }
