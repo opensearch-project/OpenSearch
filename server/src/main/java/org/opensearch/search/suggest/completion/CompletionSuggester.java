@@ -124,7 +124,6 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 }
             }
         }
-        collector.finish();
     }
 
     @Override
