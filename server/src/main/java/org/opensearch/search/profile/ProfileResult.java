@@ -281,7 +281,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         Iterator<Map.Entry<String, Long>> iterator = modifiedBreakdown.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Long> entry = iterator.next();
-            if (entry.getKey().endsWith("_startTime")) {
+            if (entry.getKey().endsWith(AbstractProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX)) {
                 iterator.remove();
             }
         }

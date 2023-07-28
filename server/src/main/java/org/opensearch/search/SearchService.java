@@ -1270,7 +1270,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.minimumScore(source.minScore());
         }
         if (source.profile()) {
-            context.setProfilers(new Profilers(context.searcher()));
+            context.setProfilers(new Profilers(context.searcher(), context.isConcurrentSegmentSearchEnabled()));
         }
         if (source.timeout() != null) {
             context.timeout(source.timeout());

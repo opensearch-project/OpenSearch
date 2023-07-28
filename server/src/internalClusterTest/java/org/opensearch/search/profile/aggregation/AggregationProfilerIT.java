@@ -91,12 +91,12 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
         POST_COLLECTION + "_count",
         BUILD_AGGREGATION + "_count",
         REDUCE + "_count",
-        INITIALIZE + "_startTime",
-        BUILD_LEAF_COLLECTOR + "_startTime",
-        COLLECT + "_startTime",
-        POST_COLLECTION + "_startTime",
-        BUILD_AGGREGATION + "_startTime",
-        REDUCE + "_startTime"
+        INITIALIZE + "_start_time",
+        BUILD_LEAF_COLLECTOR + "_start_time",
+        COLLECT + "_start_time",
+        POST_COLLECTION + "_start_time",
+        BUILD_AGGREGATION + "_start_time",
+        REDUCE + "_start_time"
     );
 
     private static final Set<String> CONCURRENT_SEARCH_BREAKDOWN_KEYS = Set.of(

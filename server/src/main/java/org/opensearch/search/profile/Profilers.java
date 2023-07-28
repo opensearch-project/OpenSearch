@@ -51,20 +51,20 @@ public final class Profilers {
     private final ContextIndexSearcher searcher;
     private final List<QueryProfiler> queryProfilers;
     private final AggregationProfiler aggProfiler;
+    private final boolean isConcurrentSegmentSearchEnabled;
 
     /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
-    public Profilers(ContextIndexSearcher searcher) {
+    public Profilers(ContextIndexSearcher searcher, boolean isConcurrentSegmentSearchEnabled) {
         this.searcher = searcher;
+        this.isConcurrentSegmentSearchEnabled = isConcurrentSegmentSearchEnabled;
         this.queryProfilers = new ArrayList<>();
-        this.aggProfiler = searcher.getSearchContext().isConcurrentSegmentSearchEnabled()
-            ? new ConcurrentAggregationProfiler()
-            : new AggregationProfiler();
+        this.aggProfiler = isConcurrentSegmentSearchEnabled ? new ConcurrentAggregationProfiler() : new AggregationProfiler();
         addQueryProfiler();
     }
 
     /** Switch to a new profile. */
     public QueryProfiler addQueryProfiler() {
-        QueryProfiler profiler = new QueryProfiler(searcher.getSearchContext().isConcurrentSegmentSearchEnabled());
+        QueryProfiler profiler = new QueryProfiler(isConcurrentSegmentSearchEnabled);
         searcher.setProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;

@@ -68,12 +68,12 @@ public class AggregationProfileBreakdown extends AbstractProfileBreakdown<Aggreg
      * Build a timing count startTime breakdown for aggregation timing types
      */
     @Override
-    protected final Map<String, Long> buildBreakdownMap(AbstractProfileBreakdown<AggregationTimingType> breakdown) {
-        Map<String, Long> map = new HashMap<>(breakdown.timings.length * 3);
-        for (AggregationTimingType timingType : breakdown.timingTypes) {
-            map.put(timingType.toString(), breakdown.timings[timingType.ordinal()].getApproximateTiming());
-            map.put(timingType + "_count", breakdown.timings[timingType.ordinal()].getCount());
-            map.put(timingType + "_startTime", breakdown.timings[timingType.ordinal()].getEarliestTimerStartTime());
+    public Map<String, Long> toBreakdownMap() {
+        Map<String, Long> map = new HashMap<>(timings.length * 3);
+        for (AggregationTimingType timingType : timingTypes) {
+            map.put(timingType.toString(), timings[timingType.ordinal()].getApproximateTiming());
+            map.put(timingType + TIMING_TYPE_COUNT_SUFFIX, timings[timingType.ordinal()].getCount());
+            map.put(timingType + TIMING_TYPE_START_TIME_SUFFIX, timings[timingType.ordinal()].getEarliestTimerStartTime());
         }
         return Collections.unmodifiableMap(map);
     }

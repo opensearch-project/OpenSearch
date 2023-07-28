@@ -7,25 +7,6 @@
  */
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
@@ -33,6 +14,7 @@
 package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.AbstractProfileBreakdown;
 
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -49,7 +31,8 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
     private static final String MAX_PREFIX = "max_";
     private static final String MIN_PREFIX = "min_";
     private static final String AVG_PREFIX = "avg_";
-    private final String[] breakdownCountStatsTypes = { "build_leaf_collector_count", "collect_count" };
+    private static final String START_TIME_KEY = AggregationTimingType.INITIALIZE + AbstractProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX;
+    private static final String[] breakdownCountStatsTypes = { "build_leaf_collector_count", "collect_count" };
 
     @Override
     public List<ProfileResult> getTree() {
@@ -80,7 +63,7 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
 
         for (ProfileResult profileResult : profileResultsAcrossSlices) {
             long profileNodeTime = profileResult.getTime();
-            long sliceStartTime = profileResult.getTimeBreakdown().get("initialize_startTime");
+            long sliceStartTime = profileResult.getTimeBreakdown().get(START_TIME_KEY);
 
             // Profiled total time
             maxSliceNodeEndTime = Math.max(maxSliceNodeEndTime, sliceStartTime + profileNodeTime);
@@ -99,7 +82,8 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             // Profiled breakdown total time
             for (AggregationTimingType timingType : AggregationTimingType.values()) {
                 String breakdownTimingType = timingType.toString();
-                Long startTime = profileResult.getTimeBreakdown().get(breakdownTimingType + "_startTime");
+                Long startTime = profileResult.getTimeBreakdown()
+                    .get(breakdownTimingType + AbstractProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX);
                 Long endTime = startTime + profileResult.getTimeBreakdown().get(breakdownTimingType);
                 minSliceStartTimeMap.put(
                     breakdownTimingType,
@@ -119,7 +103,7 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             // Profiled breakdown count
             for (AggregationTimingType timingType : AggregationTimingType.values()) {
                 String breakdownType = timingType.toString();
-                String breakdownTypeCount = breakdownType + "_count";
+                String breakdownTypeCount = breakdownType + AbstractProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX;
                 breakdown.put(
                     breakdownTypeCount,
                     breakdown.getOrDefault(breakdownTypeCount, 0L) + profileResult.getTimeBreakdown().get(breakdownTypeCount)

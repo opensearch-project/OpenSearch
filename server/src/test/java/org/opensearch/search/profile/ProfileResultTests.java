@@ -242,20 +242,83 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "}",
             Strings.toString(builder)
         );
+
+        result = new ProfileResult(
+            "profileName",
+            "some description",
+            Map.of("key1", 1234L),
+            Map.of(),
+            1234L,
+            List.of(),
+            true,
+            321L,
+            123L,
+            222L
+        );
+        builder = XContentFactory.jsonBuilder().prettyPrint();
+        result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(
+            "{\n"
+                + "  \"type\" : \"profileName\",\n"
+                + "  \"description\" : \"some description\",\n"
+                + "  \"time_in_nanos\" : 1234,\n"
+                + "  \"max_slice_time_in_nanos\" : 321,\n"
+                + "  \"min_slice_time_in_nanos\" : 123,\n"
+                + "  \"avg_slice_time_in_nanos\" : 222,\n"
+                + "  \"breakdown\" : {\n"
+                + "    \"key1\" : 1234\n"
+                + "  }\n"
+                + "}",
+            Strings.toString(builder)
+        );
+
+        result = new ProfileResult(
+            "profileName",
+            "some description",
+            Map.of("key1", 1234567890L),
+            Map.of(),
+            1234567890L,
+            List.of(),
+            true,
+            87654321L,
+            12345678,
+            54637281L
+        );
+        builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
+        result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(
+            "{\n"
+                + "  \"type\" : \"profileName\",\n"
+                + "  \"description\" : \"some description\",\n"
+                + "  \"time\" : \"1.2s\",\n"
+                + "  \"max_slice_time\" : \"87.6ms\",\n"
+                + "  \"min_slice_time\" : \"12.3ms\",\n"
+                + "  \"avg_slice_time\" : \"54.6ms\",\n"
+                + "  \"time_in_nanos\" : 1234567890,\n"
+                + "  \"max_slice_time_in_nanos\" : 87654321,\n"
+                + "  \"min_slice_time_in_nanos\" : 12345678,\n"
+                + "  \"avg_slice_time_in_nanos\" : 54637281,\n"
+                + "  \"breakdown\" : {\n"
+                + "    \"key1\" : 1234567890\n"
+                + "  }\n"
+                + "}",
+            Strings.toString(builder)
+        );
+
     }
 
     public void testRemoveStartTimeFields() {
         Map<String, Long> breakdown = new HashMap<>();
-        breakdown.put("initialize_startTime", 123456L);
+        breakdown.put("initialize_start_time", 123456L);
         breakdown.put("initialize_count", 1L);
         breakdown.put("initialize", 654321L);
         Map<String, Long> modifiedBreakdown = new LinkedHashMap<>(breakdown);
         assertEquals(3, modifiedBreakdown.size());
-        assertEquals(123456L, (long) modifiedBreakdown.get("initialize_startTime"));
+        assertEquals(123456L, (long) modifiedBreakdown.get("initialize_start_time"));
         assertEquals(1L, (long) modifiedBreakdown.get("initialize_count"));
         assertEquals(654321L, (long) modifiedBreakdown.get("initialize"));
         ProfileResult.removeStartTimeFields(modifiedBreakdown);
-        assertFalse(modifiedBreakdown.containsKey("initialize_startTime"));
+        assertFalse(modifiedBreakdown.containsKey("initialize_start_time"));
         assertTrue(modifiedBreakdown.containsKey("initialize_count"));
         assertTrue(modifiedBreakdown.containsKey("initialize"));
     }

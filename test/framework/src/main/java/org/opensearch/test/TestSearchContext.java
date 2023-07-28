@@ -686,7 +686,7 @@ public class TestSearchContext extends SearchContext {
      * Add profilers to the query
      */
     public TestSearchContext withProfilers() {
-        this.profilers = new Profilers(searcher);
+        this.profilers = new Profilers(searcher, concurrentSegmentSearchEnabled);
         return this;
     }
 }
