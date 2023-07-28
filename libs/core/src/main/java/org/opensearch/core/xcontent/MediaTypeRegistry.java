@@ -32,9 +32,16 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.core.xcontent.spi.MediaTypeProvider;
+
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ServiceLoader;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Parses supported internet media types
@@ -48,7 +55,25 @@ public final class MediaTypeRegistry {
     // Default mediaType singleton
     private static MediaType DEFAULT_MEDIA_TYPE;
 
-    public static void register(MediaType[] acceptedMediaTypes, Map<String, MediaType> additionalMediaTypes) {
+    // JSON is a core type, so we create a static instance for implementations that require JSON format (e.g., tests)
+    // todo we should explore moving the concrete JSON implementation from the xcontent library to core
+    public static final MediaType JSON;
+
+    static {
+        List<MediaType> mediaTypes = new ArrayList<>();
+        Map<String, MediaType> amt = new HashMap<>();
+        for (MediaTypeProvider provider : ServiceLoader.load(MediaTypeProvider.class, MediaTypeProvider.class.getClassLoader())) {
+            mediaTypes.addAll(provider.getMediaTypes());
+            amt = Stream.of(amt, provider.getAdditionalMediaTypes())
+                .flatMap(map -> map.entrySet().stream())
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
+        register(mediaTypes.toArray(new MediaType[0]), amt);
+        JSON = fromMediaType("application/json");
+        setDefaultMediaType(JSON);
+    }
+
+    private static void register(MediaType[] acceptedMediaTypes, Map<String, MediaType> additionalMediaTypes) {
         // ensures the map is not overwritten:
         Map<String, MediaType> typeMap = new HashMap<>(typeWithSubtypeToMediaType);
         Map<String, MediaType> formatMap = new HashMap<>(formatToMediaType);
@@ -150,7 +175,7 @@ public final class MediaTypeRegistry {
         }
     }
 
-    public static void setDefaultMediaType(final MediaType mediaType) {
+    private static void setDefaultMediaType(final MediaType mediaType) {
         if (DEFAULT_MEDIA_TYPE != null) {
             throw new RuntimeException(
                 "unable to reset the default media type from current default [" + DEFAULT_MEDIA_TYPE + "] to [" + mediaType + "]"
