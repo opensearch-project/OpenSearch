@@ -40,7 +40,7 @@ testClusters {
     testDistribution = 'archive'
     if (numZones > 1) numberOfZones = numZones
     if (numNodes > 1) numberOfNodes = numNodes
-    if (httpProto != null) httpProtocol = httpProto
+    if (httpProto != null && httpProto != "") httpProtocol = httpProto
   }
 }
 
