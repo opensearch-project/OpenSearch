@@ -165,7 +165,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Path httpPortsFile;
     private final Path tmpDir;
 
-    private String httpProtocol = "http";
+    private String httpProtocol;
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private final List<OpenSearchDistribution> distributions = new ArrayList<>();
