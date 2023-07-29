@@ -941,8 +941,9 @@ public class Node implements Closeable {
                 clusterModule.getAllocationService(),
                 metadataCreateIndexService,
                 metadataIndexUpgradeService,
-                clusterService.getClusterSettings(),
-                shardLimitValidator
+                shardLimitValidator,
+                indicesService,
+                clusterInfoService::getClusterInfo
             );
 
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(

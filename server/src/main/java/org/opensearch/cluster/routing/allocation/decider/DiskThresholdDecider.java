@@ -68,7 +68,7 @@ import static org.opensearch.cluster.routing.RoutingPool.getNodePool;
 import static org.opensearch.cluster.routing.RoutingPool.getShardPool;
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
-import static org.opensearch.index.store.remote.filecache.FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO;
+import static org.opensearch.index.store.remote.filecache.FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 
 /**
  * The {@link DiskThresholdDecider} checks that the node a shard is potentially
@@ -199,8 +199,8 @@ public class DiskThresholdDecider extends AllocationDecider {
             final FileCacheStats fileCacheStats = clusterInfo.getNodeFileCacheStats().getOrDefault(node.nodeId(), null);
             final long nodeCacheSize = fileCacheStats != null ? fileCacheStats.getTotal().getBytes() : 0;
             final long totalNodeRemoteShardSize = currentNodeRemoteShardSize + shardSize;
-
-            if (totalNodeRemoteShardSize > DATA_TO_FILE_CACHE_SIZE_RATIO * nodeCacheSize) {
+            final double dataToFileCacheSizeRatio = DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.get(allocation.metadata().settings());
+            if (dataToFileCacheSizeRatio > 0.0f && totalNodeRemoteShardSize > dataToFileCacheSizeRatio * nodeCacheSize) {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
