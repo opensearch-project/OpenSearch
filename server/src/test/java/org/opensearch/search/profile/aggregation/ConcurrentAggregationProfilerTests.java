@@ -7,25 +7,6 @@
  */
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
@@ -61,13 +42,11 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
                         new HashMap<>(),
                         3359835L,
                         List.of(),
-                        true,
                         1490667L,
                         1180123L,
                         1240676L
                     )
                 ),
-                true,
                 94582L,
                 18667L,
                 211749L
@@ -88,13 +67,11 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
                         new HashMap<>(),
                         3359567L,
                         List.of(),
-                        true,
                         1390554L,
                         1180321L,
                         1298776L
                     )
                 ),
-                true,
                 94560L,
                 11237L,
                 236440L
@@ -109,7 +86,6 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
                 new HashMap<>(),
                 19631335L,
                 List.of(),
-                true,
                 563002L,
                 142210L,
                 1216631L
@@ -123,7 +99,6 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
                 new HashMap<>(),
                 19634567L,
                 List.of(),
-                true,
                 563333L,
                 146783L,
                 1496600L

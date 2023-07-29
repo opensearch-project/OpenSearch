@@ -86,11 +86,10 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     private final Map<String, Long> breakdown;
     private final Map<String, Object> debug;
     private final long nodeTime;
-    private final long maxSliceNodeTime;
-    private final long minSliceNodeTime;
-    private final long avgSliceNodeTime;
+    private Long maxSliceNodeTime;
+    private Long minSliceNodeTime;
+    private Long avgSliceNodeTime;
     private final List<ProfileResult> children;
-    private final boolean concurrent;
 
     public ProfileResult(
         String type,
@@ -100,7 +99,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         long nodeTime,
         List<ProfileResult> children
     ) {
-        this(type, description, breakdown, debug, nodeTime, children, false, -1, -1, -1);
+        this(type, description, breakdown, debug, nodeTime, children, null, null, null);
     }
 
     public ProfileResult(
@@ -110,10 +109,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         Map<String, Object> debug,
         long nodeTime,
         List<ProfileResult> children,
-        boolean concurrent,
-        long maxSliceNodeTime,
-        long minSliceNodeTime,
-        long avgSliceNodeTime
+        Long maxSliceNodeTime,
+        Long minSliceNodeTime,
+        Long avgSliceNodeTime
     ) {
         this.type = type;
         this.description = description;
@@ -121,7 +119,6 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.debug = debug == null ? Map.of() : debug;
         this.children = children == null ? List.of() : children;
         this.nodeTime = nodeTime;
-        this.concurrent = concurrent;
         this.maxSliceNodeTime = maxSliceNodeTime;
         this.minSliceNodeTime = minSliceNodeTime;
         this.avgSliceNodeTime = avgSliceNodeTime;
@@ -138,21 +135,13 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
         children = in.readList(ProfileResult::new);
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            this.concurrent = in.readBoolean();
-            if (concurrent) {
-                this.maxSliceNodeTime = in.readLong();
-                this.minSliceNodeTime = in.readLong();
-                this.avgSliceNodeTime = in.readLong();
-            } else {
-                this.maxSliceNodeTime = -1;
-                this.minSliceNodeTime = -1;
-                this.avgSliceNodeTime = -1;
-            }
+            this.maxSliceNodeTime = in.readOptionalLong();
+            this.minSliceNodeTime = in.readOptionalLong();
+            this.avgSliceNodeTime = in.readOptionalLong();
         } else {
-            this.concurrent = false;
-            this.maxSliceNodeTime = -1;
-            this.minSliceNodeTime = -1;
-            this.avgSliceNodeTime = -1;
+            this.maxSliceNodeTime = null;
+            this.minSliceNodeTime = null;
+            this.avgSliceNodeTime = null;
         }
     }
 
@@ -165,12 +154,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
         out.writeList(children);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeBoolean(concurrent);
-            if (concurrent) {
-                out.writeLong(maxSliceNodeTime);
-                out.writeLong(minSliceNodeTime);
-                out.writeLong(avgSliceNodeTime);
-            }
+            out.writeOptionalLong(maxSliceNodeTime);
+            out.writeOptionalLong(minSliceNodeTime);
+            out.writeOptionalLong(avgSliceNodeTime);
         }
     }
 
@@ -211,20 +197,16 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         return nodeTime;
     }
 
-    public long getMaxSliceTime() {
+    public Long getMaxSliceTime() {
         return maxSliceNodeTime;
     }
 
-    public long getMinSliceTime() {
+    public Long getMinSliceTime() {
         return minSliceNodeTime;
     }
 
-    public long getAvgSliceTime() {
+    public Long getAvgSliceTime() {
         return avgSliceNodeTime;
-    }
-
-    public boolean isConcurrent() {
-        return concurrent;
     }
 
     /**
@@ -241,19 +223,27 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         builder.field(DESCRIPTION.getPreferredName(), description);
         if (builder.humanReadable()) {
             builder.field(NODE_TIME.getPreferredName(), new TimeValue(getTime(), TimeUnit.NANOSECONDS).toString());
-            if (concurrent) {
+            if (getMaxSliceTime() != null) {
                 builder.field(MAX_SLICE_NODE_TIME.getPreferredName(), new TimeValue(getMaxSliceTime(), TimeUnit.NANOSECONDS).toString());
+            }
+            if (getMinSliceTime() != null) {
                 builder.field(MIN_SLICE_NODE_TIME.getPreferredName(), new TimeValue(getMinSliceTime(), TimeUnit.NANOSECONDS).toString());
+            }
+            if (getAvgSliceTime() != null) {
                 builder.field(AVG_SLICE_NODE_TIME.getPreferredName(), new TimeValue(getAvgSliceTime(), TimeUnit.NANOSECONDS).toString());
             }
         }
         builder.field(NODE_TIME_RAW.getPreferredName(), getTime());
-        if (concurrent) {
+        if (getMaxSliceTime() != null) {
             builder.field(MAX_SLICE_NODE_TIME_RAW.getPreferredName(), getMaxSliceTime());
+        }
+        if (getMinSliceTime() != null) {
             builder.field(MIN_SLICE_NODE_TIME_RAW.getPreferredName(), getMinSliceTime());
+        }
+        if (getAvgSliceTime() != null) {
             builder.field(AVG_SLICE_NODE_TIME_RAW.getPreferredName(), getAvgSliceTime());
         }
-        createBreakownView(builder);
+        createBreakdownView(builder);
         if (false == debug.isEmpty()) {
             builder.field(DEBUG.getPreferredName(), debug);
         }
@@ -269,11 +259,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         return builder.endObject();
     }
 
-    private void createBreakownView(XContentBuilder builder) throws IOException {
+    private void createBreakdownView(XContentBuilder builder) throws IOException {
         Map<String, Long> modifiedBreakdown = new LinkedHashMap<>(breakdown);
-        if (!concurrent) {
-            removeStartTimeFields(modifiedBreakdown);
-        }
+        removeStartTimeFields(modifiedBreakdown);
         builder.field(BREAKDOWN.getPreferredName(), modifiedBreakdown);
     }
 
@@ -300,6 +288,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), DEBUG);
         parser.declareLong(constructorArg(), NODE_TIME_RAW);
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> fromXContent(p), CHILDREN);
+        parser.declareLong(optionalConstructorArg(), MAX_SLICE_NODE_TIME_RAW);
+        parser.declareLong(optionalConstructorArg(), MIN_SLICE_NODE_TIME_RAW);
+        parser.declareLong(optionalConstructorArg(), AVG_SLICE_NODE_TIME_RAW);
         PARSER = parser.build();
     }
 

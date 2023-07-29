@@ -56,7 +56,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContent
 
 public class ProfileResultTests extends OpenSearchTestCase {
 
-    public static ProfileResult createTestItem(int depth) {
+    public static ProfileResult createTestItem(int depth, boolean concurrentSegmentSearchEnabled) {
         String type = randomAlphaOfLengthBetween(5, 10);
         String description = randomAlphaOfLengthBetween(5, 10);
         int breakdownsSize = randomIntBetween(0, 5);
@@ -77,13 +77,28 @@ public class ProfileResultTests extends OpenSearchTestCase {
         int childrenSize = depth > 0 ? randomIntBetween(0, 1) : 0;
         List<ProfileResult> children = new ArrayList<>(childrenSize);
         for (int i = 0; i < childrenSize; i++) {
-            children.add(createTestItem(depth - 1));
+            children.add(createTestItem(depth - 1, concurrentSegmentSearchEnabled));
         }
-        return new ProfileResult(type, description, breakdown, debug, randomNonNegativeLong(), children);
+        if (concurrentSegmentSearchEnabled) {
+            return new ProfileResult(
+                type,
+                description,
+                breakdown,
+                debug,
+                randomNonNegativeLong(),
+                children,
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
+        } else {
+            return new ProfileResult(type, description, breakdown, debug, randomNonNegativeLong(), children);
+        }
     }
 
     public void testFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
+        doFromXContentTestWithRandomFields(false, false);
+        doFromXContentTestWithRandomFields(false, true);
     }
 
     /**
@@ -91,11 +106,12 @@ public class ProfileResultTests extends OpenSearchTestCase {
      * back to be forward compatible with additions to the xContent
      */
     public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
+        doFromXContentTestWithRandomFields(true, false);
+        doFromXContentTestWithRandomFields(true, true);
     }
 
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        ProfileResult profileResult = createTestItem(2);
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields, boolean concurrentSegmentSearchEnabled) throws IOException {
+        ProfileResult profileResult = createTestItem(2, concurrentSegmentSearchEnabled);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(profileResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -119,7 +135,6 @@ public class ProfileResultTests extends OpenSearchTestCase {
         assertEquals(profileResult.getMaxSliceTime(), parsed.getMaxSliceTime());
         assertEquals(profileResult.getMinSliceTime(), parsed.getMinSliceTime());
         assertEquals(profileResult.getAvgSliceTime(), parsed.getAvgSliceTime());
-        assertEquals(profileResult.isConcurrent(), parsed.isConcurrent());
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
@@ -243,18 +258,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
             Strings.toString(builder)
         );
 
-        result = new ProfileResult(
-            "profileName",
-            "some description",
-            Map.of("key1", 1234L),
-            Map.of(),
-            1234L,
-            List.of(),
-            true,
-            321L,
-            123L,
-            222L
-        );
+        result = new ProfileResult("profileName", "some description", Map.of("key1", 1234L), Map.of(), 1234L, List.of(), 321L, 123L, 222L);
         builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
@@ -279,9 +283,8 @@ public class ProfileResultTests extends OpenSearchTestCase {
             Map.of(),
             1234567890L,
             List.of(),
-            true,
             87654321L,
-            12345678,
+            12345678L,
             54637281L
         );
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);

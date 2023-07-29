@@ -149,7 +149,6 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             debug,
             nodeTime,
             reducedChildrenTree,
-            true,
             maxSliceNodeTime,
             minSliceNodeTime,
             avgSliceNodeTime

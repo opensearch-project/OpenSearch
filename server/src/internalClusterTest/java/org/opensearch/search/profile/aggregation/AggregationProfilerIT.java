@@ -214,7 +214,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> breakdown = histoAggResult.getTimeBreakdown();
             assertThat(breakdown, notNullValue());
-            if (histoAggResult.isConcurrent()) {
+            if (histoAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(breakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(breakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -261,7 +262,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
             assertThat(histoBreakdown, notNullValue());
-            if (histoAggResult.isConcurrent()) {
+            if (histoAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(histoBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(histoBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -283,7 +285,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(termsAggResult.getTime(), greaterThan(0L));
             Map<String, Long> termsBreakdown = termsAggResult.getTimeBreakdown();
             assertThat(termsBreakdown, notNullValue());
-            if (termsAggResult.isConcurrent()) {
+            if (termsAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(termsBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(termsBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -302,7 +305,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(avgAggResult.getTime(), greaterThan(0L));
             Map<String, Long> avgBreakdown = termsAggResult.getTimeBreakdown();
             assertThat(avgBreakdown, notNullValue());
-            if (avgAggResult.isConcurrent()) {
+            if (avgAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(avgBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(avgBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -359,7 +363,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
             assertThat(histoBreakdown, notNullValue());
-            if (histoAggResult.isConcurrent()) {
+            if (histoAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(histoBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(histoBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -381,7 +386,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(termsAggResult.getTime(), greaterThan(0L));
             Map<String, Long> termsBreakdown = termsAggResult.getTimeBreakdown();
             assertThat(termsBreakdown, notNullValue());
-            if (termsAggResult.isConcurrent()) {
+            if (termsAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(termsBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(termsBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -400,7 +406,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(avgAggResult.getTime(), greaterThan(0L));
             Map<String, Long> avgBreakdown = avgAggResult.getTimeBreakdown();
             assertThat(avgBreakdown, notNullValue());
-            if (avgAggResult.isConcurrent()) {
+            if (avgAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(avgBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(avgBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -442,7 +449,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(diversifyAggResult.getTime(), greaterThan(0L));
             Map<String, Long> diversifyBreakdown = diversifyAggResult.getTimeBreakdown();
             assertThat(diversifyBreakdown, notNullValue());
-            if (diversifyAggResult.isConcurrent()) {
+            if (diversifyAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(diversifyBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(diversifyBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -463,7 +471,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(maxAggResult.getTime(), greaterThan(0L));
             Map<String, Long> maxBreakdown = maxAggResult.getTimeBreakdown();
             assertThat(maxBreakdown, notNullValue());
-            if (maxAggResult.isConcurrent()) {
+            if (maxAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(maxBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(maxBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -520,7 +529,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
             assertThat(histoBreakdown, notNullValue());
-            if (histoAggResult.isConcurrent()) {
+            if (histoAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(histoBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(histoBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -547,7 +557,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(tagsAggResult.getTime(), greaterThan(0L));
             Map<String, Long> tagsBreakdown = tagsAggResult.getTimeBreakdown();
             assertThat(tagsBreakdown, notNullValue());
-            if (tagsAggResult.isConcurrent()) {
+            if (tagsAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(tagsBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(tagsBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -571,7 +582,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(avgAggResult.getTime(), greaterThan(0L));
             Map<String, Long> avgBreakdown = avgAggResult.getTimeBreakdown();
             assertThat(avgBreakdown, notNullValue());
-            if (avgAggResult.isConcurrent()) {
+            if (avgAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(avgBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(avgBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -591,7 +603,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(maxAggResult.getTime(), greaterThan(0L));
             Map<String, Long> maxBreakdown = maxAggResult.getTimeBreakdown();
             assertThat(maxBreakdown, notNullValue());
-            if (maxAggResult.isConcurrent()) {
+            if (maxAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(maxBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(maxBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -611,7 +624,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(stringsAggResult.getTime(), greaterThan(0L));
             Map<String, Long> stringsBreakdown = stringsAggResult.getTimeBreakdown();
             assertThat(stringsBreakdown, notNullValue());
-            if (stringsAggResult.isConcurrent()) {
+            if (stringsAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(stringsBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(stringsBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -635,7 +649,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(avgAggResult.getTime(), greaterThan(0L));
             avgBreakdown = avgAggResult.getTimeBreakdown();
             assertThat(avgBreakdown, notNullValue());
-            if (avgAggResult.isConcurrent()) {
+            if (avgAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(avgBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(avgBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -655,7 +670,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(maxAggResult.getTime(), greaterThan(0L));
             maxBreakdown = maxAggResult.getTimeBreakdown();
             assertThat(maxBreakdown, notNullValue());
-            if (maxAggResult.isConcurrent()) {
+            if (maxAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(maxBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(maxBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -676,7 +692,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(tagsAggResult.getTime(), greaterThan(0L));
             tagsBreakdown = tagsAggResult.getTimeBreakdown();
             assertThat(tagsBreakdown, notNullValue());
-            if (tagsAggResult.isConcurrent()) {
+            if (tagsAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(tagsBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(tagsBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -700,7 +717,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(avgAggResult.getTime(), greaterThan(0L));
             avgBreakdown = avgAggResult.getTimeBreakdown();
             assertThat(avgBreakdown, notNullValue());
-            if (avgAggResult.isConcurrent()) {
+            if (avgAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(avgBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(avgBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -720,7 +738,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(maxAggResult.getTime(), greaterThan(0L));
             maxBreakdown = maxAggResult.getTimeBreakdown();
             assertThat(maxBreakdown, notNullValue());
-            if (maxAggResult.isConcurrent()) {
+            if (maxAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertThat(maxBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
                 assertThat(maxBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
@@ -821,7 +840,8 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(globalAggResult.getTime(), greaterThan(0L));
             Map<String, Long> breakdown = globalAggResult.getTimeBreakdown();
             assertThat(breakdown, notNullValue());
-            if (globalAggResult.isConcurrent()) {
+            if (globalAggResult.getMaxSliceTime() != null) {
+                // concurrent segment search enabled
                 assertEquals(CONCURRENT_SEARCH_BREAKDOWN_KEYS, breakdown.keySet());
             } else {
                 assertEquals(BREAKDOWN_KEYS, breakdown.keySet());
