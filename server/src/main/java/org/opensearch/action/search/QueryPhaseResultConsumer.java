@@ -338,12 +338,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     + "/"
                     + new ByteSizeValue(requestLevelLimitBytes)
                     + "]";
-                throw new CircuitBreakingException(
-                    message,
-                    bytesNeeded,
-                    requestLevelLimitBytes,
-                    CircuitBreaker.Durability.TRANSIENT
-                );
+                throw new CircuitBreakingException(message, bytesNeeded, requestLevelLimitBytes, CircuitBreaker.Durability.TRANSIENT);
             }
         }
 
