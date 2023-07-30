@@ -8,7 +8,9 @@
 
 package org.opensearch.common.util;
 
+import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 
 /**
  * Specialized hash table implementation that maps a (primitive) long to long.
@@ -109,7 +111,8 @@ public class ReorganizingLongHash implements Releasable {
         this.bigArrays = bigArrays;
         this.loadFactor = loadFactor;
 
-        capacity = nextPowerOfTwo((long) (initialCapacity / loadFactor));
+        capacity = Numbers.nextPowerOfTwo((long) (initialCapacity / loadFactor));
+        assert capacity <= MAX_CAPACITY : "required capacity too large";
         mask = capacity - 1;
         grow = (long) (capacity * loadFactor);
         size = 0;
@@ -296,11 +299,6 @@ public class ReorganizingLongHash implements Releasable {
 
     @Override
     public void close() {
-        table.close();
-        keys.close();
-    }
-
-    private static long nextPowerOfTwo(final long value) {
-        return Math.max(1, Long.highestOneBit(value - 1) << 1);
+        Releasables.close(table, keys);
     }
 }

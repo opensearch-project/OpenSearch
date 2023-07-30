@@ -8,7 +8,6 @@
 
 package org.opensearch.common.util;
 
-import net.openhft.hashing.LongHashFunction;
 import org.apache.lucene.util.BytesRef;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -23,7 +22,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 
 import java.util.HashSet;
@@ -32,7 +30,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-@Fork(value = 5)
+@Fork(value = 3)
 @Warmup(iterations = 1, time = 2)
 @Measurement(iterations = 3, time = 5)
 @BenchmarkMode(Mode.AverageTime)
@@ -45,7 +43,7 @@ public class BytesRefHashBenchmark {
     public void add(Blackhole bh, Options opts) {
         for (int hit = 0; hit < NUM_HITS; hit++) {
             BytesRef key = opts.keys[hit % opts.keys.length];
-            for (HashTable table : opts.tables) {
+            for (BytesRefHash table : opts.tables) {
                 bh.consume(table.add(key));
             }
         }
@@ -53,9 +51,6 @@ public class BytesRefHashBenchmark {
 
     @State(Scope.Benchmark)
     public static class Options {
-        @Param({ "baseline", "compact", "reorganizing" })
-        public String type;
-
         @Param({
             "1",
             "2",
@@ -163,14 +158,16 @@ public class BytesRefHashBenchmark {
         @Param({ "8", "32", "128" })
         public Integer length;
 
-        private HashTable[] tables;
+        private BytesRefHash[] tables;
 
         private BytesRef[] keys;
 
         @Setup
         public void setup() {
             assert size <= Math.pow(26, length) : "key length too small to generate the required number of keys";
-            tables = Stream.generate(this::newHashTable).limit(NUM_TABLES).toArray(HashTable[]::new);
+            tables = Stream.generate(() -> new BytesRefHash(BigArrays.NON_RECYCLING_INSTANCE))
+                .limit(NUM_TABLES)
+                .toArray(BytesRefHash[]::new);
             Random random = new Random(0);
             Set<BytesRef> seen = new HashSet<>();
             keys = new BytesRef[size];
@@ -193,68 +190,5 @@ public class BytesRefHashBenchmark {
         public void tearDown() {
             Releasables.close(tables);
         }
-
-        private HashTable newHashTable() {
-            switch (type) {
-                case "baseline":
-                    return new HashTable() {
-                        private final BytesRefHash table = new BytesRefHash(1, 0.6f, BigArrays.NON_RECYCLING_INSTANCE);
-
-                        @Override
-                        public long add(BytesRef key) {
-                            return table.add(key);
-                        }
-
-                        @Override
-                        public void close() {
-                            table.close();
-                        }
-                    };
-                case "compact":
-                    return new HashTable() {
-                        private final CompactBytesRefHash table = new CompactBytesRefHash(
-                            1,
-                            0.6f,
-                            key -> LongHashFunction.xx3().hashBytes(key.bytes, key.offset, key.length),
-                            BigArrays.NON_RECYCLING_INSTANCE
-                        );
-
-                        @Override
-                        public long add(BytesRef key) {
-                            return table.add(key);
-                        }
-
-                        @Override
-                        public void close() {
-                            table.close();
-                        }
-                    };
-                case "reorganizing":
-                    return new HashTable() {
-                        private final ReorganizingBytesRefHash table = new ReorganizingBytesRefHash(
-                            1,
-                            0.6f,
-                            key -> LongHashFunction.xx3().hashBytes(key.bytes, key.offset, key.length),
-                            BigArrays.NON_RECYCLING_INSTANCE
-                        );
-
-                        @Override
-                        public long add(BytesRef key) {
-                            return table.add(key);
-                        }
-
-                        @Override
-                        public void close() {
-                            table.close();
-                        }
-                    };
-                default:
-                    throw new IllegalArgumentException("invalid hash table type: " + type);
-            }
-        }
-    }
-
-    private interface HashTable extends Releasable {
-        long add(BytesRef key);
     }
 }

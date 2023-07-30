@@ -123,7 +123,7 @@ class SignificanceLookup {
             };
         }
         return new BackgroundFrequencyForBytes() {
-            private final BytesRefHash termToPosition = new BytesRefHash(1, bigArrays);
+            private final BytesRefHash termToPosition = new BytesRefHash(bigArrays);
             private LongArray positionToFreq = bigArrays.newLongArray(1, false);
 
             @Override

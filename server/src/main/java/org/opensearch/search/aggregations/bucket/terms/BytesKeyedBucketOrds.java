@@ -37,7 +37,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BytesRefHash;
-import org.opensearch.common.util.CompactBytesRefHash;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 
 /**
@@ -129,10 +128,10 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
      * @opensearch.internal
      */
     private static class FromSingle extends BytesKeyedBucketOrds {
-        private final CompactBytesRefHash ords;
+        private final BytesRefHash ords;
 
         private FromSingle(BigArrays bigArrays) {
-            ords = new CompactBytesRefHash(bigArrays);
+            ords = new BytesRefHash(bigArrays);
         }
 
         @Override
@@ -191,7 +190,7 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
         private final LongKeyedBucketOrds longToBucketOrds;
 
         private FromMany(BigArrays bigArrays) {
-            bytesToLong = new BytesRefHash(1, bigArrays);
+            bytesToLong = new BytesRefHash(bigArrays);
             longToBucketOrds = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY);
         }
 
