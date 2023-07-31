@@ -160,6 +160,7 @@ public class TestSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
         this.searcher = searcher;
+        this.concurrentSegmentSearchEnabled = searcher != null && (searcher.getExecutor() != null);
         this.scrollContext = scrollContext;
     }
 
@@ -686,7 +687,7 @@ public class TestSearchContext extends SearchContext {
      * Add profilers to the query
      */
     public TestSearchContext withProfilers() {
-        this.profilers = new Profilers(searcher);
+        this.profilers = new Profilers(searcher, concurrentSegmentSearchEnabled);
         return this;
     }
 }
