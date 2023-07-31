@@ -44,6 +44,7 @@ import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -643,6 +644,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
+                FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
