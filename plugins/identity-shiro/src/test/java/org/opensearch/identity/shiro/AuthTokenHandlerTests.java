@@ -108,7 +108,7 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         assertTrue(authToken.getPassword().equals(shiroAuthTokenHandler.getShiroTokenPasswordMap().get(authToken)));
     }
 
-    public void testShouldPassThrougbResetToken(AuthToken token) {
+    public void testShouldPassThroughResetToken() {
         final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
         shiroAuthTokenHandler.resetToken(bearerAuthToken);
     }
