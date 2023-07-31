@@ -1055,10 +1055,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         /**
          * Updates
-         * - The amount of bytes that has been successfully downloaded from the remote store
+         * - The amount of bytes that has been successfully downloaded from the source store
          * - The last successful download completion timestamp
-         * - The last successfully downloaded segment size
-         * - The speed of segment download (in bytes/sec)
+         * - The last successfully downloaded file
+         * - Download speed (in bytes/sec)
          */
         private void afterDownload(long fileSize, long startTimeInMs) {
             directoryFileTransferTracker.addDownloadBytesSucceeded(fileSize);

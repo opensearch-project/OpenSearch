@@ -22,27 +22,27 @@ import java.io.IOException;
  */
 public class DirectoryFileTransferTracker {
     /**
-     * Cumulative size of files (in bytes) attempted to be copied over from the destination {@link org.apache.lucene.store.Directory}
+     * Cumulative size of files (in bytes) attempted to be copied over from the source {@link org.apache.lucene.store.Directory}
      */
     private volatile long downloadBytesStarted;
 
     /**
-     * Cumulative size of files (in bytes) successfully copied over from the destination {@link org.apache.lucene.store.Directory}
+     * Cumulative size of files (in bytes) successfully copied over from the source {@link org.apache.lucene.store.Directory}
      */
     private volatile long downloadBytesFailed;
 
     /**
-     * Cumulative size of files (in bytes) failed in copying over from the destination {@link org.apache.lucene.store.Directory}
+     * Cumulative size of files (in bytes) failed in copying over from the source {@link org.apache.lucene.store.Directory}
      */
     private volatile long downloadBytesSucceeded;
 
     /**
-     * Time in milliseconds for the last successful copy operation from the destination {@link org.apache.lucene.store.Directory}
+     * Time in milliseconds for the last successful copy operation from the source {@link org.apache.lucene.store.Directory}
      */
     private volatile long lastDownloadTimestampMs;
 
     /**
-     * Provides moving average over the last N total size in bytes of files downloaded from the destination {@link org.apache.lucene.store.Directory}.
+     * Provides moving average over the last N total size in bytes of files downloaded from the source {@link org.apache.lucene.store.Directory}.
      * N is window size
      */
     private volatile MovingAverage downloadBytesMovingAverageReference;
@@ -50,7 +50,7 @@ public class DirectoryFileTransferTracker {
     private volatile long lastSuccessfulSegmentDownloadBytes;
 
     /**
-     * Provides moving average over the last N upload speed (in bytes/s) of segment files downloaded from the destination {@link org.apache.lucene.store.Directory}.
+     * Provides moving average over the last N upload speed (in bytes/s) of segment files downloaded from the source {@link org.apache.lucene.store.Directory}.
      * N is window size
      */
     private volatile MovingAverage downloadBytesPerSecMovingAverageReference;

@@ -739,7 +739,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     + this.shardRouting;
             shardStateUpdated.countDown();
         }
-
         if (currentRouting.active() == false && newRouting.active()) {
             indexEventListener.afterIndexShardStarted(this);
         }
