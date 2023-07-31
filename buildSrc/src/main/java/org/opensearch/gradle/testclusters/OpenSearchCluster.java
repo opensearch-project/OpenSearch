@@ -389,14 +389,13 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         }
     }
 
-    private void commonNodeConfig(OpenSearchNode node, String nodeNames, OpenSearchNode firstNode, String httpProtocol) {
+    private void commonNodeConfig(OpenSearchNode node, String nodeNames, OpenSearchNode firstNode) {
         if (node.getVersion().onOrAfter("7.0.0")) {
             node.defaultConfig.keySet()
                 .stream()
                 .filter(name -> name.startsWith("discovery.zen."))
                 .collect(Collectors.toList())
                 .forEach(node.defaultConfig::remove);
-            node.defaultConfig.put("http.protocol", httpProtocol);
             if (nodeNames != null && node.settings.getOrDefault("discovery.type", "anything").equals("single-node") == false) {
                 // To promote inclusive language, the old setting name is deprecated n 2.0.0
                 if (node.getVersion().onOrAfter("2.0.0")) {

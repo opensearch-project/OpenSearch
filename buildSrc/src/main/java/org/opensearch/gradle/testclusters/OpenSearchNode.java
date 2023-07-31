@@ -119,8 +119,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
         "discovery.seed_providers",
-        "discovery.seed_hosts",
-        "http.protocol"
+        "discovery.seed_hosts"
     );
 
     private static final int TAIL_LOG_MESSAGES_COUNT = 40;
@@ -1151,7 +1150,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
             baseConfig.put("node.name", nodeName);
         }
         baseConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
-        baseConfig.put("http.protocol", httpProtocol);
         baseConfig.put("path.data", confPathData.toAbsolutePath().toString());
         baseConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
         baseConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
