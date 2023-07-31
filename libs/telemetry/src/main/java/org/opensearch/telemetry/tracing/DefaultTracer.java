@@ -10,7 +10,6 @@ package org.opensearch.telemetry.tracing;
 
 import java.io.Closeable;
 import java.io.IOException;
-import org.opensearch.common.lease.Releasable;
 
 /**
  *
@@ -38,7 +37,17 @@ class DefaultTracer implements Tracer {
 
     @Override
     public SpanScope startSpan(String spanName) {
-        Span span = createSpan(spanName, getCurrentSpan());
+        return startSpan(spanName, null);
+    }
+
+    @Override
+    public SpanScope startSpan(String spanName, WrappedSpan parentSpan) {
+        Span span = null;
+        if (parentSpan != null) {
+            span = createSpan(spanName, parentSpan.getSpan());
+        } else {
+            span = createSpan(spanName, getCurrentSpanInternal());
+        }
         setCurrentSpanInContext(span);
         addDefaultAttributes(span);
         return new DefaultSpanScope(span, (scopeSpan) -> endSpan(scopeSpan));
@@ -49,9 +58,14 @@ class DefaultTracer implements Tracer {
         ((Closeable) tracingTelemetry).close();
     }
 
-    // Visible for testing
-    Span getCurrentSpan() {
+    private Span getCurrentSpanInternal() {
         return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
+    }
+
+    public WrappedSpan getCurrentSpan() {
+        return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN) == null
+            ? null
+            : new WrappedSpan(tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN));
     }
 
     private void endSpan(Span span) {
@@ -75,11 +89,6 @@ class DefaultTracer implements Tracer {
      */
     protected void addDefaultAttributes(Span span) {
         span.addAttribute(THREAD_NAME, Thread.currentThread().getName());
-    }
-
-    @Override
-    public Releasable newTracerContextStorage() {
-        return tracerContextStorage.newTracerContextStorage();
     }
 
 }

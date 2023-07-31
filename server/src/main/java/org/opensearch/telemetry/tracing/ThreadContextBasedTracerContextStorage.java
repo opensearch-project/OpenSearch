@@ -8,7 +8,6 @@
 
 package org.opensearch.telemetry.tracing;
 
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContextStatePropagator;
 
@@ -50,12 +49,6 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
         } else {
             currentSpanRef.setSpan(span);
         }
-    }
-
-    @Override
-    public Releasable newTracerContextStorage() {
-        ThreadContext.StoredContext newContext = threadContext.newStoredContext(true);
-        return () -> newContext.close();
     }
 
     @Override
