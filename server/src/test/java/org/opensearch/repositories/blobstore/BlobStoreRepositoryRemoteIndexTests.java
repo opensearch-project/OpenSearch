@@ -64,7 +64,6 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPO
 /**
  * Tests for the {@link BlobStoreRepository} and its subclasses.
  */
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelperTests {
 
     @Override
