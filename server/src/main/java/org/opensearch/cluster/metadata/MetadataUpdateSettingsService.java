@@ -73,6 +73,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.index.IndexSettings.same;
 
 /**
@@ -137,7 +138,9 @@ public class MetadataUpdateSettingsService {
         for (String key : normalizedSettings.keySet()) {
             Setting setting = indexScopedSettings.get(key);
             boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);
+            boolean isArchived = key.startsWith(ARCHIVED_SETTINGS_PREFIX);
             assert setting != null // we already validated the normalized settings
+                || isArchived
                 || (isWildcard && normalizedSettings.hasValue(key) == false) : "unknown setting: "
                     + key
                     + " isWildcard: "
@@ -145,7 +148,8 @@ public class MetadataUpdateSettingsService {
                     + " hasValue: "
                     + normalizedSettings.hasValue(key);
             settingsForClosedIndices.copy(key, normalizedSettings);
-            if (isWildcard || setting.isDynamic()) {
+            // Only allow dynamic settings and wildcards for open indices. Skip archived settings.
+            if (isArchived == false && (isWildcard || setting.isDynamic())) {
                 settingsForOpenIndices.copy(key, normalizedSettings);
             } else {
                 skippedSettings.add(key);

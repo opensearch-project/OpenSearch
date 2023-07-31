@@ -56,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
@@ -97,6 +98,22 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertEquals(exception.getCause().getMessage(), "this setting goes boom");
         IndexMetadata indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
         assertNotEquals(indexMetadata.getSettings().get("index.dummy"), "invalid dynamic value");
+    }
+
+    public void testArchivedSettingUpdateOpenIndex() {
+        createIndex("test");
+
+        // Archived setting update should fail on open index.
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("archived.*", "null"))
+                .execute()
+                .actionGet()
+        );
+        assertThat(exception.getMessage(), startsWith("Can't update non dynamic settings [[archived.*]] for open indices [[test"));
     }
 
     @Override
