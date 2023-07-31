@@ -42,6 +42,7 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
 
     public void testShouldExtractBasicAuthTokenSuccessfully() {
         final BasicAuthToken authToken = new BasicAuthToken("Basic YWRtaW46YWRtaW4="); // admin:admin
+        assertEquals(authToken.asAuthHeaderValue(), "YWRtaW46YWRtaW4=");
 
         final AuthenticationToken translatedToken = shiroAuthTokenHandler.translateAuthToken(authToken).get();
         assertThat(translatedToken, is(instanceOf(UsernamePasswordToken.class)));
@@ -122,6 +123,7 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         assertEquals(testGoodToken.getPayload(), "payload");
         assertEquals(testGoodToken.getSignature(), "signature");
         assertEquals(testGoodToken.toString(), "Bearer auth token with header=header, payload=payload, signature=signature");
+        assertEquals(testGoodToken.asAuthHeaderValue(), "header.payload.signature");
     }
 
     public void testGeneratedPasswordContents() {
