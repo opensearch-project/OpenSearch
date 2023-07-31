@@ -49,11 +49,11 @@ import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -107,12 +107,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         );
         PARSER.declareBoolean(UpdateRequest::scriptedUpsert, SCRIPTED_UPSERT_FIELD);
         PARSER.declareObject((request, builder) -> request.safeUpsertRequest().source(builder), (parser, context) -> {
-            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(parser.contentType());
             builder.copyCurrentStructure(parser);
             return builder;
         }, UPSERT_FIELD);
         PARSER.declareObject((request, builder) -> request.safeDoc().source(builder), (parser, context) -> {
-            XContentBuilder docBuilder = XContentFactory.contentBuilder(parser.contentType());
+            XContentBuilder docBuilder = MediaTypeRegistry.contentBuilder(parser.contentType());
             docBuilder.copyCurrentStructure(parser);
             return docBuilder;
         }, DOC_FIELD);

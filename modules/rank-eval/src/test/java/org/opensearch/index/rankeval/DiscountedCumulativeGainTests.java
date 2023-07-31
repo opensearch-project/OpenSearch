@@ -36,9 +36,9 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -274,7 +274,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
 
     public void testXContentRoundtrip() throws IOException {
         DiscountedCumulativeGain testItem = createTestItem();
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
         try (XContentParser itemParser = createParser(shuffled)) {
             itemParser.nextToken();
