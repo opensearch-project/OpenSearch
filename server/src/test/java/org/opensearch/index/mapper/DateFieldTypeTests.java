@@ -40,6 +40,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -259,7 +260,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             LongPoint.newRangeQuery("field", instant1, instant2),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
         );
-        assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
+        assertEquals(
+            expected,
+            ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
+        );
 
         instant1 = nowInMillis;
         instant2 = instant1 + 100;

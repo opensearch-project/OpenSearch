@@ -38,7 +38,6 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -111,7 +110,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
      */
     public PutMappingRequest source(Map<String, ?> mappingSource) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(MediaTypeRegistry.getDefaultMediaType());
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.getDefaultMediaType());
             builder.map(mappingSource);
             return source(builder);
         } catch (IOException e) {

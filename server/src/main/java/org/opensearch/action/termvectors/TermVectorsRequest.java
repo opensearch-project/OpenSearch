@@ -49,8 +49,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
@@ -306,7 +306,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      */
     @Deprecated
     public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId) {
-        return this.doc(doc, generateRandomId, XContentHelper.xContentType(doc));
+        return this.doc(doc, generateRandomId, MediaTypeRegistry.xContentType(doc));
     }
 
     /**

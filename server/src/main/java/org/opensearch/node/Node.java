@@ -428,7 +428,7 @@ public class Node implements Closeable {
                 Constants.JVM_VERSION
             );
             if (jvmInfo.getBundledJdk()) {
-                logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
+                logger.info("JVM home [{}], using bundled JDK/JRE [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             } else {
                 logger.info("JVM home [{}]", System.getProperty("java.home"));
                 deprecationLogger.deprecate(
@@ -941,8 +941,9 @@ public class Node implements Closeable {
                 clusterModule.getAllocationService(),
                 metadataCreateIndexService,
                 metadataIndexUpgradeService,
-                clusterService.getClusterSettings(),
-                shardLimitValidator
+                shardLimitValidator,
+                indicesService,
+                clusterInfoService::getClusterInfo
             );
 
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(

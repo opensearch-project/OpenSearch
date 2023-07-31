@@ -49,12 +49,12 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.store.IndexOutputOutputStream;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -288,7 +288,7 @@ public abstract class MetadataStateFormat<T> {
     }
 
     protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
-        return XContentFactory.contentBuilder(type, stream);
+        return MediaTypeRegistry.contentBuilder(type, stream);
     }
 
     /**
@@ -321,7 +321,7 @@ public abstract class MetadataStateFormat<T> {
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
                     try (
-                        XContentParser parser = XContentFactory.xContent(FORMAT)
+                        XContentParser parser = FORMAT.xContent()
                             .createParser(
                                 namedXContentRegistry,
                                 LoggingDeprecationHandler.INSTANCE,

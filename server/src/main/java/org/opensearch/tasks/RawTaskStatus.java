@@ -36,8 +36,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -76,7 +76,7 @@ public class RawTaskStatus implements Task.Status {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         try (InputStream stream = status.streamInput()) {
-            return builder.rawValue(stream, XContentHelper.xContentType(status));
+            return builder.rawValue(stream, MediaTypeRegistry.xContentType(status));
         }
     }
 
