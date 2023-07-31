@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -41,6 +42,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -64,9 +66,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public static final ClusterInfo EMPTY = new ClusterInfo();
     final Map<ShardRouting, String> routingToDataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
+    final Map<String, FileCacheStats> nodeFileCacheStats;
 
     protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     /**
@@ -84,13 +87,15 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         final Map<String, DiskUsage> mostAvailableSpaceUsage,
         final Map<String, Long> shardSizes,
         final Map<ShardRouting, String> routingToDataPath,
-        final Map<NodeAndPath, ReservedSpace> reservedSpace
+        final Map<NodeAndPath, ReservedSpace> reservedSpace,
+        final Map<String, FileCacheStats> nodeFileCacheStats
     ) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
         this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
         this.routingToDataPath = routingToDataPath;
         this.reservedSpace = reservedSpace;
+        this.nodeFileCacheStats = nodeFileCacheStats;
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -110,6 +115,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.shardSizes = Collections.unmodifiableMap(sizeMap);
         this.routingToDataPath = Collections.unmodifiableMap(routingMap);
         this.reservedSpace = Collections.unmodifiableMap(reservedSpaceMap);
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            this.nodeFileCacheStats = in.readMap(StreamInput::readString, FileCacheStats::new);
+        } else {
+            this.nodeFileCacheStats = Map.of();
+        }
     }
 
     @Override
@@ -120,6 +130,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             out.writeMap(this.reservedSpace, (o, v) -> v.writeTo(o), (o, v) -> v.writeTo(o));
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            out.writeMap(this.nodeFileCacheStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
     }
 
@@ -192,6 +205,13 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      */
     public Map<String, DiskUsage> getNodeMostAvailableDiskUsages() {
         return Collections.unmodifiableMap(this.mostAvailableSpaceUsage);
+    }
+
+    /**
+     * Returns a node id to file cache stats mapping for the nodes that have search roles assigned to it.
+     */
+    public Map<String, FileCacheStats> getNodeFileCacheStats() {
+        return Collections.unmodifiableMap(this.nodeFileCacheStats);
     }
 
     /**
