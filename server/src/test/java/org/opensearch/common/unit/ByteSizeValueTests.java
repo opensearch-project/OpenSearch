@@ -336,12 +336,10 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     public void testParseFractionalNumber() throws IOException {
         ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
         String fractionalValue = "23.5" + unit.getSuffix();
-        ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
-        assertEquals(fractionalValue, instance.toString());
-        assertWarnings(
-            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: ["
-                + fractionalValue
-                + "] found for setting [test]"
+        // test exception is thrown: fractional byte size values has been deprecated since Legacy 6.2
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> ByteSizeValue.parseBytesSizeValue(fractionalValue, "test")
         );
     }
 
