@@ -32,6 +32,23 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.Build;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.bootstrap.JarHell;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.component.LifecycleComponent;
+import org.opensearch.common.inject.Module;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
+import org.opensearch.index.IndexModule;
+import org.opensearch.node.ReportingService;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.transport.TransportSettings;
+
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.URL;
@@ -63,22 +80,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.util.SPIClassIterator;
-import org.opensearch.Build;
-import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.opensearch.bootstrap.JarHell;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.component.LifecycleComponent;
-import org.opensearch.common.inject.Module;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.Strings;
-import org.opensearch.index.IndexModule;
-import org.opensearch.node.ReportingService;
-import org.opensearch.threadpool.ExecutorBuilder;
-import org.opensearch.transport.TransportSettings;
+
 import static org.opensearch.core.util.FileSystemUtils.isAccessibleDirectory;
 
 /**
