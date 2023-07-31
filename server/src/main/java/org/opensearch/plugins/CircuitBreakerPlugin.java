@@ -32,10 +32,10 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.breaker.BreakerSettings;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom circuit breakers

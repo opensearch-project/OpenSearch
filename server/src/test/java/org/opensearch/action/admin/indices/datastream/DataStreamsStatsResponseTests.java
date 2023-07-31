@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.datastream;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;

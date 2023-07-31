@@ -6,5 +6,10 @@
  * compatible open source license.
  */
 
-/** Base Lifecycle Component package. */
-package org.opensearch.common.component;
+/**
+ * Top Level core circuit breaker implementation
+ *
+ * @opensearch.internal
+ * @opensearch.experimental
+ */
+package org.opensearch.core.indices.breaker;

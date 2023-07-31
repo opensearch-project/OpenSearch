@@ -48,7 +48,7 @@ import org.opensearch.index.fielddata.RamAccountingTermsEnum;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;

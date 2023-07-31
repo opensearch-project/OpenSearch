@@ -53,7 +53,7 @@ import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.rest.RestStatus;
