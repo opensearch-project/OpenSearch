@@ -39,15 +39,15 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
@@ -228,7 +228,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 MediaType actualContentType = mapTuple.v1();
-                XContentBuilder builder = XContentFactory.contentBuilder(actualContentType, bStream).map(filteredSource);
+                XContentBuilder builder = MediaTypeRegistry.contentBuilder(actualContentType, bStream).map(filteredSource);
                 builder.close();
                 return bStream.bytes();
             } else {

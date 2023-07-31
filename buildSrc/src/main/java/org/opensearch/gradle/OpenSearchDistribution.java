@@ -101,7 +101,7 @@ public class OpenSearchDistribution implements Buildable, Iterable<File> {
     private final Property<String> version;
     private final Property<Type> type;
     private final Property<Platform> platform;
-    private final Property<Boolean> bundledJdk;
+    private final Property<JavaPackageType> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
     private final Configuration extracted;
 
@@ -120,7 +120,7 @@ public class OpenSearchDistribution implements Buildable, Iterable<File> {
         this.type = objectFactory.property(Type.class);
         this.type.convention(Type.ARCHIVE);
         this.platform = objectFactory.property(Platform.class);
-        this.bundledJdk = objectFactory.property(Boolean.class);
+        this.bundledJdk = objectFactory.property(JavaPackageType.class);
         this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
         this.extracted = extractedConfiguration;
     }
@@ -154,8 +154,8 @@ public class OpenSearchDistribution implements Buildable, Iterable<File> {
         this.type.set(type);
     }
 
-    public boolean getBundledJdk() {
-        return bundledJdk.getOrElse(true);
+    public JavaPackageType getBundledJdk() {
+        return bundledJdk.getOrElse(JavaPackageType.JDK);
     }
 
     public boolean isDocker() {
@@ -163,7 +163,7 @@ public class OpenSearchDistribution implements Buildable, Iterable<File> {
         return type == Type.DOCKER;
     }
 
-    public void setBundledJdk(Boolean bundledJdk) {
+    public void setBundledJdk(JavaPackageType bundledJdk) {
         this.bundledJdk.set(bundledJdk);
     }
 
@@ -266,7 +266,7 @@ public class OpenSearchDistribution implements Buildable, Iterable<File> {
         }
 
         if (bundledJdk.isPresent() == false) {
-            bundledJdk.set(true);
+            bundledJdk.set(JavaPackageType.JDK);
         }
 
         version.finalizeValue();
