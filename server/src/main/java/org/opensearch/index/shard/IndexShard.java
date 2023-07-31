@@ -4773,9 +4773,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IOException {
         List<String> downloadedSegments = new ArrayList<>();
         List<String> skippedSegments = new ArrayList<>();
-        StatsAwareCopyFromRemoteStore statsAwareSegmentCopy = new StatsAwareCopyFromRemoteStore(
-            remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId)
-        );
         String segmentNFile = null;
         try {
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
@@ -4787,18 +4784,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                 if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                    if (indexSettings.isRemoteStoreEnabled()) {
-                        statsAwareSegmentCopy.performCopy(
-                            storeDirectory,
-                            sourceRemoteDirectory,
-                            file,
-                            file,
-                            uploadedSegments.get(file).getLength(),
-                            IOContext.DEFAULT
-                        );
-                    } else {
-                        storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
-                    }
+                    storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
                     downloadedSegments.add(file);
                 } else {
                     skippedSegments.add(file);

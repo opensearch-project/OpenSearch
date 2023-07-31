@@ -76,6 +76,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
             shardId,
             new RemoteSegmentTransferTracker(
                 shardId,
+                indexShard.store().getDirectoryFileTransferTracker(),
                 pressureSettings.getUploadBytesMovingAverageWindowSize(),
                 pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
                 pressureSettings.getUploadTimeMovingAverageWindowSize()

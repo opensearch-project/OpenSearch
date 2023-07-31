@@ -187,6 +187,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     // prevents segment files deletion until the PIT/Scroll expires or is discarded
     private final ReplicaFileTracker replicaFileTracker;
 
+    private final DirectoryFileTransferTracker directoryFileTransferTracker;
+
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
         protected void closeInternal() {
@@ -204,7 +206,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
         ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
-        this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
+        this.directoryFileTransferTracker = new DirectoryFileTransferTracker();
+        this.directory = new StoreDirectory(
+            sizeCachingDir,
+            directoryFileTransferTracker,
+            Loggers.getLogger("index.store.deletes", shardId)
+        );
         this.shardLock = shardLock;
         this.onClose = onClose;
         this.replicaFileTracker = indexSettings.isSegRepEnabled() ? new ReplicaFileTracker() : null;
@@ -963,18 +970,27 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    public DirectoryFileTransferTracker getDirectoryFileTransferTracker() {
+        return directoryFileTransferTracker;
+    }
+
     /**
      * A store directory
      *
      * @opensearch.internal
      */
     static final class StoreDirectory extends FilterDirectory {
-
         private final Logger deletesLogger;
+        public final DirectoryFileTransferTracker directoryFileTransferTracker;
 
-        StoreDirectory(ByteSizeCachingDirectory delegateDirectory, Logger deletesLogger) {
+        StoreDirectory(
+            ByteSizeCachingDirectory delegateDirectory,
+            DirectoryFileTransferTracker directoryFileTransferTracker,
+            Logger deletesLogger
+        ) {
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
+            this.directoryFileTransferTracker = directoryFileTransferTracker;
         }
 
         /** Estimate the cumulative size of all files in this directory in bytes. */
@@ -1011,6 +1027,53 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // FilterDirectory.getPendingDeletions does not delegate, working around it here.
             // to be removed once fixed in FilterDirectory.
             return unwrap(this).getPendingDeletions();
+        }
+
+        @Override
+        public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
+            long fileSize = from.fileLength(src);
+            beforeDownload(fileSize);
+            boolean success = false;
+            try {
+                long startTime = System.currentTimeMillis();
+                super.copyFrom(from, src, dest, context);
+                success = true;
+                afterDownload(fileSize, startTime);
+            } finally {
+                if (!success) {
+                    downloadFailed(fileSize);
+                }
+            }
+        }
+
+        /**
+         * Updates the amount of bytes attempted for download
+         */
+        private void beforeDownload(long fileSize) {
+            directoryFileTransferTracker.addDownloadBytesStarted(fileSize);
+        }
+
+        /**
+         * Updates
+         * - The amount of bytes that has been successfully downloaded from the remote store
+         * - The last successful download completion timestamp
+         * - The last successfully downloaded segment size
+         * - The speed of segment download (in bytes/sec)
+         */
+        private void afterDownload(long fileSize, long startTimeInMs) {
+            directoryFileTransferTracker.addDownloadBytesSucceeded(fileSize);
+            directoryFileTransferTracker.updateLastDownloadedSegmentSize(fileSize);
+            long currentTimeInMs = System.currentTimeMillis();
+            directoryFileTransferTracker.updateLastDownloadTimestampMs(currentTimeInMs);
+            long timeTakenInMS = Math.max(1, currentTimeInMs - startTimeInMs);
+            directoryFileTransferTracker.addDownloadBytesPerSec((fileSize * 1_000L) / timeTakenInMS);
+        }
+
+        /**
+         * Updates the amount of bytes failed in download
+         */
+        private void downloadFailed(long fileSize) {
+            directoryFileTransferTracker.addDownloadBytesFailed(fileSize);
         }
     }
 

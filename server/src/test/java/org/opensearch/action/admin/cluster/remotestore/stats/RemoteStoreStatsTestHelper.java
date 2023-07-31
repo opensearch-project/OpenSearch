@@ -13,6 +13,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.DirectoryFileTransferTracker;
 
 import java.util.Map;
 
@@ -43,15 +44,9 @@ public class RemoteStoreStatsTestHelper {
             5,
             5,
             0,
-            3,
-            2,
-            5,
-            2,
-            3,
             0,
             0,
-            0,
-            0
+            createZeroDirectoryFileTransferStats()
         );
     }
 
@@ -67,8 +62,6 @@ public class RemoteStoreStatsTestHelper {
             0,
             0,
             0,
-            10,
-            10,
             0,
             0,
             0,
@@ -78,11 +71,7 @@ public class RemoteStoreStatsTestHelper {
             0,
             0,
             0,
-            0,
-            10,
-            10,
-            10,
-            0
+            createSampleDirectoryFileTransferStats()
         );
     }
 
@@ -107,14 +96,16 @@ public class RemoteStoreStatsTestHelper {
             0,
             0,
             100,
-            12,
-            2,
-            2,
-            10,
-            10,
-            10,
-            10
+            createSampleDirectoryFileTransferStats()
         );
+    }
+
+    static DirectoryFileTransferTracker.Stats createSampleDirectoryFileTransferStats() {
+        return new DirectoryFileTransferTracker.Stats(10, 0, 10, 12345, 5, 5, 5);
+    }
+
+    static DirectoryFileTransferTracker.Stats createZeroDirectoryFileTransferStats() {
+        return new DirectoryFileTransferTracker.Stats(0, 0, 0, 0, 0, 0, 0);
     }
 
     static ShardRouting createShardRouting(ShardId shardId, boolean isPrimary) {
@@ -143,46 +134,46 @@ public class RemoteStoreStatsTestHelper {
         Map<String, Object> segmentDownloads = ((Map) segment.get(RemoteStoreStats.SubFields.DOWNLOAD));
         Map<String, Object> segmentUploads = ((Map) segment.get(RemoteStoreStats.SubFields.UPLOAD));
 
-        if (statsTracker.downloadBytesStarted != 0) {
+        if (statsTracker.directoryFileTransferTrackerStats.downloadBytesStarted != 0) {
             assertEquals(
                 segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.LAST_SYNC_TIMESTAMP),
-                (int) statsTracker.lastDownloadTimestampMs
+                (int) statsTracker.directoryFileTransferTrackerStats.lastDownloadTimestampMs
             );
             assertEquals(
                 ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)).get(
                     RemoteStoreStats.SubFields.STARTED
                 ),
-                (int) statsTracker.downloadBytesStarted
+                (int) statsTracker.directoryFileTransferTrackerStats.downloadBytesStarted
             );
             assertEquals(
                 ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)).get(
                     RemoteStoreStats.SubFields.SUCCEEDED
                 ),
-                (int) statsTracker.downloadBytesSucceeded
+                (int) statsTracker.directoryFileTransferTrackerStats.downloadBytesSucceeded
             );
             assertEquals(
                 ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)).get(
                     RemoteStoreStats.SubFields.FAILED
                 ),
-                (int) statsTracker.downloadBytesFailed
+                (int) statsTracker.directoryFileTransferTrackerStats.downloadBytesFailed
             );
             assertEquals(
                 ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.DOWNLOAD_SIZE_IN_BYTES)).get(
                     RemoteStoreStats.SubFields.LAST_SUCCESSFUL
                 ),
-                (int) statsTracker.lastSuccessfulSegmentDownloadBytes
+                (int) statsTracker.directoryFileTransferTrackerStats.lastSuccessfulSegmentDownloadBytes
             );
             assertEquals(
                 ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.DOWNLOAD_SIZE_IN_BYTES)).get(
                     RemoteStoreStats.SubFields.MOVING_AVG
                 ),
-                statsTracker.downloadBytesMovingAverage
+                statsTracker.directoryFileTransferTrackerStats.downloadBytesMovingAverage
             );
             assertEquals(
                 ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.DOWNLOAD_SPEED_IN_BYTES_PER_SEC)).get(
                     RemoteStoreStats.SubFields.MOVING_AVG
                 ),
-                statsTracker.downloadBytesPerSecMovingAverage
+                statsTracker.directoryFileTransferTrackerStats.downloadBytesPerSecMovingAverage
             );
         } else {
             assertTrue(segmentDownloads.isEmpty());
