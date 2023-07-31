@@ -36,7 +36,9 @@ import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -47,6 +49,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -90,14 +93,21 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
+        String preference = request.request().preference();
+        // route realtime GET requests when segment replication is enabled to primary shards,
+        // iff there are no other preferences/routings enabled for routing to a specific shard
+        if (state.getMetadata()
+            .index(request.concreteIndex())
+            .getSettings()
+            .get(IndexMetadata.SETTING_REPLICATION_TYPE)
+            .equals(ReplicationType.SEGMENT.toString())
+            && request.request().realtime()
+            && request.request().routing() == null
+            && request.request().preference() == null) {
+            preference = Preference.PRIMARY.type();
+        }
         return clusterService.operationRouting()
-            .getShards(
-                clusterService.state(),
-                request.concreteIndex(),
-                request.request().id(),
-                request.request().routing(),
-                request.request().preference()
-            );
+            .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(), preference);
     }
 
     @Override
