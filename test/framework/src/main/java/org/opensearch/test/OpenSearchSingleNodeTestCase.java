@@ -250,6 +250,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true)
             .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
+            .put(featureFlagSettings())
             .build();
 
         Collection<Class<? extends Plugin>> plugins = getPlugins();
