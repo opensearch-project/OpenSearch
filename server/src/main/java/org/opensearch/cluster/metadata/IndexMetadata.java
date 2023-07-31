@@ -82,6 +82,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -285,6 +286,32 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         SETTING_REPLICATION_TYPE,
         ReplicationType.DOCUMENT.toString(),
         ReplicationType::parseString,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final ReplicationType value) {}
+
+            @Override
+            public void validate(final ReplicationType value, final Map<Setting<?>, Object> settings) {
+                final Object remoteStoreEnabled = settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
+                if (ReplicationType.SEGMENT.equals(value) == false && Objects.equals(remoteStoreEnabled, true)) {
+                    throw new IllegalArgumentException(
+                        "To enable "
+                            + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
+                            + ", "
+                            + INDEX_REPLICATION_TYPE_SETTING.getKey()
+                            + " should be set to "
+                            + ReplicationType.SEGMENT
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(INDEX_REMOTE_STORE_ENABLED_SETTING);
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Final
     );
@@ -328,7 +355,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         },
         Property.IndexScope,
-        Property.Final
+        Property.PrivateIndex,
+        Property.Dynamic
     );
 
     /**
@@ -361,7 +389,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         },
         Property.IndexScope,
-        Property.Final
+        Property.PrivateIndex,
+        Property.Dynamic
     );
 
     private static void validateRemoteStoreSettingEnabled(final Map<Setting<?>, Object> settings, Setting<?> setting) {
@@ -411,7 +440,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         },
         Property.IndexScope,
-        Property.Final
+        Property.PrivateIndex,
+        Property.Dynamic
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";

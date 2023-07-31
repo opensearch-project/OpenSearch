@@ -114,7 +114,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -1256,123 +1255,103 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemoteStoreDisabledByUserIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REMOTE_STORE_ENABLED, false);
-        request.settings(requestSettings.build());
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> aggregateIndexSettings(
-                ClusterState.EMPTY_STATE,
-                request,
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
+                clusterService,
                 null,
-                settings,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                new Environment(Settings.builder().put("path.home", "dummy").build(), null),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                randomShardLimitService(),
-                Collections.emptySet()
-            )
-        );
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                String.format(
-                    Locale.ROOT,
-                    "Cannot override [%s] settings when [%s] is set to [true].",
-                    SETTING_REMOTE_STORE_ENABLED,
-                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
-                )
-            )
-        );
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                true,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+            );
+
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(
+                requestSettings.build(),
+                true,
+                Optional.empty()
+            );
+            assertThat(validationErrors.size(), is(1));
+            assertThat(
+                validationErrors.get(0),
+                is(String.format(Locale.ROOT, "expected [%s] to be private but it was not", SETTING_REMOTE_STORE_ENABLED))
+            );
+        }));
     }
 
     public void testRemoteStoreOverrideSegmentRepoIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SETTING_REMOTE_STORE_ENABLED, true)
             .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-custom-repo");
-        request.settings(requestSettings.build());
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> aggregateIndexSettings(
-                ClusterState.EMPTY_STATE,
-                request,
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
+                clusterService,
                 null,
-                settings,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                new Environment(Settings.builder().put("path.home", "dummy").build(), null),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                randomShardLimitService(),
-                Collections.emptySet()
-            )
-        );
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                String.format(
-                    Locale.ROOT,
-                    "Cannot override [%s][%s] settings when [%s] is set to [true].",
-                    SETTING_REMOTE_STORE_ENABLED,
-                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
-                )
-            )
-        );
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                true,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+            );
+
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(
+                requestSettings.build(),
+                true,
+                Optional.empty()
+            );
+            assertThat(validationErrors.size(), is(1));
+            assertThat(
+                validationErrors.get(0),
+                is(String.format(Locale.ROOT, "expected [%s] to be private but it was not", SETTING_REMOTE_SEGMENT_STORE_REPOSITORY))
+            );
+        }));
     }
 
     public void testRemoteStoreOverrideTranslogRepoIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo");
-        request.settings(requestSettings.build());
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> aggregateIndexSettings(
-                ClusterState.EMPTY_STATE,
-                request,
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
+                clusterService,
                 null,
-                settings,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                new Environment(Settings.builder().put("path.home", "dummy").build(), null),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                randomShardLimitService(),
-                Collections.emptySet()
-            )
-        );
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                String.format(
-                    Locale.ROOT,
-                    "Cannot override [%s] settings when [%s] is set to [true].",
-                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
-                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
-                )
-            )
-        );
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                true,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+            );
+
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(
+                requestSettings.build(),
+                true,
+                Optional.empty()
+            );
+            assertThat(validationErrors.size(), is(1));
+            assertThat(
+                validationErrors.get(0),
+                is(String.format(Locale.ROOT, "expected [%s] to be private but it was not", SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY))
+            );
+        }));
     }
 
     public void testBuildIndexMetadata() {

@@ -29,7 +29,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGME
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -47,7 +46,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
     protected Settings nodeSettings(int nodeOriginal) {
         Settings settings = super.nodeSettings(nodeOriginal);
         Settings.Builder builder = Settings.builder()
-            .put(remoteStoreClusterSettings("my-segment-repo-1", "my-translog-repo-1", true))
+            .put(remoteStoreClusterSettings("my-segment-repo-1", "my-translog-repo-1"))
             .put(settings);
         return builder.build();
     }
@@ -115,9 +114,8 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             containsString(
                 String.format(
                     Locale.ROOT,
-                    "Cannot override [%s] settings when [%s] is set to [true].",
-                    SETTING_REMOTE_STORE_ENABLED,
-                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
+                    "Validation Failed: 1: private index setting [%s] can not be set explicitly;",
+                    SETTING_REMOTE_STORE_ENABLED
                 )
             )
         );
@@ -157,9 +155,8 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             containsString(
                 String.format(
                     Locale.ROOT,
-                    "Cannot override [%s] settings when [%s] is set to [true].",
-                    SETTING_REMOTE_STORE_ENABLED,
-                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
+                    "Validation Failed: 1: private index setting [%s] can not be set explicitly;",
+                    SETTING_REMOTE_STORE_ENABLED
                 )
             )
         );
@@ -230,10 +227,9 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             containsString(
                 String.format(
                     Locale.ROOT,
-                    "Cannot override [%s][%s] settings when [%s] is set to [true].",
+                    "Validation Failed: 1: private index setting [%s] can not be set explicitly;2: private index setting [%s] can not be set explicitly;",
                     SETTING_REMOTE_STORE_ENABLED,
-                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
+                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY
                 )
             )
         );
@@ -280,35 +276,10 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             containsString(
                 String.format(
                     Locale.ROOT,
-                    "Cannot override [%s][%s][%s] settings when [%s] is set to [true].",
+                    "Validation Failed: 1: private index setting [%s] can not be set explicitly;2: private index setting [%s] can not be set explicitly;3: private index setting [%s] can not be set explicitly;",
                     SETTING_REMOTE_STORE_ENABLED,
                     SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
-                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey()
-                )
-            )
-        );
-    }
-
-    public void testRemoteStoreOverrideReplicationTypeIndexSettings() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-            .build();
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
-        );
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                String.format(
-                    Locale.ROOT,
-                    "To enable %s, %s should be set to %s",
-                    SETTING_REMOTE_STORE_ENABLED,
-                    SETTING_REPLICATION_TYPE,
-                    ReplicationType.SEGMENT
+                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
                 )
             )
         );

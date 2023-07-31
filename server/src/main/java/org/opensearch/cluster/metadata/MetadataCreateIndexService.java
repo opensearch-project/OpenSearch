@@ -114,14 +114,10 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -891,7 +887,7 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings);
-        updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
+        updateRemoteStoreSettings(indexSettingsBuilder, settings);
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -946,37 +942,14 @@ public class MetadataCreateIndexService {
     /**
      * Updates index settings to enable remote store by default based on cluster level settings
      * @param settingsBuilder index settings builder to be updated with relevant settings
-     * @param requestSettings settings passed in during index create request
      * @param clusterSettings cluster level settings
      */
-    private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
-        boolean isRemoteStoreClusterEnabled = CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings);
-        List<String> overriddenSettings = getRemoteStoreOverriddenSetting(requestSettings);
-        if (overriddenSettings.isEmpty() == false) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "Cannot override [%s] settings when [%s] is set to [%s].",
-                    String.join("][", overriddenSettings),
-                    CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(),
-                    isRemoteStoreClusterEnabled
-                )
-            );
-        }
-
-        if (isRemoteStoreClusterEnabled == true) {
+    private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings clusterSettings) {
+        if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings) == true) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                 .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(clusterSettings))
                 .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(clusterSettings));
         }
-    }
-
-    private static List<String> getRemoteStoreOverriddenSetting(Settings requestSettings) {
-        return Stream.of(
-            INDEX_REMOTE_STORE_ENABLED_SETTING,
-            INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
-            INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING
-        ).filter(setting -> setting.exists(requestSettings)).map(Setting::getKey).collect(toList());
     }
 
     public static void validateStoreTypeSettings(Settings settings) {
