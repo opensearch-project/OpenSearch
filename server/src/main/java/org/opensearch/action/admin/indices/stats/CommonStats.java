@@ -285,7 +285,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(recoveryStats);
     }
 
-    // We are adding request stats with a separate setter method since SearchStats was tightly coupled with Shard Search Stats, and all nodes won't share the same response in requestStats
+    // We are adding request stats with a separate setter method since SearchStats was tightly coupled with Shard Search Stats, and all
+    // nodes won't share the same response in requestStats
     public void addRequestStats(RequestStats requestStats) {
         if (requestStats.getSearchRequestStats() != null && this.search != null) {
             search.setSearchRequestStats(requestStats.getSearchRequestStats());

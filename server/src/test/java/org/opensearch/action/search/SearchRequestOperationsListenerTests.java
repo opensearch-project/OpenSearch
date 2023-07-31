@@ -132,7 +132,7 @@ public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
         for (int i = 0; i < totalListeners; i++) {
             requestOperationListeners.add(testListener);
         }
-        
+
         SearchRequestOperationsListener compositeListener = new SearchRequestOperationsListener.CompositeListener(
             requestOperationListeners,
             logger

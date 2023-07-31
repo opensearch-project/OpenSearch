@@ -191,66 +191,87 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void instantiateStartMap() {
-        searchPhaseStartTrackingMap.put(SearchPhaseName.DFS_PRE_QUERY.getName(), () -> searchRequestOperationsListener.onDFSPreQueryPhaseStart(this));
-        searchPhaseStartTrackingMap.put(SearchPhaseName.CAN_MATCH.getName(), () -> searchRequestOperationsListener.onCanMatchPhaseStart(this));
+        searchPhaseStartTrackingMap.put(
+            SearchPhaseName.DFS_PRE_QUERY.getName(),
+            () -> searchRequestOperationsListener.onDFSPreQueryPhaseStart(this)
+        );
+        searchPhaseStartTrackingMap.put(
+            SearchPhaseName.CAN_MATCH.getName(),
+            () -> searchRequestOperationsListener.onCanMatchPhaseStart(this)
+        );
         searchPhaseStartTrackingMap.put(SearchPhaseName.FETCH.getName(), () -> searchRequestOperationsListener.onQueryPhaseStart(this));
         searchPhaseStartTrackingMap.put(SearchPhaseName.QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseStart(this));
         searchPhaseStartTrackingMap.put(SearchPhaseName.FETCH.getName(), () -> searchRequestOperationsListener.onFetchPhaseStart(this));
-        searchPhaseStartTrackingMap.put(SearchPhaseName.EXPAND.getName(), () -> searchRequestOperationsListener.onExpandSearchPhaseStart(this));
+        searchPhaseStartTrackingMap.put(
+            SearchPhaseName.EXPAND.getName(),
+            () -> searchRequestOperationsListener.onExpandSearchPhaseStart(this)
+        );
     }
 
     private void instantiateEndMap() {
         searchPhaseEndTrackingMap.put(
-                SearchPhaseName.DFS_PRE_QUERY.getName(),
-                () -> searchRequestOperationsListener.onDFSPreQueryPhaseEnd(
-                        this,
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
+            SearchPhaseName.DFS_PRE_QUERY.getName(),
+            () -> searchRequestOperationsListener.onDFSPreQueryPhaseEnd(
+                this,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+            )
         );
         searchPhaseEndTrackingMap.put(
-                SearchPhaseName.CAN_MATCH.getName(),
-                () -> searchRequestOperationsListener.onCanMatchPhaseEnd(
-                        this,
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
+            SearchPhaseName.CAN_MATCH.getName(),
+            () -> searchRequestOperationsListener.onCanMatchPhaseEnd(
+                this,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+            )
         );
         searchPhaseEndTrackingMap.put(
-                SearchPhaseName.DFS_QUERY.getName(),
-                () -> searchRequestOperationsListener.onQueryPhaseEnd(
-                        this,
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
+            SearchPhaseName.DFS_QUERY.getName(),
+            () -> searchRequestOperationsListener.onQueryPhaseEnd(
+                this,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+            )
         );
         searchPhaseEndTrackingMap.put(
-                SearchPhaseName.QUERY.getName(),
-                () -> searchRequestOperationsListener.onQueryPhaseEnd(
-                        this,
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
+            SearchPhaseName.QUERY.getName(),
+            () -> searchRequestOperationsListener.onQueryPhaseEnd(
+                this,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+            )
         );
         searchPhaseEndTrackingMap.put(
-                SearchPhaseName.FETCH.getName(),
-                () -> searchRequestOperationsListener.onFetchPhaseEnd(
-                        this,
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
+            SearchPhaseName.FETCH.getName(),
+            () -> searchRequestOperationsListener.onFetchPhaseEnd(
+                this,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+            )
         );
         searchPhaseEndTrackingMap.put(
-                SearchPhaseName.EXPAND.getName(),
-                () -> searchRequestOperationsListener.onExpandSearchPhaseEnd(
-                        this,
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
+            SearchPhaseName.EXPAND.getName(),
+            () -> searchRequestOperationsListener.onExpandSearchPhaseEnd(
+                this,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+            )
         );
     }
 
-    private void instantiateFailMap () {
-        searchPhaseFailureTrackingMap.put(SearchPhaseName.DFS_PRE_QUERY.getName(), () -> searchRequestOperationsListener.onDFSPreQueryPhaseFailure(this));
-        searchPhaseFailureTrackingMap.put(SearchPhaseName.CAN_MATCH.getName(), () -> searchRequestOperationsListener.onCanMatchPhaseFailure(this));
-        searchPhaseFailureTrackingMap.put(SearchPhaseName.DFS_QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseFailure(this));
+    private void instantiateFailMap() {
+        searchPhaseFailureTrackingMap.put(
+            SearchPhaseName.DFS_PRE_QUERY.getName(),
+            () -> searchRequestOperationsListener.onDFSPreQueryPhaseFailure(this)
+        );
+        searchPhaseFailureTrackingMap.put(
+            SearchPhaseName.CAN_MATCH.getName(),
+            () -> searchRequestOperationsListener.onCanMatchPhaseFailure(this)
+        );
+        searchPhaseFailureTrackingMap.put(
+            SearchPhaseName.DFS_QUERY.getName(),
+            () -> searchRequestOperationsListener.onQueryPhaseFailure(this)
+        );
         searchPhaseFailureTrackingMap.put(SearchPhaseName.QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseFailure(this));
         searchPhaseFailureTrackingMap.put(SearchPhaseName.FETCH.getName(), () -> searchRequestOperationsListener.onFetchPhaseFailure(this));
-        searchPhaseFailureTrackingMap.put(SearchPhaseName.EXPAND.getName(), () -> searchRequestOperationsListener.onExpandSearchPhaseFailure(this));
+        searchPhaseFailureTrackingMap.put(
+            SearchPhaseName.EXPAND.getName(),
+            () -> searchRequestOperationsListener.onExpandSearchPhaseFailure(this)
+        );
     }
 
     @Override
