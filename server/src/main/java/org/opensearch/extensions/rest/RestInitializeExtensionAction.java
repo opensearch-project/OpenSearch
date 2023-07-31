@@ -21,6 +21,7 @@ import org.opensearch.extensions.ExtensionDependency;
 import org.opensearch.extensions.ExtensionScopedSettings;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
@@ -47,6 +48,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 public class RestInitializeExtensionAction extends BaseRestHandler {
 
     private final ExtensionsManager extensionsManager;
+    private final IdentityService identityService;
 
     @Override
     public String getName() {
@@ -58,8 +60,9 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         return List.of(new NamedRoute.Builder().method(POST).path("/_extensions/initialize").uniqueName("extensions:initialize").build());
     }
 
-    public RestInitializeExtensionAction(ExtensionsManager extensionsManager) {
-        this.extensionsManager = extensionsManager;
+    public RestInitializeExtensionAction(IdentityService identityService) {
+        this.identityService = identityService;
+        this.extensionsManager = identityService.getApplicationManager().getExtensionManager();
     }
 
     @Override
@@ -160,6 +163,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         );
         try {
             extensionsManager.loadExtension(extension);
+            identityService.getApplicationManager().registerExtension(extension);
             extensionsManager.initialize();
         } catch (CompletionException e) {
             Throwable cause = e.getCause();

@@ -510,7 +510,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
-    private final ExtensionsManager extensionsManager;
+    private final IdentityService identityService;
 
     public ActionModule(
         Settings settings,
@@ -534,7 +534,7 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
-        this.extensionsManager = extensionsManager;
+        this.identityService = identityService;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         dynamicActionRegistry = new DynamicActionRegistry();
@@ -952,7 +952,7 @@ public class ActionModule extends AbstractModule {
 
         // Extensions API
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            registerHandler.accept(new RestInitializeExtensionAction(extensionsManager));
+            registerHandler.accept(new RestInitializeExtensionAction(identityService));
         }
 
         for (ActionPlugin plugin : actionPlugins) {

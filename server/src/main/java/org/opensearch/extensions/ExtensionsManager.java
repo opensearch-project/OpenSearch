@@ -26,6 +26,7 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;

@@ -18,6 +18,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -26,6 +27,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.opensearch.Version;
+import org.opensearch.cluster.ApplicationManager;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
@@ -34,6 +36,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -94,8 +97,8 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
     }
 
     public void testRestInitializeExtensionActionResponse() throws Exception {
-        ExtensionsManager extensionsManager = mock(ExtensionsManager.class);
-        RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
+        IdentityService identityService = mock(IdentityService.class);
+        RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(identityService);
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"ad-extension\",\"hostAddress\":\"127.0.0.1\","
             + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\""
             + Version.CURRENT.toString()
@@ -115,8 +118,8 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
     }
 
     public void testRestInitializeExtensionActionFailure() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
-        RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
+        IdentityService identityService = mock(IdentityService.class);
+        RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(identityService);
 
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"\",\"hostAddress\":\"127.0.0.1\","
             + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\""
@@ -148,14 +151,19 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             Function.identity(),
             Setting.Property.ExtensionScope
         );
+
+        IdentityService identityService = spy(new IdentityService(Settings.EMPTY, List.of(), null));
+        ApplicationManager applicationManager = mock(ApplicationManager.class);
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting, stringSetting, intSetting, listSetting));
         ExtensionsManager spy = spy(extensionsManager);
 
         // optionally, you can stub out some methods:
+        doReturn(applicationManager).when(identityService.getApplicationManager());
+        when(applicationManager.getExtensionManager()).thenReturn(spy);
         when(spy.getAdditionalSettings()).thenCallRealMethod();
         Mockito.doCallRealMethod().when(spy).loadExtension(any(ExtensionsSettings.Extension.class));
         Mockito.doNothing().when(spy).initialize();
-        RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(spy);
+        RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(identityService);
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"ad-extension\",\"hostAddress\":\"127.0.0.1\","
             + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\""
             + Version.CURRENT.toString()
@@ -195,14 +203,20 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             Function.identity(),
             Setting.Property.ExtensionScope
         );
+        IdentityService identityService = spy(new IdentityService(Settings.EMPTY, List.of(), null));
+        ApplicationManager applicationManager = mock(ApplicationManager.class);
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting, stringSetting, intSetting, listSetting));
         ExtensionsManager spy = spy(extensionsManager);
+
+        // optionally, you can stub out some methods:
+        doReturn(applicationManager).when(identityService.getApplicationManager());
+        when(applicationManager.getExtensionManager()).thenReturn(spy);
 
         // optionally, you can stub out some methods:
         when(spy.getAdditionalSettings()).thenCallRealMethod();
         Mockito.doCallRealMethod().when(spy).loadExtension(any(ExtensionsSettings.Extension.class));
         Mockito.doNothing().when(spy).initialize();
-        RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(spy);
+        RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(identityService);
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"ad-extension\",\"hostAddress\":\"127.0.0.1\","
             + "\"port\":\"4532\",\"version\":\"1.0\",\"opensearchVersion\":\""
             + Version.CURRENT.toString()

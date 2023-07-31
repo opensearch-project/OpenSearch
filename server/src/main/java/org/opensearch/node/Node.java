@@ -34,6 +34,7 @@ package org.opensearch.node;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;

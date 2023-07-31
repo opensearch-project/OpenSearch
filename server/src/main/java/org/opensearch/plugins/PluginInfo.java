@@ -40,6 +40,13 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.Application;
+import org.opensearch.Version;
+import org.opensearch.bootstrap.JarHell;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.identity.NamedPrincipal;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,16 +61,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.opensearch.Application;
-import org.opensearch.Version;
-import org.opensearch.bootstrap.JarHell;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.xcontent.ToXContentObject;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.identity.NamedPrincipal;
 
 /**
  * An in-memory representation of the plugin descriptor.

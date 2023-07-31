@@ -8,9 +8,12 @@
 
 package org.opensearch.extensions;
 
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.opensearch.Application;
+import org.opensearch.identity.NamedPrincipal;
 
 /**
  * List of extension configurations from extension.yml
@@ -34,7 +37,7 @@ public class ExtensionsSettings {
      *
      * @opensearch.internal
     */
-    public static class Extension {
+    public static class Extension implements Application {
 
         private String name;
         private String uniqueId;
@@ -45,6 +48,7 @@ public class ExtensionsSettings {
         private String minimumCompatibleVersion;
         private List<ExtensionDependency> dependencies = Collections.emptyList();
         private ExtensionScopedSettings additionalSettings;
+        private Principal extensionPrincipal;
 
         public Extension(
             String name,
@@ -66,6 +70,7 @@ public class ExtensionsSettings {
             this.minimumCompatibleVersion = minimumCompatibleVersion;
             this.dependencies = dependencies;
             this.additionalSettings = additionalSettings;
+            extensionPrincipal = new NamedPrincipal(this.uniqueId);
         }
 
         public Extension() {
@@ -161,6 +166,10 @@ public class ExtensionsSettings {
                 + "]";
         }
 
+        @Override
+        public Principal getPrincipal() {
+            return extensionPrincipal;
+        }
     }
 
     public List<Extension> getExtensions() {

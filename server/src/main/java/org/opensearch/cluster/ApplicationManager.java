@@ -14,6 +14,7 @@ import java.util.List;
 import org.opensearch.Application;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.extensions.ExtensionsSettings;
 import org.opensearch.identity.ServiceAccountManager;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
@@ -81,4 +82,13 @@ public final class ApplicationManager {
             serviceAccountManager.getServiceAccount(pluginInfo);
         }
     }
+
+    /**
+     * Registers an Extension with the ApplicationManager
+     * @param extension The extension to be registered
+     */
+    public void registerExtension(ExtensionsSettings.Extension extension) {
+		registeredApplications.add(extension);
+        serviceAccountManager.getServiceAccount(extension);
+	}
 }

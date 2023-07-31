@@ -106,7 +106,7 @@ public class RestHttpResponseHeadersTests extends OpenSearchTestCase {
 
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
-        final IdentityService identityService = new IdentityService(settings, List.of());
+        final IdentityService identityService = new IdentityService(settings, List.of(), null);
         RestController restController = new RestController(
             Collections.emptySet(),
             null,
