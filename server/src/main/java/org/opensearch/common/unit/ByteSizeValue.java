@@ -37,9 +37,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.logging.LogConfigurator;
-import org.opensearch.common.network.NetworkService;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -53,17 +50,6 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
-
-    /**
-     * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
-     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
-     * {@link ByteSizeValue} object constructed in, for example, settings in {@link NetworkService}.
-     *
-     * @opensearch.internal
-     */
-    static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);
-    }
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
 
@@ -262,14 +248,14 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 return new ByteSizeValue(Long.parseLong(s), unit);
             } catch (final NumberFormatException e) {
                 try {
-                    final double doubleValue = Double.parseDouble(s);
-                    DeprecationLoggerHolder.deprecationLogger.deprecate(
-                        "fractional_byte_values",
-                        "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
+                    Double.parseDouble(s);
+                    throw new OpenSearchParseException(
+                        "Failed to parse bytes value [{}]. Fractional bytes values have been "
+                            + "deprecated since Legacy 6.2. Use non-fractional bytes values instead: found for setting [{}]",
+                        e,
                         initialInput,
                         settingName
                     );
-                    return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
                     throw new OpenSearchParseException("failed to parse [{}]", e, initialInput);
                 }
